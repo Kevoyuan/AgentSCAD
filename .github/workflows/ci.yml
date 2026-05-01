@@ -32,6 +32,11 @@ jobs:
       - name: Generate Prisma client
         run: bun run db:generate
 
+      - name: Setup test DB
+        run: |
+          echo 'DATABASE_URL="file:./test.db"' >> .env
+          bun run db:push
+
       - name: Lint
         run: bun run lint || true
 
