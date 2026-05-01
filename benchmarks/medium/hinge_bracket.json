@@ -1,0 +1,9 @@
+{
+  "id": "medium_hinge_bracket",
+  "prompt": "Create a hinge bracket with a 30mm wide plate, 50mm long, 4mm thick. Include a knuckle with 12mm diameter and 4mm pin hole at one end, plus two 5mm mounting holes along the plate.",
+  "difficulty": "medium",
+  "expected_part_type": "hinge_bracket",
+  "required_features": ["flat plate", "hinge knuckle", "pin hole", "mounting holes"],
+  "expected_bbox": [30, 56, 12],
+  "tolerances": { "bbox_mm": 5, "hole_count": 3 }
+}

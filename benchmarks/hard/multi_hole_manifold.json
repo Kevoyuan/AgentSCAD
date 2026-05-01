@@ -1,0 +1,9 @@
+{
+  "id": "hard_multi_hole_manifold",
+  "prompt": "Create a rectangular manifold block 60mm x 40mm x 30mm with four through-holes of 6mm diameter arranged in a rectangular pattern (40mm x 20mm spacing) and two 4mm cross-holes intersecting them from the sides.",
+  "difficulty": "hard",
+  "expected_part_type": "manifold_block",
+  "required_features": ["rectangular block", "four vertical through-holes", "two cross-holes", "watertight manifold"],
+  "expected_bbox": [60, 40, 30],
+  "tolerances": { "bbox_mm": 3, "hole_count": 10 }
+}

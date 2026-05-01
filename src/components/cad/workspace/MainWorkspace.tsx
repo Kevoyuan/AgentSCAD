@@ -273,6 +273,7 @@ export function MainWorkspace() {
             onViewLog={state.handleQuickViewLog}
             onShare={state.handleQuickShare}
             onRepair={state.handleRepair}
+            onVisualRepair={state.handleVisualRepair}
             onSetActiveTab={state.setActiveTab}
             onShowComposer={() => state.setShowComposer(true)}
             isFirstLoadComplete={state.isFirstLoadComplete}

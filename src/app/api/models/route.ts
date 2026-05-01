@@ -484,7 +484,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     models: includeBuiltIns
-      ? [...configuredModels, ...envModels, ...AVAILABLE_MODELS]
-      : [...configuredModels, ...envModels],
+      ? [...configuredModels, ...AVAILABLE_MODELS]
+      : [...configuredModels],
   });
 }

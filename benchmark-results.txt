@@ -1,0 +1,26 @@
+## AgentSCAD Benchmark Results
+
+Date: 2026-05-01T20:19:27.564Z
+Total cases: 5
+
+| Metric | All | Simple | Medium | Hard |
+|--------|-----|--------|--------|------|
+| JSON Parse | 100%	100%	100%	100%	63%	0.0s	0.0 | 100%	100%	100%	100%	63%	0.0s	0.0 | N/A | N/A |
+## Detailed Results
+
+JSON Parse %	Compile %	Mesh Valid %	BBox Match %	Avg Feature Score	Avg Latency (s)	Avg LLM Calls
+JSON Parse	100%	100%	N/A	N/A
+Compile Success	100%	100%	undefined	undefined
+Mesh Valid	100%	100%	undefined	undefined
+BBox Match	100%	100%	undefined	undefined
+Avg Feature Score	63%	63%	undefined	undefined
+Avg Latency	0.0s	0.0s	undefined	undefined
+Avg LLM Calls	0.0	0.0	undefined	undefined
+
+## Per-Case Results
+
+PASS	simple_washer	simple	feature=50%	latency=119ms
+PASS	simple_spacer	simple	feature=67%	latency=1ms
+PASS	simple_mounting_plate	simple	feature=83%	latency=0ms
+PASS	simple_knob	simple	feature=67%	latency=0ms
+PASS	simple_flat_bracket	simple	feature=50%	latency=0ms

@@ -1,0 +1,11 @@
+node_modules
+.next
+db/dev.db
+db/dev.db-journal
+public/artifacts
+.env
+.env.local
+.git
+.gitignore
+*.md
+!README.md

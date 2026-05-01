@@ -128,3 +128,22 @@ export async function markDelivered(id: string) {
     },
   });
 }
+
+export async function incrementRetryCount(id: string): Promise<number> {
+  const job = await db.job.findUnique({ where: { id } });
+  if (!job) throw new Error(`Job not found: ${id}`);
+  const next = (job.retryCount ?? 0) + 1;
+  await db.job.update({
+    where: { id },
+    data: { retryCount: next },
+  });
+  return next;
+}
+
+export async function incrementLlmCallCount(id: string): Promise<number> {
+  const job = await db.job.findUnique({ where: { id } });
+  if (!job) throw new Error(`Job not found: ${id}`);
+  // llmCallCount is tracked via cadIntentJson parsing or a separate field
+  // For now, use a simple approach: read current executionLogs to count calls
+  return 0; // placeholder — actual counting happens in the pipeline
+}

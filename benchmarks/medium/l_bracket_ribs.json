@@ -1,0 +1,9 @@
+{
+  "id": "medium_l_bracket_ribs",
+  "prompt": "Create an L-shaped wall bracket with two screw holes on the vertical face and two triangular support ribs. The horizontal base should be 60mm wide, vertical face 80mm tall, 40mm deep, and 4mm thick.",
+  "difficulty": "medium",
+  "expected_part_type": "l_bracket",
+  "required_features": ["L-shaped body", "two screw holes on vertical face", "two triangular ribs", "single connected solid"],
+  "expected_bbox": [60, 80, 40],
+  "tolerances": { "bbox_mm": 5, "hole_count": 2 }
+}

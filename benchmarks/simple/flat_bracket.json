@@ -1,0 +1,9 @@
+{
+  "id": "simple_flat_bracket",
+  "prompt": "Create a flat corner bracket 40mm x 40mm with two 4mm mounting holes, 3mm thick.",
+  "difficulty": "simple",
+  "expected_part_type": "bracket",
+  "required_features": ["flat L-shape", "two mounting holes", "uniform thickness"],
+  "expected_bbox": [40, 40, 3],
+  "tolerances": { "bbox_mm": 3, "hole_count": 2 }
+}

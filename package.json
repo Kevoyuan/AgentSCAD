@@ -1,6 +1,6 @@
 {
   "name": "agentscad",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
@@ -14,6 +14,9 @@
     "scad:libs:install": "python3 skills/scad-library-policy/scripts/install_scad_libraries.py",
     "scad:libs:install:gpl": "python3 skills/scad-library-policy/scripts/install_scad_libraries.py --include-gpl",
     "lint": "eslint .",
+    "cad:eval": "bun scripts/eval/run-benchmark.ts",
+    "cad:eval:fast": "bun scripts/eval/run-benchmark.ts --fast",
+    "cad:eval:report": "bun scripts/eval/report.ts",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=file:./db/dev.db
+      - MIMO_BASE_URL=${MIMO_BASE_URL:-}
+      - MIMO_MODEL=${MIMO_MODEL:-}
+      - MIMO_API_KEY=${MIMO_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    volumes:
+      - ./db:/app/db
+      - ./public/artifacts:/app/public/artifacts
+    restart: unless-stopped

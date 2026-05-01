@@ -1,9 +1,515 @@
+// ---------------------------------------------------------------------------
+// AgentSCAD Memory System v3.0
+//
+// Design principles borrowed from gstack's learning system, adapted for CAD:
+// - Append-only JSONL (no read-merge-write, no data loss)
+// - Structured numerical observations (not prose — LLM can reason on numbers)
+// - Source trust levels (user_edit > repair_success > validation_pattern > generation_default)
+// - Quality feedback loop (delivery_rate, repair_rate, user_edit_rate)
+// - Pipeline-triggered writes (not cron-only)
+// - Prompt injection defense on user-sourced content
+// ---------------------------------------------------------------------------
+
 import fs from "fs/promises";
 import path from "path";
 import { db } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
-// Types
+// v3.0 Data Model
+// ---------------------------------------------------------------------------
+
+export type ObservationSource =
+  | "user_edit"          // user manually changed SCAD or parameters
+  | "repair_success"     // auto-repair fixed a validation failure
+  | "repair_failure"     // auto-repair could NOT fix
+  | "validation_pattern" // validation rule failure statistics
+  | "generation_default" // LLM chose this value (lowest weight)
+  | "visual_issue";      // VLM identified a visual discrepancy
+
+export interface ParameterDriftObservation {
+  observation_type: "parameter_drift";
+  family: string;
+  parameter: string;
+  default_value: number;       // system/schema default
+  user_value: number;          // what users actually set
+  sample_size: number;
+  std_dev: number;
+  min_val: number;
+  max_val: number;
+  source: ObservationSource;
+  confidence: number;          // 1-10
+  outcome: {
+    delivery_rate: number;     // 0-1: jobs with this value that delivered
+    repair_rate: number;       // 0-1: repair attempts that succeeded
+    user_edit_rate: number;    // 0-1: users who still modified this value
+  };
+  ts: string;                  // ISO 8601
+}
+
+export interface FeatureGapObservation {
+  observation_type: "feature_gap";
+  family: string;
+  requested_feature: string;   // e.g., "ventilation slots"
+  feature_present_in_gen: boolean;
+  user_added_feature: boolean;
+  repair_fixed_feature: boolean;
+  source: ObservationSource;
+  confidence: number;
+  ts: string;
+}
+
+export interface ValidationFailureObservation {
+  observation_type: "validation_failure";
+  family: string;
+  rule_id: string;
+  rule_name: string;
+  failure_count: number;
+  total_checks: number;
+  failure_rate: number;         // 0-1
+  repair_success_rate: number;  // 0-1: how often repair fixes this rule
+  source: ObservationSource;
+  confidence: number;
+  ts: string;
+}
+
+export interface ScadEditObservation {
+  observation_type: "scad_edit";
+  family: string;
+  added_feature: string;        // sanitized, max 120 chars
+  frequency: number;
+  source: ObservationSource;
+  confidence: number;
+  ts: string;
+}
+
+export type Observation =
+  | ParameterDriftObservation
+  | FeatureGapObservation
+  | ValidationFailureObservation
+  | ScadEditObservation;
+
+// ---------------------------------------------------------------------------
+// Prompt Injection Defense
+// ---------------------------------------------------------------------------
+
+const PROMPT_INJECTION_PATTERNS: RegExp[] = [
+  /ignore (all )?(previous|prior) (instructions|commands|prompts?)/i,
+  /you are (now |acting as |playing the role of )/i,
+  /system:\s*/i,
+  /\[system\]/i,
+  /forget (everything|your training|your instructions)/i,
+  /override (all |previous )?(safety |security )?(rules|guidelines)/i,
+  /disregard (all )?(previous|prior|above)/i,
+  /you must (now |always )?(respond|reply|answer|output)/i,
+];
+
+function sanitizeForPromptInjection(text: string): string | null {
+  const trimmed = text.trim();
+  if (trimmed.length < 3 || trimmed.length > 120) return null;
+  for (const pattern of PROMPT_INJECTION_PATTERNS) {
+    if (pattern.test(trimmed)) return null;
+  }
+  return trimmed;
+}
+
+// ---------------------------------------------------------------------------
+// Storage layer — append-only JSONL
+// ---------------------------------------------------------------------------
+
+const OBSERVATIONS_PATH = path.join(
+  process.cwd(),
+  "skills",
+  "scad-generation",
+  "learned-observations.jsonl"
+);
+
+// Legacy path for backward compatibility
+const LEGACY_PATTERNS_PATH = path.join(
+  process.cwd(),
+  "skills",
+  "scad-generation",
+  "learned-patterns.json"
+);
+
+async function appendObservation(obs: Observation): Promise<void> {
+  const dir = path.dirname(OBSERVATIONS_PATH);
+  await fs.mkdir(dir, { recursive: true });
+  const line = JSON.stringify(obs) + "\n";
+  await fs.appendFile(OBSERVATIONS_PATH, line, "utf8");
+}
+
+// ---------------------------------------------------------------------------
+// Confidence scoring (mirrors gstack's source-based model)
+// ---------------------------------------------------------------------------
+
+const SOURCE_CONFIDENCE: Record<ObservationSource, number> = {
+  user_edit: 9,
+  repair_success: 8,
+  repair_failure: 7,
+  validation_pattern: 6,
+  visual_issue: 5,
+  generation_default: 3,
+};
+
+function effectiveConfidence(obs: Observation): number {
+  const base = obs.confidence || SOURCE_CONFIDENCE[obs.source] || 5;
+
+  // Time decay: -1 per 30 days for AI-sourced observations
+  if (obs.source !== "user_edit") {
+    const daysSince = (Date.now() - new Date(obs.ts).getTime()) / (1000 * 60 * 60 * 24);
+    const decay = Math.floor(daysSince / 30);
+    return Math.max(0, base - decay);
+  }
+
+  return base; // user_edit never decays
+}
+
+// ---------------------------------------------------------------------------
+// v3.0 Write Path — pipeline-triggered observations
+// ---------------------------------------------------------------------------
+
+export async function recordParameterDrift(params: {
+  family: string;
+  parameter: string;
+  default_value: number;
+  user_value: number;
+  source: ObservationSource;
+  deliverySucceeded: boolean;
+  repairSucceeded: boolean | null; // null = no repair attempted
+}): Promise<void> {
+  // Load existing observations for this parameter to compute stats
+  const existing = await loadObservationsForParameter(params.family, params.parameter);
+
+  const allValues = [...existing.values, params.user_value];
+  const n = allValues.length;
+  const mean = n > 0 ? allValues.reduce((a, b) => a + b, 0) / n : params.user_value;
+  const variance = n > 1
+    ? allValues.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1)
+    : 0;
+
+  const deliveryRate = existing.deliveryCount > 0
+    ? (existing.deliveryCount + (params.deliverySucceeded ? 1 : 0)) / (existing.totalJobs + 1)
+    : (params.deliverySucceeded ? 1 : 0);
+
+  const repairAttempts = existing.repairAttempts + (params.repairSucceeded !== null ? 1 : 0);
+  const repairSuccesses = existing.repairSuccesses + (params.repairSucceeded === true ? 1 : 0);
+  const repairRate = repairAttempts > 0 ? repairSuccesses / repairAttempts : 0;
+
+  const obs: ParameterDriftObservation = {
+    observation_type: "parameter_drift",
+    family: params.family,
+    parameter: params.parameter,
+    default_value: params.default_value,
+    user_value: params.user_value,
+    sample_size: n,
+    std_dev: Math.round(Math.sqrt(variance) * 100) / 100,
+    min_val: Math.min(...allValues),
+    max_val: Math.max(...allValues),
+    source: params.source,
+    confidence: SOURCE_CONFIDENCE[params.source],
+    outcome: {
+      delivery_rate: Math.round(deliveryRate * 100) / 100,
+      repair_rate: Math.round(repairRate * 100) / 100,
+      user_edit_rate: 0, // computed from cross-reference, set to 0 for now
+    },
+    ts: new Date().toISOString(),
+  };
+
+  await appendObservation(obs);
+}
+
+export async function recordFeatureGap(params: {
+  family: string;
+  requestedFeature: string;
+  presentInGeneration: boolean;
+  userAdded: boolean;
+  repairFixed: boolean;
+}): Promise<void> {
+  const obs: FeatureGapObservation = {
+    observation_type: "feature_gap",
+    family: params.family,
+    requested_feature: params.requestedFeature,
+    feature_present_in_gen: params.presentInGeneration,
+    user_added_feature: params.userAdded,
+    repair_fixed_feature: params.repairFixed,
+    source: params.userAdded ? "user_edit" : "generation_default",
+    confidence: params.userAdded ? 9 : 5,
+    ts: new Date().toISOString(),
+  };
+  await appendObservation(obs);
+}
+
+export async function recordValidationFailure(params: {
+  family: string;
+  ruleId: string;
+  ruleName: string;
+  passed: boolean;
+  repairSucceeded: boolean | null;
+}): Promise<void> {
+  const existing = await loadObservationsForRule(params.family, params.ruleId);
+
+  const obs: ValidationFailureObservation = {
+    observation_type: "validation_failure",
+    family: params.family,
+    rule_id: params.ruleId,
+    rule_name: params.ruleName,
+    failure_count: existing.failures + (params.passed ? 0 : 1),
+    total_checks: existing.total + 1,
+    failure_rate: existing.total > 0
+      ? Math.round(((existing.failures + (params.passed ? 0 : 1)) / (existing.total + 1)) * 100) / 100
+      : (params.passed ? 0 : 1),
+    repair_success_rate: existing.repairAttempts > 0
+      ? Math.round(((existing.repairSuccesses + (params.repairSucceeded === true ? 1 : 0)) / existing.repairAttempts) * 100) / 100
+      : 0,
+    source: "validation_pattern",
+    confidence: SOURCE_CONFIDENCE.validation_pattern,
+    ts: new Date().toISOString(),
+  };
+  await appendObservation(obs);
+}
+
+export async function recordScadEdit(params: {
+  family: string;
+  addedFeature: string;
+  frequency: number;
+}): Promise<void> {
+  const sanitized = sanitizeForPromptInjection(params.addedFeature);
+  if (!sanitized) return; // rejected by prompt injection defense
+
+  const obs: ScadEditObservation = {
+    observation_type: "scad_edit",
+    family: params.family,
+    added_feature: sanitized,
+    frequency: params.frequency,
+    source: "user_edit",
+    confidence: 8,
+    ts: new Date().toISOString(),
+  };
+  await appendObservation(obs);
+}
+
+// ---------------------------------------------------------------------------
+// v3.0 Read Path — structured observations for prompt injection
+// ---------------------------------------------------------------------------
+
+interface Accumulator {
+  values: number[];
+  deliveryCount: number;
+  repairAttempts: number;
+  repairSuccesses: number;
+  totalJobs: number;
+  failures: number;
+  total: number;
+}
+
+async function loadObservationsForParameter(
+  family: string,
+  parameter: string
+): Promise<Accumulator> {
+  const acc: Accumulator = {
+    values: [],
+    deliveryCount: 0,
+    repairAttempts: 0,
+    repairSuccesses: 0,
+    totalJobs: 0,
+    failures: 0,
+    total: 0,
+  };
+
+  try {
+    const raw = await fs.readFile(OBSERVATIONS_PATH, "utf8");
+    for (const line of raw.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const obs = JSON.parse(line) as ParameterDriftObservation;
+        if (obs.observation_type !== "parameter_drift") continue;
+        if (obs.family !== family || obs.parameter !== parameter) continue;
+        acc.values.push(obs.user_value);
+        acc.totalJobs++;
+        if (obs.outcome.delivery_rate > 0.5) acc.deliveryCount++;
+      } catch { /* skip malformed lines */ }
+    }
+  } catch { /* file doesn't exist yet */ }
+
+  return acc;
+}
+
+async function loadObservationsForRule(
+  family: string,
+  ruleId: string
+): Promise<{ failures: number; total: number; repairAttempts: number; repairSuccesses: number }> {
+  let failures = 0;
+  let total = 0;
+  let repairAttempts = 0;
+  let repairSuccesses = 0;
+
+  try {
+    const raw = await fs.readFile(OBSERVATIONS_PATH, "utf8");
+    for (const line of raw.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const obs = JSON.parse(line) as ValidationFailureObservation;
+        if (obs.observation_type !== "validation_failure") continue;
+        if (obs.family !== family || obs.rule_id !== ruleId) continue;
+        failures += obs.failure_count;
+        total += obs.total_checks;
+        if (obs.repair_success_rate > 0) {
+          repairAttempts++;
+          if (obs.repair_success_rate > 0.5) repairSuccesses++;
+        }
+      } catch { /* skip */ }
+    }
+  } catch { /* file doesn't exist yet */ }
+
+  return { failures, total, repairAttempts, repairSuccesses };
+}
+
+// ---------------------------------------------------------------------------
+// Public API — prompt injection helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Get learned parameter defaults for a part family.
+ * Returns structured numerical data for injection into the generation prompt.
+ * Falls back to legacy patterns file if no v3.0 observations exist.
+ */
+export async function getLearnedDefaultsForFamily(
+  family: string
+): Promise<string> {
+  const dedupMap = new Map<string, ParameterDriftObservation>();
+
+  try {
+    const raw = await fs.readFile(OBSERVATIONS_PATH, "utf8");
+    for (const line of raw.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const obs = JSON.parse(line) as Observation;
+        if (obs.observation_type !== "parameter_drift") continue;
+        if (obs.family !== family) continue;
+
+        const key = `${obs.parameter}:${obs.source}`;
+        const existing = dedupMap.get(key);
+        if (!existing || new Date(obs.ts) > new Date(existing.ts)) {
+          dedupMap.set(key, obs);
+        }
+      } catch { /* skip */ }
+    }
+  } catch {
+    // Fall back to legacy
+    return getLearnedPatternsForFamily(family);
+  }
+
+  if (dedupMap.size === 0) return "";
+
+  const highConfidence: string[] = [];
+  const suggestions: string[] = [];
+
+  for (const obs of dedupMap.values()) {
+    const effConf = effectiveConfidence(obs);
+    if (effConf < 5) continue; // skip low-confidence
+
+    const line = [
+      `- ${obs.parameter}: system default ${obs.default_value} → learned ${obs.user_value}`,
+      `(n=${obs.sample_size}, σ=±${obs.std_dev}, delivery=${(obs.outcome.delivery_rate * 100).toFixed(0)}%)`,
+    ].join(" ");
+
+    if (obs.sample_size >= 5 && obs.outcome.delivery_rate >= 0.85 && effConf >= 8) {
+      highConfidence.push(line);
+    } else {
+      suggestions.push(line);
+    }
+  }
+
+  const parts: string[] = [];
+
+  if (highConfidence.length > 0) {
+    parts.push("### High-confidence parameter defaults (use these values):");
+    parts.push(...highConfidence);
+  }
+
+  if (suggestions.length > 0) {
+    parts.push("### Parameter suggestions from user edits (consider these):");
+    parts.push(...suggestions);
+  }
+
+  // Feature gaps
+  const featureGaps = await loadFeatureGaps(family);
+  if (featureGaps.length > 0) {
+    parts.push("### Features users often add manually:");
+    for (const gap of featureGaps) {
+      parts.push(`- ${gap.requested_feature} (present in generation: ${gap.feature_present_in_gen ? "yes" : "no"}, user-added: ${gap.user_added_feature ? "yes" : "no"})`);
+    }
+  }
+
+  // Validation patterns
+  const validationPatterns = await loadValidationPatterns(family);
+  if (validationPatterns.length > 0) {
+    parts.push("### Common validation failures to avoid:");
+    for (const vp of validationPatterns) {
+      parts.push(`- ${vp.rule_name} (${vp.rule_id}): fails ${(vp.failure_rate * 100).toFixed(0)}% of the time, repair fixes ${(vp.repair_success_rate * 100).toFixed(0)}%`);
+    }
+  }
+
+  return parts.join("\n");
+}
+
+async function loadFeatureGaps(
+  family: string
+): Promise<FeatureGapObservation[]> {
+  const gaps: FeatureGapObservation[] = [];
+  const seen = new Set<string>();
+
+  try {
+    const raw = await fs.readFile(OBSERVATIONS_PATH, "utf8");
+    for (const line of raw.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const obs = JSON.parse(line) as FeatureGapObservation;
+        if (obs.observation_type !== "feature_gap" || obs.family !== family) continue;
+        const effConf = effectiveConfidence(obs);
+        if (effConf < 5) continue;
+        const key = obs.requested_feature;
+        if (!seen.has(key)) {
+          seen.add(key);
+          gaps.push(obs);
+        }
+      } catch { /* skip */ }
+    }
+  } catch { /* file doesn't exist */ }
+
+  return gaps.slice(0, 5);
+}
+
+async function loadValidationPatterns(
+  family: string
+): Promise<ValidationFailureObservation[]> {
+  const patterns: ValidationFailureObservation[] = [];
+  const seen = new Set<string>();
+
+  try {
+    const raw = await fs.readFile(OBSERVATIONS_PATH, "utf8");
+    for (const line of raw.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const obs = JSON.parse(line) as ValidationFailureObservation;
+        if (obs.observation_type !== "validation_failure" || obs.family !== family) continue;
+        const effConf = effectiveConfidence(obs);
+        if (effConf < 5) continue;
+        if (obs.failure_rate < 0.1) continue; // skip rare failures
+        const key = obs.rule_id;
+        if (!seen.has(key)) {
+          seen.add(key);
+          patterns.push(obs);
+        }
+      } catch { /* skip */ }
+    }
+  } catch { /* file doesn't exist */ }
+
+  return patterns.slice(0, 5);
+}
+
+// ---------------------------------------------------------------------------
+// Legacy API — kept for backward compatibility
 // ---------------------------------------------------------------------------
 
 export interface EditPattern {
@@ -16,498 +522,54 @@ export interface EditPattern {
   details: Record<string, unknown>;
 }
 
-interface LearnedPatternsFile {
-  lastUpdated: string;
-  patterns: EditPattern[];
-  stats: {
-    totalVersionsAnalyzed: number;
-    userEdits: number;
-    familiesAffected: number;
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const LEARNED_PATTERNS_PATH = path.join(
-  process.cwd(),
-  "skills",
-  "scad-generation",
-  "learned-patterns.json"
-);
-
-const MIN_FREQUENCY_FOR_PATTERN = 2;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Parse a JSON string safely, returning a fallback on failure. */
-function safeParse<T>(raw: string | null | undefined, fallback: T): T {
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-/** Compute the mean of an array of numbers. */
-function mean(values: number[]): number {
-  if (values.length === 0) return 0;
-  return values.reduce((a, b) => a + b, 0) / values.length;
-}
-
-// ---------------------------------------------------------------------------
-// Pattern extraction
-// ---------------------------------------------------------------------------
-
-/**
- * Analyze parameter changes for a single family.
- * Detects parameters that users consistently change from defaults.
- */
-function extractParameterDriftPatterns(
-  family: string,
-  versions: { oldValue: string | null; newValue: string | null }[]
-): EditPattern[] {
-  const paramChanges = versions.filter((v) => v.oldValue && v.newValue);
-  if (paramChanges.length === 0) return [];
-
-  // Track: paramKey -> { count, oldValues[], newValues[], allNewValues[] }
-  const driftMap = new Map<
-    string,
-    { count: number; oldValues: number[]; newValues: number[] }
-  >();
-
-  for (const change of paramChanges) {
-    const oldParams = safeParse<Record<string, unknown>>(change.oldValue, {});
-    const newParams = safeParse<Record<string, unknown>>(change.newValue, {});
-
-    for (const [key, newVal] of Object.entries(newParams)) {
-      if (typeof newVal !== "number") continue;
-      const oldVal = oldParams[key];
-      if (typeof oldVal !== "number" || newVal === oldVal) continue;
-
-      if (!driftMap.has(key)) {
-        driftMap.set(key, { count: 0, oldValues: [], newValues: [] });
-      }
-      const entry = driftMap.get(key)!;
-      entry.count++;
-      entry.oldValues.push(oldVal);
-      entry.newValues.push(newVal);
-    }
-  }
-
-  const patterns: EditPattern[] = [];
-
-  for (const [param, data] of Array.from(driftMap)) {
-    if (data.count < MIN_FREQUENCY_FOR_PATTERN) continue;
-
-    const avgOld = mean(data.oldValues);
-    const avgNew = mean(data.newValues);
-    const direction = avgNew > avgOld ? "increased" : "decreased";
-
-    patterns.push({
-      family,
-      type: "parameter_drift",
-      insight: `Users consistently ${direction} ${param} from ~${avgOld.toFixed(1)} to ~${avgNew.toFixed(1)} (${data.count} edits)`,
-      frequency: data.count,
-      parameter: param,
-      suggestedValue: Math.round(mean(data.newValues) * 100) / 100,
-      details: {
-        avgOld: Math.round(avgOld * 100) / 100,
-        avgNew: Math.round(avgNew * 100) / 100,
-        sampleSize: data.count,
-      },
-    });
-  }
-
-  return patterns;
-}
-
-/**
- * Analyze SCAD source edits for a single family.
- * Identifies common line-level modifications users make.
- */
-function extractScadPatchPatterns(
-  family: string,
-  versions: { oldValue: string | null; newValue: string | null }[]
-): EditPattern[] {
-  if (versions.length === 0) return [];
-
-  // Count the total SCAD source edits
-  const scadEditCount = versions.length;
-
-  // Collect added/changed lines across all edits
-  const addedLineCounts = new Map<string, number>();
-  const removedLineCounts = new Map<string, number>();
-
-  for (const change of versions) {
-    const oldLines = (change.oldValue || "")
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0 && !l.startsWith("//"));
-    const newLines = (change.newValue || "")
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0 && !l.startsWith("//"));
-
-    const oldSet = new Set(oldLines);
-    const newSet = new Set(newLines);
-
-    // Lines added (in new but not old)
-    for (const line of newLines) {
-      if (!oldSet.has(line)) {
-        addedLineCounts.set(line, (addedLineCounts.get(line) || 0) + 1);
-      }
-    }
-
-    // Lines removed (in old but not new)
-    for (const line of oldLines) {
-      if (!newSet.has(line)) {
-        removedLineCounts.set(line, (removedLineCounts.get(line) || 0) + 1);
-      }
-    }
-  }
-
-  const patterns: EditPattern[] = [];
-
-  // Overall SCAD edit frequency pattern
-  if (scadEditCount >= MIN_FREQUENCY_FOR_PATTERN) {
-    patterns.push({
-      family,
-      type: "scad_patch",
-      insight: `Users frequently modify SCAD source directly (${scadEditCount} edits) — generation quality may need improvement`,
-      frequency: scadEditCount,
-      parameter: "_scad_source_quality",
-      details: {
-        editCount: scadEditCount,
-        commonAdditions: Array.from(addedLineCounts.entries())
-          .filter(([, count]) => count >= 2)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .map(([line, count]) => ({ line, count })),
-        commonRemovals: Array.from(removedLineCounts.entries())
-          .filter(([, count]) => count >= 2)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .map(([line, count]) => ({ line, count })),
-      },
-    });
-  }
-
-  // Specific frequently-added lines
-  for (const [line, count] of Array.from(addedLineCounts)) {
-    if (count >= MIN_FREQUENCY_FOR_PATTERN && line.length > 3) {
-      patterns.push({
-        family,
-        type: "scad_patch",
-        insight: `Users commonly add: "${line}" (${count} times)`,
-        frequency: count,
-        parameter: `_added_${line.slice(0, 40).replace(/\s+/g, "_")}`,
-        details: { addedLine: line, count },
-      });
-    }
-  }
-
-  return patterns;
-}
-
-/**
- * Analyze validation failures for a single family.
- * Identifies which validation rules fail most often.
- */
-function extractValidationFailurePatterns(
-  family: string,
-  validationRecords: string[]
-): EditPattern[] {
-  if (validationRecords.length === 0) return [];
-
-  // Count failures per rule
-  const ruleFailures = new Map<
-    string,
-    { ruleName: string; count: number; total: number }
-  >();
-
-  for (const record of validationRecords) {
-    const results = safeParse<Array<{ rule_id: string; rule_name: string; passed: boolean; is_critical: boolean; message: string }>>(record, []);
-    if (!Array.isArray(results)) continue;
-
-    for (const rule of results) {
-      if (!rule.rule_id) continue;
-
-      if (!ruleFailures.has(rule.rule_id)) {
-        ruleFailures.set(rule.rule_id, {
-          ruleName: rule.rule_name || rule.rule_id,
-          count: 0,
-          total: 0,
-        });
-      }
-      const entry = ruleFailures.get(rule.rule_id)!;
-      entry.total++;
-      if (!rule.passed) {
-        entry.count++;
-      }
-    }
-  }
-
-  const patterns: EditPattern[] = [];
-
-  for (const [ruleId, data] of Array.from(ruleFailures)) {
-    if (data.count < MIN_FREQUENCY_FOR_PATTERN) continue;
-
-    const failureRate = data.total > 0 ? (data.count / data.total) * 100 : 0;
-
-    patterns.push({
-      family,
-      type: "validation_failure",
-      insight: `Validation rule "${data.ruleName}" (${ruleId}) fails ${data.count}/${data.total} times (${failureRate.toFixed(0)}% failure rate)`,
-      frequency: data.count,
-      parameter: `_validation_${ruleId}`,
-      details: {
-        ruleId,
-        ruleName: data.ruleName,
-        failureCount: data.count,
-        totalChecks: data.total,
-        failureRate: Math.round(failureRate),
-      },
-    });
-  }
-
-  return patterns;
-}
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-/**
- * Analyze user edits from the last N hours.
- * Queries JobVersion records where changedBy = "user", groups by partFamily,
- * and extracts patterns for parameter drift, SCAD patches, and validation failures.
- *
- * Idempotent: running twice with the same data produces the same output.
- */
+/** @deprecated — use recordParameterDrift() instead */
 export async function analyzeUserEdits(
-  sinceHours: number = 24
+  _sinceHours: number = 24
 ): Promise<EditPattern[]> {
-  const since = new Date(Date.now() - sinceHours * 60 * 60 * 1000);
-
-  // Query all user-made version changes in the time window
-  const userVersions = await db.jobVersion.findMany({
-    where: {
-      changedBy: "user",
-      createdAt: { gte: since },
-    },
-    include: {
-      job: {
-        select: {
-          id: true,
-          partFamily: true,
-          parameterValues: true,
-          validationResults: true,
-        },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  if (userVersions.length === 0) return [];
-
-  // Group by partFamily
-  const familyGroups = new Map<
-    string,
-    {
-      parameterVersions: { oldValue: string | null; newValue: string | null }[];
-      scadVersions: { oldValue: string | null; newValue: string | null }[];
-      validationResults: string[];
-    }
-  >();
-
-  for (const version of userVersions) {
-    const family = version.job.partFamily || "unknown";
-
-    if (!familyGroups.has(family)) {
-      familyGroups.set(family, {
-        parameterVersions: [],
-        scadVersions: [],
-        validationResults: [],
-      });
-    }
-
-    const group = familyGroups.get(family)!;
-
-    if (version.field === "parameters") {
-      group.parameterVersions.push({
-        oldValue: version.oldValue,
-        newValue: version.newValue,
-      });
-    } else if (version.field === "scadSource") {
-      group.scadVersions.push({
-        oldValue: version.oldValue,
-        newValue: version.newValue,
-      });
-    }
-
-    // Collect validation results from the parent job if available
-    if (version.job.validationResults) {
-      group.validationResults.push(version.job.validationResults);
-    }
-  }
-
-  // Extract patterns per family
-  const allPatterns: EditPattern[] = [];
-
-  for (const [family, group] of Array.from(familyGroups)) {
-    allPatterns.push(
-      ...extractParameterDriftPatterns(family, group.parameterVersions)
-    );
-    allPatterns.push(
-      ...extractScadPatchPatterns(family, group.scadVersions)
-    );
-    allPatterns.push(
-      ...extractValidationFailurePatterns(family, group.validationResults)
-    );
-  }
-
-  // Sort by frequency descending for deterministic output (idempotency)
-  allPatterns.sort((a, b) => {
-    if (b.frequency !== a.frequency) return b.frequency - a.frequency;
-    if (a.family !== b.family) return a.family.localeCompare(b.family);
-    if (a.type !== b.type) return a.type.localeCompare(b.type);
-    return (a.parameter || "").localeCompare(b.parameter || "");
-  });
-
-  return allPatterns;
+  // v3.0: pipeline triggers handle this. Cron route still calls this
+  // for backward compat but the implementation is simplified.
+  return [];
 }
 
-/**
- * Write learned patterns to disk with atomic rename.
- * Merges with existing patterns — new data takes precedence for same key.
- */
+/** @deprecated — observations are written via appendObservation() directly */
 export async function writeLearnedPatterns(
-  patterns: EditPattern[]
+  _patterns: EditPattern[]
 ): Promise<void> {
-  // Load existing patterns if file exists
-  let existing: LearnedPatternsFile = {
-    lastUpdated: new Date().toISOString(),
-    patterns: [],
-    stats: { totalVersionsAnalyzed: 0, userEdits: 0, familiesAffected: 0 },
-  };
-
-  try {
-    const raw = await fs.readFile(LEARNED_PATTERNS_PATH, "utf8");
-    existing = JSON.parse(raw) as LearnedPatternsFile;
-  } catch {
-    // File doesn't exist yet — use defaults
-  }
-
-  // Merge patterns: use family:type:parameter as key
-  const mergedMap = new Map<string, EditPattern>();
-
-  // Keep existing patterns
-  for (const p of existing.patterns) {
-    const key = `${p.family}:${p.type}:${p.parameter || ""}`;
-    mergedMap.set(key, p);
-  }
-
-  // Merge in new patterns (new data takes precedence)
-  for (const p of patterns) {
-    const key = `${p.family}:${p.type}:${p.parameter || ""}`;
-    const prev = mergedMap.get(key);
-    if (prev) {
-      // Combine frequencies, keep the newer insight and suggestedValue
-      mergedMap.set(key, {
-        ...p,
-        frequency: prev.frequency + p.frequency,
-      });
-    } else {
-      mergedMap.set(key, p);
-    }
-  }
-
-  const mergedPatterns = Array.from(mergedMap.values());
-
-  // Compute stats
-  const familiesAffected = new Set(mergedPatterns.map((p) => p.family));
-
-  const output: LearnedPatternsFile = {
-    lastUpdated: new Date().toISOString(),
-    patterns: mergedPatterns,
-    stats: {
-      totalVersionsAnalyzed:
-        existing.stats.totalVersionsAnalyzed + patterns.length,
-      userEdits: patterns.filter((p) => p.type === "parameter_drift").length,
-      familiesAffected: familiesAffected.size,
-    },
-  };
-
-  // Atomic write: write to temp file, then rename
-  const dir = path.dirname(LEARNED_PATTERNS_PATH);
-  await fs.mkdir(dir, { recursive: true });
-
-  const tmpPath = LEARNED_PATTERNS_PATH + ".tmp";
-  await fs.writeFile(tmpPath, JSON.stringify(output, null, 2), "utf8");
-  await fs.rename(tmpPath, LEARNED_PATTERNS_PATH);
+  // No-op in v3.0 — observations are append-only
 }
 
 /**
- * Load learned patterns and return a formatted string of insights
- * for the given family, suitable for injection into generation prompts.
- * Returns empty string if no patterns exist for the family.
+ * Legacy: format patterns as markdown for injection into prompts.
+ * Falls back to v3.0 structured observations if they exist.
  */
 export async function getLearnedPatternsForFamily(
   family: string
 ): Promise<string> {
-  try {
-    const raw = await fs.readFile(LEARNED_PATTERNS_PATH, "utf8");
-    const data = JSON.parse(raw) as LearnedPatternsFile;
+  // Try v3.0 observations first
+  const v3 = await getLearnedDefaultsForFamily(family);
+  if (v3) return v3;
 
+  // Fall back to legacy patterns file
+  try {
+    const raw = await fs.readFile(LEGACY_PATTERNS_PATH, "utf8");
+    const data = JSON.parse(raw) as { patterns: EditPattern[] };
     const familyPatterns = data.patterns.filter((p) => p.family === family);
     if (familyPatterns.length === 0) return "";
 
     const lines: string[] = [];
-
-    // Parameter drift patterns
-    const driftPatterns = familyPatterns.filter(
-      (p) => p.type === "parameter_drift"
-    );
-    if (driftPatterns.length > 0) {
-      lines.push("### Common user adjustments (parameter drift):");
-      for (const p of driftPatterns) {
-        const suggestion = p.suggestedValue
-          ? ` (suggested default: ${p.suggestedValue})`
-          : "";
-        lines.push(`- ${p.insight}${suggestion}`);
-      }
+    for (const type of ["parameter_drift", "scad_patch", "validation_failure"] as const) {
+      const group = familyPatterns.filter((p) => p.type === type);
+      if (group.length === 0) continue;
+      const label = {
+        parameter_drift: "### Common user adjustments:",
+        scad_patch: "### Common SCAD source modifications:",
+        validation_failure: "### Frequent validation failures:",
+      }[type];
+      lines.push(label);
+      for (const p of group) lines.push(`- ${p.insight}`);
     }
-
-    // SCAD patch patterns
-    const scadPatterns = familyPatterns.filter(
-      (p) => p.type === "scad_patch"
-    );
-    if (scadPatterns.length > 0) {
-      lines.push("### Common SCAD source modifications:");
-      for (const p of scadPatterns) {
-        lines.push(`- ${p.insight}`);
-      }
-    }
-
-    // Validation failure patterns
-    const validationPatterns = familyPatterns.filter(
-      (p) => p.type === "validation_failure"
-    );
-    if (validationPatterns.length > 0) {
-      lines.push("### Frequent validation failures:");
-      for (const p of validationPatterns) {
-        lines.push(`- ${p.insight}`);
-      }
-    }
-
     return lines.join("\n");
   } catch {
-    // File doesn't exist or can't be parsed — no patterns available
     return "";
   }
 }

@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { buildScadLibraryPrompt } from "@/lib/tools/scad-library-resolver";
 import { getLearnedPatternsForFamily } from "@/lib/improvement-analyzer";
+import { retrieveContext, formatRetrievalContext } from "@/lib/retrieval/example-retriever";
 
 // ---------------------------------------------------------------------------
 // Types (mirrors the ParameterDef in process/route.ts)
@@ -33,6 +34,7 @@ interface FamilySchemaFile {
 
 const skillCache = new Map<string, string>();
 const familyCache = new Map<string, FamilySchemaFile>();
+let stdLibDocCache: string | null = null;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -62,6 +64,19 @@ async function readJsonFile<T>(filePath: string): Promise<T | null> {
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
+
+/**
+ * Load the AgentSCAD standard library reference doc (openscad_lib/README.md).
+ * Cached in memory — the library doesn't change at runtime.
+ */
+async function loadStdLibDoc(): Promise<string> {
+  if (stdLibDocCache !== null) return stdLibDocCache;
+  const content = await readTextFile(
+    path.join(process.cwd(), "openscad_lib", "README.md")
+  );
+  stdLibDocCache = content ?? "";
+  return stdLibDocCache;
+}
 
 /**
  * Load a skill markdown file from skills/{skillName}/SKILL.md.
@@ -123,6 +138,9 @@ export async function buildScadPrompt(
 
   const familySchema = await loadFamilySchema(partFamily);
   const libraryPrompt = await buildScadLibraryPrompt();
+  const retrievalCtx = await retrieveContext(inputRequest);
+  const retrievalText = formatRetrievalContext(retrievalCtx);
+  const stdLibDoc = await loadStdLibDoc();
 
   // Apply parameter overrides to the schema defaults
   const params = (familySchema?.parameters ?? []).map((p) => {
@@ -150,11 +168,21 @@ export async function buildScadPrompt(
   let userPromptTemplate: string;
 
   if (markerIdx >= 0) {
-    systemPrompt = `${skillContent.slice(0, markerIdx).trim()}\n\n${libraryPrompt}`;
+    systemPrompt = [
+      skillContent.slice(0, markerIdx).trim(),
+      stdLibDoc,
+      libraryPrompt,
+      retrievalText,
+    ].filter(Boolean).join("\n\n");
     userPromptTemplate = skillContent.slice(markerIdx + marker.length).trim();
   } else {
     // Fallback: entire file is the system prompt, build a simple user prompt
-    systemPrompt = `${skillContent.trim()}\n\n${libraryPrompt}`;
+    systemPrompt = [
+      skillContent.trim(),
+      stdLibDoc,
+      libraryPrompt,
+      retrievalText,
+    ].filter(Boolean).join("\n\n");
     userPromptTemplate = `Generate OpenSCAD code for the following request:\n\n"{inputRequest}"\n\nDetected part family: {partFamily}\n\nSuggested parameters:\n{paramSummary}\n\nCurrent parameter values:\n{parameterValues}\n\nReturn the JSON object with summary, parameters, and scad_source.`;
   }
 

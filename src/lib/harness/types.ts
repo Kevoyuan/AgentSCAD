@@ -22,10 +22,42 @@ export interface ParameterDef {
   group: string;
 }
 
+export interface CadFeature {
+  name: string;
+  type: string;
+  required: boolean;
+  parameters: Record<string, number>;
+  description: string;
+}
+
+export interface CadConstraints {
+  dimensions: Record<string, number>;
+  assumptions: string[];
+  manufacturing: { min_wall_thickness: number; printable: boolean };
+  geometry: { must_be_manifold: boolean; centered: boolean; no_floating_parts: boolean };
+  code: { use_parameters: boolean; use_library_modules: boolean; avoid_magic_numbers: boolean; top_level_module: string };
+}
+
+export interface CadValidationTargets {
+  expected_bbox: number[];
+  required_feature_checks: string[];
+  forbidden_failure_modes: string[];
+}
+
 export interface LLMGenerationResult {
   summary: string;
   parameters: ParameterDef[];
   scad_source: string;
+}
+
+export interface StructuredGenerationResult extends LLMGenerationResult {
+  part_type: string;
+  units: string;
+  features: CadFeature[];
+  constraints: CadConstraints;
+  modeling_plan: string[];
+  design_rationale: string[];
+  validation_targets: CadValidationTargets;
 }
 
 export interface RenderLog {

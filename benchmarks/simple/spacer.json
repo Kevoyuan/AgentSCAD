@@ -1,0 +1,9 @@
+{
+  "id": "simple_spacer",
+  "prompt": "Create a cylindrical spacer 10mm diameter, 15mm tall, with a 4mm through hole.",
+  "difficulty": "simple",
+  "expected_part_type": "spacer",
+  "required_features": ["cylinder", "through hole", "uniform diameter"],
+  "expected_bbox": [10, 10, 15],
+  "tolerances": { "bbox_mm": 2, "hole_count": 1 }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "medium_ribbed_mount",
+  "prompt": "Create a heavy-duty ribbed mounting bracket with a 60mm x 30mm base plate (6mm thick) and an 80mm tall upright face. Add 3 triangular ribs for reinforcement.",
+  "difficulty": "medium",
+  "expected_part_type": "ribbed_mount",
+  "required_features": ["base plate", "upright face", "triangular ribs", "single solid"],
+  "expected_bbox": [60, 30, 86],
+  "tolerances": { "bbox_mm": 5, "hole_count": 0 }
+}

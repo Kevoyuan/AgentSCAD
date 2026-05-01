@@ -92,6 +92,21 @@ def validate_stl(stl_path: str, max_dim: float = 300.0, min_wall: float = 1.2) -
     r003 = check_manifold(mesh)
     rules.append(r003)
 
+    # ─── Component count ─────────────────────────────────────────────────
+    try:
+        components = mesh.split(only_watertight=False)
+        component_count = len(components) if components else 1
+    except Exception:
+        component_count = 1
+
+    # ─── Euler characteristic ─────────────────────────────────────────────
+    try:
+        euler = len(mesh.vertices) - len(mesh.edges) + len(mesh.faces)
+        genus = (2 - euler) // 2 if mesh.is_watertight else 0
+    except Exception:
+        euler = 0
+        genus = 0
+
     # ─── Summary ─────────────────────────────────────────────────────────
     bb = mesh.bounding_box.extents
     passed = sum(1 for r in rules if r["status"] == "pass")
@@ -110,6 +125,10 @@ def validate_stl(stl_path: str, max_dim: float = 300.0, min_wall: float = 1.2) -
             "unit": "mm",
         },
     }
+
+    summary["componentCount"] = component_count
+    summary["eulerCharacteristic"] = euler
+    summary["genus"] = genus
 
     return {"rules": rules, "summary": summary}
 

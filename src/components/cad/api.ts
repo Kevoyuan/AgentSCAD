@@ -166,6 +166,36 @@ export async function repairJob(id: string): Promise<{ job: Job; repaired: boole
   return res.json()
 }
 
+export async function visualRepairJob(id: string): Promise<{
+  job: Job;
+  repaired: boolean;
+  visualReport?: {
+    visual_issues: Array<{
+      requirement: string;
+      observed: string;
+      severity: string;
+      repair_hint: string;
+    }>;
+    overall_visual_match: number;
+    repair_summary: string;
+  };
+  repairSummary?: string;
+  error?: string;
+}> {
+  const res = await fetch(`/api/jobs/${id}/visual-repair`, { method: "POST" });
+  if (!res.ok) {
+    let message = "Failed to run visual repair";
+    try {
+      const errorData = await res.json();
+      if (errorData?.error) message = errorData.error;
+    } catch {
+      // Keep generic message.
+    }
+    throw new Error(message);
+  }
+  return res.json();
+}
+
 /**
  * Send a chat message and receive a streaming response via SSE.
  * Calls onToken for each token received, onDone when complete, and onError on failure.

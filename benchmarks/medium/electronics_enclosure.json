@@ -1,0 +1,9 @@
+{
+  "id": "medium_electronics_enclosure",
+  "prompt": "Create an electronics enclosure 60mm x 40mm x 25mm with 2mm walls and 3mm corner radius. Include a separate lid.",
+  "difficulty": "medium",
+  "expected_part_type": "electronics_enclosure",
+  "required_features": ["enclosure box", "internal cavity", "separate lid", "rounded corners"],
+  "expected_bbox": [64, 44, 27],
+  "tolerances": { "bbox_mm": 5, "hole_count": 0 }
+}

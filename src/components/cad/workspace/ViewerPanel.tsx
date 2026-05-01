@@ -29,6 +29,7 @@ export function ViewerPanel({
   onViewLog,
   onShare,
   onRepair,
+  onVisualRepair,
   onSetActiveTab,
   onShowComposer,
   isFirstLoadComplete,
@@ -45,6 +46,7 @@ export function ViewerPanel({
   onViewLog: (job: Job) => void
   onShare: (job: Job) => void
   onRepair: (job: Job) => void
+  onVisualRepair: (job: Job) => void
   onSetActiveTab: (tab: string) => void
   onShowComposer: () => void
   isFirstLoadComplete: boolean
@@ -186,15 +188,27 @@ export function ViewerPanel({
                             <p className="text-xs text-[var(--cad-text-muted)] truncate">Preview and STL are available. Reprocess or edit before export.</p>
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          className="h-7 text-[13px] gap-1.5 bg-[var(--cad-accent)] hover:bg-[var(--app-accent-hover)] shrink-0"
-                          onClick={() => onProcess(selectedJob)}
-                          disabled={isProcessing}
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          Reprocess
-                        </Button>
+                        <div className="flex gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[13px] gap-1.5"
+                            onClick={() => onVisualRepair(selectedJob)}
+                            disabled={isProcessing}
+                          >
+                            <Cpu className="w-3.5 h-3.5" />
+                            Visual Repair
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-7 text-[13px] gap-1.5 bg-[var(--cad-accent)] hover:bg-[var(--app-accent-hover)]"
+                            onClick={() => onProcess(selectedJob)}
+                            disabled={isProcessing}
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            Reprocess
+                          </Button>
+                        </div>
                       </div>
                     )}
                     {!selectedJob.stlPath && (

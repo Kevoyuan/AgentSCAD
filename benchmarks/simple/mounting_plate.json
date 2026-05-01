@@ -1,0 +1,9 @@
+{
+  "id": "simple_mounting_plate",
+  "prompt": "Create a rectangular mounting plate 80mm x 50mm x 6mm with 4 corner mounting holes of 5mm diameter, 8mm from edges.",
+  "difficulty": "simple",
+  "expected_part_type": "mounting_plate",
+  "required_features": ["rectangular plate", "four corner holes", "flat base"],
+  "expected_bbox": [80, 50, 6],
+  "tolerances": { "bbox_mm": 3, "hole_count": 4 }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "simple_knob",
+  "prompt": "Create a simple cylindrical knob 25mm diameter, 12mm tall with a center hole of 6mm.",
+  "difficulty": "simple",
+  "expected_part_type": "knob",
+  "required_features": ["cylinder", "center bore", "grippable height"],
+  "expected_bbox": [25, 25, 12],
+  "tolerances": { "bbox_mm": 3, "hole_count": 1 }
+}

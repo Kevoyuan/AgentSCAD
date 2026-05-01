@@ -1,0 +1,9 @@
+{
+  "id": "medium_pipe_clamp",
+  "prompt": "Create a two-piece pipe clamp for a 25mm diameter pipe. Include bolt flanges with 4mm holes. The clamp should be 15mm wide overall.",
+  "difficulty": "medium",
+  "expected_part_type": "pipe_clamp",
+  "required_features": ["split ring", "bolt flanges", "clearance for pipe", "two bolt holes"],
+  "expected_bbox": [40, 30, 15],
+  "tolerances": { "bbox_mm": 5, "hole_count": 2 }
+}

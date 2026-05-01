@@ -15,7 +15,7 @@ import {
 import {
   fetchJobs, fetchJob, createJob, deleteJob, processJob,
   cancelJob, batchOperation, sendChatMessageStream,
-  applyScadSource, repairJob,
+  applyScadSource, repairJob, visualRepairJob,
 } from '@/components/cad/api'
 import {
   FilterState, DEFAULT_FILTER_STATE, applyFilters,
@@ -422,6 +422,26 @@ export function useWorkspaceState() {
     }
   }
 
+  const handleVisualRepair = async (job: Job) => {
+    try {
+      toast.info('Running visual repair...', { description: 'Analyzing preview image with VLM' })
+      const result = await visualRepairJob(job.id)
+      setSelectedJob(result.job)
+      if (result.repaired) {
+        toast.success('Visual repair complete', {
+          description: result.repairSummary || `Match: ${((result.visualReport?.overall_visual_match ?? 0) * 100).toFixed(0)}%`,
+        })
+        addNotification('job_completed', 'Visual Repair Complete', result.repairSummary || '')
+        addActivityEvent('delivered', job.inputRequest.slice(0, 30), job.id.slice(0, 8), 'Visually repaired')
+      } else {
+        toast.error('Visual repair failed', { description: result.error || 'Unknown error' })
+      }
+      await loadJobs()
+    } catch (error) {
+      toast.error('Visual repair failed', { description: error instanceof Error ? error.message : 'Failed' })
+    }
+  }
+
   const handleBatchAction = async (action: 'delete' | 'cancel' | 'reprocess') => {
     try {
       const ids = Array.from(selectedIds)
@@ -638,7 +658,7 @@ export function useWorkspaceState() {
     sortedJobsForDnd: sortedJobs,
     // Job actions
     handleCreate, handleProcess, handleApplyScad,
-    handleDelete, handleDuplicate, handleCancel, handleRepair,
+    handleDelete, handleDuplicate, handleCancel, handleRepair, handleVisualRepair,
     handleBatchAction, toggleSelect,
     handleLinkParent,
     handleAiEnhance,

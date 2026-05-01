@@ -1,0 +1,9 @@
+{
+  "id": "medium_vented_enclosure",
+  "prompt": "Create a vented electronics enclosure 80mm x 50mm x 30mm with 2mm walls, 3mm corner radius. Add ventilation slots (3mm wide, 15mm long) on two sides.",
+  "difficulty": "medium",
+  "expected_part_type": "electronics_enclosure",
+  "required_features": ["enclosure box", "ventilation slots", "rounded corners", "internal cavity"],
+  "expected_bbox": [84, 54, 32],
+  "tolerances": { "bbox_mm": 5, "hole_count": 8 }
+}

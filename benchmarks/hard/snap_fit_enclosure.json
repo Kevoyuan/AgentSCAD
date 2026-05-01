@@ -1,0 +1,9 @@
+{
+  "id": "hard_snap_fit_enclosure",
+  "prompt": "Create a snap-fit electronics enclosure 70mm x 45mm x 30mm with 2mm walls. Include snap tabs on the lid (6mm wide, 1.5mm thick with lead-in ramp) and matching recesses on the bottom shell. 3mm corner radius.",
+  "difficulty": "hard",
+  "expected_part_type": "electronics_enclosure",
+  "required_features": ["enclosure bottom", "snap-fit lid", "snap tabs", "mating recesses", "rounded corners"],
+  "expected_bbox": [74, 49, 32],
+  "tolerances": { "bbox_mm": 5, "hole_count": 0 }
+}

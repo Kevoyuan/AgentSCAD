@@ -12,6 +12,7 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import os from "os";
 import path from "path";
+import type { RawMeshData } from "@/lib/validation/validation-types";
 
 const execAsync = promisify(exec);
 const INSTALL_TIMEOUT_MS = 180_000;
@@ -58,6 +59,9 @@ interface PythonOutput {
       height: number;
       unit: string;
     } | null;
+    componentCount?: number;
+    eulerCharacteristic?: number;
+    genus?: number;
   };
 }
 
@@ -70,6 +74,7 @@ type MeshValidatorStatus =
 // ---------------------------------------------------------------------------
 
 const validationCache = new Map<string, ValidationResult[]>();
+const meshDataCache = new Map<string, RawMeshData>();
 let managedPythonPromise: Promise<MeshValidatorStatus> | null = null;
 let managedPythonStatus: MeshValidatorStatus | null = null;
 
@@ -130,7 +135,55 @@ function transformPythonResults(pyOutput: PythonOutput): ValidationResult[] {
     message: "Skipped — requires LLM reasoning (not yet implemented)",
   });
 
+  // Cache raw mesh data from the Python output
+  extractAndCacheMeshData(pyOutput);
+
   return results;
+}
+
+// ---------------------------------------------------------------------------
+// Raw mesh data extraction
+// ---------------------------------------------------------------------------
+
+function extractAndCacheMeshData(pyOutput: PythonOutput): void {
+  const bbox = pyOutput.summary.boundingBox;
+  const rule3 = pyOutput.rules.find((r) => r.id === "R003");
+
+  const vertices = (rule3?.details?.vertices as number) ?? 0;
+  const faces = (rule3?.details?.faces as number) ?? 0;
+  const edges = (rule3?.details?.edges as number) ?? 0;
+  const isWatertight = (rule3?.details?.isWatertight as boolean) ?? false;
+  const isVolume = (rule3?.details?.isVolume as boolean) ?? false;
+
+  // Use Python-computed values when available, otherwise compute from mesh data
+  const eulerCharacteristic =
+    pyOutput.summary.eulerCharacteristic ?? (vertices - edges + faces);
+  const genus = isWatertight
+    ? (pyOutput.summary.genus ?? Math.max(0, (2 - eulerCharacteristic) / 2))
+    : 0;
+  const componentCount = pyOutput.summary.componentCount ?? 1;
+
+  const data: RawMeshData = {
+    bbox: bbox ? { ...bbox } : null,
+    vertices,
+    faces,
+    edges,
+    isWatertight,
+    isVolume,
+    componentCount,
+    eulerCharacteristic,
+    genus,
+  };
+
+  meshDataCache.set("__last__", data);
+}
+
+/**
+ * Get raw mesh data from the most recent validation run.
+ * Returns null if no validation has been performed yet.
+ */
+export function getLastMeshData(): RawMeshData | null {
+  return meshDataCache.get("__last__") ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -358,7 +411,7 @@ export async function validateStl(
     // Wall thickness validation uses the FDM manufacturing minimum,
     // not the design-level wall_thickness parameter.
     const { stdout, stderr } = await execAsync(
-      `${shellQuote(validator.pythonPath)} ${shellQuote(scriptPath)} ${shellQuote(stlPath)} --min-wall ${FDM_MIN_WALL_MM}`,
+      `${shellQuote(validator.pythonPath)} ${shellQuote(scriptPath)} ${shellQuote(stlPath)} --min-wall ${shellQuote(String(FDM_MIN_WALL_MM))}`,
       { timeout: VALIDATION_TIMEOUT_MS }
     );
 
@@ -403,4 +456,5 @@ export async function validateStl(
  */
 export function clearValidationCache(): void {
   validationCache.clear();
+  meshDataCache.clear();
 }

@@ -1,0 +1,9 @@
+{
+  "id": "simple_washer",
+  "prompt": "Create a flat washer with 20mm outer diameter and 8mm inner hole, 2mm thick.",
+  "difficulty": "simple",
+  "expected_part_type": "washer",
+  "required_features": ["flat ring", "center hole", "uniform thickness"],
+  "expected_bbox": [20, 20, 2],
+  "tolerances": { "bbox_mm": 3, "hole_count": 1 }
+}

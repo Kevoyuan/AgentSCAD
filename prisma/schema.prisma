@@ -22,14 +22,24 @@ model Job {
   researchResult  String?
   intentResult    String?
   designResult    String?
+  cadIntentJson   String?
+  modelingPlanJson String?
+  validationTargetsJson String?
   stlPath         String?
   pngPath         String?
   renderLog       String?
   reportPath      String?
   validationResults String?
+  repairHistory    String?
   executionLogs   String?
   retryCount      Int      @default(0)
   maxRetries      Int      @default(3)
+  repairRound     Int      @default(0)
+  llmCallCount    Int      @default(0)
+  latencyMs       Int?
+  qualityScore    Float?
+  visualRepairReportJson String?
+  validationReportJson String?
   notes           String?
   parentId        String?
   createdAt       DateTime @default(now())

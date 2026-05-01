@@ -1,0 +1,9 @@
+{
+  "id": "hard_gear_knob",
+  "prompt": "Create a gear-like adjustment knob 30mm diameter, 15mm tall with 20 teeth around the perimeter and a 6mm center bore with a 3mm keyway slot.",
+  "difficulty": "hard",
+  "expected_part_type": "gear_like_knob",
+  "required_features": ["cylindrical body", "perimeter teeth", "center bore", "keyway slot"],
+  "expected_bbox": [30, 30, 15],
+  "tolerances": { "bbox_mm": 3, "hole_count": 1 }
+}

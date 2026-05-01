@@ -9,22 +9,23 @@
 
 AgentSCAD is an AI-native CAD agent that turns natural-language part requests into validated OpenSCAD artifacts.
 
-It generates parametric SCAD, renders STL and preview images, validates geometry and visual intent, routes failed designs through repair or human review, and learns from user edits over time.
+It uses a **progressive pipeline**: one LLM call generates structured CAD intent and library-backed OpenSCAD by default. Expensive steps — LLM repair and VLM visual validation — run only on failure or on user request.
 
 ![AgentSCAD system overview](./docs/images/agentscad_overview.png)
 
-AgentSCAD combines LLM-based CAD generation, deterministic OpenSCAD rendering, validation-driven repair, and edit-derived memory.
+AgentSCAD combines one-shot structured CAD generation, deterministic local validation, validation-driven repair, and user-triggered visual refinement.
 
 ## Why AgentSCAD?
 
-Most text-to-CAD demos stop at code generation. AgentSCAD treats CAD as an artifact pipeline:
+Most text-to-CAD demos stop at code generation. AgentSCAD treats CAD as an artifact pipeline with cost-aware defaults:
 
-1. Generate OpenSCAD source from a natural-language request.
+1. **One LLM call** generates structured CAD intent, modeling plan, validation targets, and library-backed OpenSCAD.
 2. Extract editable parameters from top-level SCAD assignments.
-3. Render STL and preview images with deterministic tools.
-4. Validate mesh health, manufacturing rules, and visual intent.
-5. Repair failed geometry or route the job to human review.
-6. Store edits, artifacts, and learned patterns for future jobs.
+3. Render STL and preview images with deterministic OpenSCAD CLI.
+4. **Local deterministic validation**: compile check, mesh manifold, bounding box, component count, hole count via Euler characteristic.
+5. **Repair on failure only**: if validation fails, one automatic LLM repair with validation feedback.
+6. **Visual repair on user request**: VLM-based visual inspection only when the user clicks "Visual Repair" after seeing the preview.
+7. Store edits, artifacts, and learned patterns for future jobs.
 
 ## Demo Flow
 
@@ -37,10 +38,36 @@ Most text-to-CAD demos stop at code generation. AgentSCAD treats CAD as an artif
 The main workflow is:
 
 1. Describe a part in natural language and choose the model/provider.
-2. Generate parameterized OpenSCAD source.
+2. **One-shot generation**: structured CAD intent + parameterized OpenSCAD in one LLM call, backed by local example retrieval and the AgentSCAD standard library.
 3. Render `model.stl` and `preview.png` through the local OpenSCAD CLI.
-4. Review validation results for mesh health, manufacturing constraints, and visual intent.
-5. Edit extracted parameters or SCAD, then re-render, repair, or export the STL.
+4. Review deterministic validation results (compile, mesh, bbox, components, hole count).
+5. If validation fails: one automatic LLM repair attempt with validation feedback.
+6. If visual issues remain: click **Visual Repair** to run VLM-based image analysis and targeted SCAD fix.
+7. Edit extracted parameters or SCAD, then re-render, repair, or export the STL.
+
+### Pipeline Architecture
+
+```
+Default path (1 LLM call):
+  Prompt → CAD JSON + SCAD → OpenSCAD render → deterministic validation → result
+
+Failure path (2 LLM calls max):
+  Validation failed → one repair call → re-render → result or human_review
+
+Visual path (user-triggered):
+  User sees preview → clicks Visual Repair → VLM feedback → repaired SCAD
+```
+
+### Benchmark
+
+```bash
+bun run cad:eval         # all benchmark cases
+bun run cad:eval -- --fast  # simple cases only
+bun run cad:eval -- --model deepseek  # with specific model
+bun run cad:eval:report  # parse results as JSON
+```
+
+Key metrics: compile success rate, geometry pass rate, repair success rate, average LLM calls per job, average latency per job.
 
 ## Quick Start
 
@@ -171,7 +198,7 @@ AgentSCAD is centered around two CAD agents: a generation agent that creates Ope
 | Agent workflow | Job state machine, retries, SSE progress, automatic workspace refresh | `src/lib/pipeline/`, `src/app/api/jobs/[id]/process/route.ts`, `src/app/api/cron/route.ts` |
 | Skills | CAD reasoning contracts, repair strategy, validation review, library usage policy | `skills/scad-*`, `skills/RESOLVER.md` |
 | Tools | Deterministic render, validation, SCAD sanitization, parameter extraction, artifact IO | `src/lib/tools/`, `scripts/validate_stl.py` |
-| Memory | Job state, version history, generated artifacts, learned patterns from edits | `prisma/schema.prisma`, `src/lib/version-tracker.ts`, `src/lib/improvement-analyzer.ts`, `skills/scad-generation/learned-patterns.json` |
+| Memory | Job state, version history, artifacts, structured learned observations (v3.0: append-only JSONL, pipeline-triggered) | `prisma/schema.prisma`, `src/lib/version-tracker.ts`, `src/lib/improvement-analyzer.ts`, `skills/scad-generation/learned-observations.jsonl` |
 | Workspace UI | CAD viewport, job queue, parameter editing, review panels, chat helper | `src/components/cad/`, `src/app/` |
 
 ## Memory at a Glance
@@ -182,9 +209,11 @@ AgentSCAD uses explicit product memory instead of opaque chat history:
 - **Episodic memory**: field-level `JobVersion` history for parameter, source, and note edits.
 - **Artifact memory**: generated `model.scad`, `model.stl`, `preview.png`, and reports under `public/artifacts/{jobId}/`.
 - **Skill memory**: Markdown CAD skills, schemas, library policy, and in-process skill/schema caches.
-- **Learned memory**: conservative learned patterns extracted from repeated user edits and validation failures.
+- **Learned memory**: structured numerical observations (v3.0) extracted from user edits, validation failures, and repair outcomes. Pipeline-triggered writes, append-only JSONL, prompt injection defense on user content.
 
 Learned memory is used as prompt-time guidance, not as an override for rendering or validation.
+
+**v3.0 improvements**: Observations are structured numerical data (not prose), stored in append-only JSONL for data safety, and written automatically by the pipeline on job completion and validation events. Source trust levels (user_edit > repair_success > validation_pattern) give higher confidence to user-driven changes. Prompt injection defense sanitizes user-sourced SCAD content before it enters the generation prompt. Quality metrics (delivery rate, repair rate) close the feedback loop — the system knows not just what users change, but whether those changes lead to successful deliveries.
 
 See the [Memory at a Glance](#memory-at-a-glance) section above for the memory design overview.
 

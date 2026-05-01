@@ -19,8 +19,64 @@ mock.module("@/lib/db", () => ({
 mock.module("@/lib/harness/skill-runner", () => ({
   detectPartFamily: mock(() => "electronics_enclosure"),
   getParameterSchema: mock(async () => []),
+  generateMockScadCode: mock(async () => ({
+    part_type: "electronics_enclosure",
+    summary: "Generated test enclosure (mock)",
+    units: "mm",
+    features: [],
+    constraints: {
+      dimensions: {},
+      assumptions: [],
+      manufacturing: { min_wall_thickness: 2, printable: true },
+      geometry: { must_be_manifold: true, centered: true, no_floating_parts: true },
+      code: { use_parameters: true, use_library_modules: true, avoid_magic_numbers: true, top_level_module: "generated_part" },
+    },
+    modeling_plan: [],
+    design_rationale: [],
+    validation_targets: {
+      expected_bbox: [],
+      required_feature_checks: [],
+      forbidden_failure_modes: [],
+    },
+    parameters: [
+      {
+        key: "wall_thickness",
+        label: "Wall Thickness",
+        kind: "float",
+        unit: "mm",
+        value: 2,
+        min: 1,
+        max: 6,
+        step: 0.1,
+        source: "user",
+        editable: true,
+        description: "Wall",
+        group: "Dimensions",
+      },
+    ],
+    scad_source: "wall_thickness = 2; cube([10, 10, 10]);",
+  })),
   runScadGenerationSkill: mock(async () => ({
+    part_type: "electronics_enclosure",
     summary: "Generated test enclosure",
+    units: "mm",
+    features: [
+      { name: "enclosure body", type: "enclosure", required: true, parameters: {}, description: "Test" },
+    ],
+    constraints: {
+      dimensions: {},
+      assumptions: [],
+      manufacturing: { min_wall_thickness: 2, printable: true },
+      geometry: { must_be_manifold: true, centered: true, no_floating_parts: true },
+      code: { use_parameters: true, use_library_modules: true, avoid_magic_numbers: true, top_level_module: "generated_part" },
+    },
+    modeling_plan: [],
+    design_rationale: [],
+    validation_targets: {
+      expected_bbox: [],
+      required_feature_checks: [],
+      forbidden_failure_modes: [],
+    },
     parameters: [
       {
         key: "wall_thickness",
