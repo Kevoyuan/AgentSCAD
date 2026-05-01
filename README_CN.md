@@ -69,6 +69,15 @@ bun run cad:eval:report       # 解析结果为 JSON
 
 关键指标：编译成功率、几何通过率、修复成功率、平均每次任务 LLM 调用次数、平均延迟。
 
+## OpenSCAD 运行时边界
+
+AgentSCAD 默认发行包不捆绑、不链接 OpenSCAD。
+
+AgentSCAD 仅通过 `OPENSCAD_BIN` 或用户运行环境中的 `openscad` 命令，
+把 OpenSCAD 作为外部命令行渲染器调用。
+
+安装、打包或再分发 OpenSCAD 的用户/分发者，需要自行遵守 OpenSCAD 的 GPL 许可证要求。
+
 ## 快速开始
 
 前置要求：Node.js 20 或 22 LTS、Bun，以及 PATH 中可用的 OpenSCAD。

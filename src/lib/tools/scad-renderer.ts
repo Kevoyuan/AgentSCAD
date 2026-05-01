@@ -9,6 +9,9 @@ import type { RenderedArtifacts, RenderLog } from "@/lib/harness/types";
 
 const execAsync = promisify(exec);
 
+/** External CLI boundary — uses user-provided or system OpenSCAD. Not bundled. */
+const OPENSCAD_BIN = process.env.OPENSCAD_BIN || "openscad";
+
 function quoteShellArg(value: string): string {
   return `"${value.replace(/(["\\$`])/g, "\\$1")}"`;
 }
@@ -40,7 +43,7 @@ export async function validateGeneratedScadSource(scadSource: string): Promise<v
 
   try {
     await fs.writeFile(tempScadPath, scadSource, "utf8");
-    await execAsync(`openscad -o "${tempStlPath}" "${tempScadPath}"`, {
+    await execAsync(`${OPENSCAD_BIN} -o "${tempStlPath}" "${tempScadPath}"`, {
       env: await buildOpenScadExecEnv(),
     });
   } catch (error) {
@@ -57,7 +60,7 @@ export async function renderStl(
   definitions?: Record<string, unknown>
 ): Promise<void> {
   const defineArgs = buildOpenScadDefineArgs(definitions);
-  await execAsync(`openscad ${defineArgs} -o ${quoteShellArg(stlFilePath)} ${quoteShellArg(scadFilePath)}`, {
+  await execAsync(`${OPENSCAD_BIN} ${defineArgs} -o ${quoteShellArg(stlFilePath)} ${quoteShellArg(scadFilePath)}`, {
     env: await buildOpenScadExecEnv(),
   });
 }
@@ -68,7 +71,7 @@ export async function renderPng(
   definitions?: Record<string, unknown>
 ): Promise<void> {
   const defineArgs = buildOpenScadDefineArgs(definitions);
-  await execAsync(`openscad ${defineArgs} -o ${quoteShellArg(pngFilePath)} --colorscheme=Tomorrow ${quoteShellArg(scadFilePath)}`, {
+  await execAsync(`${OPENSCAD_BIN} ${defineArgs} -o ${quoteShellArg(pngFilePath)} --colorscheme=Tomorrow ${quoteShellArg(scadFilePath)}`, {
     env: await buildOpenScadExecEnv(),
   });
 }

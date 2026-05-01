@@ -29,12 +29,10 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Generate Prisma client
-        run: bun run db:generate
-
       - name: Setup test DB
         run: |
-          echo 'DATABASE_URL="file:./test.db"' >> .env
+          echo 'DATABASE_URL="file:./test.db"' > .env
+          bun run db:generate
           bun run db:push
 
       - name: Lint

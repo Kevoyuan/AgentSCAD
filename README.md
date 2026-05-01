@@ -69,6 +69,16 @@ bun run cad:eval:report  # parse results as JSON
 
 Key metrics: compile success rate, geometry pass rate, repair success rate, average LLM calls per job, average latency per job.
 
+## OpenSCAD Runtime Boundary
+
+AgentSCAD does not bundle or link OpenSCAD in the default application distribution.
+
+OpenSCAD is invoked as an external command-line renderer through `OPENSCAD_BIN`
+or the `openscad` executable available in the user's runtime environment.
+
+Users and distributors who install, package, or redistribute OpenSCAD are responsible
+for complying with OpenSCAD's GPL license terms.
+
 ## Quick Start
 
 Requirements: Node.js 20 or 22 LTS, Bun, and OpenSCAD in your PATH.

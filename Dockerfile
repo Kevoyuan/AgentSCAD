@@ -1,9 +1,10 @@
 FROM oven/bun:1 AS base
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies.
+# OpenSCAD is NOT bundled — it is invoked as an external CLI via OPENSCAD_BIN.
+# Users who need rendering must install OpenSCAD separately.
 RUN apt-get update && apt-get install -y \
-  openscad \
   python3 \
   python3-pip \
   python3-venv \
