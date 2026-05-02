@@ -102,7 +102,7 @@ export async function POST(
     let renderSucceeded = false;
     let stlPath: string | null = null;
     let pngPath: string | null = null;
-    let renderLog: Record<string, unknown> | null = null;
+    let renderLog: import("@/lib/harness/types").RenderLog | null = null;
     let stlFilePath: string | null = null;
     let pngFilePath: string | null = null;
 
@@ -139,7 +139,7 @@ export async function POST(
     }
 
     // Re-validate using artifacts from the render above
-    let revalidationResults: Array<Record<string, unknown>> = [];
+    let revalidationResults: import("@/lib/mesh-validator").ValidationResult[] = [];
     if (renderSucceeded && stlFilePath) {
       revalidationResults = await validateRenderedArtifacts({
         inputRequest: job.inputRequest,
@@ -148,14 +148,12 @@ export async function POST(
         stlFilePath,
         previewImagePath: pngFilePath!,
         wallThickness: 2,
-        renderLog: renderLog as Parameters<typeof validateRenderedArtifacts>[0]["renderLog"],
+        renderLog,
         validationTargets: cadIntent?.validation_targets as Parameters<typeof validateRenderedArtifacts>[0]["validationTargets"],
       });
     }
 
-    const criticalFailures = getCriticalValidationFailures(
-      revalidationResults as Parameters<typeof getCriticalValidationFailures>[0]
-    );
+    const criticalFailures = getCriticalValidationFailures(revalidationResults);
 
     // Store repair history
     const repairEntry = {
