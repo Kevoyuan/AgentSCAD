@@ -152,7 +152,10 @@ export async function findProviderForModel(model?: string) {
   const parsed = parseProviderModelId(model);
   if (parsed) {
     const provider = providers.find((item) => item.id === parsed.providerId && item.enabled);
-    return provider ? { provider, model: parsed.model } : null;
+    if (provider) return { provider, model: parsed.model };
+
+    const envProvider = findEnvProviderForModelId(parsed.providerId, parsed.model);
+    return envProvider;
   }
 
   const exact = providers.find((provider) => provider.enabled && provider.defaultModel === model);
@@ -196,6 +199,32 @@ export function getEnvProviderConfigs(): PublicProviderConfig[] {
 function findEnvProviderForModel(model?: string) {
   const preset = getProviderPresetByModel(model);
   if (!preset) return null;
+  const apiKey = preset.apiKeyEnv ? process.env[preset.apiKeyEnv]?.trim() : undefined;
+  if (preset.requiresApiKey && !apiKey) return null;
+
+  const now = new Date(0).toISOString();
+  return {
+    provider: {
+      id: `env-${preset.id}`,
+      name: preset.label,
+      type: preset.type,
+      baseUrl: preset.baseUrl,
+      apiKey,
+      defaultModel: preset.defaultModel,
+      enabled: true,
+      isDefault: false,
+      createdAt: now,
+      updatedAt: now,
+    },
+    model: model || preset.defaultModel,
+  };
+}
+
+function findEnvProviderForModelId(providerId: string, model: string) {
+  const presetId = providerId.replace(/^env-/, "");
+  const preset = PROVIDER_PRESETS.find((item) => item.id === presetId);
+  if (!preset) return null;
+
   const apiKey = preset.apiKeyEnv ? process.env[preset.apiKeyEnv]?.trim() : undefined;
   if (preset.requiresApiKey && !apiKey) return null;
 

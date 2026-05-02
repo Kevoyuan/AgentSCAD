@@ -472,7 +472,7 @@ export async function GET(request: Request) {
   const envModels: ModelInfo[] = getEnvProviderConfigs()
     .filter((provider) => provider.enabled)
     .map((provider) => ({
-      id: provider.defaultModel,
+      id: toProviderModelId(provider),
       name: provider.defaultModel,
       description: `Detected from environment or local preset via ${provider.name}.`,
       provider: provider.id.replace(/^env-/, ""),
