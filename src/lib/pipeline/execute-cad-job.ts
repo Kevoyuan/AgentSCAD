@@ -55,6 +55,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
     throw new Error(`Job not found with id: ${jobId}`);
   }
 
+  let currentStage: string = "intake";
   try {
     let paramValues: Record<string, unknown> = {};
     if (job.parameterValues) {
@@ -75,6 +76,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
     let usedLLM = false;
 
     try {
+      currentStage = "generate";
       sendEvent({
         state: "NEW",
         step: "generating_llm",
@@ -164,6 +166,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
       message: "Rendering STL and preview image with OpenSCAD...",
     });
 
+    currentStage = "render";
     let warnings: string[] = [];
     let renderedArtifacts: RenderedArtifacts | null = null;
 
@@ -230,6 +233,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
     });
     await delay(1000);
 
+    currentStage = "validate";
     sendEvent({
       state: "RENDERED",
       step: "validating",
@@ -238,6 +242,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
     await delay(1200);
 
     const validationResults = await validateRenderedArtifacts({
+      jobId,
       inputRequest,
       partFamily,
       scadSource: scadCode,
@@ -261,7 +266,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
             ruleName: result.rule_name,
             passed: false,
             repairSucceeded: null, // repair hasn't run yet
-          }).catch(() => { /* non-critical */ });
+          }).catch((err) => { console.warn("[pipeline] recordValidationFailure failed:", err); });
         }
       }
     } catch { /* memory system is non-critical */ }
@@ -272,6 +277,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
       const maxAutoRepairs = 1;
 
       if (currentRetryCount < maxAutoRepairs) {
+        currentStage = "repair";
         sendEvent({
           state: "RENDERED",
           step: "repairing",
@@ -292,6 +298,8 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         });
 
         try {
+          await incrementRetryCount(jobId);
+
           const repairResult = await runRepair({
             originalRequest: inputRequest,
             partFamily: partFamily ?? "unknown",
@@ -307,7 +315,6 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
             requestedModel: job.modelId,
           });
 
-          await incrementRetryCount(jobId);
           const repairedScad = repairResult.generationResult.scad_source;
 
           sendEvent({
@@ -346,6 +353,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
           // Re-validate
           if (repairedArtifacts) {
             const revalidationResults = await validateRenderedArtifacts({
+              jobId,
               inputRequest,
               partFamily,
               scadSource: repairedScad,
@@ -495,6 +503,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
       await delay(800);
     }
 
+    currentStage = "deliver";
     sendEvent({
       state: "VALIDATED",
       step: "delivering",
@@ -532,7 +541,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
             source: "user_edit",
             deliverySucceeded: true,
             repairSucceeded: wasRepaired ? true : null,
-          }).catch(() => { /* non-critical */ });
+          }).catch((err) => { console.warn("[pipeline] recordParameterDrift failed:", err); });
         }
       }
     } catch { /* memory system is non-critical */ }
@@ -547,21 +556,24 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
     console.error("Error during job processing:", error);
 
     const message = error instanceof Error ? error.message : "Unknown error";
+    const errorState = currentStage === "render" ? "RENDER_FAILED"
+      : currentStage === "validate" ? "VALIDATION_FAILED"
+      : "GEOMETRY_FAILED";
 
     await db.job.update({
       where: { id: jobId },
       data: {
-        state: "GEOMETRY_FAILED",
+        state: errorState,
         executionLogs: appendLog(
           (await db.job.findUnique({ where: { id: jobId } }))?.executionLogs,
-          "GEOMETRY_FAILED",
-          `Processing failed: ${message}`
+          errorState,
+          `Processing failed during ${currentStage}: ${message}`
         ),
       },
     });
 
     sendEvent({
-      state: "GEOMETRY_FAILED",
+      state: errorState,
       step: "error",
       message: `Processing failed: ${message}`,
     });

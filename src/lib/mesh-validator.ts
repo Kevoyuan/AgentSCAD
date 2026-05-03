@@ -97,7 +97,7 @@ const RULE_META: Record<
 // Transform Python output → frontend ValidationResult[]
 // ---------------------------------------------------------------------------
 
-function transformPythonResults(pyOutput: PythonOutput): ValidationResult[] {
+function transformPythonResults(pyOutput: PythonOutput, jobId?: string): ValidationResult[] {
   const results: ValidationResult[] = [];
 
   for (const rule of pyOutput.rules) {
@@ -136,7 +136,7 @@ function transformPythonResults(pyOutput: PythonOutput): ValidationResult[] {
   });
 
   // Cache raw mesh data from the Python output
-  extractAndCacheMeshData(pyOutput);
+  extractAndCacheMeshData(pyOutput, jobId ?? "__last__");
 
   return results;
 }
@@ -145,7 +145,7 @@ function transformPythonResults(pyOutput: PythonOutput): ValidationResult[] {
 // Raw mesh data extraction
 // ---------------------------------------------------------------------------
 
-function extractAndCacheMeshData(pyOutput: PythonOutput): void {
+function extractAndCacheMeshData(pyOutput: PythonOutput, jobId: string): void {
   const bbox = pyOutput.summary.boundingBox;
   const rule3 = pyOutput.rules.find((r) => r.id === "R003");
 
@@ -175,15 +175,15 @@ function extractAndCacheMeshData(pyOutput: PythonOutput): void {
     genus,
   };
 
-  meshDataCache.set("__last__", data);
+  meshDataCache.set(jobId, data);
 }
 
 /**
  * Get raw mesh data from the most recent validation run.
  * Returns null if no validation has been performed yet.
  */
-export function getLastMeshData(): RawMeshData | null {
-  return meshDataCache.get("__last__") ?? null;
+export function getLastMeshData(jobId: string): RawMeshData | null {
+  return meshDataCache.get(jobId) ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -389,7 +389,8 @@ export async function getMeshValidatorStatus(): Promise<MeshValidatorStatus> {
  */
 export async function validateStl(
   stlPath: string,
-  _wallThickness?: number
+  _wallThickness?: number,
+  jobId?: string,
 ): Promise<ValidationResult[]> {
   // Check cache
   const cached = validationCache.get(stlPath);
@@ -431,7 +432,7 @@ export async function validateStl(
       return skipped;
     }
 
-    const results = transformPythonResults(parsed);
+    const results = transformPythonResults(parsed, jobId);
     validationCache.set(stlPath, results);
 
     console.log(

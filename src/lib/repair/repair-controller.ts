@@ -174,8 +174,8 @@ export async function runRepair(input: RepairInput): Promise<{
 
   return {
     generationResult: {
-      ...generationResult,
       ...emptyStructuredDefaults(),
+      ...generationResult,
       scad_source: sanitizedScadSource,
       part_type: input.cadIntent?.part_type || input.partFamily,
       features: (input.cadIntent?.features as StructuredGenerationResult["features"]) || [],

@@ -11,6 +11,7 @@ const execAsync = promisify(exec);
 
 /** External CLI boundary — uses user-provided or system OpenSCAD. Not bundled. */
 const OPENSCAD_BIN = process.env.OPENSCAD_BIN || "openscad";
+const RENDER_TIMEOUT_MS = 120_000; // 2 minutes — rendering is slower than validation
 
 function quoteShellArg(value: string): string {
   return `"${value.replace(/(["\\$`])/g, "\\$1")}"`;
@@ -45,6 +46,7 @@ export async function validateGeneratedScadSource(scadSource: string): Promise<v
     await fs.writeFile(tempScadPath, scadSource, "utf8");
     await execAsync(`${OPENSCAD_BIN} -o "${tempStlPath}" "${tempScadPath}"`, {
       env: await buildOpenScadExecEnv(),
+      timeout: RENDER_TIMEOUT_MS,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown OpenSCAD validation error";
@@ -62,6 +64,7 @@ export async function renderStl(
   const defineArgs = buildOpenScadDefineArgs(definitions);
   await execAsync(`${OPENSCAD_BIN} ${defineArgs} -o ${quoteShellArg(stlFilePath)} ${quoteShellArg(scadFilePath)}`, {
     env: await buildOpenScadExecEnv(),
+    timeout: RENDER_TIMEOUT_MS,
   });
 }
 
@@ -73,6 +76,7 @@ export async function renderPng(
   const defineArgs = buildOpenScadDefineArgs(definitions);
   await execAsync(`${OPENSCAD_BIN} ${defineArgs} -o ${quoteShellArg(pngFilePath)} --colorscheme=Tomorrow ${quoteShellArg(scadFilePath)}`, {
     env: await buildOpenScadExecEnv(),
+    timeout: RENDER_TIMEOUT_MS,
   });
 }
 

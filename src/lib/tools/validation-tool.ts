@@ -9,13 +9,15 @@ import { checkCompile } from "@/lib/validation/compile-check";
 import { checkBoundingBox } from "@/lib/validation/bbox-check";
 import { checkComponents } from "@/lib/validation/component-check";
 import { checkHoleCount } from "@/lib/validation/hole-check";
-import { computeReport, type ValidationCheck, type ValidationReport } from "@/lib/validation/report";
+import { computeReport } from "@/lib/validation/report";
+import type { ValidationCheck, ValidationReport } from "@/lib/validation/validation-types";
 import type { CadValidationTargets } from "@/lib/harness/types";
 
 export { clearValidationCache, validateStl, validatePreviewAgainstRequest };
 export type { ValidationResult, ValidationCheck, ValidationReport };
 
 export interface ValidateRenderedInput {
+  jobId?: string;
   inputRequest: string;
   partFamily: string | null;
   scadSource: string;
@@ -48,7 +50,7 @@ export interface ValidateRenderedInput {
 export async function validateRenderedArtifacts(
   input: ValidateRenderedInput
 ): Promise<ValidationResult[]> {
-  const meshResults = await validateStl(input.stlFilePath, input.wallThickness);
+  const meshResults = await validateStl(input.stlFilePath, input.wallThickness, input.jobId);
 
   // Visual validation runs only when explicitly requested (Phase 4: user-triggered)
   const visualResults: ValidationResult[] = input.skipVisual
@@ -69,7 +71,7 @@ export async function validateRenderedArtifacts(
   }
 
   // Mesh-derived checks (B001, C002, H001)
-  const meshData = getLastMeshData();
+  const meshData = getLastMeshData(input.jobId ?? "__last__");
   if (meshData) {
     additionalChecks.push(
       checkBoundingBox(meshData, input.validationTargets?.expected_bbox)
