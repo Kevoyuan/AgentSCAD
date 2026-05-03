@@ -22,13 +22,13 @@ It uses a progressive pipeline: one LLM call generates structured CAD intent and
 
 ![Delivered CAD artifacts remain inspectable with preview, STL readiness, SCAD source, and validation status.](./docs/images/Example.png)
 
-## For Reviewers / 60-Second Overview
+## 60-Second Overview
 
 - AgentSCAD turns natural-language CAD requests into `model.scad`, `model.stl`, `preview.png`, validation results, and persistent job history.
 - It is more than a text-to-code demo: the app stores jobs, extracts editable parameters, renders through OpenSCAD, validates mesh/manufacturing constraints, and attempts repair only when validation fails.
-- Without API keys, reviewers can open the workspace UI, initialize SQLite, inspect local artifacts, edit SCAD/parameters, and run deterministic rendering/validation if OpenSCAD is available.
+- Without API keys, the workspace UI, SQLite setup, local artifacts, SCAD/parameter editing, and deterministic rendering/validation paths remain inspectable when OpenSCAD is available.
 - Provider keys enable full LLM-backed generation, automatic repair, chat help, and user-triggered visual repair.
-- Start code review in `src/lib/pipeline/execute-cad-job.ts`, `src/lib/tools/`, `src/components/cad/`, `src/app/api/`, `prisma/schema.prisma`, and `skills/`.
+- Code entry points: `src/lib/pipeline/execute-cad-job.ts`, `src/lib/tools/`, `src/components/cad/`, `src/app/api/`, `prisma/schema.prisma`, and `skills/`.
 
 ## Quick Start
 
@@ -61,19 +61,7 @@ bun run dev:all
 
 Open [http://localhost:3000](http://localhost:3000).
 
-<details>
-<summary>Windows PowerShell setup</summary>
-
-```powershell
-bun install --frozen-lockfile
-if (!(Test-Path .env)) { Copy-Item .env.example .env }
-New-Item -ItemType Directory -Force db
-if (!(Test-Path db/dev.db)) { New-Item -ItemType File db/dev.db }
-bun run db:push
-bun run dev:all
-```
-
-</details>
+Windows setup and extended commands are in [Development and CI](./docs/DEVELOPMENT.md).
 
 ## First-Run Walkthrough
 
@@ -171,7 +159,7 @@ user sees preview
   -> targeted SCAD fix
 ```
 
-## For Portfolio Reviewers
+## Code Tour
 
 Key areas:
 
@@ -189,17 +177,6 @@ Key areas:
 - The Docker image intentionally does not bundle OpenSCAD.
 - Full LLM generation, repair, chat help, and visual repair require configured provider keys.
 - Core CI is strict and does not require OpenSCAD; OpenSCAD render checks run separately. See [Development and CI](./docs/DEVELOPMENT.md).
-
-## Project Structure
-
-- `src/app`, `src/app/api`: Next.js app shell and API/SSE routes.
-- `src/components/cad`: CAD workspace UI.
-- `src/lib/pipeline`: CAD job state machine.
-- `src/lib/tools`: OpenSCAD rendering, validation, artifact IO, SCAD sanitization, parameter extraction.
-- `src/lib/repair`: automatic and visual repair controllers.
-- `prisma/schema.prisma`: job and version persistence.
-- `skills`: model-facing CAD generation, repair, validation, and library policy.
-- `cad_knowledge`, `openscad_lib`: local examples, patterns, and OpenSCAD helper modules.
 
 ## Deeper Docs
 

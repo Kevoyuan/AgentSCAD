@@ -30,6 +30,17 @@ For setup failures and common runtime issues, see [Troubleshooting](./TROUBLESHO
 
 Reviewed third-party license obligations are tracked in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). Run `bun run license:audit` before changing package dependencies or OpenSCAD library policy.
 
+## Windows PowerShell Setup
+
+```powershell
+bun install --frozen-lockfile
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+New-Item -ItemType Directory -Force db
+if (!(Test-Path db/dev.db)) { New-Item -ItemType File db/dev.db }
+bun run db:push
+bun run dev:all
+```
+
 ## Configuration
 
 Model providers are optional for local exploration and required for full AI-assisted generation/repair quality. Start by copying `.env.example` to `.env`, then add the providers you want to use.
