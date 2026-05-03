@@ -124,6 +124,22 @@ Without API keys, you can still inspect the UI, initialize the database, edit SC
 
 Visual validation is skipped in the normal pipeline unless explicitly requested. Missing visual provider support is treated as uncertainty, not as a blocking pass.
 
+## Try This Sample Job
+
+```text
+Create a wall-mountable phone holder with rounded corners and two screw holes.
+```
+
+Expected artifacts:
+
+- `model.scad`
+- `model.stl`
+- `preview.png`
+- validation report
+- editable parameters
+
+Without provider keys, generated geometry may come from the template fallback path. That is still useful for evaluating the workflow, artifacts, and deterministic checks, but not a substitute for reviewing model-backed CAD quality.
+
 ## Features
 
 - **Artifact-first CAD generation**: OpenSCAD source is the source of truth.
@@ -155,45 +171,24 @@ user sees preview
   -> targeted SCAD fix
 ```
 
-## Testing / CI
+## For Portfolio Reviewers
 
-Core checks:
+Key areas:
 
-```bash
-bun run lint
-bun run typecheck
-bun run test:unit
-bun run build
-```
+- Full-stack workspace: `src/app`, `src/components/cad`
+- CAD generation pipeline: `src/lib/pipeline`
+- OpenSCAD rendering and validation tools: `src/lib/tools`, `scripts/validate_stl.py`
+- Job/version persistence: `prisma/schema.prisma`
+- Skill system: `skills/`
+- API/SSE routes: `src/app/api`
 
-OpenSCAD integration checks:
+## Status / Limitations
 
-```bash
-OPENSCAD_BIN=openscad bun run test:openscad
-```
-
-Core CI runs on pull requests and pushes to `main`; it is strict and does not require OpenSCAD. OpenSCAD rendering checks run in a separate optional/manual/scheduled job because rendering depends on system-level CAD tooling.
-
-See [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) for the full command list and CI details.
-
-## Troubleshooting
-
-| Problem | Cause | Fix |
-|---|---|---|
-| `openscad` not found | OpenSCAD is not installed or not in PATH | Install OpenSCAD and set `OPENSCAD_BIN` if needed |
-| Prisma/database error | SQLite DB or schema is not initialized | Run `mkdir -p db`, `touch db/dev.db`, then `bun run db:push` |
-| No AI generation | Provider keys are missing or provider calls failed | Add at least one provider key to `.env`; fallback/template generation may still run |
-| Visual repair unavailable | Selected model lacks vision support or provider credentials are missing | Switch to a vision-capable configured model and add the needed provider key |
-| Docker port conflict | Port 3000 is already in use | Stop the existing process or change the Compose port mapping |
-| Docker rendering fails | The Docker image does not bundle OpenSCAD | Use local development with OpenSCAD installed, or provide a custom image |
-| Bun command missing | Bun is not installed | Install Bun, or use npm only for basic development commands |
-| Windows shell commands fail | Bash commands were pasted into PowerShell | Use the Windows PowerShell setup block above |
-
-## OpenSCAD Runtime Boundary
-
-AgentSCAD does not bundle or link OpenSCAD in the default application distribution. It invokes OpenSCAD as an external command-line renderer through `OPENSCAD_BIN` or `openscad`.
-
-Users and distributors who install, package, or redistribute OpenSCAD are responsible for complying with OpenSCAD's GPL license terms.
+- Generated CAD should be reviewed before manufacturing.
+- Local rendering requires OpenSCAD to be installed and reachable through `OPENSCAD_BIN` or `openscad`.
+- The Docker image intentionally does not bundle OpenSCAD.
+- Full LLM generation, repair, chat help, and visual repair require configured provider keys.
+- Core CI is strict and does not require OpenSCAD; OpenSCAD render checks run separately. See [Development and CI](./docs/DEVELOPMENT.md).
 
 ## Project Structure
 
@@ -213,7 +208,8 @@ Users and distributors who install, package, or redistribute OpenSCAD are respon
 - [Benchmarking](./docs/BENCHMARK.md)
 - [Memory](./docs/MEMORY.md)
 - [Skills](./docs/SKILLS.md)
-- [OpenSCAD libraries](./docs/OPENSCAD_LIBRARIES.md)
+- [OpenSCAD runtime and libraries](./docs/OPENSCAD_LIBRARIES.md)
+- [Troubleshooting](./docs/TROUBLESHOOTING.md)
 
 ## License
 

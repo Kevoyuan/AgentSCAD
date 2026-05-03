@@ -79,3 +79,4 @@ When validation fails, AgentSCAD attempts one automatic LLM repair with validati
 - [Memory](./MEMORY.md)
 - [Skills](./SKILLS.md)
 - [OpenSCAD libraries](./OPENSCAD_LIBRARIES.md)
+- [Troubleshooting](./TROUBLESHOOTING.md)

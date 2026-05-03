@@ -124,6 +124,22 @@ bun run dev:all
 
 普通管线默认跳过视觉验证，除非用户显式请求。视觉供应商缺失或不可用时，AgentSCAD 会把它视为不确定，而不是阻塞式通过。
 
+## 试试这个示例任务
+
+```text
+创建一个可壁挂的手机支架，带圆角和两个螺丝孔。
+```
+
+预期产物：
+
+- `model.scad`
+- `model.stl`
+- `preview.png`
+- 验证报告
+- 可编辑参数
+
+没有供应商 Key 时，生成几何可能来自模板 fallback 路径。它仍适合评估工作流、产物和确定性检查，但不能替代对模型驱动 CAD 质量的评审。
+
 ## 特性
 
 - **产物优先的 CAD 生成**：OpenSCAD 源码是事实来源。
@@ -155,45 +171,24 @@ bun run dev:all
   -> 定向 SCAD 修复
 ```
 
-## 测试 / CI
+## 给作品集评审者
 
-核心检查：
+重点区域：
 
-```bash
-bun run lint
-bun run typecheck
-bun run test:unit
-bun run build
-```
+- 全栈工作区：`src/app`、`src/components/cad`
+- CAD 生成管线：`src/lib/pipeline`
+- OpenSCAD 渲染和验证工具：`src/lib/tools`、`scripts/validate_stl.py`
+- 任务/版本持久化：`prisma/schema.prisma`
+- Skill 系统：`skills/`
+- API/SSE 路由：`src/app/api`
 
-OpenSCAD 集成检查：
+## 当前状态 / 限制
 
-```bash
-OPENSCAD_BIN=openscad bun run test:openscad
-```
-
-Core CI 在 PR 和 push 到 `main` 时运行；它是严格的，并且不要求 OpenSCAD。OpenSCAD 渲染检查位于单独的可选/手动/定时 job 中，因为渲染依赖系统级 CAD 工具。
-
-完整命令和 CI 细节见 [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md)。
-
-## 故障排查
-
-| 问题 | 原因 | 解决方法 |
-|---|---|---|
-| `openscad` not found | OpenSCAD 未安装或不在 PATH 中 | 安装 OpenSCAD；必要时设置 `OPENSCAD_BIN` |
-| Prisma/database error | SQLite DB 或 schema 未初始化 | 运行 `mkdir -p db`、`touch db/dev.db`、`bun run db:push` |
-| 没有 AI 生成 | 缺少供应商 Key，或供应商调用失败 | 在 `.env` 中添加至少一个供应商 Key；fallback/template 仍可能运行 |
-| Visual Repair 不可用 | 选择的模型不支持视觉，或缺少供应商凭证 | 切换到支持视觉的已配置模型，并添加所需 Key |
-| Docker 端口冲突 | 3000 端口已被占用 | 停止已有进程，或修改 Compose 端口映射 |
-| Docker 渲染失败 | Docker 镜像不捆绑 OpenSCAD | 改用本地开发并安装 OpenSCAD，或提供自定义镜像 |
-| Bun command missing | 未安装 Bun | 安装 Bun；或仅基础开发命令使用 npm |
-| Windows shell commands fail | 在 PowerShell 中粘贴了 Bash 命令 | 使用上方 Windows PowerShell 设置块 |
-
-## OpenSCAD 运行时边界
-
-AgentSCAD 默认发行包不捆绑、不链接 OpenSCAD。它只通过 `OPENSCAD_BIN` 或用户运行环境中的 `openscad` 命令，把 OpenSCAD 作为外部命令行渲染器调用。
-
-安装、打包或再分发 OpenSCAD 的用户/分发者，需要自行遵守 OpenSCAD 的 GPL 许可证要求。
+- 生成的 CAD 在制造前应经过人工审核。
+- 本地渲染需要 OpenSCAD 可通过 `OPENSCAD_BIN` 或 `openscad` 访问。
+- Docker 镜像有意不捆绑 OpenSCAD。
+- 完整 LLM 生成、修复、聊天辅助和视觉修复需要配置供应商 Key。
+- Core CI 是严格的，并且不要求 OpenSCAD；OpenSCAD 渲染检查单独运行。见 [开发与 CI](./docs/DEVELOPMENT.md)。
 
 ## 项目结构
 
@@ -213,7 +208,8 @@ AgentSCAD 默认发行包不捆绑、不链接 OpenSCAD。它只通过 `OPENSCAD
 - [基准测试](./docs/BENCHMARK.md)
 - [记忆系统](./docs/MEMORY.md)
 - [Skills](./docs/SKILLS.md)
-- [OpenSCAD 库](./docs/OPENSCAD_LIBRARIES.md)
+- [OpenSCAD 运行时和库](./docs/OPENSCAD_LIBRARIES.md)
+- [故障排查](./docs/TROUBLESHOOTING.md)
 
 ## 许可证
 

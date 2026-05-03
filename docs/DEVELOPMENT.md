@@ -2,6 +2,8 @@
 
 This document holds the longer setup, testing, and CI notes that would otherwise make the main README too heavy.
 
+For setup failures and common runtime issues, see [Troubleshooting](./TROUBLESHOOTING.md).
+
 ## Local Commands
 
 | Task | Command |
