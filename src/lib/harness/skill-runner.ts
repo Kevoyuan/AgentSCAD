@@ -72,6 +72,15 @@ export function detectPartFamily(request: string): PartFamily {
     return "device_stand";
   }
   if (
+    lower.includes("cube") ||
+    lower.includes("block") ||
+    lower.includes("brick") ||
+    lower.includes("plate") ||
+    lower.includes("generic part")
+  ) {
+    return "unknown";
+  }
+  if (
     lower.includes("enclosure") ||
     lower.includes("electronics box") ||
     lower.includes("project box") ||

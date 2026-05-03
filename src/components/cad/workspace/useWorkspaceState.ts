@@ -218,6 +218,35 @@ export function useWorkspaceState() {
     }
   }, [loadJobs])
 
+  useEffect(() => {
+    const detailTabs = new Set(['PARAMETERS', 'PARAMS', 'CODE', 'SCAD', 'VALIDATION', 'HISTORY', 'LOG', 'ASSIST'])
+    if (!selectedJob || !detailTabs.has(activeTab)) return
+
+    const needsDetails =
+      selectedJob.scadSource === undefined ||
+      selectedJob.parameterSchema === undefined ||
+      selectedJob.parameterValues === undefined ||
+      selectedJob.validationResults === undefined ||
+      ((activeTab === 'CODE' || activeTab === 'SCAD') &&
+        ['SCAD_GENERATED', 'RENDERED', 'VALIDATED', 'DELIVERED', 'HUMAN_REVIEW'].includes(selectedJob.state) &&
+        !selectedJob.scadSource)
+
+    if (!needsDetails) return
+
+    let cancelled = false
+    fetchJob(selectedJob.id)
+      .then(({ job }) => {
+        if (!cancelled) setSelectedJob(job)
+      })
+      .catch((err) => {
+        console.error('Failed to hydrate selected job details:', err)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, selectedJob?.id, selectedJob?.state, selectedJob?.scadSource, selectedJob?.parameterSchema, selectedJob?.parameterValues, selectedJob?.validationResults])
+
   // ── Job Actions ───────────────────────────────────────────────────────────
 
   const handleCreate = async () => {

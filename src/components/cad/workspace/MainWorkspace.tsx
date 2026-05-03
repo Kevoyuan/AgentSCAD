@@ -467,7 +467,7 @@ export function MainWorkspace() {
 
       {/* Stats Dashboard */}
       <Dialog open={state.showStats} onOpenChange={state.setShowStats}>
-        <DialogContent className="bg-[var(--app-dialog-bg)] border border-[color:var(--app-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_48px_-12px_rgba(0,0,0,0.4)] rounded-xl max-w-2xl dialog-enter" aria-describedby="stats-description">
+        <DialogContent className="bg-[var(--app-dialog-bg)] border border-[color:var(--app-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_48px_-12px_rgba(0,0,0,0.4)] rounded-xl w-[min(44rem,calc(100vw-2rem))] max-w-none max-h-[min(82vh,760px)] overflow-y-auto dialog-enter" aria-describedby="stats-description">
           <DialogHeader>
             <DialogTitle className="text-sm flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-[var(--app-accent-text)]" />Stats Dashboard
@@ -476,7 +476,7 @@ export function MainWorkspace() {
               Statistics and metrics for all CAD jobs
             </DialogDescription>
           </DialogHeader>
-          <StatsDashboard jobs={state.allJobs} />
+          <StatsDashboard jobs={state.allJobs} onClose={() => state.setShowStats(false)} />
         </DialogContent>
       </Dialog>
 

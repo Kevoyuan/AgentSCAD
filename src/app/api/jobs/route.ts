@@ -125,10 +125,11 @@ export async function POST(request: NextRequest) {
         ? modelId.trim()
         : process.env.MIMO_MODEL || "mimo-v2.5-pro";
 
-    // Generate a default parameter schema based on a generic enclosure
+    // Generate a neutral default parameter schema. The processing pipeline owns
+    // part-family detection; new generic jobs should not look like enclosures.
     const defaultParameterSchema = JSON.stringify({
-      part_family: "electronics_enclosure",
-      design_summary: "Custom enclosure based on user request",
+      part_family: "unknown",
+      design_summary: "Custom part based on user request",
       parameters: [
         {
           key: "width",
