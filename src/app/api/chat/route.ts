@@ -4,6 +4,7 @@ import { createMimoChatCompletion, getMimoConfig, MIMO_DEFAULT_MODEL } from "@/l
 import { createOpenRouterChatCompletion, isOpenRouterModel } from "@/lib/openrouter";
 import { createProviderChatCompletion, findProviderForModel } from "@/lib/provider-settings";
 import { loadSkill } from "@/lib/skill-resolver";
+import { isModelMultimodal } from "@/app/api/models/route";
 
 type ContentPart =
   | { type: "text"; text: string }
@@ -53,12 +54,14 @@ When proposing OpenSCAD changes, optimize for one-click application:
     if (jobId) {
       const job = await db.job.findUnique({ where: { id: jobId } });
       if (job) {
-        const paramSchema = job.parameterSchema
-          ? JSON.parse(job.parameterSchema)
-          : null;
-        const paramValues = job.parameterValues
-          ? JSON.parse(job.parameterValues)
-          : null;
+        let paramSchema = null;
+        let paramValues = null;
+        try {
+          paramSchema = job.parameterSchema ? JSON.parse(job.parameterSchema) : null;
+        } catch { /* skip malformed schema */ }
+        try {
+          paramValues = job.parameterValues ? JSON.parse(job.parameterValues) : null;
+        } catch { /* skip malformed values */ }
 
         systemPrompt += `\n\nCurrent job context:
 - Job ID: ${job.id}
@@ -94,25 +97,8 @@ ${job.scadSource ? `\nGenerated SCAD Code:\n\`\`\`openscad\n${job.scadSource}\n\
 
     const requestedModel = model || process.env.MIMO_MODEL || MIMO_DEFAULT_MODEL;
 
-    // Check if the model supports multimodal input
-    const multimodalModels = [
-      // Xiaomi MiMo
-      "mimo-v2.5",
-      "mimo-v2-omni",
-      // OpenAI
-      "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-5", "gpt-5-mini", "gpt-4o", "o4-mini",
-      // OpenRouter
-      "openai/gpt-5.5",
-      // Anthropic
-      "claude-opus-4-7-20260401", "claude-opus-4-6-20260205", "claude-sonnet-4-6-20260217", "claude-sonnet-4-5-20251022", "claude-haiku-4-5-20251022",
-      // Google
-      "gemini-3.1-pro", "gemini-3.1-flash", "gemini-3-flash", "gemini-2.5-pro", "gemini-2.5-flash",
-      // Zhipu
-      "glm-5.1", "glm-5-turbo", "glm-4v-plus",
-      // Qwen
-      "qwen3.5-plus", "qwen3-vl",
-    ];
-    const isMultimodal = multimodalModels.includes(requestedModel);
+    // Check if the model supports multimodal input (dynamic lookup from models registry)
+    const isMultimodal = isModelMultimodal(requestedModel);
 
     for (const msg of messages) {
       if (

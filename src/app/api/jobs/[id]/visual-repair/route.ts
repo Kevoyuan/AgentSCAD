@@ -4,6 +4,7 @@ import { appendLog } from "@/lib/stores/job-store";
 import { runVisualRepair } from "@/lib/repair/visual-repair-controller";
 import { renderScadArtifacts, getRenderedArtifactPaths } from "@/lib/tools/scad-renderer";
 import { clearValidationCache } from "@/lib/tools/validation-tool";
+import { isModelMultimodal } from "@/app/api/models/route";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -30,6 +31,16 @@ export async function POST(
     if (!job.scadSource) {
       return NextResponse.json(
         { error: "No SCAD source to repair" },
+        { status: 400 }
+      );
+    }
+
+    // Check if the job's model supports vision
+    if (job.modelId && !isModelMultimodal(job.modelId)) {
+      return NextResponse.json(
+        {
+          error: `Model "${job.modelId}" does not support vision. Switch to a vision-capable model (e.g. mimo-v2.5, gpt-4.1, claude-sonnet-4-6) in job settings before running visual repair.`,
+        },
         { status: 400 }
       );
     }

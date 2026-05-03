@@ -453,6 +453,22 @@ const AVAILABLE_MODELS: ModelInfo[] = [
   },
 ];
 
+/**
+ * Check if a model supports multimodal (vision) input.
+ * Looks up the model in the built-in registry, then falls back to
+ * configured providers (which default to multimodal).
+ * Returns false for truly unknown models to avoid silent failures.
+ */
+export function isModelMultimodal(modelId: string | null | undefined): boolean {
+  if (!modelId) return false;
+  const builtIn = AVAILABLE_MODELS.find((m) => m.id === modelId);
+  if (builtIn) return builtIn.multimodal;
+  // Configured provider models default to multimodal (the models route
+  // sets multimodal: true for all user-configured providers).
+  // Unknown models: assume non-multimodal to avoid silent image stripping.
+  return false;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const includeBuiltIns = searchParams.get("includeBuiltIns") === "true";
