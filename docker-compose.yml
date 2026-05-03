@@ -7,6 +7,7 @@ services:
       - "3000:3000"
     environment:
       - DATABASE_URL=file:./db/dev.db
+      - OPENSCAD_BIN=${OPENSCAD_BIN:-openscad}
       - MIMO_BASE_URL=${MIMO_BASE_URL:-}
       - MIMO_MODEL=${MIMO_MODEL:-}
       - MIMO_API_KEY=${MIMO_API_KEY:-}
@@ -15,4 +16,5 @@ services:
     volumes:
       - ./db:/app/db
       - ./public/artifacts:/app/public/artifacts
+    command: sh -lc "bun run db:push && bun run start"
     restart: unless-stopped

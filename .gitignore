@@ -44,6 +44,7 @@ db/*.db
 # generated artifacts
 public/artifacts/
 skills/scad-generation/learned-patterns.json
+benchmark-results.txt
 
 # agent/IDE context directories
 .codex/
