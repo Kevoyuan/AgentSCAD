@@ -232,6 +232,71 @@ bun run scad:libs:install
 bun run scad:libs:check
 ```
 
+## Testing
+
+Run core checks:
+
+```bash
+bun run lint
+bun run typecheck
+bun run test:unit
+bun run build
+```
+
+Run OpenSCAD integration checks locally:
+
+```bash
+OPENSCAD_BIN=openscad bun run test:openscad
+```
+
+If OpenSCAD is not installed, install it first and make sure `openscad` is available in PATH.
+
+On Linux:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y openscad
+```
+
+On macOS, install OpenSCAD from <https://openscad.org/downloads.html> and set `OPENSCAD_BIN` if the executable is not in PATH.
+
+On Windows, install OpenSCAD and set `OPENSCAD_BIN` to the executable path if it is not in PATH.
+
+Test categories:
+
+- Unit tests: no OpenSCAD, no external model APIs, safe for every PR.
+- OpenSCAD integration tests: require OpenSCAD and may render filesystem artifacts.
+- Model/API tests: should be mocked by default and should not require paid provider keys in CI.
+
+## CI Strategy
+
+AgentSCAD uses a two-layer CI setup.
+
+### Core CI
+
+Core CI runs on pull requests and pushes to `main`, and can also be run manually. It checks the application without requiring system-level CAD tooling:
+
+- dependency installation
+- Prisma / SQLite setup
+- linting
+- type checking
+- unit tests with mocked or deterministic dependencies
+- Next.js build
+
+This job is strict: failures fail the workflow.
+
+### OpenSCAD Integration Checks
+
+Rendering and mesh validation depend on the external OpenSCAD CLI. These checks are separated from Core CI because OpenSCAD is a system-level CAD dependency and rendering behavior can vary across environments.
+
+OpenSCAD integration checks cover:
+
+- SCAD to STL rendering
+- preview generation
+- render pipeline smoke tests that require the OpenSCAD executable
+
+They can be run locally with OpenSCAD installed, or through the optional manual/scheduled OpenSCAD integration job. The GitHub Actions OpenSCAD job is non-blocking so core application quality remains the required signal.
+
 ## Troubleshooting
 
 | Problem | Cause | Fix |
@@ -362,7 +427,9 @@ Current limitations:
 | Dev app alias | `bun run dev:app` |
 | Build | `bun run build` |
 | Start production server | `bun run start` |
-| Test | `bun test` or `bun run test` |
+| Core unit tests | `bun run test` or `bun run test:unit` |
+| OpenSCAD integration tests | `OPENSCAD_BIN=openscad bun run test:openscad` |
+| Typecheck | `bun run typecheck` |
 | Lint | `bun run lint` |
 | Audit dependency licenses | `bun run license:audit` |
 | Check OpenSCAD libraries | `bun run scad:libs:check` |

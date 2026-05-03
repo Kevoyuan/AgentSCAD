@@ -230,6 +230,71 @@ bun run scad:libs:install
 bun run scad:libs:check
 ```
 
+## 测试
+
+运行核心检查：
+
+```bash
+bun run lint
+bun run typecheck
+bun run test:unit
+bun run build
+```
+
+本地运行 OpenSCAD 集成检查：
+
+```bash
+OPENSCAD_BIN=openscad bun run test:openscad
+```
+
+如果没有安装 OpenSCAD，请先安装，并确认 `openscad` 在 PATH 中可用。
+
+Linux：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y openscad
+```
+
+macOS 可从 <https://openscad.org/downloads.html> 安装 OpenSCAD；如果可执行文件不在 PATH 中，请设置 `OPENSCAD_BIN`。
+
+Windows 请安装 OpenSCAD；如果不在 PATH 中，请将 `OPENSCAD_BIN` 设置为可执行文件路径。
+
+测试分类：
+
+- 单元测试：不依赖 OpenSCAD，不依赖外部模型 API，适合每个 PR。
+- OpenSCAD 集成测试：需要 OpenSCAD，可能会渲染文件系统产物。
+- 模型/API 测试：默认应被 mock，不应在 CI 中要求付费供应商 Key。
+
+## CI 策略
+
+AgentSCAD 使用两层 CI。
+
+### Core CI
+
+Core CI 在 pull request、push 到 `main` 时运行，也可以手动触发。它检查不依赖系统级 CAD 工具的应用质量：
+
+- 依赖安装
+- Prisma / SQLite 初始化
+- lint
+- 类型检查
+- 使用 mock 或确定性依赖的单元测试
+- Next.js 构建
+
+这个 job 是严格的：失败会让 workflow 失败。
+
+### OpenSCAD 集成检查
+
+渲染和网格验证依赖外部 OpenSCAD CLI。它们与 Core CI 分离，因为 OpenSCAD 是系统级 CAD 依赖，不同环境的渲染行为可能不同。
+
+OpenSCAD 集成检查覆盖：
+
+- SCAD 到 STL 渲染
+- 预览图生成
+- 需要 OpenSCAD 可执行文件的渲染管线 smoke test
+
+这些检查可以在本地安装 OpenSCAD 后运行，也可以通过可选的手动/定时 GitHub Actions job 运行。GitHub Actions 中的 OpenSCAD job 是非阻塞的，因此核心应用质量仍是必需信号。
+
 ## 故障排查
 
 | 问题 | 原因 | 解决方法 |
@@ -360,7 +425,9 @@ AgentSCAD 是一个面向 AI 原生 CAD 工作流的活跃原型，专为基于 
 | 开发应用别名 | `bun run dev:app` |
 | 构建 | `bun run build` |
 | 启动生产服务器 | `bun run start` |
-| 测试 | `bun test` 或 `bun run test` |
+| 核心单元测试 | `bun run test` 或 `bun run test:unit` |
+| OpenSCAD 集成测试 | `OPENSCAD_BIN=openscad bun run test:openscad` |
+| 类型检查 | `bun run typecheck` |
 | 代码检查 | `bun run lint` |
 | 审计依赖许可证 | `bun run license:audit` |
 | 检查 OpenSCAD 库 | `bun run scad:libs:check` |
