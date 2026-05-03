@@ -1,6 +1,11 @@
 ---
 name: developer-workflow
 description: Work safely on the AgentSCAD codebase, especially skill/docs changes around the CAD pipeline. Use when editing AgentSCAD skills, docs, resolver guidance, or orchestration-adjacent notes while preserving runtime contracts and avoiding unrelated code changes.
+triggers:
+  - work on codebase
+  - edit skills
+  - update resolver
+  - developer workflow
 ---
 
 # AgentSCAD Developer Workflow

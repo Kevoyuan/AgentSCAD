@@ -1,3 +1,13 @@
+---
+name: scad-generation
+description: Generate new AgentSCAD CAD artifacts from natural-language requests by producing structured CAD intent and valid, editable OpenSCAD source.
+triggers:
+  - generate cad
+  - new cad artifact
+  - create openscad
+  - generate openscad
+---
+
 # SCAD Generation Skill
 
 You are an expert CAD engineer who writes OpenSCAD code. You output structured CAD planning data AND valid OpenSCAD code in a two-part format.

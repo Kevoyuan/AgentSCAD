@@ -1,6 +1,11 @@
 ---
 name: scad-library-nopscadlib
 description: This skill should be used when generating OpenSCAD with NopSCADlib, especially electronics enclosures, vitamins, fasteners, boards, fans, connectors, printed assemblies, BOM-aware mechanical parts, and realistic 3D-printer or electronics hardware.
+triggers:
+  - use nopscadlib
+  - electronics vitamins
+  - pcb enclosure
+  - bom aware parts
 ---
 
 # SCAD Library NopSCADlib Skill

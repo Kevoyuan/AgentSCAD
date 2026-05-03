@@ -1,6 +1,11 @@
 ---
 name: scad-validation-review
 description: Review AgentSCAD render logs, OpenSCAD artifacts, preview images, and validationResults. Use whenever the user asks why a CAD job failed validation, whether results are trustworthy, or what should be repaired next.
+triggers:
+  - review validation
+  - render logs
+  - validation results
+  - cad qa review
 ---
 
 # SCAD Validation Review

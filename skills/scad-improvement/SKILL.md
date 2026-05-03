@@ -1,3 +1,13 @@
+---
+name: scad-improvement
+description: Improve AgentSCAD generation quality from user edits, validation failures, repair outcomes, and learned SCAD patterns.
+triggers:
+  - improve generation
+  - learn from edits
+  - generation feedback
+  - scad improvement
+---
+
 # SCAD Improvement — Self-Learning Loop
 
 This skill documents the self-learning loop that extracts patterns from user edits and feeds them back into the SCAD generation pipeline. The goal is to make each generation iteration better than the last by learning from what users actually fix.

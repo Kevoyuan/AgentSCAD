@@ -1,6 +1,11 @@
 ---
 name: scad-library-policy
 description: This skill should be used when deciding whether generated OpenSCAD may include external libraries, validating SCAD include or use statements, checking installed OpenSCAD libraries, or managing approved library policy for BOSL2, NopSCADlib, Round-Anything, MCAD, threads.scad, and threadlib.
+triggers:
+  - library policy
+  - validate scad include
+  - openscad libraries
+  - approved cad libraries
 ---
 
 # SCAD Library Policy Skill

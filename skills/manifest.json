@@ -1,0 +1,56 @@
+{
+  "skills": [
+    {
+      "name": "developer-workflow",
+      "path": "developer-workflow/SKILL.md"
+    },
+    {
+      "name": "scad-chat",
+      "path": "scad-chat/SKILL.md"
+    },
+    {
+      "name": "scad-generation",
+      "path": "scad-generation/SKILL.md"
+    },
+    {
+      "name": "scad-improvement",
+      "path": "scad-improvement/SKILL.md"
+    },
+    {
+      "name": "scad-library-bosl2",
+      "path": "scad-library-bosl2/SKILL.md"
+    },
+    {
+      "name": "scad-library-mcad",
+      "path": "scad-library-mcad/SKILL.md"
+    },
+    {
+      "name": "scad-library-nopscadlib",
+      "path": "scad-library-nopscadlib/SKILL.md"
+    },
+    {
+      "name": "scad-library-policy",
+      "path": "scad-library-policy/SKILL.md"
+    },
+    {
+      "name": "scad-library-round-anything",
+      "path": "scad-library-round-anything/SKILL.md"
+    },
+    {
+      "name": "scad-library-threads",
+      "path": "scad-library-threads/SKILL.md"
+    },
+    {
+      "name": "scad-repair",
+      "path": "scad-repair/SKILL.md"
+    },
+    {
+      "name": "scad-validation-review",
+      "path": "scad-validation-review/SKILL.md"
+    },
+    {
+      "name": "scad-visual-validate",
+      "path": "scad-visual-validate/SKILL.md"
+    }
+  ]
+}

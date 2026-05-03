@@ -1,6 +1,11 @@
 ---
 name: scad-library-round-anything
 description: This skill should be used when generating OpenSCAD with Round-Anything, polyRound, polyRoundExtrude, shell2d, rounded sketch profiles, filleted extrusions, beams, tabs, brackets, and consumer-product-style softened parts.
+triggers:
+  - use round anything
+  - polyround
+  - rounded sketch
+  - filleted extrusion
 ---
 
 # SCAD Library Round-Anything Skill

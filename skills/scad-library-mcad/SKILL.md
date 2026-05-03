@@ -1,6 +1,11 @@
 ---
 name: scad-library-mcad
 description: This skill should be used when generating OpenSCAD with MCAD, especially involute gears, bevel gears, motors, servos, regular shapes, nuts, bolts, and established mechanical primitives bundled with OpenSCAD.
+triggers:
+  - use mcad
+  - involute gear
+  - bevel gear
+  - mcad helpers
 ---
 
 # SCAD Library MCAD Skill

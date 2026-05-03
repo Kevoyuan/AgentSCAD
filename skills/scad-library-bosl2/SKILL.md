@@ -1,6 +1,11 @@
 ---
 name: scad-library-bosl2
 description: This skill should be used when generating OpenSCAD with BOSL2, using rounded solids, chamfers, anchors, attachments, transforms, arrays, masks, gears, screws, or higher-quality parametric geometry.
+triggers:
+  - use bosl2
+  - rounded solids
+  - chamfered geometry
+  - bosl2 helpers
 ---
 
 # SCAD Library BOSL2 Skill

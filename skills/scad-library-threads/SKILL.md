@@ -1,6 +1,11 @@
 ---
 name: scad-library-threads
 description: This skill should be used when generating OpenSCAD with threads.scad or threadlib, including metric threads, threaded holes, taps, bolts, nuts, screw connectors, bottle caps, pipe threads, and printable threaded mechanical interfaces.
+triggers:
+  - use threads.scad
+  - use threadlib
+  - threaded holes
+  - printable threads
 ---
 
 # SCAD Library Threads Skill

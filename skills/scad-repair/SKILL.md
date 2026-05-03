@@ -1,6 +1,11 @@
 ---
 name: scad-repair
 description: Repair AgentSCAD OpenSCAD after generation, rendering, or validation failures. Use whenever a job is in GEOMETRY_FAILED, RENDER_FAILED, VALIDATION_FAILED, REPAIRING, or DEBUGGING, or when the user asks to fix broken SCAD while preserving the original CAD intent and runtime contracts.
+triggers:
+  - repair scad
+  - render failed
+  - validation failed
+  - fix broken openscad
 ---
 
 # SCAD Repair
