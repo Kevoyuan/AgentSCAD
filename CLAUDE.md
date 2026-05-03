@@ -203,3 +203,11 @@ Key routing rules:
 - Review what gstack has learned → invoke /learn
 - Tune question sensitivity → invoke /plan-tune
 - Code quality dashboard → invoke /health
+
+## Health Stack
+
+- typecheck: bunx tsc --noEmit
+- lint: bunx eslint .
+- test: bun test
+- deadcode: (not installed)
+- shell: (not installed)
