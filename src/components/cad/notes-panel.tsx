@@ -47,7 +47,7 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
         onUpdate()
         setJustSaved(true)
         setTimeout(() => setJustSaved(false), 2000)
-      }).catch(() => {})
+      }).catch((err) => { console.warn("[notes-panel] auto-save failed:", err) })
     }, 1500)
   }
 

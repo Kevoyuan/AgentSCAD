@@ -254,6 +254,7 @@ export function MainWorkspace() {
             onDelete={state.handleDelete}
             onLinkParent={state.handleLinkParent}
             onBatchAction={state.handleBatchAction}
+            onClearSelection={() => state.setSelectedIds(new Set())}
             onFilterChange={state.handleFilterChange}
             onSetActiveTab={state.setActiveTab}
           />

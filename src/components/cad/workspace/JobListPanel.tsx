@@ -44,6 +44,7 @@ export function JobListPanel({
   onDelete,
   onLinkParent,
   onBatchAction,
+  onClearSelection,
   onFilterChange,
   onSetActiveTab,
   isFirstLoadComplete,
@@ -69,6 +70,7 @@ export function JobListPanel({
   onDelete: (id: string) => void
   onLinkParent: (job: Job) => void
   onBatchAction: (action: 'delete' | 'cancel' | 'reprocess') => void
+  onClearSelection: () => void
   onFilterChange: (filters: FilterState) => void
   onSetActiveTab: (tab: string) => void
 }) {
@@ -104,7 +106,7 @@ export function JobListPanel({
                   <Button variant="ghost" size="sm" className="h-7 text-xs px-2 gap-1 text-rose-400 hover:text-rose-300" onClick={() => onBatchAction('delete')}>
                     <Trash2 className="w-3.5 h-3.5" />Delete
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs px-2 text-[var(--app-text-muted)]" onClick={() => onBatchAction('delete')} aria-label="Clear selection">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs px-2 text-[var(--app-text-muted)]" onClick={onClearSelection} aria-label="Clear selection">
                     <X className="w-3.5 h-3.5" />
                   </Button>
                 </div>

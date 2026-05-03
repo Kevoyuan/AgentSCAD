@@ -541,7 +541,7 @@ export function useWorkspaceState() {
   useEffect(() => {
     const interval = setInterval(() => {
       setUptimeSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000))
-    }, 1000)
+    }, 10000)
     return () => clearInterval(interval)
   }, [])
 
