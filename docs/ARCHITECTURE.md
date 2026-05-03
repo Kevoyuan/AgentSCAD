@@ -7,7 +7,7 @@ AgentSCAD is organized like a production agent project rather than a single prom
 - **Frontend**: React 19 + Next.js 16 App Router + Tailwind CSS v4 + Shadcn UI
 - **Backend API**: Next.js Route Handlers
 - **Database**: SQLite with Prisma ORM
-- **Reverse proxy**: Caddy on port 81
+- **Runtime CAD dependency**: external OpenSCAD CLI, invoked through `OPENSCAD_BIN` or `openscad`
 
 ## Repo Mental Model
 
@@ -72,39 +72,10 @@ Active generation progress is streamed to the browser through SSE. The broader w
 
 When validation fails, AgentSCAD attempts one automatic LLM repair with validation feedback, then re-renders and re-validates. If the repair succeeds, the pipeline continues to delivery. If it fails, the job goes to HUMAN_REVIEW with artifacts preserved for inspection. Visual validation runs only when the user clicks "Visual Repair" after seeing the preview — it is not part of the default pipeline.
 
-## OpenSCAD Libraries
+## Related Docs
 
-AgentSCAD may use approved OpenSCAD libraries when the runtime reports them as available. The approved library catalog lives in `skills/scad-library-policy/manifest.json`; it records source repositories, pinned commits, detection files, include examples, and license gates.
-
-The default managed library directory is outside the repository:
-
-```bash
-~/.agentscad/openscad-libraries
-```
-
-Install default-approved libraries:
-
-```bash
-npm run scad:libs:install
-```
-
-Check installed libraries:
-
-```bash
-npm run scad:libs:check
-```
-
-These commands are thin wrappers around Python scripts, so Bun is not required for OpenSCAD library setup. You can also run them directly:
-
-```bash
-python3 skills/scad-library-policy/scripts/install_scad_libraries.py
-python3 skills/scad-library-policy/scripts/check_scad_libraries.py
-```
-
-Default installation currently includes BOSL2, Round-Anything, and MCAD. GPL libraries such as NopSCADlib are not installed by default; installing them requires an explicit opt-in:
-
-```bash
-npm run scad:libs:install:gpl
-```
-
-Generated SCAD may reference available libraries with `include` or `use`, but AgentSCAD does not copy third-party library source into generated SCAD. Keep third-party library source out of this repository unless a human explicitly reviews and approves the licensing and distribution model.
+- [Development and CI](./DEVELOPMENT.md)
+- [Benchmarking](./BENCHMARK.md)
+- [Memory](./MEMORY.md)
+- [Skills](./SKILLS.md)
+- [OpenSCAD libraries](./OPENSCAD_LIBRARIES.md)
