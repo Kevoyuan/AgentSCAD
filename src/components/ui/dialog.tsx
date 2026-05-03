@@ -54,6 +54,8 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  const fallbackDescriptionId = React.useId()
+  const ariaDescribedBy = props["aria-describedby"] ?? fallbackDescriptionId
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -64,7 +66,13 @@ function DialogContent({
           className
         )}
         {...props}
+        aria-describedby={ariaDescribedBy}
       >
+        {props["aria-describedby"] === undefined && (
+          <DialogPrimitive.Description id={fallbackDescriptionId} className="sr-only">
+            Dialog window
+          </DialogPrimitive.Description>
+        )}
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close
