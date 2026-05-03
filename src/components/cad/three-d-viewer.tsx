@@ -583,10 +583,25 @@ export function ThreeDViewer({ job }: { job: Job }) {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-[var(--app-text-dim)] gap-3 p-4">
-        <AlertCircle className="w-8 h-7 text-rose-500/50" />
-        <span className="text-xs text-rose-400">3D preview unavailable</span>
-        <span className="text-[13px] text-[var(--app-text-dim)]">{error}</span>
+      <div className="relative flex h-full flex-col items-center justify-center gap-3 overflow-hidden bg-[var(--app-bg)] p-4 text-[var(--app-text-dim)]">
+        {job.pngPath ? (
+          <>
+            <img
+              src={job.pngPath}
+              alt="Rendered CAD preview"
+              className="max-h-full max-w-full object-contain"
+            />
+            <div className="absolute left-3 top-3 rounded border border-[color:var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-[11px] text-[var(--app-text-muted)] shadow-sm">
+              WebGL unavailable. Showing rendered PNG preview.
+            </div>
+          </>
+        ) : (
+          <>
+            <AlertCircle className="w-8 h-7 text-rose-500/50" />
+            <span className="text-xs text-rose-400">3D preview unavailable</span>
+            <span className="text-[13px] text-[var(--app-text-dim)]">{error}</span>
+          </>
+        )}
       </div>
     )
   }

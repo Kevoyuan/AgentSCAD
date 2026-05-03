@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { Job, ParameterDef, ParameterSchema, parseJSON, safeNum } from './types'
 import { updateParameters } from './api'
 import { staggerContainer, staggerChild, staggerTransition, slideInLeft, slideInLeftTransition } from './motion-presets'
+import { extractParameterDefsFromScad } from '@/lib/tools/scad-parameter-extractor'
 
 export function ParameterPanel({
   job,
@@ -43,6 +44,16 @@ export function ParameterPanel({
       schema = { part_family: 'unknown', design_summary: '', parameters: rawSchema as ParameterDef[] }
     } else if (rawSchema.parameters && Array.isArray(rawSchema.parameters)) {
       schema = rawSchema as ParameterSchema
+    }
+  }
+  if ((!schema || schema.parameters.length === 0) && job.scadSource) {
+    const extracted = extractParameterDefsFromScad(job.scadSource) as ParameterDef[]
+    if (extracted.length > 0) {
+      schema = {
+        part_family: job.partFamily || 'unknown',
+        design_summary: 'Parameters parsed from top-level OpenSCAD assignments',
+        parameters: extracted,
+      }
     }
   }
 

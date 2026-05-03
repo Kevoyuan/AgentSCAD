@@ -1,6 +1,6 @@
 'use client'
 
-import { CSSProperties, useEffect, useState } from 'react'
+import { CSSProperties, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
@@ -69,11 +69,8 @@ export function SortableJobCard({
   const isProcessing = PROCESSING_STATES.includes(job.state)
   const progressPercent = getPipelineProgress(job.state)
   const progressColor = stateHex
-  const [previewFailed, setPreviewFailed] = useState(false)
-
-  useEffect(() => {
-    setPreviewFailed(false)
-  }, [job.pngPath])
+  const [failedPreviewPath, setFailedPreviewPath] = useState<string | null>(null)
+  const previewFailed = Boolean(job.pngPath && failedPreviewPath === job.pngPath)
 
   return (
     <div
@@ -141,7 +138,7 @@ export function SortableJobCard({
                 alt="Preview"
                 className="w-full h-full object-cover"
                 loading="lazy"
-                onError={() => setPreviewFailed(true)}
+                onError={() => setFailedPreviewPath(job.pngPath)}
               />
             )}
           </div>
