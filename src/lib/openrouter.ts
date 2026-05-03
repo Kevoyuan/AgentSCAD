@@ -1,4 +1,5 @@
 import type { MimoMessage } from "@/lib/mimo";
+import { fetchWithRetry } from "@/lib/utils/fetch-with-retry";
 
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const DEFAULT_OPENROUTER_MODEL = "openai/gpt-5.5";
@@ -51,7 +52,7 @@ export async function createOpenRouterChatCompletion(args: {
     headers["HTTP-Referer"] = referer;
   }
 
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const response = await fetchWithRetry(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers,
     body: JSON.stringify({

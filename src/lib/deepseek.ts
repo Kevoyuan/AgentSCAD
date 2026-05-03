@@ -1,4 +1,5 @@
 import type { MimoMessage } from "@/lib/mimo";
+import { fetchWithRetry } from "@/lib/utils/fetch-with-retry";
 
 const DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 const DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-pro";
@@ -39,7 +40,7 @@ export async function createDeepSeekChatCompletion(args: {
     body.reasoning_effort = "high";
   }
 
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const response = await fetchWithRetry(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

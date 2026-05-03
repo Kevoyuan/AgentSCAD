@@ -1,3 +1,5 @@
+import { fetchWithRetry } from "@/lib/utils/fetch-with-retry";
+
 const DEFAULT_MIMO_BASE_URL = "https://token-plan-cn.xiaomimimo.com/v1";
 const DEFAULT_MIMO_MODEL = "mimo-v2.5-pro";
 
@@ -34,7 +36,7 @@ export async function createMimoChatCompletion(args: {
     throw new Error("MIMO_API_KEY is not configured");
   }
 
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const response = await fetchWithRetry(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
