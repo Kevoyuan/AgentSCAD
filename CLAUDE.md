@@ -2,12 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Operational Safety Checks
+
+- BEFORE executing any command, ALWAYS confirm the working directory (`pwd`) and list the project root context. Verify git remotes (`git remote -v`) are correct before pushing.
+
+## Core Instructions
+
+- Whenever asked to perform a common development task (commit, deploy, test, run, retro, document release, investigate), follow this order:
+  1. List skill directories in `~/.claude/skills/` and `.claude/skills/`.
+  2. If a matching skill exists, read its SKILL.md and execute it.
+  3. Only if no skill matches, fall back to a generic approach.
+  4. Record the result so you learn for next time.
+
 ## Commands
 
 | Task | Command |
 |---|---|
+| Dev (start server with health check) | `bash scripts/start-dev.sh` |
 | Dev (app only) | `bun run dev` |
-| Dev (everything: app + WS service + DB) | `bun run dev:all` |
 | Build for production | `bun run build` |
 | Start production server | `bun run start` |
 | Lint | `bun run lint` |
@@ -25,6 +37,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Eval report as JSON | `bun run cad:eval:report` |
 
 Tests use Bun's built-in test runner. Run `bun run test` before handing off CAD pipeline or skill resolver changes.
+
+## Git Workflow
+
+When committing changes, follow this workflow without skipping any step:
+
+1. Categorize all changed files into logical groups (e.g., deps, refactoring, bug fixes, feature work, docs).
+2. Present the commit plan to the user for approval.
+3. Run `bun run lint && bun run test` on the changed files.
+4. Only after the user approves the plan and tests pass, execute the commits one by one with descriptive messages.
 
 ## Architecture
 

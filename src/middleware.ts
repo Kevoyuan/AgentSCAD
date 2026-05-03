@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authenticateBearer, isSameOriginRequest } from "@/lib/auth";
 
-const PROTECTED_PATTERNS = [/^\/api\/jobs(\/|$)/, /^\/api\/chat(\/|$)/];
+const PROTECTED_PATTERNS = [/^\/api\/jobs(\/|$)/, /^\/api\/chat(\/|$)/, /^\/api\/providers(\/|$)/];
 
 function isProtectedRoute(pathname: string): boolean {
   return PROTECTED_PATTERNS.some((p) => p.test(pathname));
@@ -40,5 +40,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/jobs/:path*", "/api/chat"],
+  matcher: ["/api/jobs/:path*", "/api/chat", "/api/providers"],
 };
