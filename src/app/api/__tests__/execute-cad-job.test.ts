@@ -131,6 +131,18 @@ beforeAll(() => {
   }));
 
   mock.module("@/lib/tools/validation-tool", () => ({
+    buildValidationReport: (results: Array<{ passed: boolean; is_critical: boolean; message: string }>) => ({
+      ok: results.every((result) => result.passed),
+      score: results.length ? results.filter((result) => result.passed).length / results.length : 0,
+      checks: results,
+      summary: {
+        total: results.length,
+        passed: results.filter((result) => result.passed).length,
+        failed: results.filter((result) => !result.passed).length,
+        skipped: results.filter((result) => result.message.toLowerCase().startsWith("skipped")).length,
+        critical_failures: results.filter((result) => !result.passed && result.is_critical).length,
+      },
+    }),
     clearValidationCache: mock(() => undefined),
     getCriticalValidationFailures: mock(() => []),
     validateRenderedArtifacts: mock(async () => []),

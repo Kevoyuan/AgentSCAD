@@ -13,6 +13,7 @@ import {
   getCriticalValidationFailures,
   validateRenderedArtifacts,
 } from '@/lib/tools/validation-tool'
+import { buildJobQuality } from '@/lib/validation/job-quality'
 import type { ParameterDef, RenderedArtifacts } from '@/lib/harness/types'
 
 interface RouteParams {
@@ -126,11 +127,20 @@ export async function POST(
             clearValidationCache()
           } catch (error) {
             const renderError = error instanceof Error ? error.message : 'Unknown OpenSCAD render error'
+            const quality = buildJobQuality({
+              state: 'GEOMETRY_FAILED',
+              scadSource,
+              stlPath: null,
+              pngPath: null,
+              validationResults: [],
+            })
             const failedJob = await db.job.update({
               where: { id },
               data: {
                 state: 'GEOMETRY_FAILED',
                 renderLog: JSON.stringify(buildRenderFailureLog(0, [renderError])),
+                qualityScore: quality.qualityScore,
+                validationReportJson: quality.validationReportJson,
                 executionLogs: appendLog(scadUpdatedJob.executionLogs, 'GEOMETRY_FAILED', `Applied SCAD render failed: ${renderError}`),
               },
             })
@@ -140,6 +150,7 @@ export async function POST(
               step: 'render_failed',
               message: 'Applied SCAD could not be rendered.',
               error: renderError,
+              qualityReport: quality.readiness,
               job: failedJob,
             })
             controller.close()
@@ -188,6 +199,13 @@ export async function POST(
             wallThickness: parameterState.wallThickness,
           })
           const criticalFailures = getCriticalValidationFailures(validationResults)
+          const quality = buildJobQuality({
+            state: criticalFailures.length > 0 ? 'HUMAN_REVIEW' : 'DELIVERED',
+            scadSource,
+            stlPath: renderedArtifacts.stlPath,
+            pngPath: renderedArtifacts.pngPath,
+            validationResults,
+          })
 
           if (criticalFailures.length > 0) {
             const reviewJob = await db.job.update({
@@ -195,6 +213,8 @@ export async function POST(
               data: {
                 state: 'HUMAN_REVIEW',
                 validationResults: JSON.stringify(validationResults),
+                qualityScore: quality.qualityScore,
+                validationReportJson: quality.validationReportJson,
                 executionLogs: appendLog(
                   (await db.job.findUnique({ where: { id } }))?.executionLogs,
                   'HUMAN_REVIEW',
@@ -208,6 +228,7 @@ export async function POST(
               step: 'validation_failed',
               message: 'Applied SCAD rendered successfully; validation blockers require review or repair before export.',
               validationResults,
+              qualityReport: quality.readiness,
               job: reviewJob,
             })
             controller.close()
@@ -219,6 +240,8 @@ export async function POST(
             data: {
               state: 'VALIDATED',
               validationResults: JSON.stringify(validationResults),
+              qualityScore: quality.qualityScore,
+              validationReportJson: quality.validationReportJson,
               executionLogs: appendLog(
                 (await db.job.findUnique({ where: { id } }))?.executionLogs,
                 'VALIDATED',
@@ -237,6 +260,7 @@ export async function POST(
             step: 'validated',
             message: 'Applied SCAD validated successfully',
             validationResults,
+            qualityReport: quality.readiness,
           })
 
           const finalJob = await db.job.update({

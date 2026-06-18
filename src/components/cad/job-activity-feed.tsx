@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Play, CheckCircle2, XCircle, Ban, Code2,
-  Settings, Clock, Filter, Trash2, X, Activity,
+  Settings, Clock, Filter, Trash2, X, Activity, AlertTriangle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -12,7 +12,7 @@ import { Job } from './types'
 
 // ─── Activity Event Types ────────────────────────────────────────────────
 
-export type ActivityEventType = 'created' | 'processed' | 'delivered' | 'failed'
+export type ActivityEventType = 'created' | 'processed' | 'review' | 'delivered' | 'failed'
 
 export interface ActivityEvent {
   id: string
@@ -28,6 +28,7 @@ export interface ActivityEvent {
 const EVENT_CONFIG: Record<ActivityEventType, { icon: typeof Plus; color: string; bgColor: string }> = {
   created: { icon: Plus, color: 'text-[var(--app-accent-text)]', bgColor: 'bg-[var(--app-accent-bg)]' },
   processed: { icon: Play, color: 'text-amber-400', bgColor: 'bg-amber-500/10' },
+  review: { icon: AlertTriangle, color: 'text-yellow-300', bgColor: 'bg-yellow-500/10' },
   delivered: { icon: CheckCircle2, color: 'text-lime-400', bgColor: 'bg-lime-500/10' },
   failed: { icon: XCircle, color: 'text-rose-400', bgColor: 'bg-rose-500/10' },
 }
@@ -51,6 +52,7 @@ const FILTER_OPTIONS: { key: ActivityEventType | 'ALL'; label: string }[] = [
   { key: 'ALL', label: 'All' },
   { key: 'created', label: 'Created' },
   { key: 'processed', label: 'Processed' },
+  { key: 'review', label: 'Review' },
   { key: 'delivered', label: 'Delivered' },
   { key: 'failed', label: 'Failed' },
 ]

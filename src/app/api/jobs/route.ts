@@ -62,6 +62,8 @@ export async function GET(request: NextRequest) {
             stlPath: true,
             pngPath: true,
             reportPath: true,
+            qualityScore: true,
+            validationReportJson: true,
             parentId: true,
             retryCount: true,
             maxRetries: true,

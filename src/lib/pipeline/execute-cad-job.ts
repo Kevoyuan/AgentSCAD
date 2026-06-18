@@ -18,6 +18,7 @@ import {
   recordParameterDrift,
   recordValidationFailure,
 } from "@/lib/improvement-analyzer";
+import { buildJobQuality } from "@/lib/validation/job-quality";
 import type {
   ParameterDef,
   PartFamily,
@@ -182,12 +183,21 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
       warnings.push(`OpenSCAD rendering failed: ${renderError}`);
 
       console.warn("OpenSCAD rendering failed:", execError);
+      const quality = buildJobQuality({
+        state: "GEOMETRY_FAILED",
+        scadSource: scadCode,
+        stlPath: null,
+        pngPath: null,
+        validationResults: [],
+      });
 
       await db.job.update({
         where: { id: jobId },
         data: {
           state: "GEOMETRY_FAILED",
           renderLog: JSON.stringify(buildRenderFailureLog(0, warnings)),
+          qualityScore: quality.qualityScore,
+          validationReportJson: quality.validationReportJson,
           executionLogs: appendLog(
             (await db.job.findUnique({ where: { id: jobId } }))?.executionLogs,
             "GEOMETRY_FAILED",
@@ -201,6 +211,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         step: "render_failed",
         message: "OpenSCAD render failed. Real STL/PNG artifacts were not generated.",
         error: renderError,
+        qualityReport: quality.readiness,
       });
       return;
     }
@@ -254,6 +265,13 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
       skipVisual: true, // Phase 4: visual validation is user-triggered only
     });
     const criticalFailures = getCriticalValidationFailures(validationResults);
+    const validationQuality = buildJobQuality({
+      state: criticalFailures.length > 0 ? "HUMAN_REVIEW" : "DELIVERED",
+      scadSource: scadCode,
+      stlPath: renderedArtifacts.stlPath,
+      pngPath: renderedArtifacts.pngPath,
+      validationResults,
+    });
     let wasRepaired = false;
 
     // v3.0 memory: record validation failures for learning
@@ -289,6 +307,8 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
           data: {
             state: "REPAIRING",
             validationResults: JSON.stringify(validationResults),
+            qualityScore: validationQuality.qualityScore,
+            validationReportJson: validationQuality.validationReportJson,
             executionLogs: appendLog(
               (await db.job.findUnique({ where: { id: jobId } }))?.executionLogs,
               "REPAIRING",
@@ -365,6 +385,13 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
               skipVisual: true,
             });
             const stillFailing = getCriticalValidationFailures(revalidationResults);
+            const repairQuality = buildJobQuality({
+              state: stillFailing.length > 0 ? "HUMAN_REVIEW" : "DELIVERED",
+              scadSource: repairedScad,
+              stlPath: repairedArtifacts.stlPath,
+              pngPath: repairedArtifacts.pngPath,
+              validationResults: revalidationResults,
+            });
 
             if (stillFailing.length > 0) {
               await db.job.update({
@@ -375,6 +402,8 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
                   stlPath: repairedArtifacts.stlPath,
                   pngPath: repairedArtifacts.pngPath,
                   validationResults: JSON.stringify(revalidationResults),
+                  qualityScore: repairQuality.qualityScore,
+                  validationReportJson: repairQuality.validationReportJson,
                   reportPath: `/artifacts/${jobId}/report`,
                   executionLogs: appendLog(
                     (await db.job.findUnique({ where: { id: jobId } }))?.executionLogs,
@@ -388,6 +417,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
                 step: "repair_partial",
                 message: `Auto-repair completed but ${stillFailing.length} issue(s) remain. Manual review needed.`,
                 validationResults: revalidationResults,
+                qualityReport: repairQuality.readiness,
               });
               return;
             }
@@ -401,6 +431,8 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
                 stlPath: repairedArtifacts.stlPath,
                 pngPath: repairedArtifacts.pngPath,
                 validationResults: JSON.stringify(revalidationResults),
+                qualityScore: repairQuality.qualityScore,
+                validationReportJson: repairQuality.validationReportJson,
                 reportPath: `/artifacts/${jobId}/report`,
                 executionLogs: appendLog(
                   (await db.job.findUnique({ where: { id: jobId } }))?.executionLogs,
@@ -414,6 +446,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
               step: "repair_success",
               message: `Auto-repair successful! ${repairResult.repairMeta.repair_summary}`,
               validationResults: revalidationResults,
+              qualityReport: repairQuality.readiness,
             });
             await delay(800);
             wasRepaired = true;
@@ -455,6 +488,8 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
           data: {
             state: "HUMAN_REVIEW",
             validationResults: JSON.stringify(validationResults),
+            qualityScore: validationQuality.qualityScore,
+            validationReportJson: validationQuality.validationReportJson,
             reportPath: `/artifacts/${jobId}/report`,
             executionLogs: appendLog(
               (await db.job.findUnique({ where: { id: jobId } }))?.executionLogs,
@@ -469,6 +504,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
           step: "validation_failed",
           message: "Rendered successfully; max auto-repairs reached, manual review required",
           validationResults,
+          qualityReport: validationQuality.readiness,
         });
         return;
       }
@@ -480,6 +516,8 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         data: {
           state: "VALIDATED",
           validationResults: JSON.stringify(validationResults),
+          qualityScore: validationQuality.qualityScore,
+          validationReportJson: validationQuality.validationReportJson,
           reportPath: `/artifacts/${jobId}/report`,
           executionLogs: appendLog(
             (await db.job.findUnique({ where: { id: jobId } }))?.executionLogs,
@@ -499,6 +537,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         step: "validated",
         message: "Validation passed - all critical rules satisfied",
         validationResults,
+        qualityReport: validationQuality.readiness,
       });
       await delay(800);
     }
