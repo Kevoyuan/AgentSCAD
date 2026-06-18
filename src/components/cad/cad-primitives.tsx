@@ -2,6 +2,7 @@
 
 import { CheckCircle2, Circle, CircleAlert, LockKeyhole } from 'lucide-react'
 import { Job, ValidationResult, parseJSON } from './types'
+import { buildDeliveryReadiness } from '@/lib/validation/delivery-readiness'
 
 export function CadPanel({
   title,
@@ -95,29 +96,31 @@ export function CadConstraintChip({
 
 export function CadExportChecklist({ job }: { job: Job }) {
   const validation = parseJSON<ValidationResult[]>(job.validationResults, [])
-  const isSkipped = (rule: ValidationResult) => rule.message.toLowerCase().startsWith('skipped')
-  const skipped = validation.filter(isSkipped)
-  const blockers = validation.filter(rule => !rule.passed && rule.is_critical)
-  const warnings = validation.filter(rule => !rule.passed && !rule.is_critical)
+  const readiness = buildDeliveryReadiness({
+    state: job.state,
+    scadSource: job.scadSource,
+    stlPath: job.stlPath,
+    pngPath: job.pngPath,
+    validationResults: validation,
+  })
   const checks = [
     { label: 'SCAD source', ok: Boolean(job.scadSource), detail: job.scadSource ? 'Inspectable' : 'Missing' },
     { label: 'STL artifact', ok: Boolean(job.stlPath), detail: job.stlPath ? 'Ready' : 'Stale or missing' },
     { label: 'Preview image', ok: Boolean(job.pngPath), detail: job.pngPath ? 'Ready' : 'Stale or missing' },
     {
-      label: 'Critical validation',
-      ok: blockers.length === 0 && validation.length > 0 && skipped.length < validation.length,
-      detail: validation.length
-        ? skipped.length
-          ? `${blockers.length} blockers, ${skipped.length} skipped`
-          : `${blockers.length} blockers`
-        : 'Pending',
+      label: 'Delivery evidence',
+      ok: readiness.status === 'ready',
+      detail: `${Math.round(readiness.score * 100)}%`,
     },
   ]
-  const ready = checks.every(check => check.ok)
+  const ready = readiness.status === 'ready'
 
   return (
-    <CadPanel title={ready ? 'Export-ready' : 'Export readiness'} eyebrow="quality gate">
+    <CadPanel title={ready ? 'Export-ready' : readiness.label} eyebrow="quality gate">
       <div className="space-y-2 p-3">
+        <div className="rounded-md border border-[color:var(--cad-border)] bg-black/10 px-2 py-1.5">
+          <p className="text-[13px] text-[var(--cad-text-secondary)]">{readiness.summary}</p>
+        </div>
         {checks.map(check => (
           <div key={check.label} className="flex items-center justify-between gap-3 rounded-md bg-black/10 px-2 py-1.5">
             <div className="flex items-center gap-2">
@@ -130,16 +133,16 @@ export function CadExportChecklist({ job }: { job: Job }) {
             <span className="text-xs font-mono text-[var(--cad-text-muted)]">{check.detail}</span>
           </div>
         ))}
-        {warnings.length > 0 && (
+        {readiness.warnings.length > 0 && (
           <div className="flex items-center gap-2 rounded-md border border-[color:var(--cad-border)] px-2 py-1.5 text-[13px] text-[var(--cad-warning)]">
             <Circle className="h-3 w-3" />
-            {warnings.length} non-blocking warning{warnings.length === 1 ? '' : 's'}
+            {readiness.warnings.length} review warning{readiness.warnings.length === 1 ? '' : 's'}
           </div>
         )}
-        {skipped.length > 0 && (
+        {readiness.blockers.length > 0 && (
           <div className="flex items-center gap-2 rounded-md border border-[color:var(--cad-border)] px-2 py-1.5 text-[13px] text-[var(--cad-warning)]">
             <CircleAlert className="h-3 w-3" />
-            {skipped.length} validation rule{skipped.length === 1 ? '' : 's'} skipped
+            {readiness.blockers.length} blocker{readiness.blockers.length === 1 ? '' : 's'}
           </div>
         )}
       </div>

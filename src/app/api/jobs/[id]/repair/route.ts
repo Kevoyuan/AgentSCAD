@@ -9,6 +9,7 @@ import {
   validateRenderedArtifacts,
 } from "@/lib/tools/validation-tool";
 import { sanitizeGeneratedScadSource } from "@/lib/tools/scad-sanitizer";
+import { buildJobQuality } from "@/lib/validation/job-quality";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -117,12 +118,21 @@ export async function POST(
       renderSucceeded = true;
     } catch (renderError) {
       const errMsg = renderError instanceof Error ? renderError.message : "Unknown render error";
+      const quality = buildJobQuality({
+        state: "GEOMETRY_FAILED",
+        scadSource: sanitized,
+        stlPath: null,
+        pngPath: null,
+        validationResults: [],
+      });
       await db.job.update({
         where: { id },
         data: {
           state: "GEOMETRY_FAILED",
           scadSource: sanitized,
           repairRound: retryRound,
+          qualityScore: quality.qualityScore,
+          validationReportJson: quality.validationReportJson,
           executionLogs: appendLog(
             job.executionLogs,
             "GEOMETRY_FAILED",
@@ -154,6 +164,13 @@ export async function POST(
     }
 
     const criticalFailures = getCriticalValidationFailures(revalidationResults);
+    const quality = buildJobQuality({
+      state: criticalFailures.length > 0 ? "HUMAN_REVIEW" : "DELIVERED",
+      scadSource: sanitized,
+      stlPath,
+      pngPath,
+      validationResults: revalidationResults,
+    });
 
     // Store repair history
     const repairEntry = {
@@ -189,6 +206,8 @@ export async function POST(
           stlPath,
           pngPath,
           validationResults: JSON.stringify(revalidationResults),
+          qualityScore: quality.qualityScore,
+          validationReportJson: quality.validationReportJson,
           cadIntentJson: JSON.stringify({
             part_type: repaired.part_type,
             summary: repaired.summary,
@@ -215,11 +234,11 @@ export async function POST(
       });
     }
 
-    // Repair succeeded — update to VALIDATED
+    // Repair succeeded — complete the same end-to-end delivery path as the pipeline.
     await db.job.update({
       where: { id },
       data: {
-        state: "VALIDATED",
+        state: "DELIVERED",
         scadSource: sanitized,
         parameterSchema: JSON.stringify(repaired.parameters),
         parameterValues: JSON.stringify(
@@ -231,6 +250,8 @@ export async function POST(
         stlPath,
         pngPath,
         validationResults: JSON.stringify(revalidationResults),
+        qualityScore: quality.qualityScore,
+        validationReportJson: quality.validationReportJson,
         cadIntentJson: JSON.stringify({
           part_type: repaired.part_type,
           summary: repaired.summary,
@@ -242,10 +263,11 @@ export async function POST(
         validationTargetsJson: JSON.stringify(repaired.validation_targets),
         repairRound: retryRound,
         repairHistory: JSON.stringify(repairHistory),
+        completedAt: new Date(),
         executionLogs: appendLog(
           job.executionLogs,
-          "VALIDATED",
-          `Repair round ${retryRound} successful — all critical validation rules pass`
+          "DELIVERED",
+          `Repair round ${retryRound} successful — rendered, validated, and delivered`
         ),
       },
     });

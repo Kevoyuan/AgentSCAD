@@ -4,17 +4,146 @@ import dynamic from 'next/dynamic'
 import {
   Box, Play, Clock, CheckCircle2, Loader2,
   Cpu, Layers, Plus, Ruler, BoxSelect, AlertTriangle, RotateCcw,
+  ShieldCheck, ShieldAlert, ShieldQuestion,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ResizablePanel } from '@/components/ui/resizable'
 
-import { Job, CANCELABLE_STATES, timeAgo } from '@/components/cad/types'
+import { Job, CANCELABLE_STATES, ValidationResult, parseJSON, timeAgo } from '@/components/cad/types'
 import { StateBadge } from '@/components/cad/state-badge'
 import { PartFamilyIcon, getPartFamilyLabel, getPartFamilyColor } from '@/components/cad/part-family-icon'
 import { QuickActionsBar } from '@/components/cad/quick-actions-bar'
+import { buildDeliveryReadiness, type DeliveryReadinessReport } from '@/lib/validation/delivery-readiness'
 
 const ThreeDViewer = dynamic(() => import('@/components/cad/three-d-viewer').then(m => ({ default: m.ThreeDViewer })), { ssr: false, loading: () => <div className="flex items-center justify-center h-full"><Loader2 className="w-5 h-5 animate-spin text-[var(--app-text-muted)]" /></div> })
 const JobStatusPage = dynamic(() => import('@/components/cad/job-status-page').then(m => ({ default: m.JobStatusPage })), { ssr: false, loading: () => <div className="flex items-center justify-center h-96"><Loader2 className="w-5 h-5 animate-spin text-[var(--app-text-muted)]" /></div> })
+
+function getReadinessTone(report: DeliveryReadinessReport) {
+  switch (report.status) {
+    case 'ready':
+      return {
+        icon: ShieldCheck,
+        shell: 'border-emerald-500/20 bg-emerald-500/[0.07]',
+        text: 'text-emerald-400',
+        progress: 'bg-emerald-500',
+      }
+    case 'blocked':
+      return {
+        icon: ShieldAlert,
+        shell: 'border-rose-500/20 bg-rose-500/[0.07]',
+        text: 'text-rose-400',
+        progress: 'bg-rose-500',
+      }
+    case 'review':
+      return {
+        icon: AlertTriangle,
+        shell: 'border-amber-500/20 bg-amber-500/[0.07]',
+        text: 'text-amber-400',
+        progress: 'bg-amber-500',
+      }
+    case 'unverified':
+      return {
+        icon: ShieldQuestion,
+        shell: 'border-sky-500/20 bg-sky-500/[0.07]',
+        text: 'text-sky-400',
+        progress: 'bg-sky-500',
+      }
+    default:
+      return {
+        icon: Clock,
+        shell: 'border-[color:var(--app-border)] bg-[var(--app-surface)]',
+        text: 'text-[var(--app-text-muted)]',
+        progress: 'bg-[var(--app-accent)]',
+      }
+  }
+}
+
+function DeliveryReadinessStrip({
+  job,
+  isProcessing,
+  onProcess,
+  onRepair,
+  onVisualRepair,
+  onDownloadScad,
+  onSetActiveTab,
+}: {
+  job: Job
+  isProcessing: boolean
+  onProcess: (job: Job) => void
+  onRepair: (job: Job) => void
+  onVisualRepair: (job: Job) => void
+  onDownloadScad: (job: Job) => void
+  onSetActiveTab: (tab: string) => void
+}) {
+  const validationResults = parseJSON<ValidationResult[]>(job.validationResults, [])
+  const report = buildDeliveryReadiness({
+    state: job.state,
+    scadSource: job.scadSource,
+    stlPath: job.stlPath,
+    pngPath: job.pngPath,
+    validationResults,
+  })
+  const tone = getReadinessTone(report)
+  const Icon = tone.icon
+  const primaryDetail = report.blockers[0] || report.warnings[0] || report.summary
+  const showAction = report.nextAction !== 'wait'
+
+  const handleAction = () => {
+    switch (report.nextAction) {
+      case 'process':
+      case 'reprocess':
+        onProcess(job)
+        break
+      case 'auto_repair':
+        onRepair(job)
+        break
+      case 'visual_repair':
+        onVisualRepair(job)
+        break
+      case 'inspect_validation':
+        onSetActiveTab('VALIDATION')
+        break
+      case 'export':
+        onDownloadScad(job)
+        break
+    }
+  }
+
+  const actionLabel = report.nextAction === 'export' ? 'Download SCAD' : report.nextActionLabel
+
+  return (
+    <div className={`mx-3 my-2 rounded-lg border px-3 py-2 ${tone.shell}`}>
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Icon className={`h-4 w-4 shrink-0 ${tone.text}`} />
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className={`truncate text-sm font-medium ${tone.text}`}>{report.label}</span>
+              <span className="shrink-0 rounded border border-[color:var(--app-border)] bg-[var(--app-surface)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--app-text-muted)]">
+                {Math.round(report.score * 100)}%
+              </span>
+            </div>
+            <p className="mt-0.5 truncate text-[13px] text-[var(--app-text-muted)]">{primaryDetail}</p>
+          </div>
+        </div>
+        {showAction && (
+          <Button
+            size="sm"
+            variant={report.status === 'ready' ? 'default' : 'outline'}
+            className="h-7 shrink-0 gap-1.5 text-xs"
+            onClick={handleAction}
+            disabled={isProcessing}
+          >
+            {actionLabel}
+          </Button>
+        )}
+      </div>
+      <div className="mt-2 h-1 overflow-hidden rounded-full bg-[var(--app-border-subtle)]">
+        <div className={`h-full rounded-full transition-all ${tone.progress}`} style={{ width: `${Math.round(report.score * 100)}%` }} />
+      </div>
+    </div>
+  )
+}
 
 export function ViewerPanel({
   selectedJob,
@@ -137,6 +266,16 @@ export function ViewerPanel({
               onShare={onShare}
               onRepair={onRepair}
               isProcessing={isProcessing}
+            />
+
+            <DeliveryReadinessStrip
+              job={selectedJob}
+              isProcessing={isProcessing}
+              onProcess={onProcess}
+              onRepair={onRepair}
+              onVisualRepair={onVisualRepair}
+              onDownloadScad={onDownloadScad}
+              onSetActiveTab={onSetActiveTab}
             />
 
             {/* Center Content: Conditional based on job state */}

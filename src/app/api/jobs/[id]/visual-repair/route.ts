@@ -3,8 +3,14 @@ import { db } from "@/lib/db";
 import { appendLog } from "@/lib/stores/job-store";
 import { runVisualRepair } from "@/lib/repair/visual-repair-controller";
 import { renderScadArtifacts, getRenderedArtifactPaths } from "@/lib/tools/scad-renderer";
-import { clearValidationCache } from "@/lib/tools/validation-tool";
+import {
+  clearValidationCache,
+  getCriticalValidationFailures,
+  validateRenderedArtifacts,
+} from "@/lib/tools/validation-tool";
+import { buildJobQuality } from "@/lib/validation/job-quality";
 import { isModelMultimodal } from "@/app/api/models/route";
+import type { RenderedArtifacts } from "@/lib/harness/types";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -72,22 +78,35 @@ export async function POST(
 
     // Re-render with repaired SCAD
     clearValidationCache();
-    let stlPath: string | null = null;
-    let pngPath: string | null = null;
-    let renderSucceeded = false;
+    let artifacts: RenderedArtifacts | null = null;
 
     try {
-      const artifacts = await renderScadArtifacts(id, repairedScad);
-      stlPath = artifacts.stlPath;
-      pngPath = artifacts.pngPath;
-      renderSucceeded = true;
+      artifacts = await renderScadArtifacts(id, repairedScad);
     } catch (renderError) {
       const errMsg = renderError instanceof Error ? renderError.message : "Unknown";
+      const quality = buildJobQuality({
+        state: "GEOMETRY_FAILED",
+        scadSource: repairedScad,
+        stlPath: null,
+        pngPath: null,
+        validationResults: [
+          {
+            rule_id: "V001",
+            rule_name: "Visual Design Intent Match",
+            level: "SEMANTIC",
+            passed: visualReport.visual_issues.length === 0,
+            is_critical: true,
+            message: visualReport.repair_summary,
+          },
+        ],
+      });
       await db.job.update({
         where: { id },
         data: {
-          state: "HUMAN_REVIEW",
+          state: "GEOMETRY_FAILED",
           scadSource: repairedScad,
+          qualityScore: quality.qualityScore,
+          validationReportJson: quality.validationReportJson,
           executionLogs: appendLog(
             job.executionLogs,
             "GEOMETRY_FAILED",
@@ -103,35 +122,70 @@ export async function POST(
       });
     }
 
+    if (!artifacts) {
+      return NextResponse.json(
+        { error: "Visual repair did not return rendered artifacts" },
+        { status: 500 }
+      );
+    }
+
+    const validationResults = await validateRenderedArtifacts({
+      jobId: id,
+      inputRequest: job.inputRequest,
+      partFamily: job.partFamily,
+      scadSource: repairedScad,
+      stlFilePath: artifacts.stlFilePath,
+      previewImagePath: artifacts.pngFilePath,
+      wallThickness: 2,
+      renderLog: artifacts.renderLog,
+      skipVisual: true,
+    });
+    validationResults.push({
+      rule_id: "V001",
+      rule_name: "Visual Design Intent Match",
+      level: "SEMANTIC",
+      passed: visualReport.visual_issues.length === 0,
+      is_critical: true,
+      message: visualReport.repair_summary,
+    });
+
+    const criticalFailures = getCriticalValidationFailures(validationResults);
+    const nextState = criticalFailures.length > 0 ? "HUMAN_REVIEW" : "DELIVERED";
+    const quality = buildJobQuality({
+      state: nextState,
+      scadSource: repairedScad,
+      stlPath: artifacts.stlPath,
+      pngPath: artifacts.pngPath,
+      validationResults,
+    });
+
     // Update job with repaired result
     await db.job.update({
       where: { id },
       data: {
-        state: renderSucceeded ? "VALIDATED" : "HUMAN_REVIEW",
+        state: nextState,
         scadSource: repairedScad,
-        stlPath,
-        pngPath,
-        validationResults: JSON.stringify([
-          {
-            rule_id: "V001",
-            rule_name: "Visual Design Intent Match",
-            level: "SEMANTIC",
-            passed: visualReport.visual_issues.length === 0,
-            is_critical: true,
-            message: visualReport.repair_summary,
-          },
-        ]),
+        stlPath: artifacts.stlPath,
+        pngPath: artifacts.pngPath,
+        renderLog: JSON.stringify(artifacts.renderLog),
+        validationResults: JSON.stringify(validationResults),
+        visualRepairReportJson: JSON.stringify(visualReport),
+        qualityScore: quality.qualityScore,
+        validationReportJson: quality.validationReportJson,
+        completedAt: nextState === "DELIVERED" ? new Date() : null,
         executionLogs: appendLog(
           job.executionLogs,
-          "VISUAL_REPAIRED",
-          `Visual repair complete: ${repairSummary} (match: ${(visualReport.overall_visual_match * 100).toFixed(0)}%)`
+          nextState === "DELIVERED" ? "DELIVERED" : "HUMAN_REVIEW",
+          nextState === "DELIVERED"
+            ? `Visual repair complete and delivered: ${repairSummary} (match: ${(visualReport.overall_visual_match * 100).toFixed(0)}%)`
+            : `Visual repair rendered but still needs review: ${criticalFailures.map((rule) => rule.rule_id).join(", ")}`
         ),
       },
     });
 
     return NextResponse.json({
       job: await db.job.findUnique({ where: { id } }),
-      repaired: true,
+      repaired: nextState === "DELIVERED",
       visualReport,
       repairSummary,
     });

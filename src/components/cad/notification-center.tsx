@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Bell, CheckCircle2, XCircle, Ban, Settings, Code2,
+  Bell, CheckCircle2, XCircle, Ban, Settings, Code2, AlertTriangle,
   CheckCheck, Trash2, X, Activity
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import { JobActivityFeed, type ActivityEvent } from './job-activity-feed'
 
 export type NotificationType =
   | 'job_completed'
+  | 'job_review'
   | 'job_failed'
   | 'job_cancelled'
   | 'parameter_updated'
@@ -32,6 +33,7 @@ export interface Notification {
 
 const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof CheckCircle2; color: string; bgColor: string }> = {
   job_completed: { icon: CheckCircle2, color: 'text-lime-400', bgColor: 'bg-lime-500/10' },
+  job_review: { icon: AlertTriangle, color: 'text-yellow-300', bgColor: 'bg-yellow-500/10' },
   job_failed: { icon: XCircle, color: 'text-rose-400', bgColor: 'bg-rose-500/10' },
   job_cancelled: { icon: Ban, color: 'text-[var(--app-state-neutral-text)]', bgColor: 'bg-[var(--app-state-neutral-bg)]' },
   parameter_updated: { icon: Settings, color: 'text-[var(--app-accent-text)]', bgColor: 'bg-[var(--app-accent-bg)]' },

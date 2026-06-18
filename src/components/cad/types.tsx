@@ -64,6 +64,9 @@ export interface Job {
   pngPath: string | null
   renderLog: string | null
   validationResults: string | null
+  validationReportJson?: string | null
+  visualRepairReportJson?: string | null
+  qualityScore?: number | null
   executionLogs: string | null
   notes: string | null
   parentId: string | null
@@ -149,7 +152,7 @@ export function getStateInfo(state: string) {
   return STATE_COLORS[state] || { bg: 'bg-[var(--app-state-neutral-bg)]', text: 'text-[var(--app-state-neutral-text)]', dot: 'bg-[var(--app-state-neutral-dot)]', border: 'border-[color:var(--app-state-neutral-border)]' }
 }
 
-export function parseJSON<T>(str: string | null, fallback: T): T {
+export function parseJSON<T>(str: string | null | undefined, fallback: T): T {
   if (!str) return fallback
   try { return JSON.parse(str) } catch { return fallback }
 }

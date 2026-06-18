@@ -23,6 +23,7 @@ export interface ValidationReport {
     skipped: number;
     critical_failures: number;
   };
+  delivery?: import("./delivery-readiness").DeliveryReadinessReport;
 }
 
 export interface RawMeshData {

@@ -462,6 +462,12 @@ export function useWorkspaceState() {
         })
         addNotification('job_completed', 'Visual Repair Complete', result.repairSummary || '')
         addActivityEvent('delivered', job.inputRequest.slice(0, 30), job.id.slice(0, 8), 'Visually repaired')
+      } else if (result.job?.state === 'HUMAN_REVIEW') {
+        toast.warning('Visual repair needs review', {
+          description: result.repairSummary || result.error || 'Rendered artifacts are available, but validation still has blockers.',
+        })
+        addNotification('job_review', 'Visual Repair Needs Review', result.repairSummary || 'Validation blockers remain')
+        addActivityEvent('review', job.inputRequest.slice(0, 30), job.id.slice(0, 8), 'Visual repair rendered')
       } else {
         toast.error('Visual repair failed', { description: result.error || 'Unknown error' })
       }
