@@ -6,14 +6,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
-- `CONTRIBUTING.md` with step-by-step contributor setup guide
+- `CONTRIBUTING.md` with step-by-step contributor setup guide including fork workflow
 - GitHub Issue templates for bug reports and feature requests
-- `Prerequisites` section in README with explicit Node.js, Bun, and OpenSCAD install links
-- OpenSCAD PATH warning in README: jobs stuck in `GEOMETRY_FAILED` without renderer
-
-### Fixed
-- Stats Dashboard dialog horizontal scrollbar eliminated via `overflow-x-hidden` + responsive Sparkline `viewBox`
-- Benchmark script `--fast` mode undefined category output replaced with summary table
+- `Prerequisites` section in README/README_CN with Node.js, Bun, and OpenSCAD install links
+- OpenSCAD PATH warning: jobs stuck in `GEOMETRY_FAILED` state without renderer in PATH
+- `Try Example` button in Job Composer (visible when textarea is empty, auto-fills sample prompt)
+- `CONTRIBUTING.md` and `CHANGELOG.md` links in README Deeper Docs section
 
 ## [0.3.0] - 2026-05-02
 
