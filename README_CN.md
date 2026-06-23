@@ -32,6 +32,19 @@ AgentSCAD 是一个全栈 AI CAD 工作区：把自然语言零件需求转成�
 - 配置模型供应商 Key 后，可启用完整 LLM CAD 生成、自动修复、聊天辅助和用户触发的视觉修复。
 - 代码入口：`src/lib/pipeline/execute-cad-job.ts`、`src/lib/tools/`、`src/components/cad/`、`src/app/api/`、`prisma/schema.prisma` 和 `skills/`。
 
+## 前置条件
+
+在开始前，需要安装以下三个工具：
+
+| 工具 | 用途 | 安装方式 |
+|---|---|---|
+| **Node.js 20 或 22 LTS** | Next.js 应用运行时 | [nodejs.org](https://nodejs.org) |
+| **Bun** | 包管理器和脚本执行 | `curl -fsSL https://bun.sh/install \| bash` |
+| **OpenSCAD** | 渲染 STL/PNG 模型文件 | [openscad.org/downloads](https://openscad.org/downloads.html) |
+
+> [!IMPORTANT]
+> OpenSCAD 必须在 PATH 中可用（或在 `.env` 中设置 `OPENSCAD_BIN`）。缺少 OpenSCAD 时，应用可以正常启动，但所有渲染步骤会静默跳过——任务会停在 `GEOMETRY_FAILED` 状态。
+
 ## 快速开始
 
 ### 方案 A：Docker Compose
@@ -50,7 +63,7 @@ Docker 会在启动应用前初始化 Prisma SQLite schema。镜像有意**不�
 
 ### 方案 B：本地开发
 
-前置要求：Node.js 20 或 22 LTS、Bun，以及 PATH 中可用的 OpenSCAD。
+前置要求：Node.js 20 或 22 LTS、Bun，以及 PATH 中可用的 OpenSCAD（参见上方[前置条件](#前置条件)）。
 
 ```bash
 bun install --frozen-lockfile

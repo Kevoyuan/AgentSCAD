@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import {
-  Play, Loader2, Sparkles, Tag, Ruler, Hammer, BoxSelect, Gauge, LockKeyhole, Cpu, Clock, CornerDownLeft, X,
+  Play, Loader2, Sparkles, Tag, Ruler, Hammer, BoxSelect, Gauge, LockKeyhole, Cpu, Clock, CornerDownLeft, X, Wand2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -160,16 +160,31 @@ export function JobComposer({
                     <Sparkles className="h-3.5 w-3.5 shrink-0 text-[var(--cad-accent)]" />
                     <span className="truncate text-[12px] font-medium text-[var(--cad-text-secondary)]">Part brief</span>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 max-w-[136px] shrink-0 rounded-[6px] px-2.5 text-[11px] font-medium text-[var(--cad-accent)] transition-colors hover:bg-[var(--cad-accent-soft)] active:scale-[0.98]"
-                    onClick={onAiEnhance}
-                    disabled={!newJobText.trim() || isAiEnhancing}
-                  >
-                    {isAiEnhancing ? <Loader2 className="mr-1.5 h-3 w-3 shrink-0 animate-spin" /> : <Sparkles className="mr-1.5 h-3 w-3 shrink-0" />}
-                    <span className="truncate">{isAiEnhancing ? 'Synthesizing' : 'AI Enhance'}</span>
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {/* Junior Designer Assumption: show "Try Example" only when textarea is empty
+                        so new users instantly understand what to type. Prompt matches README sample job. */}
+                    {!newJobText.trim() && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 shrink-0 rounded-[6px] px-2.5 text-[11px] font-medium text-[var(--cad-text-muted)] transition-colors hover:bg-[var(--cad-surface-raised)] hover:text-[var(--cad-text)] active:scale-[0.98]"
+                        onClick={() => onNewJobTextChange('Create a wall-mountable phone holder with rounded corners and two screw holes.')}
+                      >
+                        <Wand2 className="mr-1.5 h-3 w-3 shrink-0" />
+                        <span className="truncate">Try Example</span>
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 max-w-[136px] shrink-0 rounded-[6px] px-2.5 text-[11px] font-medium text-[var(--cad-accent)] transition-colors hover:bg-[var(--cad-accent-soft)] active:scale-[0.98]"
+                      onClick={onAiEnhance}
+                      disabled={!newJobText.trim() || isAiEnhancing}
+                    >
+                      {isAiEnhancing ? <Loader2 className="mr-1.5 h-3 w-3 shrink-0 animate-spin" /> : <Sparkles className="mr-1.5 h-3 w-3 shrink-0" />}
+                      <span className="truncate">{isAiEnhancing ? 'Synthesizing' : 'AI Enhance'}</span>
+                    </Button>
+                  </div>
                 </div>
                 <div className="relative">
                   <Textarea
