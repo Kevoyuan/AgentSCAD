@@ -10,6 +10,8 @@
 
 AgentSCAD is a full-stack AI CAD workspace that turns natural-language part requests into editable OpenSCAD, rendered STL/PNG artifacts, and validation-backed job workflows.
 
+**Live Demo:** [https://agentscad.vercel.app](https://agentscad.vercel.app)
+
 It uses a progressive pipeline: one LLM call generates structured CAD intent and OpenSCAD by default. Repair runs only after validation failure, and visual repair runs only when the user requests it.
 
 ![AgentSCAD system overview](./docs/images/agentscad_overview.png)
@@ -62,6 +64,23 @@ bun run dev:all
 Open [http://localhost:3000](http://localhost:3000).
 
 Windows setup and extended commands are in [Development and CI](./docs/DEVELOPMENT.md).
+
+### Option C: Vercel MVP
+
+Use this when you want the app online quickly. Docker is not required for the Vercel-hosted MVP.
+
+1. Import the repo into Vercel.
+2. Add Vercel Postgres, Neon, or Supabase Postgres and set `DATABASE_URL`.
+3. Keep the default Vercel build settings from `vercel.json`:
+
+```bash
+bun run vercel:build
+```
+
+4. Optional: add model-provider env vars such as `MIMO_BASE_URL`, `MIMO_MODEL`, and `MIMO_API_KEY`.
+5. Optional: add Vercel Blob and `BLOB_READ_WRITE_TOKEN` if you later persist rendered artifacts.
+
+The MVP supports the online workspace, job history, SCAD generation, editing, and chat with env-configured providers backed by Postgres. Full STL/PNG rendering on Vercel needs `AGENTSCAD_RENDERER_URL`, a separate OpenSCAD renderer service. Without that renderer, generated SCAD is still saved and render attempts fail gracefully into review states.
 
 ## First-Run Walkthrough
 

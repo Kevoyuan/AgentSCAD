@@ -10,6 +10,8 @@
 
 AgentSCAD 是一个全栈 AI CAD 工作区：把自然语言零件需求转成可编辑的 OpenSCAD、渲染后的 STL/PNG 产物，以及带验证结果的任务流程。
 
+**在线体验 (Live Demo):** [https://agentscad.vercel.app](https://agentscad.vercel.app)
+
 它采用渐进式管线：默认一次 LLM 调用生成结构化 CAD 意图和 OpenSCAD；只有验证失败才自动修复，视觉修复只在用户主动触发时运行。
 
 ![AgentSCAD 系统概览](./docs/images/agentscad_overview.png)
@@ -62,6 +64,23 @@ bun run dev:all
 打开 [http://localhost:3000](http://localhost:3000)。
 
 Windows 设置和完整命令见 [开发与 CI](./docs/DEVELOPMENT.md)。
+
+### 方案 C：Vercel MVP
+
+如果目标是尽快在线可用，Vercel 主站不需要 Docker。
+
+1. 在 Vercel 导入这个仓库。
+2. 添加 Vercel Postgres、Neon 或 Supabase Postgres，并设置 `DATABASE_URL`。
+3. 保留 `vercel.json` 中的默认构建命令：
+
+```bash
+bun run vercel:build
+```
+
+4. 可选：添加模型供应商环境变量，例如 `MIMO_BASE_URL`、`MIMO_MODEL`、`MIMO_API_KEY`。
+5. 可选：后续要持久保存渲染产物时，添加 Vercel Blob 和 `BLOB_READ_WRITE_TOKEN`。
+
+这个 MVP 支持在线工作区、任务历史、SCAD 生成/编辑、聊天和供应商环境变量配置。Vercel 上完整生成 STL/PNG 需要另接一个 OpenSCAD renderer 服务，并设置 `AGENTSCAD_RENDERER_URL`。没有 renderer 时，生成的 SCAD 仍会保存，渲染尝试会以可恢复的失败/待审状态结束。
 
 ## 首次运行指引
 
