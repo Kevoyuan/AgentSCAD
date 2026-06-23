@@ -32,6 +32,19 @@ It uses a progressive pipeline: one LLM call generates structured CAD intent and
 - Provider keys enable full LLM-backed generation, automatic repair, chat help, and user-triggered visual repair.
 - Code entry points: `src/lib/pipeline/execute-cad-job.ts`, `src/lib/tools/`, `src/components/cad/`, `src/app/api/`, `prisma/schema.prisma`, and `skills/`.
 
+## Prerequisites
+
+Before you start, you need three tools installed:
+
+| Tool | Required for | Install |
+|---|---|---|
+| **Node.js 20 or 22 LTS** | Next.js app | [nodejs.org](https://nodejs.org) |
+| **Bun** | package manager & scripts | `curl -fsSL https://bun.sh/install \| bash` |
+| **OpenSCAD** | rendering STL/PNG artifacts | [openscad.org/downloads](https://openscad.org/downloads.html) |
+
+> [!IMPORTANT]
+> OpenSCAD must be in your PATH (or set `OPENSCAD_BIN` in `.env`). Without it, the app runs but all render steps silently skip — you'll see jobs stuck in `GEOMETRY_FAILED` state.
+
 ## Quick Start
 
 ### Option A: Docker Compose
@@ -50,7 +63,7 @@ Docker initializes the Prisma SQLite schema before starting the app. The image i
 
 ### Option B: Local Development
 
-Requirements: Node.js 20 or 22 LTS, Bun, and OpenSCAD in your PATH.
+Requirements: Node.js 20 or 22 LTS, Bun, and OpenSCAD in your PATH (see [Prerequisites](#prerequisites) above).
 
 ```bash
 bun install --frozen-lockfile
@@ -206,6 +219,8 @@ Key areas:
 - [Skills](./docs/SKILLS.md)
 - [OpenSCAD runtime and libraries](./docs/OPENSCAD_LIBRARIES.md)
 - [Troubleshooting](./docs/TROUBLESHOOTING.md)
+- [Contributing](./CONTRIBUTING.md)
+- [Changelog](./CHANGELOG.md)
 
 ## License
 

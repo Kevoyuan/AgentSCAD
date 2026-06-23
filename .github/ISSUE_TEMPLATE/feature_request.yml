@@ -1,0 +1,62 @@
+name: Feature Request
+description: Propose a new feature, pipeline improvement, or DX enhancement
+title: "[Feature]: "
+labels: ["enhancement"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your idea! Describe what you'd like to see in AgentSCAD.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of AgentSCAD would this improve?
+      options:
+        - CAD Generation quality
+        - OpenSCAD library support
+        - Validation rules
+        - Repair pipeline
+        - UI / Workspace
+        - New model provider support
+        - Performance / Speed
+        - Documentation
+        - Developer experience (DX)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the pain point or gap this feature would address.
+      placeholder: "When I try to generate a part with threads, the output is not printable because..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you implement this? High-level is fine.
+      placeholder: "Add a `thread_type` parameter to the generation prompt and use the `threads.scad` library..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches you thought about?
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate
+        - label: I read [ARCHITECTURE.md](https://github.com/Kevoyuan/AgentSCAD/blob/main/docs/ARCHITECTURE.md) and this fits the project scope

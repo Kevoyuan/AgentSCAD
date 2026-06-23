@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/Kevoyuan/AgentSCAD/blob/main/docs/ARCHITECTURE.md
+    about: Read the architecture and development docs
+  - name: Troubleshooting Guide
+    url: https://github.com/Kevoyuan/AgentSCAD/blob/main/docs/TROUBLESHOOTING.md
+    about: Check the troubleshooting guide for common setup issues
+  - name: Live Demo
+    url: https://agentscad.vercel.app
+    about: Try AgentSCAD online before setting up locally
