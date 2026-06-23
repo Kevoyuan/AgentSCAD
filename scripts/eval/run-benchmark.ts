@@ -141,7 +141,7 @@ function printReport(results: BenchmarkResult[]): string {
   const byDifficulty = (d: string) => results.filter((r) => r.difficulty === d);
 
   const summary = (subset: BenchmarkResult[]) => {
-    if (subset.length === 0) return "N/A";
+    if (subset.length === 0) return Array(7).fill("N/A").join("\t");
     const jsonRate = subset.filter((r) => r.json_parsed).length / subset.length;
     const compileRate = subset.filter((r) => r.compile_success).length / subset.length;
     const meshRate = subset.filter((r) => r.mesh_valid).length / subset.length;
@@ -164,22 +164,6 @@ function printReport(results: BenchmarkResult[]): string {
     ].join("\t");
   };
 
-  const lines: string[] = [];
-  lines.push("## AgentSCAD Benchmark Results\n");
-  lines.push(`Date: ${new Date().toISOString()}`);
-  lines.push(`Total cases: ${results.length}\n`);
-  lines.push(`| Metric | All | Simple | Medium | Hard |`);
-  lines.push(`|--------|-----|--------|--------|------|`);
-  lines.push(
-    `| JSON Parse | ${summary(results)} | ${summary(byDifficulty("simple"))} | ${summary(byDifficulty("medium"))} | ${summary(byDifficulty("hard"))} |`
-  );
-
-  // Replace the tab-separated summary with proper column breakdown
-  const allSummary = summary(results).split("\t");
-  const simpleSummary = summary(byDifficulty("simple")).split("\t");
-  const mediumSummary = summary(byDifficulty("medium")).split("\t");
-  const hardSummary = summary(byDifficulty("hard")).split("\t");
-
   const metricNames = [
     "JSON Parse",
     "Compile Success",
@@ -189,6 +173,25 @@ function printReport(results: BenchmarkResult[]): string {
     "Avg Latency",
     "Avg LLM Calls",
   ];
+
+  const allSummary = summary(results).split("\t");
+  const simpleSummary = summary(byDifficulty("simple")).split("\t");
+  const mediumSummary = summary(byDifficulty("medium")).split("\t");
+  const hardSummary = summary(byDifficulty("hard")).split("\t");
+
+  const lines: string[] = [];
+  lines.push("## AgentSCAD Benchmark Results\n");
+  lines.push(`Date: ${new Date().toISOString()}`);
+  lines.push(`Total cases: ${results.length}\n`);
+  lines.push(`| Metric | All | Simple | Medium | Hard |`);
+  lines.push(`|--------|-----|--------|--------|------|`);
+  for (const metric of metricNames) {
+    const i = metricNames.indexOf(metric);
+    lines.push(
+      `| ${metric} | ${allSummary[i]} | ${simpleSummary[i]} | ${mediumSummary[i]} | ${hardSummary[i]} |`
+    );
+  }
+  lines.push("");
 
   const detailedLines: string[] = [];
   detailedLines.push("## Detailed Results\n");

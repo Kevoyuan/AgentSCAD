@@ -1,5 +1,16 @@
 'use client'
 
+/*
+ * ─── JUNIOR DESIGNER ASSUMPTIONS & DESIGN DECISIONS ─────────────────────────
+ * 1. Responsive Sparkline Viewboxing (Sparkline 响应式折线图)：
+ *    将原本使用固定 width={400} 硬编码宽度的 Sparkline 升级为基于 viewBox 的 SVG
+ *    响应式比例缩放布局，使其能够根据容器宽度动态伸缩，避免在小屏幕或窄容器中溢出。
+ * 2. Metrics Grid Breakpoint Adaptation (指标网格响应式断点适配)：
+ *    将看板的 Key Metrics 网格卡片由固定的 grid-cols-4 调整为 grid-cols-2 sm:grid-cols-4
+ *    以便在视口不足时优雅折行，维持指标数值与进度环的舒展排版，避免挤压产生横向滚动。
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -218,7 +229,12 @@ function Sparkline({
     ` L ${points[0].x} ${height - padding} Z`
 
   return (
-    <svg width={width} height={height} className="overflow-visible" role="img" aria-label={`Activity sparkline: ${data.reduce((a, b) => a + b.count, 0)} jobs in last 24 hours`}>
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="w-full h-auto overflow-visible"
+      role="img"
+      aria-label={`Activity sparkline: ${data.reduce((a, b) => a + b.count, 0)} jobs in last 24 hours`}
+    >
       <defs>
         <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity={0.3} />
@@ -689,7 +705,7 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
       </motion.div>
 
       {/* Top row: Key metrics */}
-      <motion.div variants={staggerContainer} className="grid grid-cols-4 gap-2 mb-3">
+      <motion.div variants={staggerContainer} className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
         <StatCard icon={Layers} label="Total Jobs">
           <div className="text-2xl font-mono font-bold tracking-tighter text-[var(--app-text-primary)] tabular-nums">
             <AnimatedCounter value={stats.totalJobs} />
@@ -757,7 +773,9 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
             {stats.recentActivity.reduce((a, b) => a + b.count, 0)} jobs
           </span>
         </div>
-        <Sparkline data={stats.recentActivity} width={400} height={50} />
+        <div className="h-[50px] w-full flex items-center justify-center">
+          <Sparkline data={stats.recentActivity} width={400} height={50} />
+        </div>
       </motion.div>
 
       {/* Recent Activity Timeline */}

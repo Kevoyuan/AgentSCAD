@@ -1,12 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+/*
+ * ─── JUNIOR DESIGNER ASSUMPTIONS & DESIGN DECISIONS ─────────────────────────
+ * 1. Dialog scrollbar defensive isolation (弹窗滚动条防御性隔离)：
+ *    在各类 Dialog 容器 (如 Stats, Compare, Shortcuts) 上，显式设置 overflow-x-hidden
+ *    以防止子组件微小的宽度溢出或浏览器的舍入偏差产生莫名其妙的横向滚动条，
+ *    确保桌面端和移动端均呈现统一整洁的无溢出容器质感。
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+import { useState, useRef } from 'react'
+import { ImperativePanelHandle } from 'react-resizable-panels'
 import {
   Box, Play, Settings,
   Loader2,
   Plus, ArrowUpDown, Keyboard,
   BarChart3, GitCompare, Palette,
   Sun, Moon, Zap,
+  PanelLeft, PanelRight, Maximize2,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -49,6 +61,56 @@ import { KeyboardShortcuts } from './KeyboardShortcuts'
 export function MainWorkspace() {
   const state = useWorkspaceState()
   const [settingsTab, setSettingsTab] = useState<'providers' | 'theme'>('providers')
+
+  const sidebarRef = useRef<ImperativePanelHandle>(null)
+  const inspectorRef = useRef<ImperativePanelHandle>(null)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false)
+
+  const toggleSidebar = () => {
+    const panel = sidebarRef.current
+    if (panel) {
+      if (panel.isCollapsed()) {
+        panel.expand()
+        setIsSidebarCollapsed(false)
+      } else {
+        panel.collapse()
+        setIsSidebarCollapsed(true)
+      }
+    }
+  }
+
+  const toggleInspector = () => {
+    const panel = inspectorRef.current
+    if (panel) {
+      if (panel.isCollapsed()) {
+        panel.expand()
+        setIsInspectorCollapsed(false)
+      } else {
+        panel.collapse()
+        setIsInspectorCollapsed(true)
+      }
+    }
+  }
+
+  const toggleFocusMode = () => {
+    const sidebar = sidebarRef.current
+    const inspector = inspectorRef.current
+    if (sidebar && inspector) {
+      const isAlreadyFocused = sidebar.isCollapsed() && inspector.isCollapsed()
+      if (isAlreadyFocused) {
+        sidebar.expand()
+        inspector.expand()
+        setIsSidebarCollapsed(false)
+        setIsInspectorCollapsed(false)
+      } else {
+        sidebar.collapse()
+        inspector.collapse()
+        setIsSidebarCollapsed(true)
+        setIsInspectorCollapsed(true)
+      }
+    }
+  }
 
   // Command Palette Actions
   const commandPaletteActions: CommandAction[] = [
@@ -129,6 +191,9 @@ export function MainWorkspace() {
         onSetActiveTab={state.setActiveTab}
         onDelete={state.handleDelete}
         onProcess={state.handleProcess}
+        onToggleSidebar={toggleSidebar}
+        onToggleInspector={toggleInspector}
+        onToggleFocusMode={toggleFocusMode}
       />
 
       {/* Header */}
@@ -152,6 +217,39 @@ export function MainWorkspace() {
           />
         </div>
         <div className="flex items-center gap-1.5">
+          {/* Layout Controls */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" className={`h-7 text-xs gap-1 transition-all ${isSidebarCollapsed ? 'text-[var(--app-accent-text)] bg-[var(--app-accent-bg)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`} onClick={toggleSidebar} aria-label="Toggle Left Sidebar">
+                  <PanelLeft className="w-3.5 h-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p className="text-xs">Toggle Left Sidebar (⌘B)</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" className={`h-7 text-xs gap-1 transition-all ${isSidebarCollapsed && isInspectorCollapsed ? 'text-[var(--app-accent-text)] bg-[var(--app-accent-bg)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`} onClick={toggleFocusMode} aria-label="Toggle Focus Mode">
+                  <Maximize2 className="w-3.5 h-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p className="text-xs">Toggle Focus Mode (⌘⇧F)</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" className={`h-7 text-xs gap-1 transition-all ${isInspectorCollapsed ? 'text-[var(--app-accent-text)] bg-[var(--app-accent-bg)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`} onClick={toggleInspector} aria-label="Toggle Right Inspector">
+                  <PanelRight className="w-3.5 h-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p className="text-xs">Toggle Right Inspector (⌘I)</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <Separator orientation="vertical" className="h-4 bg-[var(--app-border)] mx-1" />
+
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -230,9 +328,29 @@ export function MainWorkspace() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-hidden relative">
+        {isSidebarCollapsed && (
+          <button
+            onClick={toggleSidebar}
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-50 w-3.5 h-16 rounded-r bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white flex items-center justify-center shadow-lg transition-all"
+            title="Expand Sidebar (⌘B)"
+          >
+            <ChevronRight className="w-3 h-3" />
+          </button>
+        )}
+        {isInspectorCollapsed && (
+          <button
+            onClick={toggleInspector}
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-50 w-3.5 h-16 rounded-l bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white flex items-center justify-center shadow-lg transition-all"
+            title="Expand Inspector (⌘I)"
+          >
+            <ChevronLeft className="w-3 h-3" />
+          </button>
+        )}
         <ResizablePanelGroup id="agentscad-workspace-panels" direction="horizontal">
           <JobListPanel
+            panelRef={sidebarRef}
+            onCollapseChange={setIsSidebarCollapsed}
             jobs={state.jobs}
             sortedJobs={state.sortedJobsForDnd}
             allJobs={state.allJobs}
@@ -276,13 +394,20 @@ export function MainWorkspace() {
             onRepair={state.handleRepair}
             onVisualRepair={state.handleVisualRepair}
             onSetActiveTab={state.setActiveTab}
-            onShowComposer={() => state.setShowComposer(true)}
+            onShowComposer={(presetText) => {
+              if (presetText) {
+                state.setNewJobText(presetText)
+              }
+              state.setShowComposer(true)
+            }}
             isFirstLoadComplete={state.isFirstLoadComplete}
           />
 
           <ResizableHandle id="agentscad-viewer-inspector-resize" withHandle />
 
           <InspectorPanel
+            panelRef={inspectorRef}
+            onCollapseChange={setIsInspectorCollapsed}
             selectedJob={state.selectedJob}
             allJobs={state.allJobs}
             activeTab={state.activeTab}
@@ -362,7 +487,7 @@ export function MainWorkspace() {
 
       {/* Keyboard Shortcuts Dialog */}
       <Dialog open={state.showShortcuts} onOpenChange={state.setShowShortcuts}>
-        <DialogContent className="bg-[var(--app-dialog-bg)] border border-[color:var(--app-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_48px_-12px_rgba(0,0,0,0.4)] rounded-xl max-w-md dialog-enter" aria-describedby="shortcuts-description">
+        <DialogContent className="bg-[var(--app-dialog-bg)] border border-[color:var(--app-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_48px_-12px_rgba(0,0,0,0.4)] rounded-xl max-w-md overflow-x-hidden dialog-enter" aria-describedby="shortcuts-description">
           <DialogHeader>
             <DialogTitle className="text-sm flex items-center gap-2">
               <Keyboard className="w-4 h-4 text-[var(--app-accent-text)]" />Keyboard Shortcuts
@@ -467,7 +592,7 @@ export function MainWorkspace() {
 
       {/* Stats Dashboard */}
       <Dialog open={state.showStats} onOpenChange={state.setShowStats}>
-        <DialogContent className="bg-[var(--app-dialog-bg)] border border-[color:var(--app-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_48px_-12px_rgba(0,0,0,0.4)] rounded-xl w-[min(44rem,calc(100vw-2rem))] max-w-none max-h-[min(82vh,760px)] overflow-y-auto dialog-enter" aria-describedby="stats-description">
+        <DialogContent className="bg-[var(--app-dialog-bg)] border border-[color:var(--app-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_48px_-12px_rgba(0,0,0,0.4)] rounded-xl w-[min(44rem,calc(100vw-2rem))] max-w-none max-h-[min(82vh,760px)] overflow-y-auto overflow-x-hidden dialog-enter" aria-describedby="stats-description">
           <DialogHeader>
             <DialogTitle className="text-sm flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-[var(--app-accent-text)]" />Stats Dashboard
@@ -482,7 +607,7 @@ export function MainWorkspace() {
 
       {/* Job Compare */}
       <Dialog open={state.showCompare} onOpenChange={state.setShowCompare}>
-        <DialogContent className="bg-[var(--app-dialog-bg)] border border-[color:var(--app-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_48px_-12px_rgba(0,0,0,0.4)] rounded-xl max-w-4xl max-h-[80vh] dialog-enter" aria-describedby="compare-description">
+        <DialogContent className="bg-[var(--app-dialog-bg)] border border-[color:var(--app-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_48px_-12px_rgba(0,0,0,0.4)] rounded-xl max-w-4xl max-h-[80vh] overflow-y-auto overflow-x-hidden dialog-enter" aria-describedby="compare-description">
           <DialogHeader>
             <DialogTitle className="text-sm flex items-center gap-2">
               <GitCompare className="w-4 h-4 text-[var(--app-accent-text)]" />Compare Jobs
