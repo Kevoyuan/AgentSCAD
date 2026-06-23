@@ -5,7 +5,10 @@ Thank you for your interest in contributing to AgentSCAD!
 ## Quick Setup
 
 ```bash
-# 1. Fork and clone
+# 0. Fork the repo on GitHub first:
+#    https://github.com/Kevoyuan/AgentSCAD/fork
+
+# 1. Clone YOUR fork (replace <your-username>)
 git clone https://github.com/<your-username>/AgentSCAD.git
 cd AgentSCAD
 

@@ -17,6 +17,9 @@ import { CaseMemory } from '@/components/cad/case-memory'
 import { TagBadges, buildCustomerId } from '@/components/cad/tag-badges'
 import { fetchModels, type ModelInfo } from '@/components/cad/api'
 
+// Junior Designer Assumption: keep in sync with "## Try This Sample Job" in README.md
+const EXAMPLE_PROMPT = 'Create a wall-mountable phone holder with rounded corners and two screw holes.' as const
+
 export function JobComposer({
   showComposer,
   newJobText,
@@ -168,9 +171,9 @@ export function JobComposer({
                         variant="ghost"
                         size="sm"
                         className="h-7 shrink-0 rounded-[6px] px-2.5 text-[11px] font-medium text-[var(--cad-text-muted)] transition-colors hover:bg-[var(--cad-surface-raised)] hover:text-[var(--cad-text)] active:scale-[0.98]"
-                        onClick={() => onNewJobTextChange('Create a wall-mountable phone holder with rounded corners and two screw holes.')}
+                        onClick={() => onNewJobTextChange(EXAMPLE_PROMPT)}
                       >
-                        <Wand2 className="mr-1.5 h-3 w-3 shrink-0" />
+                        <Wand2 className="mr-1.5 h-3 w-3 shrink-0" aria-hidden="true" />
                         <span className="truncate">Try Example</span>
                       </Button>
                     )}
