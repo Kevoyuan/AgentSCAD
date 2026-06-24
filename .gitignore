@@ -83,3 +83,9 @@ prompt/
 __pycache__/
 *.py[cod]
 prisma/test.db
+
+# agent state & local skills
+.agents/
+.ralph-state/
+vercel.json
+

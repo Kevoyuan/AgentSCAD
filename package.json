@@ -31,7 +31,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.1.1",
-    "@mdxeditor/editor": "^3.39.1",
+
     "@prisma/client": "^6.11.1",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -85,7 +85,7 @@
     "react-markdown": "^10.1.0",
     "react-resizable-panels": "^3.0.3",
     "react-syntax-highlighter": "^15.6.1",
-    "recharts": "^2.15.4",
+
     "sharp": "^0.34.3",
     "sonner": "^2.0.6",
     "tailwind-merge": "^3.3.1",

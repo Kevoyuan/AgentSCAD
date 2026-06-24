@@ -81,7 +81,7 @@ export function JobListPanel({
   onSetActiveTab: (tab: string) => void
 }) {
   return (
-    <ResizablePanel id="agentscad-job-list-panel" order={1} defaultSize={18} minSize={14} maxSize={30} className="cad-left-panel">
+    <ResizablePanel id="agentscad-job-list-panel" ref={panelRef} order={1} defaultSize={18} minSize={14} maxSize={30} collapsible collapsedSize={0} onCollapse={() => onCollapseChange?.(true)} onExpand={() => onCollapseChange?.(false)} className="cad-left-panel">
       <div className="flex flex-col h-full bg-[var(--app-bg)]">
         {/* Search & Filter Panel */}
         <SearchFilterPanel
