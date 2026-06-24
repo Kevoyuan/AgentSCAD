@@ -36,8 +36,7 @@ const PROVIDER_SETTINGS_PATH = path.join(PROVIDER_SETTINGS_DIR, "providers.json"
 
 function maskApiKey(apiKey?: string) {
   if (!apiKey) return undefined;
-  if (apiKey.length <= 8) return "••••";
-  return `${apiKey.slice(0, 4)}••••${apiKey.slice(-4)}`;
+  return "••••••••";
 }
 
 function normalizeBaseUrl(baseUrl: string) {
