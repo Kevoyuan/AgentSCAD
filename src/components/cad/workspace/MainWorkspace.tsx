@@ -200,9 +200,11 @@ export function MainWorkspace() {
       <header className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)] bg-[var(--app-surface)] shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-[var(--cad-accent)] flex items-center justify-center shadow-[0_0_12px_var(--cad-accent-soft)]">
-              <Box className="w-3 h-3 text-white" />
-            </div>
+            <img 
+              src="/logo.jpg" 
+              alt="AgentSCAD Logo" 
+              className="w-5 h-5 rounded object-cover shadow-[0_0_8px_rgba(94,106,210,0.4)]"
+            />
             <h1 className="text-sm font-semibold tracking-tight text-[var(--app-text-primary)]">
               AgentSCAD
             </h1>
