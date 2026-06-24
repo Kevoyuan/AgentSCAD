@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   keywords: ["AgentSCAD", "CAD", "OpenSCAD", "3D Printing", "AI Agent", "Parametric Design"],
   authors: [{ name: "AgentSCAD Team" }],
   icons: {
-    icon: "/logo.svg",
+    icon: "/logo.jpg",
   },
   openGraph: {
     title: "AgentSCAD - CAD Agent System",
