@@ -201,7 +201,7 @@ export function MainWorkspace() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <img 
-              src="/logo.jpg" 
+              src="/logo.png" 
               alt="AgentSCAD Logo" 
               className="w-5 h-5 rounded object-cover shadow-[0_0_8px_rgba(94,106,210,0.4)]"
             />

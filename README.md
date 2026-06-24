@@ -1,7 +1,7 @@
 **English** | [中文](./README_CN.md)
 
 <p align="center">
-  <img src="./public/logo.jpg" width="120" height="120" style="border-radius: 20%;" alt="AgentSCAD Logo" />
+  <img src="./public/logo.png" width="120" height="120" style="border-radius: 20%;" alt="AgentSCAD Logo" />
 </p>
 
 <h1 align="center">AgentSCAD</h1>
