@@ -24,6 +24,9 @@ AgentSCAD 是一个全栈 AI CAD 工作区：把自然语言零件需求转成�
 
 ![交付的 CAD 产出物可通过预览、STL 就绪状态、SCAD 源码和验证状态进行检查。](./docs/images/Example.png)
 
+![配置超过 30 种 LLM 供应商的 Key 和参数，包括 OpenAI、DeepSeek、OpenRouter 及本地模型。](./docs/images/providers.png)
+
+
 ## 60 秒概览
 
 - AgentSCAD 将自然语言 CAD 请求转成 `model.scad`、`model.stl`、`preview.png`、验证结果和持久化任务历史。
