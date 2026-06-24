@@ -1,12 +1,22 @@
 [English](./README.md) | **中文**
 
-# AgentSCAD
+<p align="center">
+  <img src="./public/logo.jpg" width="120" height="120" style="border-radius: 20%;" alt="AgentSCAD Logo" />
+</p>
 
-![CI](https://github.com/Kevoyuan/AgentSCAD/actions/workflows/ci.yml/badge.svg)
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Next.js](https://img.shields.io/badge/Next.js-16-black)
-![OpenSCAD](https://img.shields.io/badge/OpenSCAD-required-blue)
-![Status](https://img.shields.io/badge/status-active-green)
+<h1 align="center">AgentSCAD</h1>
+
+<p align="center">
+  <strong>全栈 AI CAD 工作区 —— 自然语言生成可编辑 3D 模型</strong>
+</p>
+
+<p align="center">
+  <img src="https://github.com/Kevoyuan/AgentSCAD/actions/workflows/ci.yml/badge.svg" alt="CI" />
+  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" />
+  <img src="https://img.shields.io/badge/Next.js-16-black" alt="Next.js" />
+  <img src="https://img.shields.io/badge/OpenSCAD-required-blue" alt="OpenSCAD" />
+  <img src="https://img.shields.io/badge/status-active-green" alt="Status" />
+</p>
 
 AgentSCAD 是一个全栈 AI CAD 工作区：把自然语言零件需求转成可编辑的 OpenSCAD、渲染后的 STL/PNG 产物，以及带验证结果的任务流程。
 

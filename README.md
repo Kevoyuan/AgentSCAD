@@ -1,12 +1,22 @@
 **English** | [中文](./README_CN.md)
 
-# AgentSCAD
+<p align="center">
+  <img src="./public/logo.jpg" width="120" height="120" style="border-radius: 20%;" alt="AgentSCAD Logo" />
+</p>
 
-![CI](https://github.com/Kevoyuan/AgentSCAD/actions/workflows/ci.yml/badge.svg)
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Next.js](https://img.shields.io/badge/Next.js-16-black)
-![OpenSCAD](https://img.shields.io/badge/OpenSCAD-required-blue)
-![Status](https://img.shields.io/badge/status-active-green)
+<h1 align="center">AgentSCAD</h1>
+
+<p align="center">
+  <strong>Engineering control room for CAD job orchestration.</strong>
+</p>
+
+<p align="center">
+  <img src="https://github.com/Kevoyuan/AgentSCAD/actions/workflows/ci.yml/badge.svg" alt="CI" />
+  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" />
+  <img src="https://img.shields.io/badge/Next.js-16-black" alt="Next.js" />
+  <img src="https://img.shields.io/badge/OpenSCAD-required-blue" alt="OpenSCAD" />
+  <img src="https://img.shields.io/badge/status-active-green" alt="Status" />
+</p>
 
 AgentSCAD is a full-stack AI CAD workspace that turns natural-language part requests into editable OpenSCAD, rendered STL/PNG artifacts, and validation-backed job workflows.
 
