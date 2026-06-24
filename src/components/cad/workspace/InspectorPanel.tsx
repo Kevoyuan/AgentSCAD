@@ -129,7 +129,7 @@ export function InspectorPanel({
   }
 
   return (
-    <ResizablePanel id="agentscad-inspector-panel" order={3} defaultSize={30} minSize={24} maxSize={42} className="cad-inspector-panel min-w-0">
+    <ResizablePanel id="agentscad-inspector-panel" ref={panelRef} order={3} defaultSize={30} minSize={24} maxSize={42} collapsible collapsedSize={0} onCollapse={() => onCollapseChange?.(true)} onExpand={() => onCollapseChange?.(false)} className="cad-inspector-panel min-w-0">
       <div className="flex h-full min-h-0 min-w-0 flex-col bg-[var(--app-surface)]">
         {selectedJob ? (
           <Tabs value={normalizedActiveTab} onValueChange={(v) => {
