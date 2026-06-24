@@ -94,7 +94,7 @@ export function JobDependencies({ job, allJobs, onUpdate, onNavigateToJob }: Job
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       {/* Header */}
       <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-[color:var(--app-border)] px-3 py-1.5">
-        <h3 className="text-[13px] font-mono tracking-widest text-[var(--app-text-muted)] uppercase flex items-center gap-2">
+        <h3 className="text-eyebrow text-[var(--app-text-muted)] flex items-center gap-2">
           <GitBranch className="w-3.5 h-3.5" />
           Dependencies
         </h3>

@@ -29,7 +29,7 @@ export function ValidationPanel({ job }: { job: Job }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)]">
-        <h3 className="text-[13px] font-mono tracking-widest text-[var(--app-text-muted)] uppercase">Validation</h3>
+        <h3 className="text-eyebrow text-[var(--app-text-muted)]">Validation</h3>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">
             <div className="w-8 h-1.5 rounded-full bg-[var(--app-surface-raised)] overflow-hidden">

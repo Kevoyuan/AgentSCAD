@@ -160,7 +160,7 @@ export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       {/* Header */}
       <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-[color:var(--app-border)] px-3 py-2">
-        <h3 className="flex min-w-0 items-center gap-1.5 truncate text-[13px] font-mono uppercase tracking-widest text-[var(--app-text-muted)]">
+        <h3 className="flex min-w-0 items-center gap-1.5 truncate text-eyebrow text-[var(--app-text-muted)]">
           <Code2 className="w-3.5 h-3.5" />
           <span className="truncate">SCAD Source</span>
           {isEditing && (

@@ -81,7 +81,7 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)]">
-        <h3 className="text-[13px] font-mono tracking-widest text-[var(--app-text-muted)] uppercase flex items-center gap-1.5">
+        <h3 className="text-eyebrow text-[var(--app-text-muted)] flex items-center gap-1.5">
           <StickyNote className="w-3.5 h-3.5 text-amber-400" />Notes
         </h3>
         <div className="flex items-center gap-2">

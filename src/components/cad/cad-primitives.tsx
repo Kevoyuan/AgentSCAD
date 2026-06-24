@@ -31,7 +31,7 @@ export function CadPanel({
 export function CadSectionHeader({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 px-1">
-      <h3 className="text-[13px] font-mono uppercase tracking-[0.18em] text-[var(--cad-text-muted)]">{children}</h3>
+      <h3 className="text-eyebrow text-[var(--cad-text-muted)]">{children}</h3>
       {action}
     </div>
   )

@@ -174,7 +174,7 @@ export function ParameterPanel({
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-[color:var(--app-border)] px-3 py-1.5">
-        <h3 className="text-[13px] font-mono tracking-widest text-[var(--app-text-muted)] uppercase">Parameters</h3>
+        <h3 className="text-eyebrow text-[var(--app-text-muted)]">Parameters</h3>
         <div className="flex min-w-0 shrink-0 items-center gap-2">
           {changedCount > 0 && (
             <Badge variant="outline" className="text-xs h-4 bg-[var(--cad-accent-soft)] text-[var(--cad-accent)] border-[color:var(--cad-border)]">
