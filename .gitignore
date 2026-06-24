@@ -69,10 +69,16 @@ next-env.d.ts
 server.log
 
 # agent config
+.claude
 .claude/
 .z-ai-config
+.gstack
 .gstack/
+.agentscad
 .agentscad/
+**/.agentscad
+**/.agentscad/
+
 
 # local scratch
 local-*
@@ -85,7 +91,14 @@ __pycache__/
 prisma/test.db
 
 # agent state & local skills
+.agents
 .agents/
+**/.agents
+**/.agents/
+.ralph-state
 .ralph-state/
+**/.ralph-state
+**/.ralph-state/
 vercel.json
+
 
