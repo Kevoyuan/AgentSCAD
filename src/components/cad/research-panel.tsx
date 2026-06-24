@@ -35,7 +35,7 @@ export function ResearchPanel({ job }: { job: Job }) {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-[color:var(--app-border)] px-3 py-1.5">
-        <h3 className="text-[13px] font-mono tracking-widest text-[var(--app-text-muted)] uppercase">Research & Intent</h3>
+        <h3 className="text-eyebrow text-[var(--app-text-muted)]">Research & Intent</h3>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <motion.div

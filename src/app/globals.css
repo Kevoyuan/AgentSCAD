@@ -683,6 +683,18 @@ pre:hover .code-copy-btn { opacity: 1; }
   .empty-float { animation: none; }
 }
 
+/* Touch devices — expand hit area for icon-sized buttons to WCAG 44x44.
+   Visual size stays 36x36 on desktop IDE; coarse pointer (tablet/touch) gets a
+   transparent ::before expansion that doesn't affect layout. */
+@media (pointer: coarse) {
+  .size-9 { position: relative; }
+  .size-9::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+  }
+}
+
 /* Footer tooltip */
 .footer-metric {
   position: relative;
@@ -699,6 +711,16 @@ pre:hover .code-copy-btn { opacity: 1; }
 .linear-transition { transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease; }
 .linear-shadow-sm { box-shadow: var(--app-shadow-sm); }
 .linear-shadow-md { box-shadow: var(--app-shadow-md); }
+
+/* Typography tokens — section eyebrows (mono uppercase tracked) */
+.text-eyebrow {
+  font-size: 13px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  line-height: 1;
+}
 
 .cad-surface {
   background: var(--cad-surface);

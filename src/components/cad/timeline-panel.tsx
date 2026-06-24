@@ -13,7 +13,7 @@ export function TimelinePanel({ job }: { job: Job }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)]">
-        <h3 className="text-[13px] font-mono tracking-widest text-[var(--app-text-muted)] uppercase">Timeline</h3>
+        <h3 className="text-eyebrow text-[var(--app-text-muted)]">Timeline</h3>
         <Badge variant="outline" className="text-xs h-4 bg-[var(--app-surface-raised)] text-[var(--app-text-muted)] border-[color:var(--app-border)]">
           {logs.length} events
         </Badge>

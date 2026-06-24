@@ -188,7 +188,7 @@ export function JobVersionHistory({ job }: JobVersionHistoryProps) {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)] shrink-0">
-        <h3 className="text-[13px] font-mono tracking-widest text-[var(--app-text-muted)] uppercase flex items-center gap-1.5">
+        <h3 className="text-eyebrow text-[var(--app-text-muted)] flex items-center gap-1.5">
           <History className="w-3.5 h-3.5" />
           Version History
         </h3>

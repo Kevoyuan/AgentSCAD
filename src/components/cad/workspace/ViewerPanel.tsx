@@ -500,7 +500,7 @@ function QuickStartDashboard({ onShowComposer }: QuickStartDashboardProps) {
 
       {/* Guided Steps */}
       <div className="w-full space-y-4">
-        <h3 className="text-[13px] font-mono tracking-widest text-[var(--app-text-dim)] uppercase px-1">
+        <h3 className="text-eyebrow text-[var(--app-text-dim)] px-1">
           How the 3D Pipeline Works
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -527,7 +527,7 @@ function QuickStartDashboard({ onShowComposer }: QuickStartDashboardProps) {
       {/* Presets Grid */}
       <div className="w-full space-y-4">
         <div className="flex items-center justify-between px-1">
-          <h3 className="text-[13px] font-mono tracking-widest text-[var(--app-text-dim)] uppercase">
+          <h3 className="text-eyebrow text-[var(--app-text-dim)]">
             Click a Preset Template
           </h3>
           <span className="text-[10px] text-[var(--app-text-dim)]">Load pre-configured specifications</span>
@@ -569,7 +569,7 @@ function QuickStartDashboard({ onShowComposer }: QuickStartDashboardProps) {
 
       {/* Shortcuts Quick-Lookup */}
       <div className="w-full max-w-[800px] mx-auto border-t border-[color:var(--app-border-subtle)] pt-6 space-y-3">
-        <h3 className="text-[13px] font-mono tracking-widest text-[var(--app-text-dim)] uppercase px-1">
+        <h3 className="text-eyebrow text-[var(--app-text-dim)] px-1">
           Keyboard Shortcuts Guide
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 px-1">

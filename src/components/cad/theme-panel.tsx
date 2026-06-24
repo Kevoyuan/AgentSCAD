@@ -226,7 +226,7 @@ export function ThemePanel() {
       <div>
         <div className="flex items-center gap-2 mb-3">
           <Sun className="w-3.5 h-3.5 text-[var(--app-text-muted)]" />
-          <span className="text-[13px] font-mono tracking-widest text-[var(--app-text-muted)] uppercase">Theme Mode</span>
+          <span className="text-eyebrow text-[var(--app-text-muted)]">Theme Mode</span>
         </div>
         <div className="flex items-center gap-1.5">
           {THEME_MODES.map((mode) => {
@@ -270,7 +270,7 @@ export function ThemePanel() {
       <div>
         <div className="flex items-center gap-2 mb-3">
           <Palette className="w-3.5 h-3.5 text-[var(--app-text-muted)]" />
-          <span className="text-[13px] font-mono tracking-widest text-[var(--app-text-muted)] uppercase">Accent Color</span>
+          <span className="text-eyebrow text-[var(--app-text-muted)]">Accent Color</span>
         </div>
         <div className="grid grid-cols-6 gap-2">
           {ACCENT_COLORS.map(accent => (
@@ -308,7 +308,7 @@ export function ThemePanel() {
       <div>
         <div className="flex items-center gap-2 mb-3">
           <Type className="w-3.5 h-3.5 text-[var(--app-text-muted)]" />
-          <span className="text-[13px] font-mono tracking-widest text-[var(--app-text-muted)] uppercase">Font Size</span>
+          <span className="text-eyebrow text-[var(--app-text-muted)]">Font Size</span>
         </div>
         <div className="flex items-center gap-2">
           {FONT_SIZES.map(fs => (
@@ -337,7 +337,7 @@ export function ThemePanel() {
       <div>
         <div className="flex items-center gap-2 mb-3">
           <LayoutGrid className="w-3.5 h-3.5 text-[var(--app-text-muted)]" />
-          <span className="text-[13px] font-mono tracking-widest text-[var(--app-text-muted)] uppercase">UI Density</span>
+          <span className="text-eyebrow text-[var(--app-text-muted)]">UI Density</span>
         </div>
         <div className="flex items-center gap-2">
           {UI_DENSITIES.map(d => (
@@ -369,7 +369,7 @@ export function ThemePanel() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-[var(--app-text-muted)]" />
-            <span className="text-[13px] font-mono tracking-widest text-[var(--app-text-muted)] uppercase">Animations</span>
+            <span className="text-eyebrow text-[var(--app-text-muted)]">Animations</span>
           </div>
           <button
             className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${

@@ -43,7 +43,7 @@ export function ScadViewer({ code }: { code: string | null }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)]">
-        <h3 className="text-[13px] font-mono tracking-widest text-[var(--app-text-muted)] uppercase">SCAD Source</h3>
+        <h3 className="text-eyebrow text-[var(--app-text-muted)]">SCAD Source</h3>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs h-4 bg-[var(--app-surface-raised)] text-[var(--app-text-muted)] border-[color:var(--app-border)]">
             {lineCount} lines
