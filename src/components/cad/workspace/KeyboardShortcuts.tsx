@@ -16,6 +16,9 @@ export function KeyboardShortcuts({
   onSetActiveTab,
   onDelete,
   onProcess,
+  onToggleSidebar,
+  onToggleInspector,
+  onToggleFocusMode,
 }: {
   selectedJob: Job | null
   showComposer: boolean
@@ -29,6 +32,9 @@ export function KeyboardShortcuts({
   onSetActiveTab: (tab: string) => void
   onDelete: (id: string) => void
   onProcess: (job: Job) => void
+  onToggleSidebar?: () => void
+  onToggleInspector?: () => void
+  onToggleFocusMode?: () => void
 }) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

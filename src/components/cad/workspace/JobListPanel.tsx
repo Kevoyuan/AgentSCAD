@@ -1,5 +1,7 @@
 'use client'
 
+import * as React from 'react'
+import { ImperativePanelHandle } from 'react-resizable-panels'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   DndContext, closestCenter,
@@ -48,6 +50,8 @@ export function JobListPanel({
   onFilterChange,
   onSetActiveTab,
   isFirstLoadComplete,
+  panelRef,
+  onCollapseChange,
 }: {
   jobs: Job[]
   isFirstLoadComplete: boolean
@@ -59,6 +63,8 @@ export function JobListPanel({
   stateCounts: Record<string, number>
   activeDragId: string | null
   sensors: SensorDescriptor<Record<string, unknown>>[]
+  panelRef?: React.RefObject<ImperativePanelHandle | null>
+  onCollapseChange?: (collapsed: boolean) => void
   onDragStart: (event: DragStartEvent) => void
   onDragEnd: (event: DragEndEvent) => void
   onDragCancel: () => void

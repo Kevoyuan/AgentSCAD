@@ -1,5 +1,7 @@
 'use client'
 
+import * as React from 'react'
+import { ImperativePanelHandle } from 'react-resizable-panels'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Settings, Shield, Activity, Clock,
@@ -41,11 +43,15 @@ export function InspectorPanel({
   onClearSelectedJob,
   onShowComposer,
   isFirstLoadComplete,
+  panelRef,
+  onCollapseChange,
 }: {
   selectedJob: Job | null
   allJobs: Job[]
   activeTab: string
   tabDirection: number
+  panelRef?: React.RefObject<ImperativePanelHandle | null>
+  onCollapseChange?: (collapsed: boolean) => void
   onSetActiveTab: (tab: string) => void
   onSetPrevTab: (tab: string) => void
   onSetTabDirection: (dir: number) => void
