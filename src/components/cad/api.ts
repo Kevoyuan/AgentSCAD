@@ -21,9 +21,22 @@ export interface EnvProviderConfig {
   envKey: string
 }
 
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  const contentType = res.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    const data = await res.json().catch(() => null)
+    if (typeof data?.error === 'string' && data.error.trim()) return data.error
+    if (typeof data?.message === 'string' && data.message.trim()) return data.message
+  }
+
+  const text = await res.text().catch(() => '')
+  if (text.trim()) return text.trim()
+  return fallback
+}
+
 export async function fetchProviders(): Promise<{ providers: ProviderConfig[]; envProviders: EnvProviderConfig[] }> {
   const res = await fetch('/api/providers')
-  if (!res.ok) throw new Error('Failed to fetch providers')
+  if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to fetch providers'))
   return res.json()
 }
 
@@ -45,15 +58,14 @@ export async function saveProvider(input: {
     body: JSON.stringify(input),
   })
   if (!res.ok) {
-    const data = await res.json().catch(() => null)
-    throw new Error(data?.error || 'Failed to save provider')
+    throw new Error(await readErrorMessage(res, 'Failed to save provider'))
   }
   return res.json()
 }
 
 export async function deleteProvider(id: string): Promise<void> {
   const res = await fetch(`/api/providers?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error('Failed to delete provider')
+  if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to delete provider'))
 }
 
 export async function testProvider(input: {
@@ -68,9 +80,8 @@ export async function testProvider(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })
-  const data = await res.json().catch(() => null)
-  if (!res.ok) throw new Error(data?.error || 'Provider test failed')
-  return data
+  if (!res.ok) throw new Error(await readErrorMessage(res, 'Provider test failed'))
+  return res.json()
 }
 
 export async function fetchJobs(state?: string): Promise<{ jobs: Job[]; pagination: { total: number } }> {
