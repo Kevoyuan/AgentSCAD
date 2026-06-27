@@ -29,6 +29,16 @@ Generated SCAD may reference available libraries with `include` or `use`, but Ag
 
 Keep third-party library source out of this repository unless a human explicitly reviews and approves the licensing and distribution model.
 
+## OpenSCAD Website Listing
+
+AgentSCAD is not itself an OpenSCAD `include` or `use` library. If requesting a
+listing on <https://openscad.org/libraries.html>, describe AgentSCAD as related
+OpenSCAD tooling unless the OpenSCAD website maintainers explicitly ask for a
+normal library entry.
+
+Use [`docs/OPENSCAD_WEBSITE_LISTING.md`](./OPENSCAD_WEBSITE_LISTING.md) for the
+issue response, upstream issue draft, and PR checklist.
+
 ## Runtime Boundary
 
 AgentSCAD does not bundle or link OpenSCAD in the default application distribution. It invokes OpenSCAD as an external command-line renderer through `OPENSCAD_BIN` or the `openscad` executable available in the user's runtime environment.
