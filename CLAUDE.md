@@ -87,6 +87,7 @@ Next.js Route Handlers under `src/app/api/`:
 - `jobs/` — CRUD, batch operations, pipeline processing, SCAD editing, versioning
 - `chat/` — LLM chat with SSE streaming
 - `models/` — configured models plus 50 recommendations across 21 provider presets
+- `providers/` — provider configuration, encrypted browser-session storage on Vercel, and connection testing
 - `health/` — health check
 
 ### Frontend

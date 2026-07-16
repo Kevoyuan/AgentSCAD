@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Check, KeyRound, Loader2, Plug, Plus, Server, Star, Trash2, Wifi } from 'lucide-react'
+import { Check, KeyRound, Loader2, Plug, Plus, Server, ShieldCheck, Star, Trash2, Wifi } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import {
   deleteProvider,
+  clearProviders,
   fetchProviders,
   saveProvider,
   testProvider,
@@ -151,6 +152,17 @@ export function ProviderSettingsPanel() {
     }
   }
 
+  const handleClearProviders = async () => {
+    try {
+      await clearProviders()
+      toast.success('Provider keys cleared from this browser session')
+      handleReset()
+      await loadProviders()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to clear provider keys')
+    }
+  }
+
   const handleSetDefault = async (provider: ProviderConfig) => {
     try {
       await saveProvider({
@@ -205,6 +217,17 @@ export function ProviderSettingsPanel() {
           </div>
         )}
 
+        {persistenceUi.showSessionNotice && (
+          <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs leading-5 text-[var(--app-text-secondary)]">
+            <span className="inline-flex items-center gap-1.5 font-medium text-emerald-300">
+              <ShieldCheck className="h-3.5 w-3.5" />Encrypted session storage
+            </span>
+            <div className="mt-1">
+              API keys are encrypted, unavailable to page JavaScript, and expire when the browser session ends.
+            </div>
+          </div>
+        )}
+
         <div className="space-y-2 max-h-44 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--app-scrollbar-thumb) transparent' }}>
           {isLoading ? (
             <div className="flex h-20 items-center justify-center">
@@ -212,7 +235,7 @@ export function ProviderSettingsPanel() {
             </div>
           ) : providers.length === 0 ? (
             <div className="rounded-lg border border-dashed border-[color:var(--app-border)] px-3 py-4 text-center text-xs text-[var(--app-text-muted)]">
-              No local providers yet.
+              No providers saved for this session.
             </div>
           ) : providers.map(provider => (
             <div key={provider.id} className="rounded-lg border border-[color:var(--app-border)] bg-[var(--app-bg)] px-3 py-2">
@@ -321,6 +344,12 @@ export function ProviderSettingsPanel() {
           Default
         </label>
         <div className="ml-auto flex items-center gap-2">
+          {persistence.mode === 'encrypted-cookie' && providers.length > 0 && (
+            <Button variant="ghost" size="sm" className="h-8 gap-1 text-red-400 hover:text-red-300" onClick={handleClearProviders}>
+              <Trash2 className="w-3.5 h-3.5" />
+              Clear keys
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleTest} disabled={isTesting || isSaving}>
             {isTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
             Test
