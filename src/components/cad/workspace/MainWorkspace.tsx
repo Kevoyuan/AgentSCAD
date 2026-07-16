@@ -61,6 +61,7 @@ import { KeyboardShortcuts } from './KeyboardShortcuts'
 export function MainWorkspace() {
   const state = useWorkspaceState()
   const [settingsTab, setSettingsTab] = useState<'providers' | 'theme'>('providers')
+  const [providerRevision, setProviderRevision] = useState(0)
 
   const sidebarRef = useRef<ImperativePanelHandle>(null)
   const inspectorRef = useRef<ImperativePanelHandle>(null)
@@ -451,6 +452,7 @@ export function MainWorkspace() {
 
       <JobComposer
         showComposer={state.showComposer}
+        providerRevision={providerRevision}
         newJobText={state.newJobText}
         newJobModelId={state.newJobModelId}
         newJobTags={state.newJobTags}
@@ -641,7 +643,9 @@ export function MainWorkspace() {
             </TabsList>
             <div className="min-h-0 flex-1 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--app-scrollbar-thumb) transparent' }}>
               <TabsContent value="providers" forceMount className="mt-3 data-[state=inactive]:hidden">
-                <ProviderSettingsPanel />
+                <ProviderSettingsPanel
+                  onProvidersChanged={() => setProviderRevision(revision => revision + 1)}
+                />
               </TabsContent>
               <TabsContent value="theme" forceMount className="mt-3 data-[state=inactive]:hidden">
                 <ThemePanel />
