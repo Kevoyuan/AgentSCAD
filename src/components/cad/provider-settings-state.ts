@@ -11,6 +11,7 @@ export function getProviderSettingsUiState(
 ) {
   return {
     showEnvironmentNotice: !persistence.writable,
+    showSessionNotice: persistence.mode === "encrypted-cookie",
     canSave: !isLoading && persistence.writable,
   };
 }

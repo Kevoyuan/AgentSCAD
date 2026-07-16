@@ -3,9 +3,11 @@
 All notable changes to AgentSCAD are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [0.3.1.0] - 2026-07-16
 
 ### Added
+- Session-only Provider Save on Vercel, with API keys encrypted in HttpOnly browser cookies
+- One-click **Clear keys** control for immediately removing provider credentials from the browser session
 - Provider model recommendations grouped by flagship, balanced, fast, reasoning, vision, and code use cases
 - Anthropic and Google Gemini presets through their OpenAI-compatible endpoints
 - Provider catalog and model-route regression tests covering environment detection, routing IDs, metadata, and multimodal capability checks
@@ -15,6 +17,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - OpenSCAD PATH warning: jobs stuck in `GEOMETRY_FAILED` state without renderer in PATH
 - `Try Example` button in Job Composer (visible when textarea is empty, auto-fills sample prompt)
 - `CONTRIBUTING.md` and `CHANGELOG.md` links in README Deeper Docs section
+
+### Changed
+- Provider connections in production are restricted to trusted HTTPS preset URLs or an operator-managed allowlist
+- Next.js updated to 16.2.6 and GitHub Actions pinned to reviewed commit SHAs
+
+### Fixed
+- Restored the Provider Settings **Save** button on Vercel without sharing credentials between visitors
+- Protected nested Provider API routes with route-level authorization and middleware coverage
+- Blocked provider connection-test SSRF and stopped returning raw upstream error bodies
 
 ## [0.3.0] - 2026-05-02
 

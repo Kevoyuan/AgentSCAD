@@ -1,10 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
+import { authorizeApiRequest } from "@/lib/auth";
 import {
   deleteProviderSettings,
   getEnvProviderConfigs,
   getProviderSettingsPersistence,
   ProviderSettingsReadOnlyError,
+  ProviderValidationError,
   readProviderSettings,
   toPublicProvider,
   upsertProviderSettings,
@@ -16,11 +18,21 @@ function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
 
+function unauthorized() {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
 function serverError(error: unknown, fallback: string) {
   if (error instanceof ProviderSettingsReadOnlyError) {
     return NextResponse.json(
       { error: error.message, code: error.code },
       { status: 409 },
+    );
+  }
+  if (error instanceof ProviderValidationError) {
+    return NextResponse.json(
+      { error: error.message, code: error.code },
+      { status: 400 },
     );
   }
   console.error(fallback, error);
@@ -30,9 +42,15 @@ function serverError(error: unknown, fallback: string) {
   );
 }
 
-export async function GET() {
+function withProviderCookie(response: NextResponse, setCookieHeader?: string) {
+  if (setCookieHeader) response.headers.set("Set-Cookie", setCookieHeader);
+  return response;
+}
+
+export async function GET(request: NextRequest) {
+  if (!authorizeApiRequest(request)) return unauthorized();
   try {
-    const providers = await readProviderSettings();
+    const providers = await readProviderSettings(request.headers.get("cookie"));
     return NextResponse.json({
       providers: providers.map(toPublicProvider),
       persistence: getProviderSettingsPersistence(),
@@ -48,7 +66,8 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  if (!authorizeApiRequest(request)) return unauthorized();
   try {
     const body = await request.json().catch(() => null);
     if (!body) return badRequest("Invalid JSON body");
@@ -68,7 +87,7 @@ export async function POST(request: Request) {
       return badRequest("API key is required");
     }
 
-    const provider = await upsertProviderSettings({
+    const result = await upsertProviderSettings({
       id: typeof body.id === "string" ? body.id : undefined,
       name,
       type: (body.type as ProviderType) || "openai-compatible",
@@ -78,21 +97,31 @@ export async function POST(request: Request) {
       defaultModel,
       enabled: body.enabled !== false,
       isDefault: Boolean(body.isDefault),
-    });
+    }, request.headers.get("cookie"));
 
-    return NextResponse.json({ provider: toPublicProvider(provider) });
+    return withProviderCookie(
+      NextResponse.json({ provider: toPublicProvider(result.provider) }),
+      result.setCookieHeader,
+    );
   } catch (error) {
     return serverError(error, "Failed to save provider");
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(request: NextRequest) {
+  if (!authorizeApiRequest(request)) return unauthorized();
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
-    if (!id) return badRequest("Provider id is required");
-    await deleteProviderSettings(id);
-    return NextResponse.json({ ok: true });
+    const deleteAll = searchParams.get("all") === "true";
+    if (!id && !deleteAll) return badRequest("Provider id is required");
+    const result = deleteAll
+      ? await deleteProviderSettings("", request.headers.get("cookie"), true)
+      : await deleteProviderSettings(id || "", request.headers.get("cookie"));
+    return withProviderCookie(
+      NextResponse.json({ ok: true }),
+      result.setCookieHeader,
+    );
   } catch (error) {
     return serverError(error, "Failed to delete provider");
   }

@@ -61,3 +61,22 @@ export function isSameOriginRequest(request: NextRequest): boolean {
 
   return false;
 }
+
+/**
+ * Route-handler authorization for sensitive APIs.
+ *
+ * Middleware remains the broad perimeter, but route handlers use this helper
+ * as an independent boundary so a matcher or framework regression cannot
+ * silently expose provider credentials or outbound network access.
+ */
+export function authorizeApiRequest(request: NextRequest): boolean {
+  const apiSecret = process.env.API_SECRET;
+  if (authenticateBearer(request, apiSecret)) return true;
+
+  if (!apiSecret) {
+    if (process.env.NODE_ENV !== "production") return true;
+    return isSameOriginRequest(request);
+  }
+
+  return false;
+}

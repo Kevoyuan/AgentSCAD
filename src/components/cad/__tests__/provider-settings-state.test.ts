@@ -10,6 +10,7 @@ describe("provider settings UI state", () => {
   test("starts safe while persistence capabilities are loading", () => {
     expect(getProviderSettingsUiState(DEFAULT_PROVIDER_PERSISTENCE, true)).toEqual({
       showEnvironmentNotice: true,
+      showSessionNotice: false,
       canSave: false,
     });
   });
@@ -22,6 +23,7 @@ describe("provider settings UI state", () => {
       )
     ).toEqual({
       showEnvironmentNotice: true,
+      showSessionNotice: false,
       canSave: false,
     });
   });
@@ -31,6 +33,20 @@ describe("provider settings UI state", () => {
       getProviderSettingsUiState({ mode: "file", writable: true }, false)
     ).toEqual({
       showEnvironmentNotice: false,
+      showSessionNotice: false,
+      canSave: true,
+    });
+  });
+
+  test("explains encrypted session storage while keeping save enabled", () => {
+    expect(
+      getProviderSettingsUiState(
+        { mode: "encrypted-cookie", writable: true },
+        false,
+      )
+    ).toEqual({
+      showEnvironmentNotice: false,
+      showSessionNotice: true,
       canSave: true,
     });
   });

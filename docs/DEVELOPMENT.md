@@ -45,7 +45,7 @@ bun run dev:all
 
 Model providers are optional for local exploration and required for full AI-assisted generation/repair quality. Start by copying `.env.example` to `.env`, then add the providers you want to use.
 
-Local development can save custom Provider Settings to `.agentscad/providers.json`. On Vercel, that file-backed storage is disabled because the application filesystem is read-only. Configure provider keys in Vercel Project Settings → Environment Variables and redeploy; keys entered in the UI can be tested but are not stored.
+Local development saves custom Provider Settings to `.agentscad/providers.json`. On Vercel, set `PROVIDER_SETTINGS_SECRET` to enable per-browser Provider Save without writing credentials to the read-only application filesystem or database. The server encrypts settings into an HttpOnly session cookie; visitors can remove it immediately with **Clear keys**. Closing a tab alone is not a guaranteed wipe because browsers control session restoration. Environment-backed provider keys remain available for deployments that intentionally share a provider configuration with every visitor.
 
 | Variable | Required | Purpose |
 |---|---:|---|
@@ -59,6 +59,16 @@ Local development can save custom Provider Settings to `.agentscad/providers.jso
 | `OPENSCAD_LIBRARY_PATHS` | Optional | Adds extra local OpenSCAD library search paths. |
 | `CRON_SECRET` | Production | Protects the cron endpoint in production. |
 | `API_SECRET` | Production | Protects job/chat API routes in production. |
+| `PROVIDER_SETTINGS_SECRET` | Vercel | Encrypts per-browser provider settings in an HttpOnly session cookie. Generate at least 32 random characters; rotating it invalidates saved sessions. |
+| `PROVIDER_BASE_URL_ALLOWLIST` | Optional | Comma-separated exact HTTPS base URLs for trusted custom providers in production. |
+
+Built-in production presets are already trusted. To enable a custom OpenAI-compatible endpoint, add its exact base URL, without a trailing slash, for example:
+
+```dotenv
+PROVIDER_BASE_URL_ALLOWLIST="https://llm.example.com/v1"
+```
+
+HTTP URLs, URL credentials, query strings, fragments, redirects, and endpoints outside the preset list or this allowlist are rejected in production.
 
 ## Testing
 

@@ -103,10 +103,12 @@ Windows 设置和完整命令见 [开发与 CI](./docs/DEVELOPMENT.md)。
 bun run vercel:build
 ```
 
-4. 在 **Vercel Project Settings → Environment Variables** 中添加各模型供应商的 Key（例如 `OPENROUTER_API_KEY`），然后重新部署。
-5. 可选：后续要持久保存渲染产物时，添加 Vercel Blob 和 `BLOB_READ_WRITE_TOKEN`。
+4. 运行 `openssl rand -base64 48` 生成供应商设置加密密钥，把它以 `PROVIDER_SETTINGS_SECRET` 保存到 **Vercel Project Settings → Environment Variables**，然后重新部署。
+5. 在在线工作区打开 **Settings → Providers**，输入供应商 Key，测试连接后点击 **Save**。
+6. 可选：如果希望某个供应商无需浏览器配置即可供所有访客使用，可把 `OPENROUTER_API_KEY` 等模型供应商 Key 添加到 Vercel 环境变量。
+7. 可选：后续要持久保存渲染产物时，添加 Vercel Blob 和 `BLOB_READ_WRITE_TOKEN`。
 
-这个 MVP 支持在线工作区、任务历史、SCAD 生成/编辑、聊天和供应商环境变量配置。由于 Vercel 的应用文件系统只读，供应商设置面板可以测试 Key，但不会保存它；生产环境的供应商 Key 必须通过 Vercel 环境变量提供。Vercel 上完整生成 STL/PNG 需要另接一个 OpenSCAD renderer 服务，并设置 `AGENTSCAD_RENDERER_URL`。没有 renderer 时，生成的 SCAD 仍会保存，渲染尝试会以可恢复的失败/待审状态结束。
+这个 MVP 支持在线工作区、任务历史、SCAD 生成/编辑和聊天。通过供应商设置保存的 Key 会加密存入 HttpOnly 浏览器会话 Cookie，不会与其他访客共享，也不会写入 Vercel 的只读文件系统或数据库。在共享设备上离开前请点击 **Clear keys**；浏览器恢复会话的行为各不相同，因此仅关闭网页标签并不能保证凭据已清除。Vercel 上完整生成 STL/PNG 需要另接一个 OpenSCAD renderer 服务，并设置 `AGENTSCAD_RENDERER_URL`。没有 renderer 时，生成的 SCAD 仍会保存，渲染尝试会以可恢复的失败/待审状态结束。
 
 ## 首次运行指引
 
@@ -181,6 +183,7 @@ bun run vercel:build
 - **参数化编辑**：提取出的 SCAD 赋值会变成带约束的可编辑参数。
 - **持久化工作流**：任务状态、版本历史、产物、验证结果和日志都会持久化。
 - **多供应商模型路由**：可通过 MiMo、OpenRouter、DeepSeek、OpenAI-compatible endpoints 和本地 fallback 路径生成。
+- **浏览器会话级供应商配置**：Vercel 访客可以在当前浏览器会话中加密保存供应商 Key，并通过 **Clear keys** 立即清除。
 
 ## 30 秒架构
 
