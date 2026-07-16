@@ -2,7 +2,7 @@ import type { MimoMessage } from "@/lib/mimo";
 import { fetchWithRetry } from "@/lib/utils/fetch-with-retry";
 
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-const DEFAULT_OPENROUTER_MODEL = "openai/gpt-5.5";
+const DEFAULT_OPENROUTER_MODEL = "openai/gpt-5.6-sol";
 
 export function getOpenRouterConfig() {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim();
