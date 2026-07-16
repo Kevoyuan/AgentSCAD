@@ -86,7 +86,7 @@ Each step emits SSE events to the frontend and broadcasts via WebSocket.
 Next.js Route Handlers under `src/app/api/`:
 - `jobs/` — CRUD, batch operations, pipeline processing, SCAD editing, versioning
 - `chat/` — LLM chat with SSE streaming
-- `models/` — 30+ model definitions from 8 providers (including OpenRouter)
+- `models/` — configured models plus 50 recommendations across 21 provider presets
 - `health/` — health check
 
 ### Frontend
@@ -112,7 +112,8 @@ Prisma ORM with SQLite (`db/custom.db`). Two models: `Job` (18 fields) and `JobV
 ### LLM Integration
 
 - `src/lib/mimo.ts` — Xiaomi MiMo API client (OpenAI-compatible format)
-- `src/lib/openrouter.ts` — OpenRouter API client (routes to GPT-5.5 and other models)
+- `src/lib/openrouter.ts` — OpenRouter API client (defaults to GPT-5.6 Sol)
+- `src/lib/provider-catalog.ts` — source of truth for provider presets and recommended model metadata
 - `src/lib/tools/model-router.ts` — Routes requests to MiMo, OpenRouter, DeepSeek, or fallback
 - Primary LLM provider, with `z-ai-web-dev-sdk` as fallback
 
@@ -155,7 +156,7 @@ Prisma ORM with SQLite (`db/custom.db`). Two models: `Job` (18 fields) and `JobV
 
 ## Env Variables
 
-Copy `.env.example` to `.env`. Required: `DATABASE_URL` (SQLite path), `MIMO_BASE_URL`, `MIMO_MODEL`, `MIMO_API_KEY`. Optional: `OPENROUTER_API_KEY` for OpenRouter models, `DEEPSEEK_API_KEY` for DeepSeek.
+Copy `.env.example` to `.env`. Required: `DATABASE_URL` (SQLite path), `MIMO_BASE_URL`, `MIMO_MODEL`, `MIMO_API_KEY`. Optional provider keys include `OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `GEMINI_API_KEY`.
 
 OpenSCAD library env:
 
