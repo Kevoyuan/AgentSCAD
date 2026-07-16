@@ -52,7 +52,7 @@ Model providers are optional for local exploration and required for full AI-assi
 | `MIMO_API_KEY` | Optional | Enables MiMo generation fallback and MiMo-backed visual validation where supported. |
 | `OPENROUTER_API_KEY` | Optional | Enables OpenRouter model routing. |
 | `DEEPSEEK_API_KEY` | Optional | Enables DeepSeek model routing. |
-| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DASHSCOPE_API_KEY`, etc. | Optional | Enable additional configured providers. |
+| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `DASHSCOPE_API_KEY`, etc. | Optional | Enable additional configured providers and their recommended model lists. |
 | `AGENTSCAD_OPENSCAD_LIBRARY_DIR` | Optional | Overrides the managed OpenSCAD library directory. |
 | `OPENSCAD_LIBRARY_PATHS` | Optional | Adds extra local OpenSCAD library search paths. |
 | `CRON_SECRET` | Production | Protects the cron endpoint in production. |

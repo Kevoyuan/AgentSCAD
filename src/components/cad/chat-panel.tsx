@@ -256,6 +256,7 @@ function ScadApplyButton({
 // Category badge colors
 const CATEGORY_STYLES: Record<string, { icon: React.ReactNode; color: string }> = {
   flagship: { icon: <Star className="w-2.5 h-2.5" />, color: 'text-amber-400' },
+  balanced: { icon: <Brain className="w-2.5 h-2.5" />, color: 'text-blue-400' },
   fast: { icon: <Zap className="w-2.5 h-2.5" />, color: 'text-cyan-400' },
   reasoning: { icon: <Brain className="w-2.5 h-2.5" />, color: 'text-violet-400' },
   vision: { icon: <Eye className="w-2.5 h-2.5" />, color: 'text-emerald-400' },
@@ -327,9 +328,9 @@ export function ChatPanel({
         { id: 'mimo-v2.5', name: 'MiMo-V2.5', description: 'Xiaomi MiMo multimodal model', provider: 'mimo', providerName: 'Xiaomi MiMo', multimodal: true, reasoning: true, category: 'vision' },
         { id: 'mimo-v2.5-pro', name: 'MiMo-V2.5-Pro', description: 'Xiaomi MiMo default model', provider: 'mimo', providerName: 'Xiaomi MiMo', multimodal: false, reasoning: false, category: 'flagship' },
         { id: 'mimo-v2-omni', name: 'MiMo-V2-Omni', description: 'Xiaomi MiMo full-modal model', provider: 'mimo', providerName: 'Xiaomi MiMo', multimodal: true, reasoning: true, category: 'vision' },
-        { id: 'gpt-4o', name: 'GPT-4o', description: 'OpenAI flagship multimodal model', provider: 'openai', providerName: 'OpenAI', multimodal: true, reasoning: false, category: 'flagship' },
-        { id: 'glm-4', name: 'GLM-4', description: 'Zhipu GLM-4 high-performance text model', provider: 'zhipu', providerName: 'Zhipu AI', multimodal: false, reasoning: false, category: 'flagship' },
-        { id: 'glm-4v', name: 'GLM-4V', description: 'Zhipu GLM-4V multimodal model', provider: 'zhipu', providerName: 'Zhipu AI', multimodal: true, reasoning: false, category: 'vision' },
+        { id: 'gpt-5.6', name: 'GPT-5.6 Sol', description: 'OpenAI flagship reasoning model', provider: 'openai', providerName: 'OpenAI', multimodal: true, reasoning: true, category: 'flagship' },
+        { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', description: 'Anthropic balanced coding model', provider: 'anthropic', providerName: 'Anthropic', multimodal: true, reasoning: true, category: 'balanced' },
+        { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', description: 'Google stable multimodal model', provider: 'google', providerName: 'Google', multimodal: true, reasoning: true, category: 'fast' },
       ]
       setModels(fallbackModels)
       setSelectedModel(prev => !fallbackModels.some(model => model.id === prev) ? fallbackModels[0].id : prev)

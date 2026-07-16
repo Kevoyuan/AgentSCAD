@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- Provider model recommendations grouped by flagship, balanced, fast, reasoning, vision, and code use cases
+- Anthropic and Google Gemini presets through their OpenAI-compatible endpoints
+- Provider catalog and model-route regression tests covering environment detection, routing IDs, metadata, and multimodal capability checks
 - `CONTRIBUTING.md` with step-by-step contributor setup guide including fork workflow
 - GitHub Issue templates for bug reports and feature requests
 - `Prerequisites` section in README/README_CN with Node.js, Bun, and OpenSCAD install links
@@ -27,6 +30,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Memory system v3.0: structured numerical observations, append-only JSONL, pipeline-triggered writes, prompt injection defense on user SCAD content, quality feedback loop (delivery rate, repair rate)
 
 ### Changed
+- Updated 21 provider presets and 50 model recommendations to current July 2026 API model IDs
+- Environment-backed providers now expose qualified recommendation IDs while inactive local servers stay hidden until explicitly configured
+- Provider settings now offer one-click recommended model selection
 - Model dropdown in Job Composer now shows only your configured providers (not auto-detected placeholders)
 - Visual validation (VLM) is no longer part of the default pipeline — runs only when you click "Visual Repair"
 - SCAD repair skill now uses structured CAD intent with validation feedback for targeted fixes
