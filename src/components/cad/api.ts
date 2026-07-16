@@ -21,6 +21,11 @@ export interface EnvProviderConfig {
   envKey: string
 }
 
+export interface ProviderSettingsPersistence {
+  mode: 'file' | 'environment'
+  writable: boolean
+}
+
 async function readErrorMessage(res: Response, fallback: string): Promise<string> {
   const contentType = res.headers.get('content-type') || ''
   if (contentType.includes('application/json')) {
@@ -34,7 +39,11 @@ async function readErrorMessage(res: Response, fallback: string): Promise<string
   return fallback
 }
 
-export async function fetchProviders(): Promise<{ providers: ProviderConfig[]; envProviders: EnvProviderConfig[] }> {
+export async function fetchProviders(): Promise<{
+  providers: ProviderConfig[]
+  envProviders: EnvProviderConfig[]
+  persistence: ProviderSettingsPersistence
+}> {
   const res = await fetch('/api/providers')
   if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to fetch providers'))
   return res.json()

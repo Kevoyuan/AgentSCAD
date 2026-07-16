@@ -17,6 +17,7 @@ import {
   testProvider,
   type EnvProviderConfig,
   type ProviderConfig,
+  type ProviderSettingsPersistence,
 } from '@/components/cad/api'
 import { PROVIDER_PRESETS } from '@/lib/provider-catalog'
 
@@ -36,6 +37,10 @@ const EMPTY_FORM = {
 export function ProviderSettingsPanel() {
   const [providers, setProviders] = useState<ProviderConfig[]>([])
   const [envProviders, setEnvProviders] = useState<EnvProviderConfig[]>([])
+  const [persistence, setPersistence] = useState<ProviderSettingsPersistence>({
+    mode: 'file',
+    writable: true,
+  })
   const [form, setForm] = useState(EMPTY_FORM)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -47,6 +52,7 @@ export function ProviderSettingsPanel() {
       const data = await fetchProviders()
       setProviders(data.providers)
       setEnvProviders(data.envProviders)
+      setPersistence(data.persistence)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to load providers')
     } finally {
@@ -66,6 +72,7 @@ export function ProviderSettingsPanel() {
     () => PROVIDER_PRESETS.find(preset => preset.id === form.preset),
     [form.preset]
   )
+  const selectedEnvKey = selectedPreset?.apiKeyEnv || 'the provider API key'
 
   const updateForm = (partial: Partial<typeof EMPTY_FORM>) => {
     setForm(prev => ({ ...prev, ...partial }))
@@ -185,6 +192,13 @@ export function ProviderSettingsPanel() {
                 </span>
               ))}
             </div>
+          </div>
+        )}
+
+        {!persistence.writable && (
+          <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-[var(--app-text-secondary)]">
+            Vercel stores providers through environment variables. Add <span className="font-mono text-amber-300">{selectedEnvKey}</span> in
+            Vercel Project Settings, then redeploy. You can test a key here, but it will not be saved.
           </div>
         )}
 
@@ -308,7 +322,13 @@ export function ProviderSettingsPanel() {
             {isTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
             Test
           </Button>
-          <Button size="sm" className="h-8 gap-1 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)]" onClick={handleSave} disabled={isSaving || isTesting}>
+          <Button
+            size="sm"
+            className="h-8 gap-1 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)]"
+            onClick={handleSave}
+            disabled={isSaving || isTesting || !persistence.writable}
+            title={!persistence.writable ? `Configure ${selectedEnvKey} in Vercel Project Settings` : undefined}
+          >
             {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
             Save
           </Button>

@@ -31,6 +31,29 @@ export type PublicProviderConfig = Omit<ProviderConfig, "apiKey"> & {
   apiKeyPreview?: string;
 };
 
+export interface ProviderSettingsPersistence {
+  mode: "file" | "environment";
+  writable: boolean;
+}
+
+export class ProviderSettingsReadOnlyError extends Error {
+  readonly code = "PROVIDER_SETTINGS_READ_ONLY";
+
+  constructor() {
+    super(
+      "Custom provider settings cannot be saved on Vercel. Add the provider API key in Vercel Project Settings → Environment Variables, then redeploy. Connection tests remain available, but keys entered here are not stored."
+    );
+    this.name = "ProviderSettingsReadOnlyError";
+  }
+}
+
+export function getProviderSettingsPersistence(): ProviderSettingsPersistence {
+  if (process.env.VERCEL) {
+    return { mode: "environment", writable: false };
+  }
+  return { mode: "file", writable: true };
+}
+
 const PROVIDER_SETTINGS_DIR = path.join(process.cwd(), ".agentscad");
 const PROVIDER_SETTINGS_PATH = path.join(PROVIDER_SETTINGS_DIR, "providers.json");
 
@@ -70,6 +93,7 @@ export function toPublicProvider(provider: ProviderConfig): PublicProviderConfig
 
 export async function readProviderSettings(): Promise<ProviderConfig[]> {
   try {
+    if (!getProviderSettingsPersistence().writable) return [];
     const raw = await fs.readFile(PROVIDER_SETTINGS_PATH, "utf8");
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed?.providers)) return [];
@@ -88,6 +112,9 @@ export async function readProviderSettings(): Promise<ProviderConfig[]> {
 }
 
 async function writeProviderSettings(providers: ProviderConfig[]) {
+  if (!getProviderSettingsPersistence().writable) {
+    throw new ProviderSettingsReadOnlyError();
+  }
   await fs.mkdir(PROVIDER_SETTINGS_DIR, { recursive: true });
   await fs.writeFile(
     PROVIDER_SETTINGS_PATH,
