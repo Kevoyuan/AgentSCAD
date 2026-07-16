@@ -22,6 +22,7 @@ const EXAMPLE_PROMPT = 'Create a wall-mountable phone holder with rounded corner
 
 export function JobComposer({
   showComposer,
+  providerRevision,
   newJobText,
   newJobModelId,
   newJobTags,
@@ -37,6 +38,7 @@ export function JobComposer({
   onAddProvider,
 }: {
   showComposer: boolean
+  providerRevision: number
   newJobText: string
   newJobModelId: string
   newJobTags: string
@@ -55,6 +57,8 @@ export function JobComposer({
   const [isLoadingModels, setIsLoadingModels] = useState(true)
 
   useEffect(() => {
+    if (!showComposer) return
+
     let cancelled = false
     fetchModels()
       .then(data => {
@@ -77,7 +81,7 @@ export function JobComposer({
     return () => {
       cancelled = true
     }
-  }, [newJobModelId, onNewJobModelIdChange])
+  }, [showComposer, providerRevision, newJobModelId, onNewJobModelIdChange])
 
   const specGroups = [
     {

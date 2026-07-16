@@ -3,6 +3,11 @@
 All notable changes to AgentSCAD are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.1.1] - 2026-07-16
+
+### Fixed
+- Refresh the Create Job engine list whenever the dialog opens or Provider Settings change
+
 ## [0.3.1.0] - 2026-07-16
 
 ### Added
