@@ -38,7 +38,7 @@ Prefer library modules over raw `cube()`/`cylinder()`/`difference()` chains. The
 
 | Module | Parameters | Description |
 |---|---|---|
-| `rounded_box(size, r, center)` | `size=[x,y,z]`, `r` (default 1), `center` (default true) | Box with rounded corners on all edges |
+| `rounded_box(size, r, center)` | `size=[x,y,z]`, `r` (default 1), `center` (default true) | Box with rounded corners on all edges; radius is clamped to half the smallest dimension |
 | `cylinder_boss(diameter, height, hole_d, center)` | `diameter`, `height`, `hole_d` (default 0), `center` (default true) | Cylinder with optional center bore |
 
 ### Plates

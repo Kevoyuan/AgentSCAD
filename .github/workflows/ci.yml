@@ -52,8 +52,31 @@ jobs:
       - name: Unit tests
         run: bun run test:unit
 
+      - name: License audit
+        run: bun run runtime:openscad:install && bun run license:audit
+
+      - name: OpenSCAD WASM integration
+        run: bun run test:wasm
+
       - name: Build
         run: bun run build
+
+      - name: Standalone WASM packaging smoke test
+        run: |
+          test -f .next/standalone/.openscad-runtime/COPYING
+          test -f .next/standalone/.openscad-runtime/metadata.json
+          test -f .next/standalone/scripts/openscad-wasm-sandbox.cjs
+          mkdir -p /tmp/agentscad-wasm-sandbox
+          printf 'cube(2);\n' | (
+            cd /tmp/agentscad-wasm-sandbox
+            node --max-old-space-size=384 \
+              --wasm-max-mem-pages=4096 \
+              --wasm-max-committed-code-mb=128 \
+              --require "$GITHUB_WORKSPACE/.next/standalone/scripts/openscad-wasm-sandbox.cjs" \
+              "$GITHUB_WORKSPACE/.next/standalone/.openscad-runtime/openscad.js" \
+              --export-format binstl -o - - > /tmp/agentscad-wasm-smoke.stl
+          )
+          test "$(wc -c < /tmp/agentscad-wasm-smoke.stl)" -gt 84
 
   openscad-integration:
     name: OpenSCAD Integration

@@ -1,7 +1,26 @@
 import type { NextConfig } from "next";
+import openScadPolicy from "./config/openscad-wasm-runtime.json";
+
+const openScadRuntimeFiles = [
+  `.openscad-runtime/${openScadPolicy.runtime_filename}`,
+  `.openscad-runtime/${openScadPolicy.copying_filename}`,
+  ".openscad-runtime/metadata.json",
+  "config/openscad-wasm-runtime.json",
+  "openscad_lib/agentscad_std.scad",
+  "scripts/openscad-wasm-sandbox.cjs",
+  "LICENSE",
+  "THIRD_PARTY_NOTICES.md",
+];
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  outputFileTracingIncludes: {
+    "/api/jobs/*/process": openScadRuntimeFiles,
+    "/api/jobs/*/repair": openScadRuntimeFiles,
+    "/api/jobs/*/parameters": openScadRuntimeFiles,
+    "/api/jobs/*/scad/apply": openScadRuntimeFiles,
+    "/api/jobs/*/visual-repair": openScadRuntimeFiles,
+  },
   /* config options here */
   reactStrictMode: false,
   allowedDevOrigins: [

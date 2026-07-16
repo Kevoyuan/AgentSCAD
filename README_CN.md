@@ -56,7 +56,9 @@ AgentSCAD 是一个全栈 AI CAD 工作区：把自然语言零件需求转成�
 | **OpenSCAD** | 渲染 STL/PNG 模型文件 | [openscad.org/downloads](https://openscad.org/downloads.html) |
 
 > [!IMPORTANT]
-> OpenSCAD 必须在 PATH 中可用（或在 `.env` 中设置 `OPENSCAD_BIN`）。缺少 OpenSCAD 时，应用可以正常启动，但所有渲染步骤会静默跳过——任务会停在 `GEOMETRY_FAILED` 状态。
+> 本地原生渲染使用 PATH 中的 OpenSCAD（或 `.env` 的 `OPENSCAD_BIN`）。
+> Serverless 部署会自动使用经过校验和固定的 OpenSCAD 官方 WebAssembly
+> CLI，并从生成的 STL 创建 PNG 预览。
 
 ## 快速开始
 
@@ -72,7 +74,9 @@ docker compose up --build
 
 打开 [http://localhost:3000](http://localhost:3000)。
 
-Docker 会在启动应用前初始化 Prisma SQLite schema。镜像有意**不捆绑 OpenSCAD**，因此它适合评审 UI、API、持久化和工作流；如果要渲染 CAD，需要在自定义镜像中提供 OpenSCAD。
+Docker 会在启动应用前初始化 Prisma SQLite schema。默认镜像仍不要求原生
+OpenSCAD；设置 `AGENTSCAD_OPENSCAD_BACKEND=wasm` 可使用已验证的
+serverless renderer。
 
 ### 方案 B：本地开发
 
@@ -100,15 +104,16 @@ Windows 设置和完整命令见 [开发与 CI](./docs/DEVELOPMENT.md)。
 3. 保留 `vercel.json` 中的默认构建命令：
 
 ```bash
-bun run vercel:build
+bun run build
 ```
 
 4. 运行 `openssl rand -base64 48` 生成供应商设置加密密钥，把它以 `PROVIDER_SETTINGS_SECRET` 保存到 **Vercel Project Settings → Environment Variables**，然后重新部署。
 5. 在在线工作区打开 **Settings → Providers**，输入供应商 Key，测试连接后点击 **Save**。
 6. 可选：如果希望某个供应商无需浏览器配置即可供所有访客使用，可把 `OPENROUTER_API_KEY` 等模型供应商 Key 添加到 Vercel 环境变量。
-7. 可选：后续要持久保存渲染产物时，添加 Vercel Blob 和 `BLOB_READ_WRITE_TOKEN`。
+7. 添加 Vercel Blob 和 `BLOB_READ_WRITE_TOKEN`。Serverless 渲染使用它持久化
+   STL/PNG，并在所有部署实例之间执行统一的渲染容量限制。
 
-这个 MVP 支持在线工作区、任务历史、SCAD 生成/编辑和聊天。通过供应商设置保存的 Key 会加密存入 HttpOnly 浏览器会话 Cookie，不会与其他访客共享，也不会写入 Vercel 的只读文件系统或数据库。在共享设备上离开前请点击 **Clear keys**；浏览器恢复会话的行为各不相同，因此仅关闭网页标签并不能保证凭据已清除。Vercel 上完整生成 STL/PNG 需要另接一个 OpenSCAD renderer 服务，并设置 `AGENTSCAD_RENDERER_URL`。没有 renderer 时，生成的 SCAD 仍会保存，渲染尝试会以可恢复的失败/待审状态结束。
+这个 MVP 支持在线工作区、任务历史、SCAD 生成/编辑和聊天。通过供应商设置保存的 Key 会加密存入 HttpOnly 浏览器会话 Cookie，不会与其他访客共享，也不会写入 Vercel 的只读文件系统或数据库。在共享设备上离开前请点击 **Clear keys**；浏览器恢复会话的行为各不相同，因此仅关闭网页标签并不能保证凭据已清除。Vercel 使用官方 OpenSCAD WebAssembly CLI 渲染 STL，并从网格创建 PNG 预览。每个渲染子进程都不会收到应用密钥，只能看到一个新的空工作目录，同时受明确的 JavaScript/WASM 内存、运行时间、输出大小和 Blob 全局每分钟 20 次渲染启动上限约束。
 
 ## 首次运行指引
 
@@ -221,8 +226,10 @@ bun run vercel:build
 ## 当前状态 / 限制
 
 - 生成的 CAD 在制造前应经过人工审核。
-- 本地渲染需要 OpenSCAD 可通过 `OPENSCAD_BIN` 或 `openscad` 访问。
-- Docker 镜像有意不捆绑 OpenSCAD。
+- 本地原生渲染需要通过 `OPENSCAD_BIN` 或 `openscad` 访问 OpenSCAD；
+  `AGENTSCAD_OPENSCAD_BACKEND=wasm` 可选择已验证的 WASM 后端。
+- OpenSCAD WASM 仍是单独执行的 GPL 程序。精确源码、校验和与再分发义务见
+  [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
 - 完整 LLM 生成、修复、聊天辅助和视觉修复需要配置供应商 Key。
 - Core CI 是严格的，并且不要求 OpenSCAD；OpenSCAD 渲染检查单独运行。见 [开发与 CI](./docs/DEVELOPMENT.md)。
 

@@ -12,6 +12,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 | Start production server | `bun run start` |
 | Lint | `bun run lint` |
 | Test | `bun run test` |
+| Test OpenSCAD WASM runtime | `bun run test:wasm` |
 | Audit dependency licenses | `bun run license:audit` |
 | Check OpenSCAD libraries | `bun run scad:libs:check` |
 | Install default OpenSCAD libraries | `bun run scad:libs:install` |
@@ -38,7 +39,7 @@ Tests use Bun's built-in test runner. Run `bun run test` before handing off CAD 
 
 1. **INTAKE** — parse the user's request
 2. **GENERATE** — LLM generates OpenSCAD code (falls back to template-based mock code). Auto-detects part family (spur_gear, device_stand, electronics_enclosure, phone_case).
-3. **RENDER** — OpenSCAD CLI renders .scad to STL + PNG
+3. **RENDER** — native OpenSCAD or the isolated WASM child process renders SCAD to STL; serverless preview code projects the STL to PNG
 4. **VALIDATE** — rules engine checks wall thickness, dimensions, manifold geometry
 5. **DELIVER** — artifacts ready (SCAD source, STL, PNG, parameters, validation report)
 
@@ -104,6 +105,7 @@ Prisma ORM with SQLite (`db/custom.db`). Two models: `Job` (18 fields) and `JobV
 - `skills/scad-library-policy/scripts/check_scad_libraries.py` reports what OpenSCAD can currently resolve.
 - `skills/scad-library-policy/scripts/validate_scad_includes.py` validates generated `include`/`use` statements against approved and available libraries.
 - `src/lib/tools/scad-library-resolver.ts` reads the manifest and runtime paths, then injects only available library skill guidance into generation prompts.
+- `config/openscad-wasm-runtime.json` pins the official OpenSCAD WASM snapshot, checksums, license, and corresponding source commits used by serverless builds.
 
 ### v2.0 Module Structure
 
@@ -132,7 +134,7 @@ Prisma ORM with SQLite (`db/custom.db`). Two models: `Job` (18 fields) and `JobV
 - **Build**: standalone Next.js output (`next.config.ts`)
 - **Styling**: Tailwind CSS v4 + Shadcn UI (new-york style, CSS variable theming, lucide icons)
 - **ESLint**: nearly all rules disabled (flat config in `eslint.config.mjs`)
-- **Required external tool**: OpenSCAD must be installed and in PATH for the rendering pipeline
+- **CAD runtime**: native OpenSCAD must be installed for local native rendering; Vercel/AWS Lambda and explicit `AGENTSCAD_OPENSCAD_BACKEND=wasm` builds use the checksum-pinned official WASM runtime
 
 ## Env Variables
 
