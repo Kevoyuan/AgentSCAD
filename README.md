@@ -103,10 +103,12 @@ Use this when you want the app online quickly. Docker is not required for the Ve
 bun run vercel:build
 ```
 
-4. Add each model-provider key in **Vercel Project Settings → Environment Variables** (for example, `OPENROUTER_API_KEY`), then redeploy.
-5. Optional: add Vercel Blob and `BLOB_READ_WRITE_TOKEN` if you later persist rendered artifacts.
+4. Generate a Provider Settings encryption secret with `openssl rand -base64 48`, save it as `PROVIDER_SETTINGS_SECRET` in **Vercel Project Settings → Environment Variables**, then redeploy.
+5. In the live workspace, open **Settings → Providers**, enter your provider key, test it, and click **Save**.
+6. Optional: add model-provider keys such as `OPENROUTER_API_KEY` to Vercel environment variables when you want a provider available to every visitor without browser setup.
+7. Optional: add Vercel Blob and `BLOB_READ_WRITE_TOKEN` if you later persist rendered artifacts.
 
-The MVP supports the online workspace, job history, SCAD generation, editing, and chat with env-configured providers backed by Postgres. Because Vercel's application filesystem is read-only, Provider Settings can test a key but cannot save it; production provider keys must come from Vercel environment variables. Full STL/PNG rendering on Vercel needs `AGENTSCAD_RENDERER_URL`, a separate OpenSCAD renderer service. Without that renderer, generated SCAD is still saved and render attempts fail gracefully into review states.
+The MVP supports the online workspace, job history, SCAD generation, editing, and chat with Postgres-backed jobs. Keys saved through Provider Settings are encrypted in an HttpOnly browser-session cookie, are not shared with other visitors, and are not written to Vercel's read-only filesystem or database. Use **Clear keys** before leaving a shared device; browser session restoration behavior varies, so closing a tab alone is not a guaranteed credential wipe. Full STL/PNG rendering on Vercel needs `AGENTSCAD_RENDERER_URL`, a separate OpenSCAD renderer service. Without that renderer, generated SCAD is still saved and render attempts fail gracefully into review states.
 
 ## First-Run Walkthrough
 
@@ -181,6 +183,7 @@ Without provider keys, generated geometry may come from the template fallback pa
 - **Parametric editing**: extracted SCAD assignments become editable constrained parameters.
 - **Persistent workflow**: job state, version history, artifacts, validation results, and logs survive refreshes.
 - **Multi-provider model routing**: generation can route through configured providers such as MiMo, OpenRouter, DeepSeek, OpenAI-compatible endpoints, and local fallback paths.
+- **Private browser-session provider setup**: Vercel visitors can save encrypted provider keys for their current browser session and remove them immediately with **Clear keys**.
 
 ## Architecture in 30 Seconds
 
