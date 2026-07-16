@@ -22,7 +22,7 @@ export interface EnvProviderConfig {
 }
 
 export interface ProviderSettingsPersistence {
-  mode: 'file' | 'environment'
+  mode: 'file' | 'environment' | 'encrypted-cookie'
   writable: boolean
 }
 
@@ -75,6 +75,11 @@ export async function saveProvider(input: {
 export async function deleteProvider(id: string): Promise<void> {
   const res = await fetch(`/api/providers?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to delete provider'))
+}
+
+export async function clearProviders(): Promise<void> {
+  const res = await fetch('/api/providers?all=true', { method: 'DELETE' })
+  if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to clear providers'))
 }
 
 export async function testProvider(input: {

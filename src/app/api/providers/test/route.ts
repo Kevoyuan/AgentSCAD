@@ -1,16 +1,24 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-import { readProviderSettings, testProviderConnection } from "@/lib/provider-settings";
+import { authorizeApiRequest } from "@/lib/auth";
+import {
+  ProviderValidationError,
+  readProviderSettings,
+  testProviderConnection,
+} from "@/lib/provider-settings";
 
 function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  if (!authorizeApiRequest(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const body = await request.json().catch(() => null);
   if (!body) return badRequest("Invalid JSON body");
 
-  const providers = await readProviderSettings();
+  const providers = await readProviderSettings(request.headers.get("cookie"));
   const existing = typeof body.id === "string"
     ? providers.find((provider) => provider.id === body.id)
     : undefined;
@@ -32,6 +40,12 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ ok: true, content });
   } catch (error) {
+    if (error instanceof ProviderValidationError) {
+      return NextResponse.json(
+        { ok: false, error: error.message, code: error.code },
+        { status: 400 },
+      );
+    }
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "Connection test failed" },
       { status: 502 }

@@ -59,6 +59,8 @@ Local development can save custom Provider Settings to `.agentscad/providers.jso
 | `OPENSCAD_LIBRARY_PATHS` | Optional | Adds extra local OpenSCAD library search paths. |
 | `CRON_SECRET` | Production | Protects the cron endpoint in production. |
 | `API_SECRET` | Production | Protects job/chat API routes in production. |
+| `PROVIDER_SETTINGS_SECRET` | Vercel | Encrypts per-browser, session-only provider settings. Use at least 32 random characters. |
+| `PROVIDER_BASE_URL_ALLOWLIST` | Optional | Comma-separated exact HTTPS base URLs for trusted custom providers in production. |
 
 ## Testing
 
