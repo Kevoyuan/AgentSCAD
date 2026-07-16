@@ -45,6 +45,8 @@ bun run dev:all
 
 Model providers are optional for local exploration and required for full AI-assisted generation/repair quality. Start by copying `.env.example` to `.env`, then add the providers you want to use.
 
+Local development can save custom Provider Settings to `.agentscad/providers.json`. On Vercel, that file-backed storage is disabled because the application filesystem is read-only. Configure provider keys in Vercel Project Settings → Environment Variables and redeploy; keys entered in the UI can be tested but are not stored.
+
 | Variable | Required | Purpose |
 |---|---:|---|
 | `DATABASE_URL` | Yes | SQLite database path used by Prisma. Defaults to `file:../db/dev.db` in `.env.example`. |

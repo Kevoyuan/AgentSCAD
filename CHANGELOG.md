@@ -39,6 +39,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Architecture docs, skills docs, and CLAUDE.md updated for v2.0 module structure
 
 ### Fixed
+- Vercel provider settings no longer attempt to write API keys into the read-only `/var/task` filesystem; production now guides users to environment-managed provider keys
 - 304 duplicate React key errors from model dropdown (distinct defaultModel names for providers)
 - Repair route was calling OpenSCAD render twice per repair — now reuses first render result
 - Shell argument quoting in mesh validator (`--min-wall` parameter)

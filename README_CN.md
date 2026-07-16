@@ -103,10 +103,10 @@ Windows 设置和完整命令见 [开发与 CI](./docs/DEVELOPMENT.md)。
 bun run vercel:build
 ```
 
-4. 可选：添加模型供应商环境变量，例如 `MIMO_BASE_URL`、`MIMO_MODEL`、`MIMO_API_KEY`。
+4. 在 **Vercel Project Settings → Environment Variables** 中添加各模型供应商的 Key（例如 `OPENROUTER_API_KEY`），然后重新部署。
 5. 可选：后续要持久保存渲染产物时，添加 Vercel Blob 和 `BLOB_READ_WRITE_TOKEN`。
 
-这个 MVP 支持在线工作区、任务历史、SCAD 生成/编辑、聊天和供应商环境变量配置。Vercel 上完整生成 STL/PNG 需要另接一个 OpenSCAD renderer 服务，并设置 `AGENTSCAD_RENDERER_URL`。没有 renderer 时，生成的 SCAD 仍会保存，渲染尝试会以可恢复的失败/待审状态结束。
+这个 MVP 支持在线工作区、任务历史、SCAD 生成/编辑、聊天和供应商环境变量配置。由于 Vercel 的应用文件系统只读，供应商设置面板可以测试 Key，但不会保存它；生产环境的供应商 Key 必须通过 Vercel 环境变量提供。Vercel 上完整生成 STL/PNG 需要另接一个 OpenSCAD renderer 服务，并设置 `AGENTSCAD_RENDERER_URL`。没有 renderer 时，生成的 SCAD 仍会保存，渲染尝试会以可恢复的失败/待审状态结束。
 
 ## 首次运行指引
 

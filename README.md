@@ -103,10 +103,10 @@ Use this when you want the app online quickly. Docker is not required for the Ve
 bun run vercel:build
 ```
 
-4. Optional: add model-provider env vars such as `MIMO_BASE_URL`, `MIMO_MODEL`, and `MIMO_API_KEY`.
+4. Add each model-provider key in **Vercel Project Settings → Environment Variables** (for example, `OPENROUTER_API_KEY`), then redeploy.
 5. Optional: add Vercel Blob and `BLOB_READ_WRITE_TOKEN` if you later persist rendered artifacts.
 
-The MVP supports the online workspace, job history, SCAD generation, editing, and chat with env-configured providers backed by Postgres. Full STL/PNG rendering on Vercel needs `AGENTSCAD_RENDERER_URL`, a separate OpenSCAD renderer service. Without that renderer, generated SCAD is still saved and render attempts fail gracefully into review states.
+The MVP supports the online workspace, job history, SCAD generation, editing, and chat with env-configured providers backed by Postgres. Because Vercel's application filesystem is read-only, Provider Settings can test a key but cannot save it; production provider keys must come from Vercel environment variables. Full STL/PNG rendering on Vercel needs `AGENTSCAD_RENDERER_URL`, a separate OpenSCAD renderer service. Without that renderer, generated SCAD is still saved and render attempts fail gracefully into review states.
 
 ## First-Run Walkthrough
 

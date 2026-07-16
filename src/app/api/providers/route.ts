@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import {
   deleteProviderSettings,
   getEnvProviderConfigs,
+  getProviderSettingsPersistence,
+  ProviderSettingsReadOnlyError,
   readProviderSettings,
   toPublicProvider,
   upsertProviderSettings,
@@ -15,6 +17,12 @@ function badRequest(message: string) {
 }
 
 function serverError(error: unknown, fallback: string) {
+  if (error instanceof ProviderSettingsReadOnlyError) {
+    return NextResponse.json(
+      { error: error.message, code: error.code },
+      { status: 409 },
+    );
+  }
   console.error(fallback, error);
   return NextResponse.json(
     { error: error instanceof Error ? error.message : fallback },
@@ -27,6 +35,7 @@ export async function GET() {
     const providers = await readProviderSettings();
     return NextResponse.json({
       providers: providers.map(toPublicProvider),
+      persistence: getProviderSettingsPersistence(),
       envProviders: getEnvProviderConfigs().map((provider) => ({
         id: provider.id,
         name: provider.name,
