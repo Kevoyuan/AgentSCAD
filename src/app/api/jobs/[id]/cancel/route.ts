@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { toPublicJob } from '@/lib/public-job'
 
 const CANCELABLE_STATES = ['NEW', 'SCAD_GENERATED', 'RENDERED', 'VALIDATED', 'DEBUGGING', 'REPAIRING']
 
@@ -30,7 +31,7 @@ export async function PATCH(
       },
     })
 
-    return NextResponse.json({ job: updated })
+    return NextResponse.json({ job: toPublicJob(updated) })
   } catch (error) {
     console.error('Cancel job error:', error)
     return NextResponse.json({ error: 'Failed to cancel job' }, { status: 500 })

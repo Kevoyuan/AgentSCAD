@@ -1,38 +1,20 @@
-import { constants as fsConstants } from "fs";
 import fs from "fs/promises";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import {
+  ARTIFACT_CONTENT_TYPES,
+  ARTIFACT_FILENAMES,
+  readRemoteArtifact,
+  resolveStoredArtifact,
+  type ArtifactType,
+} from "@/lib/tools/artifact-store";
 
 interface RouteParams {
   params: Promise<{ id: string; type: string }>;
 }
 
-const VALID_ARTIFACT_TYPES = ["stl", "png", "scad"] as const;
-
-const MIME_TYPES: Record<(typeof VALID_ARTIFACT_TYPES)[number], string> = {
-  scad: "text/plain; charset=utf-8",
-  stl: "application/sla",
-  png: "image/png",
-};
-
-async function fileExists(filePath: string) {
-  try {
-    await fs.access(filePath, fsConstants.F_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function resolveArtifactPath(rawPath: string | null | undefined) {
-  if (!rawPath || !rawPath.startsWith("/artifacts/")) {
-    return null;
-  }
-
-  const relativePath = rawPath.replace(/^\/artifacts\//, "");
-  return path.join(process.cwd(), "public", "artifacts", relativePath);
-}
+const VALID_ARTIFACT_TYPES = Object.keys(ARTIFACT_FILENAMES) as ArtifactType[];
 
 export async function GET(
   _request: NextRequest,
@@ -61,27 +43,20 @@ export async function GET(
 
       return new Response(job.scadSource, {
         headers: {
-          "Content-Type": MIME_TYPES.scad,
+          "Content-Type": ARTIFACT_CONTENT_TYPES.scad,
           "Content-Disposition": `attachment; filename="job_${id}.scad"`,
         },
       });
     }
 
     const requestedArtifactPath = type === "stl" ? job.stlPath : job.pngPath;
-    const resolvedPath = resolveArtifactPath(requestedArtifactPath);
+    const location = await resolveStoredArtifact(
+      requestedArtifactPath,
+      job.renderLog,
+      type as ArtifactType
+    );
 
-    if (!resolvedPath) {
-      return NextResponse.json(
-        {
-          error: `${type.toUpperCase()} artifact path is unavailable for this job`,
-          state: job.state,
-          artifactPath: requestedArtifactPath,
-        },
-        { status: 404 }
-      );
-    }
-
-    if (!(await fileExists(resolvedPath))) {
+    if (!location) {
       return NextResponse.json(
         {
           error: `${type.toUpperCase()} artifact file has not been generated`,
@@ -92,12 +67,46 @@ export async function GET(
       );
     }
 
-    const artifactBuffer = await fs.readFile(resolvedPath);
+    const filename =
+      location.kind === "local"
+        ? path.basename(location.filePath)
+        : type === "stl"
+          ? "model.stl"
+          : "preview.png";
 
+    if (location.kind === "remote") {
+      const blobResponse = await readRemoteArtifact(location.pathname);
+      if (!blobResponse) {
+        return NextResponse.json(
+          {
+            error: `${type.toUpperCase()} artifact file has not been generated`,
+            state: job.state,
+            artifactPath: requestedArtifactPath,
+          },
+          { status: 404 }
+        );
+      }
+      if (blobResponse.statusCode !== 200) {
+        throw new Error("Blob fetch returned no artifact body");
+      }
+
+      return new Response(blobResponse.stream, {
+        headers: {
+          "Content-Type": ARTIFACT_CONTENT_TYPES[type],
+          "Content-Disposition": `attachment; filename="${filename}"`,
+          ...(blobResponse.blob.size
+            ? { "Content-Length": String(blobResponse.blob.size) }
+            : {}),
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
+    const artifactBuffer = await fs.readFile(location.filePath);
     return new Response(artifactBuffer, {
       headers: {
-        "Content-Type": MIME_TYPES[type],
-        "Content-Disposition": `attachment; filename="${path.basename(resolvedPath)}"`,
+        "Content-Type": ARTIFACT_CONTENT_TYPES[type],
+        "Content-Disposition": `attachment; filename="${filename}"`,
         "Content-Length": artifactBuffer.byteLength.toString(),
         "Cache-Control": "no-store",
       },

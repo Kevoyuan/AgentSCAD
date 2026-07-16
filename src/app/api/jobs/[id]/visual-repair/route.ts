@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { appendLog } from "@/lib/stores/job-store";
 import { runVisualRepair } from "@/lib/repair/visual-repair-controller";
-import { renderScadArtifacts, getRenderedArtifactPaths } from "@/lib/tools/scad-renderer";
+import {
+  buildRenderFailureLog,
+  renderScadArtifacts,
+} from "@/lib/tools/scad-renderer";
+import {
+  cleanupArtifactWorkspace,
+  materializeStoredArtifact,
+} from "@/lib/tools/artifact-store";
 import {
   clearValidationCache,
   getCriticalValidationFailures,
@@ -11,6 +18,7 @@ import {
 import { buildJobQuality } from "@/lib/validation/job-quality";
 import { isModelMultimodal } from "@/app/api/models/route";
 import type { RenderedArtifacts } from "@/lib/harness/types";
+import { toPublicJobOrNull } from "@/lib/public-job";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -52,8 +60,18 @@ export async function POST(
     }
 
     // Get the preview image path
-    const paths = getRenderedArtifactPaths(id);
-    const previewImagePath = paths.pngFilePath;
+    const preview = await materializeStoredArtifact(
+      id,
+      job.pngPath,
+      job.renderLog,
+      "png"
+    );
+    if (!preview) {
+      return NextResponse.json(
+        { error: "Preview artifact is unavailable for visual repair" },
+        { status: 409 }
+      );
+    }
 
     // Run visual repair
     await db.job.update({
@@ -68,13 +86,21 @@ export async function POST(
       },
     });
 
-    const { repairedScad, visualReport, repairSummary } = await runVisualRepair({
-      originalRequest: job.inputRequest,
-      partFamily: job.partFamily,
-      scadSource: job.scadSource,
-      previewImagePath,
-      requestedModel: job.modelId,
-    });
+    let visualRepairResult: Awaited<ReturnType<typeof runVisualRepair>>;
+    try {
+      visualRepairResult = await runVisualRepair({
+        originalRequest: job.inputRequest,
+        partFamily: job.partFamily,
+        scadSource: job.scadSource,
+        previewImagePath: preview.filePath,
+        requestedModel: job.modelId,
+      });
+    } finally {
+      if (preview.temporary) {
+        await cleanupArtifactWorkspace(preview.filePath);
+      }
+    }
+    const { repairedScad, visualReport, repairSummary } = visualRepairResult;
 
     // Re-render with repaired SCAD
     clearValidationCache();
@@ -105,6 +131,9 @@ export async function POST(
         data: {
           state: "GEOMETRY_FAILED",
           scadSource: repairedScad,
+          stlPath: null,
+          pngPath: null,
+          renderLog: JSON.stringify(buildRenderFailureLog(0, [errMsg])),
           qualityScore: quality.qualityScore,
           validationReportJson: quality.validationReportJson,
           executionLogs: appendLog(
@@ -115,7 +144,7 @@ export async function POST(
         },
       });
       return NextResponse.json({
-        job: await db.job.findUnique({ where: { id } }),
+        job: toPublicJobOrNull(await db.job.findUnique({ where: { id } })),
         repaired: false,
         visualReport,
         error: `Visual repair SCAD failed to render: ${errMsg}`,
@@ -184,7 +213,7 @@ export async function POST(
     });
 
     return NextResponse.json({
-      job: await db.job.findUnique({ where: { id } }),
+      job: toPublicJobOrNull(await db.job.findUnique({ where: { id } })),
       repaired: nextState === "DELIVERED",
       visualReport,
       repairSummary,

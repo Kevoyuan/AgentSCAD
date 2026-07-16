@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { sanitizeRenderLogForClient, toPublicJob } from '@/lib/public-job'
 import { db } from '@/lib/db'
 import { trackVersion } from '@/lib/version-tracker'
 import { appendLog, parameterDefsToValues } from '@/lib/stores/job-store'
@@ -95,6 +96,9 @@ export async function POST(
             data: {
               state: 'SCAD_GENERATED',
               scadSource,
+              stlPath: null,
+              pngPath: null,
+              renderLog: null,
               parameterSchema: parameterState.parameterSchema,
               parameterValues: parameterState.parameterValues,
               generationPath: 'manual_scad_apply',
@@ -138,6 +142,8 @@ export async function POST(
               where: { id },
               data: {
                 state: 'GEOMETRY_FAILED',
+                stlPath: null,
+                pngPath: null,
                 renderLog: JSON.stringify(buildRenderFailureLog(0, [renderError])),
                 qualityScore: quality.qualityScore,
                 validationReportJson: quality.validationReportJson,
@@ -151,7 +157,7 @@ export async function POST(
               message: 'Applied SCAD could not be rendered.',
               error: renderError,
               qualityReport: quality.readiness,
-              job: failedJob,
+              job: toPublicJob(failedJob),
             })
             controller.close()
             return
@@ -182,7 +188,7 @@ export async function POST(
             message: 'Applied SCAD rendered successfully',
             stlPath: renderedJob.stlPath,
             pngPath: renderedJob.pngPath,
-            renderLog: renderedJob.renderLog,
+            renderLog: sanitizeRenderLogForClient(renderedJob.renderLog),
           })
 
           sendEvent({
@@ -229,7 +235,7 @@ export async function POST(
               message: 'Applied SCAD rendered successfully; validation blockers require review or repair before export.',
               validationResults,
               qualityReport: quality.readiness,
-              job: reviewJob,
+              job: toPublicJob(reviewJob),
             })
             controller.close()
             return
@@ -276,7 +282,7 @@ export async function POST(
             state: 'DELIVERED',
             step: 'delivered',
             message: 'Applied SCAD saved, rendered, and delivered.',
-            job: finalJob,
+            job: toPublicJob(finalJob),
           })
           controller.close()
         } catch (error) {

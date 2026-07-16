@@ -13,6 +13,7 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import type { RawMeshData } from "@/lib/validation/validation-types";
+import { isEphemeralRuntime } from "@/lib/runtime-environment";
 
 const execAsync = promisify(exec);
 const INSTALL_TIMEOUT_MS = 180_000;
@@ -295,6 +296,16 @@ async function installManagedMeshValidator(): Promise<MeshValidatorStatus> {
       : { available: false, pythonPath: overridePython, managed: false, message: "AGENTSCAD_MESH_VALIDATOR_PYTHON cannot import trimesh/numpy/rtree" };
   }
 
+  if (isEphemeralRuntime()) {
+    return {
+      available: false,
+      pythonPath: null,
+      managed: false,
+      message:
+        "Managed mesh-validator installation is disabled in serverless runtime; configure AGENTSCAD_MESH_VALIDATOR_PYTHON with bundled dependencies",
+    };
+  }
+
   const extensionDir = managedMeshValidatorDir();
   const venvDir = path.join(extensionDir, "venv");
   const pythonPath = pythonInVenv(venvDir);
@@ -362,7 +373,7 @@ export async function getMeshValidatorStatus(): Promise<MeshValidatorStatus> {
 
   if (!managedPythonPromise) {
     managedPythonPromise = installManagedMeshValidator().then((status) => {
-      if (status.available) {
+      if (status.available || isEphemeralRuntime()) {
         managedPythonStatus = status;
       } else {
         managedPythonPromise = null;

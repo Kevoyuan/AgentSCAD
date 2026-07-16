@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { toPublicJob } from "@/lib/public-job";
 import { db } from "@/lib/db";
 
 // Valid job states
@@ -15,6 +16,7 @@ const VALID_STATES = [
   "RENDER_FAILED",
   "HUMAN_REVIEW",
   "CANCELLED",
+  "DELETING",
 ] as const;
 
 type JobState = (typeof VALID_STATES)[number];
@@ -88,7 +90,7 @@ export async function GET(request: NextRequest) {
     const total = includeCount ? await db.job.count({ where }) : offset + pageJobs.length + (hasExtraJob ? 1 : 0);
 
     return NextResponse.json({
-      jobs: pageJobs,
+      jobs: pageJobs.map(toPublicJob),
       total,
       pagination: {
         total,
@@ -218,7 +220,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ job }, { status: 201 });
+    return NextResponse.json({ job: toPublicJob(job) }, { status: 201 });
   } catch (error) {
     console.error("Error creating job:", error);
     return NextResponse.json(

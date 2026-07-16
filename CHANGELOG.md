@@ -3,6 +3,22 @@
 All notable changes to AgentSCAD are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.2.0] - 2026-07-16
+
+### Added
+- Durable Vercel Blob persistence for generated STL and PNG artifacts while keeping stable application URLs
+- Serverless artifact lifecycle cleanup for deleted jobs, superseded renders, partial uploads, and temporary workspaces
+
+### Changed
+- Vercel rendering now uses isolated `/tmp` workspaces instead of the read-only deployment filesystem
+- Artifact downloads are streamed through AgentSCAD so Blob storage paths are not exposed to users
+- Serverless mesh validation and learning writes fail safely without attempting to modify the deployed application
+
+### Fixed
+- `ENOENT` failures caused by creating `/var/task/public/artifacts` during CAD generation
+- Concurrent renders overwriting one another or publishing artifacts after a job was cancelled or deleted
+- Internal Blob metadata leaking through public job API responses
+
 ## [0.3.1.1] - 2026-07-16
 
 ### Fixed

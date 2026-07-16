@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { deleteJobArtifacts } from "@/lib/tools/artifact-store";
+import { toPublicJob } from "@/lib/public-job";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -27,7 +29,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ job });
+    return NextResponse.json({ job: toPublicJob(job) });
   } catch (error) {
     console.error("Error fetching job:", error);
     return NextResponse.json(
@@ -59,19 +61,27 @@ export async function DELETE(
       );
     }
 
-    // Prevent deletion of jobs that are currently being processed
-    const activeStates = ["NEW", "SCAD_GENERATED", "RENDERED", "VALIDATED"];
-    if (activeStates.includes(existingJob.state)) {
-      // Cancel the job instead of deleting if it's active
-      await db.job.update({
-        where: { id },
-        data: {
-          state: "CANCELLED",
-          notes: existingJob.notes
-            ? `${existingJob.notes}\nJob cancelled and deleted by user`
-            : "Job cancelled and deleted by user",
+    await db.job.update({
+      where: { id },
+      data: {
+        state: "DELETING",
+        notes: existingJob.notes
+          ? `${existingJob.notes}\nJob deletion requested`
+          : "Job deletion requested",
+      },
+    });
+
+    try {
+      await deleteJobArtifacts(id);
+    } catch (artifactError) {
+      console.error(`Failed to clean artifacts for deleted job ${id}:`, artifactError);
+      return NextResponse.json(
+        {
+          error: "Artifact cleanup failed; deletion can be retried safely",
+          id,
         },
-      });
+        { status: 503 }
+      );
     }
 
     await db.job.delete({

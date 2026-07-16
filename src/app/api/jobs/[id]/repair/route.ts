@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { appendLog, incrementRetryCount } from "@/lib/stores/job-store";
 import { runRepair } from "@/lib/repair/repair-controller";
-import { renderScadArtifacts } from "@/lib/tools/scad-renderer";
+import {
+  buildRenderFailureLog,
+  renderScadArtifacts,
+} from "@/lib/tools/scad-renderer";
 import {
   clearValidationCache,
   getCriticalValidationFailures,
@@ -10,6 +13,7 @@ import {
 } from "@/lib/tools/validation-tool";
 import { sanitizeGeneratedScadSource } from "@/lib/tools/scad-sanitizer";
 import { buildJobQuality } from "@/lib/validation/job-quality";
+import { toPublicJobOrNull } from "@/lib/public-job";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -130,6 +134,9 @@ export async function POST(
         data: {
           state: "GEOMETRY_FAILED",
           scadSource: sanitized,
+          stlPath: null,
+          pngPath: null,
+          renderLog: JSON.stringify(buildRenderFailureLog(0, [errMsg])),
           repairRound: retryRound,
           qualityScore: quality.qualityScore,
           validationReportJson: quality.validationReportJson,
@@ -141,7 +148,7 @@ export async function POST(
         },
       });
       return NextResponse.json({
-        job: await db.job.findUnique({ where: { id } }),
+        job: toPublicJobOrNull(await db.job.findUnique({ where: { id } })),
         repaired: false,
         recommendation: "retry",
         reason: `Repair generated valid SCAD but OpenSCAD render failed: ${errMsg}`,
@@ -205,6 +212,7 @@ export async function POST(
           ),
           stlPath,
           pngPath,
+          renderLog: renderLog ? JSON.stringify(renderLog) : null,
           validationResults: JSON.stringify(revalidationResults),
           qualityScore: quality.qualityScore,
           validationReportJson: quality.validationReportJson,
@@ -227,7 +235,7 @@ export async function POST(
         },
       });
       return NextResponse.json({
-        job: await db.job.findUnique({ where: { id } }),
+        job: toPublicJobOrNull(await db.job.findUnique({ where: { id } })),
         repaired: false,
         recommendation: "review",
         reason: `Repair completed but ${criticalFailures.length} critical validation failure(s) remain. Manual review needed.`,
@@ -249,6 +257,7 @@ export async function POST(
         ),
         stlPath,
         pngPath,
+        renderLog: renderLog ? JSON.stringify(renderLog) : null,
         validationResults: JSON.stringify(revalidationResults),
         qualityScore: quality.qualityScore,
         validationReportJson: quality.validationReportJson,
@@ -273,7 +282,7 @@ export async function POST(
     });
 
     return NextResponse.json({
-      job: await db.job.findUnique({ where: { id } }),
+      job: toPublicJobOrNull(await db.job.findUnique({ where: { id } })),
       repaired: true,
       recommendation: "repaired",
       reason: repairMeta.repair_summary,

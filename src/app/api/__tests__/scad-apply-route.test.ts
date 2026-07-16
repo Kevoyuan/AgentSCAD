@@ -130,6 +130,9 @@ beforeEach(() => {
     ]),
     parameterValues: JSON.stringify({ wall_thickness: 2 }),
     executionLogs: null,
+    stlPath: "/artifacts/job-apply/old.stl",
+    pngPath: "/artifacts/job-apply/old.png",
+    renderLog: "{\"openscad_version\":\"old\"}",
   };
 });
 
@@ -151,6 +154,11 @@ describe("manual SCAD apply route", () => {
     expect(events.map((event) => event.step)).toContain("rendered");
     expect(events.map((event) => event.step)).toContain("validated");
     expect(events.at(-1)).toMatchObject({ state: "DELIVERED", step: "delivered" });
+    expect(updates[0]?.data).toMatchObject({
+      stlPath: null,
+      pngPath: null,
+      renderLog: null,
+    });
     expect(updates.map((update) => update.data.state)).toEqual([
       "SCAD_GENERATED",
       "RENDERED",
