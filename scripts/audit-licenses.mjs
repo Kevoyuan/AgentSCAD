@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,6 +9,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const NODE_MODULES = path.join(ROOT, "node_modules");
 const SCAD_MANIFEST = path.join(ROOT, "skills/scad-library-policy/manifest.json");
+const OPENSCAD_INSTALLER = path.join(ROOT, "scripts", "install-openscad-wasm.mjs");
+const THIRD_PARTY_NOTICES = path.join(ROOT, "THIRD_PARTY_NOTICES.md");
+const OPENSCAD_POLICY = readJson(
+  path.join(ROOT, "config", "openscad-wasm-runtime.json")
+);
+const OPENSCAD_RUNTIME = path.join(
+  ROOT,
+  ".openscad-runtime",
+  OPENSCAD_POLICY.runtime_filename
+);
+const OPENSCAD_COPYING = path.join(
+  ROOT,
+  ".openscad-runtime",
+  OPENSCAD_POLICY.copying_filename
+);
 
 const BLOCKED_LICENSE_RE = /\b(?:AGPL|GPL)(?:[-\s]?\d(?:\.\d)?)?\b|Affero General Public License|GNU General Public License/i;
 const WEAK_COPYLEFT_RE = /\bLGPL(?:[-\s]?\d(?:\.\d)?)?\b|Lesser General Public License/i;
@@ -111,6 +127,56 @@ function scanScadManifest() {
   };
 }
 
+function sha256(filePath) {
+  return crypto
+    .createHash("sha256")
+    .update(fs.readFileSync(filePath))
+    .digest("hex");
+}
+
+function scanOpenScadRuntimePolicy() {
+  const issues = [];
+  const packageJson = readJson(path.join(ROOT, "package.json"));
+  if (packageJson.dependencies?.["openscad-wasm"]) {
+    issues.push(
+      "openscad-wasm must not be linked as an npm dependency; use the reviewed child-process runtime"
+    );
+  }
+
+  const installer = fs.existsSync(OPENSCAD_INSTALLER)
+    ? fs.readFileSync(OPENSCAD_INSTALLER, "utf8")
+    : "";
+  const notices = fs.existsSync(THIRD_PARTY_NOTICES)
+    ? fs.readFileSync(THIRD_PARTY_NOTICES, "utf8")
+    : "";
+  for (const required of [
+    OPENSCAD_POLICY.archive_name,
+    OPENSCAD_POLICY.runtime_sha256,
+    OPENSCAD_POLICY.source_commit,
+    OPENSCAD_POLICY.build_system_commit,
+  ]) {
+    if (!notices.includes(required)) {
+      issues.push(`OpenSCAD runtime policy is missing reviewed value: ${required}`);
+    }
+  }
+  if (!installer.includes("config\", \"openscad-wasm-runtime.json")) {
+    issues.push("OpenSCAD installer is not reading the reviewed runtime manifest");
+  }
+
+  if (fs.existsSync(OPENSCAD_RUNTIME)) {
+    if (sha256(OPENSCAD_RUNTIME) !== OPENSCAD_POLICY.runtime_sha256) {
+      issues.push("installed OpenSCAD WASM runtime checksum does not match policy");
+    }
+    if (!fs.existsSync(OPENSCAD_COPYING)) {
+      issues.push("installed OpenSCAD WASM runtime is missing its COPYING file");
+    } else if (sha256(OPENSCAD_COPYING) !== OPENSCAD_POLICY.copying_sha256) {
+      issues.push("installed OpenSCAD WASM COPYING file checksum does not match policy");
+    }
+  }
+
+  return issues;
+}
+
 function printRecords(title, records) {
   if (!records.length) {
     return;
@@ -137,6 +203,7 @@ function printScadRecords(title, libraries) {
 function main() {
   const npmScan = scanNodeModules();
   const scadScan = scanScadManifest();
+  const openScadRuntimeIssues = scanOpenScadRuntimePolicy();
   const unapprovedWeakCopyleft = npmScan.weakCopyleft.filter((record) => !record.allowed);
 
   if (npmScan.skipped) {
@@ -147,8 +214,19 @@ function main() {
   printRecords("Weak copyleft npm package licenses", npmScan.weakCopyleft);
   printScadRecords("Blocked default OpenSCAD libraries", scadScan.blockedDefaultInstalls);
   printScadRecords("Weak copyleft default OpenSCAD libraries", scadScan.weakCopyleftDefaultInstalls);
+  if (openScadRuntimeIssues.length) {
+    console.log("\nOpenSCAD WASM runtime policy issues");
+    for (const issue of openScadRuntimeIssues) console.log(`- ${issue}`);
+  } else {
+    console.log("\nOpenSCAD WASM runtime boundary reviewed and verified.");
+  }
 
-  if (npmScan.blocked.length || unapprovedWeakCopyleft.length || scadScan.blockedDefaultInstalls.length) {
+  if (
+    npmScan.blocked.length ||
+    unapprovedWeakCopyleft.length ||
+    scadScan.blockedDefaultInstalls.length ||
+    openScadRuntimeIssues.length
+  ) {
     console.error("\nLicense audit failed.");
     console.error("GPL/AGPL dependencies must not be part of the default dependency tree or default OpenSCAD install.");
     console.error("New LGPL dependencies require review and allowlisting before distribution.");

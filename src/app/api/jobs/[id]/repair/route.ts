@@ -15,6 +15,8 @@ import { sanitizeGeneratedScadSource } from "@/lib/tools/scad-sanitizer";
 import { buildJobQuality } from "@/lib/validation/job-quality";
 import { toPublicJobOrNull } from "@/lib/public-job";
 
+export const maxDuration = 300;
+
 interface RouteParams {
   params: Promise<{ id: string }>;
 }

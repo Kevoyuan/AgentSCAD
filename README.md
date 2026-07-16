@@ -56,7 +56,9 @@ Before you start, you need three tools installed:
 | **OpenSCAD** | rendering STL/PNG artifacts | [openscad.org/downloads](https://openscad.org/downloads.html) |
 
 > [!IMPORTANT]
-> OpenSCAD must be in your PATH (or set `OPENSCAD_BIN` in `.env`). Without it, the app runs but all render steps silently skip — you'll see jobs stuck in `GEOMETRY_FAILED` state.
+> Local native rendering uses OpenSCAD from your PATH (or `OPENSCAD_BIN`).
+> Serverless deployments automatically use the checksum-pinned official
+> OpenSCAD WebAssembly CLI and generate their preview from the resulting STL.
 
 ## Quick Start
 
@@ -72,7 +74,9 @@ docker compose up --build
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Docker initializes the Prisma SQLite schema before starting the app. The image intentionally does **not** bundle OpenSCAD, so Docker is best for UI, API, persistence, and workflow review unless you provide OpenSCAD inside a custom image.
+Docker initializes the Prisma SQLite schema before starting the app. Native
+OpenSCAD remains optional in the default image; set
+`AGENTSCAD_OPENSCAD_BACKEND=wasm` to use the verified serverless renderer.
 
 ### Option B: Local Development
 
@@ -100,15 +104,26 @@ Use this when you want the app online quickly. Docker is not required for the Ve
 3. Keep the default Vercel build settings from `vercel.json`:
 
 ```bash
-bun run vercel:build
+bun run build
 ```
 
 4. Generate a Provider Settings encryption secret with `openssl rand -base64 48`, save it as `PROVIDER_SETTINGS_SECRET` in **Vercel Project Settings → Environment Variables**, then redeploy.
 5. In the live workspace, open **Settings → Providers**, enter your provider key, test it, and click **Save**.
 6. Optional: add model-provider keys such as `OPENROUTER_API_KEY` to Vercel environment variables when you want a provider available to every visitor without browser setup.
-7. Optional: add Vercel Blob and `BLOB_READ_WRITE_TOKEN` if you later persist rendered artifacts.
+7. Add Vercel Blob and `BLOB_READ_WRITE_TOKEN`. Serverless rendering uses it
+   for durable STL/PNG artifacts and deployment-wide capacity enforcement.
 
-The MVP supports the online workspace, job history, SCAD generation, editing, and chat with Postgres-backed jobs. Keys saved through Provider Settings are encrypted in an HttpOnly browser-session cookie, are not shared with other visitors, and are not written to Vercel's read-only filesystem or database. Use **Clear keys** before leaving a shared device; browser session restoration behavior varies, so closing a tab alone is not a guaranteed credential wipe. Full STL/PNG rendering on Vercel needs `AGENTSCAD_RENDERER_URL`, a separate OpenSCAD renderer service. Without that renderer, generated SCAD is still saved and render attempts fail gracefully into review states.
+The MVP supports the online workspace, job history, SCAD generation, editing,
+and chat with Postgres-backed jobs. Keys saved through Provider Settings are
+encrypted in an HttpOnly browser-session cookie, are not shared with other
+visitors, and are not written to Vercel's read-only filesystem or database.
+Use **Clear keys** before leaving a shared device; browser session restoration
+behavior varies, so closing a tab alone is not a guaranteed credential wipe.
+Vercel renders STL with the official OpenSCAD WebAssembly CLI and creates a PNG
+preview from that mesh. Each renderer child receives no application secrets,
+runs in a fresh empty working directory with host filesystem access denied, has
+explicit JavaScript/WASM memory caps and wall-clock/output limits, and participates in a
+Blob-backed global limit of 20 render starts per minute.
 
 ## First-Run Walkthrough
 
@@ -221,8 +236,11 @@ Key areas:
 ## Status / Limitations
 
 - Generated CAD should be reviewed before manufacturing.
-- Local rendering requires OpenSCAD to be installed and reachable through `OPENSCAD_BIN` or `openscad`.
-- The Docker image intentionally does not bundle OpenSCAD.
+- Local native rendering requires OpenSCAD through `OPENSCAD_BIN` or `openscad`;
+  `AGENTSCAD_OPENSCAD_BACKEND=wasm` selects the verified WASM backend.
+- OpenSCAD WASM remains a separately executed GPL program. Exact source,
+  checksums, and redistribution obligations are in
+  [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
 - Full LLM generation, repair, chat help, and visual repair require configured provider keys.
 - Core CI is strict and does not require OpenSCAD; OpenSCAD render checks run separately. See [Development and CI](./docs/DEVELOPMENT.md).
 

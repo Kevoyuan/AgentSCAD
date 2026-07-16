@@ -1,0 +1,17 @@
+{
+  "component": "OpenSCAD WebAssembly Node CLI",
+  "version": "2026.01.12",
+  "license": "GPL-2.0-or-later WITH CGAL-linking-exception",
+  "archive_name": "OpenSCAD-2026.01.12-WebAssembly-node.zip",
+  "archive_url": "https://files.openscad.org/snapshots/OpenSCAD-2026.01.12-WebAssembly-node.zip",
+  "archive_sha256": "44dd0e51a9ac1d64f356ad731da329a7414a1a90af2dad9f85e42735ce510376",
+  "runtime_filename": "openscad.js",
+  "runtime_sha256": "29ce0da7a06d1ba5324ee832a0c9749d4f4404d08f9db72e625664f1d52a2011",
+  "copying_filename": "COPYING",
+  "copying_url": "https://raw.githubusercontent.com/openscad/openscad/4f3ef2340db00a8cee2e9cdefe87dae5686b41f6/COPYING",
+  "copying_sha256": "1805a29c3bccbc0428ce0048a1dfdeb9b1867677410e99c89c3c30932ae8c7d5",
+  "source_commit": "4f3ef2340db00a8cee2e9cdefe87dae5686b41f6",
+  "corresponding_source": "https://github.com/openscad/openscad/tree/4f3ef2340db00a8cee2e9cdefe87dae5686b41f6",
+  "build_system_commit": "ac5cf9b129bdb243fef3862883bd5d64e54fffcb",
+  "build_system_source": "https://github.com/openscad/openscad-wasm/tree/ac5cf9b129bdb243fef3862883bd5d64e54fffcb"
+}

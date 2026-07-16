@@ -20,6 +20,8 @@ import { isModelMultimodal } from "@/app/api/models/route";
 import type { RenderedArtifacts } from "@/lib/harness/types";
 import { toPublicJobOrNull } from "@/lib/public-job";
 
+export const maxDuration = 300;
+
 interface RouteParams {
   params: Promise<{ id: string }>;
 }

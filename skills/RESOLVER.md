@@ -33,7 +33,7 @@ Do not change these contracts from skill content:
 - SCAD generation remains JSON-compatible with `summary`, `parameters`, and `scad_source`, but `scad_source` is the source of truth.
 - Editable numeric parameters must exist as top-level OpenSCAD assignments before geometry. Deterministic tools may parse them into `ParameterDef[]`.
 - Each parameter object keeps `key`, `label`, `kind`, `unit`, `value`, `min`, `max`, `step`, `source`, `editable`, `description`, and `group`.
-- Rendering uses OpenSCAD CLI to produce STL and PNG.
+- Rendering uses native OpenSCAD or the isolated official WASM CLI to produce STL; serverless preview code projects the STL to PNG.
 - Mesh validation uses Python/trimesh when available and may fall back to mock validation.
 - Model fallback order is MiMo when `MIMO_API_KEY` is configured, then `z-ai-web-dev-sdk`, then template generation.
 

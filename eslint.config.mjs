@@ -47,13 +47,20 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   ignores: [
     "node_modules/**",
     ".next/**",
+    ".agents/**",
     ".claude/worktrees/**",
+    ".openscad-runtime/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
     "examples/**",
     "skills/**",
   ]
+}, {
+  files: ["scripts/openscad-wasm-sandbox.cjs"],
+  rules: {
+    "@typescript-eslint/no-require-imports": "off",
+  },
 }];
 
 export default eslintConfig;

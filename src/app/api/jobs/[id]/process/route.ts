@@ -6,6 +6,8 @@ import {
   processableJobStatesMessage,
 } from "@/lib/pipeline/execute-cad-job";
 
+export const maxDuration = 300;
+
 interface RouteParams {
   params: Promise<{ id: string }>;
 }

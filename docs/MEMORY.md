@@ -6,7 +6,7 @@ AgentSCAD uses explicit product memory instead of opaque chat history.
 
 - **Working memory**: current job state, request, parameters, SCAD source, artifacts, validation results, and logs.
 - **Episodic memory**: field-level `JobVersion` history for parameter, source, and note edits.
-- **Artifact memory**: generated `model.scad`, `model.stl`, `preview.png`, and reports under `public/artifacts/{jobId}/`.
+- **Artifact memory**: generated `model.scad`, `model.stl`, `preview.png`, and reports at stable `/artifacts/{jobId}/` URLs, backed by local files or durable Blob objects.
 - **Skill memory**: Markdown CAD skills, schemas, library policy, and in-process skill/schema caches.
 - **Learned memory**: structured numerical observations extracted from user edits, validation failures, and repair outcomes. Pipeline-triggered writes, append-only JSONL, prompt injection defense on user content.
 

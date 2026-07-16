@@ -37,6 +37,7 @@ Open [http://localhost:3000](http://localhost:3000).
 |---|---|
 | `bun run dev` | Start Next.js dev server on port 3000 |
 | `bun run test` | Run unit tests |
+| `bun run test:wasm` | Run the verified OpenSCAD WASM integration suite |
 | `bun run lint` | Check for lint errors |
 | `bun run typecheck` | TypeScript type-check |
 | `bun run build` | Production build |
@@ -59,6 +60,7 @@ Open [http://localhost:3000](http://localhost:3000).
    bun run lint
    bun run typecheck
    bun run test
+   bun run test:wasm
    ```
 
 4. **Commit** with a descriptive message:

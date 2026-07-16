@@ -24,8 +24,10 @@ For the OpenSCAD website, prefer one of these positions:
 
 ## License Position
 
-AgentSCAD is MIT licensed. The default application does not vendor OpenSCAD or
-GPL OpenSCAD libraries.
+AgentSCAD is MIT licensed. The application does not link OpenSCAD or vendor GPL
+OpenSCAD libraries. Vercel deployments distribute the official, unmodified
+OpenSCAD WASM Node CLI as a separately executed program with its license,
+checksums, and corresponding source information.
 
 The app may use external OpenSCAD libraries only through the reviewed manifest at
 `skills/scad-library-policy/manifest.json`.
@@ -36,9 +38,9 @@ The app may use external OpenSCAD libraries only through the reviewed manifest a
   `bun run scad:libs:install:gpl`.
 - Third-party OpenSCAD library source stays outside this repository by default in
   `~/.agentscad/openscad-libraries`.
-- OpenSCAD itself is invoked as an external command-line program through
-  `openscad` or `OPENSCAD_BIN`; it is not bundled in the default app
-  distribution.
+- Native OpenSCAD is invoked through `openscad` or `OPENSCAD_BIN`; serverless
+  builds use the reviewed official WASM CLI across the same child-process
+  boundary.
 
 Keep the detailed compliance notes in
 [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) and
@@ -50,7 +52,7 @@ Keep the detailed compliance notes in
 Thanks for the pointer. We have handled the library/license side in the repo:
 
 - AgentSCAD is MIT licensed.
-- OpenSCAD is treated as an external runtime tool and is not bundled in the default app distribution.
+- OpenSCAD is treated as a separately executed runtime tool. Serverless builds preserve its GPL notice, integrity metadata, and corresponding-source links.
 - Approved OpenSCAD libraries are tracked in `skills/scad-library-policy/manifest.json`.
 - Default library install excludes GPL libraries.
 - NopSCADlib is cataloged but requires explicit opt-in via `bun run scad:libs:install:gpl`.
@@ -76,7 +78,7 @@ it belongs on `libraries.html`. Would maintainers prefer a listing for AI tools,
 coupled software, or related OpenSCAD projects somewhere on the website?
 
 License/compliance notes:
-- AgentSCAD does not bundle OpenSCAD in the default distribution.
+- AgentSCAD does not link OpenSCAD. Serverless builds include the official unmodified WASM CLI as a separate program with its GPL notice and source links.
 - Third-party OpenSCAD libraries are managed outside the repository.
 - GPL OpenSCAD libraries are excluded from the default install and require
   explicit opt-in.

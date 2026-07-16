@@ -41,6 +41,13 @@ issue response, upstream issue draft, and PR checklist.
 
 ## Runtime Boundary
 
-AgentSCAD does not bundle or link OpenSCAD in the default application distribution. It invokes OpenSCAD as an external command-line renderer through `OPENSCAD_BIN` or the `openscad` executable available in the user's runtime environment.
+Local native rendering invokes OpenSCAD as an external command-line renderer
+through `OPENSCAD_BIN` or `openscad`. Vercel deployments instead carry the
+official, unmodified OpenSCAD WebAssembly Node CLI and execute it as a separate
+child process. AgentSCAD does not import or link the GPL runtime.
 
-Users and distributors who install, package, or redistribute OpenSCAD are responsible for complying with OpenSCAD's GPL license terms.
+The build verifies the official archive and extracted runtime checksums and
+places the upstream `COPYING` file beside the executable. The exact version,
+source commits, hashes, and redistribution requirements are documented in
+[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md). Distributors of packaged
+builds must preserve those materials and comply with OpenSCAD's GPL terms.

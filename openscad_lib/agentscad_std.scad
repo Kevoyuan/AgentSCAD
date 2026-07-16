@@ -20,12 +20,13 @@ _merge_tol = 0.2;
 // Use instead of raw cube() for printable parts.
 module rounded_box(size, r = 1, center = true) {
   sx = size[0]; sy = size[1]; sz = size[2];
+  rr = max(0.01, min(r, min(sx, min(sy, sz)) / 2));
   translate(center ? [0, 0, 0] : [sx/2, sy/2, sz/2])
   hull() {
-    for (x = [r, sx - r]) {
-      for (y = [r, sy - r]) {
-        for (z = [r, sz - r]) {
-          translate([x, y, z]) sphere(r = r, $fn = max(16, r * 8));
+    for (x = [rr, sx - rr]) {
+      for (y = [rr, sy - rr]) {
+        for (z = [rr, sz - rr]) {
+          translate([x, y, z]) sphere(r = rr, $fn = max(16, rr * 8));
         }
       }
     }

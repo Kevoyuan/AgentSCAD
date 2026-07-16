@@ -3,6 +3,24 @@
 All notable changes to AgentSCAD are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.3.0] - 2026-07-16
+
+### Added
+- Official checksum-pinned OpenSCAD 2026.01.12 WebAssembly rendering on Vercel
+- Server-side STL mesh projection for 800×600 PNG previews when OpenGL is unavailable
+- Strict OpenSCAD WASM integration tests covering standard-library models and secret isolation
+
+### Changed
+- Serverless renders use the WASM child-process boundary while local development keeps native OpenSCAD
+- CAD generation guidance avoids fonts and external files unsupported by the serverless renderer
+- Long-running render routes allow up to five minutes on supported Vercel plans
+
+### Security
+- OpenSCAD receives a minimal environment without provider keys, Blob tokens, or application secrets
+- Untrusted SCAD is restricted to stdin-only geometry: external libraries, imports, surfaces, and fonts are rejected, while a child-process filesystem guard exposes only a fresh empty working directory
+- Serverless render starts use Blob-backed atomic slots for a deployment-wide 20-per-minute ceiling; SCAD input, STL output, stderr, execution time, local concurrency, heap, and artifact size are also bounded
+- Build and license audits verify the official archive, extracted runtime, GPL notice, and corresponding source commits
+
 ## [0.3.2.0] - 2026-07-16
 
 ### Added

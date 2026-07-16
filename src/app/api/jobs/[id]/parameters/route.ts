@@ -6,6 +6,8 @@ import { buildRenderFailureLog, renderScadArtifacts } from "@/lib/tools/scad-ren
 import { clearValidationCache } from "@/lib/tools/validation-tool";
 import { trackVersion } from "@/lib/version-tracker";
 
+export const maxDuration = 300;
+
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
