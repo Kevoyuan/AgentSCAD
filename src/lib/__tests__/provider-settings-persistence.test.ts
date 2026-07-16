@@ -5,7 +5,7 @@ import {
   ProviderSettingsReadOnlyError,
   upsertProviderSettings,
 } from "@/lib/provider-settings";
-import { GET, POST } from "@/app/api/providers/route";
+import { DELETE, GET, POST } from "@/app/api/providers/route";
 
 const originalVercel = process.env.VERCEL;
 
@@ -26,6 +26,13 @@ describe("provider settings persistence", () => {
     expect(getProviderSettingsPersistence()).toEqual({
       mode: "environment",
       writable: false,
+    });
+  });
+
+  test("uses writable file persistence outside Vercel", () => {
+    expect(getProviderSettingsPersistence()).toEqual({
+      mode: "file",
+      writable: true,
     });
   });
 
@@ -77,6 +84,20 @@ describe("provider settings persistence", () => {
     expect(response.status).toBe(409);
     expect(body.code).toBe("PROVIDER_SETTINGS_READ_ONLY");
     expect(body.error).toContain("Vercel Project Settings");
+  });
+
+  test("rejects deletes on Vercel with the same actionable conflict", async () => {
+    process.env.VERCEL = "1";
+
+    const response = await DELETE(
+      new Request("https://agentscad.test/api/providers?id=provider-1", {
+        method: "DELETE",
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.code).toBe("PROVIDER_SETTINGS_READ_ONLY");
   });
 
 });

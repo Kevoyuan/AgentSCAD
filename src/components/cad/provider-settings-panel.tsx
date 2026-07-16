@@ -19,6 +19,10 @@ import {
   type ProviderConfig,
   type ProviderSettingsPersistence,
 } from '@/components/cad/api'
+import {
+  DEFAULT_PROVIDER_PERSISTENCE,
+  getProviderSettingsUiState,
+} from '@/components/cad/provider-settings-state'
 import { PROVIDER_PRESETS } from '@/lib/provider-catalog'
 
 const EMPTY_FORM = {
@@ -37,10 +41,7 @@ const EMPTY_FORM = {
 export function ProviderSettingsPanel() {
   const [providers, setProviders] = useState<ProviderConfig[]>([])
   const [envProviders, setEnvProviders] = useState<EnvProviderConfig[]>([])
-  const [persistence, setPersistence] = useState<ProviderSettingsPersistence>({
-    mode: 'environment',
-    writable: false,
-  })
+  const [persistence, setPersistence] = useState<ProviderSettingsPersistence>(DEFAULT_PROVIDER_PERSISTENCE)
   const [form, setForm] = useState(EMPTY_FORM)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -73,6 +74,7 @@ export function ProviderSettingsPanel() {
     [form.preset]
   )
   const selectedEnvKey = selectedPreset?.apiKeyEnv || 'the provider API key'
+  const persistenceUi = getProviderSettingsUiState(persistence, isLoading)
 
   const updateForm = (partial: Partial<typeof EMPTY_FORM>) => {
     setForm(prev => ({ ...prev, ...partial }))
@@ -195,7 +197,7 @@ export function ProviderSettingsPanel() {
           </div>
         )}
 
-        {!persistence.writable && (
+        {persistenceUi.showEnvironmentNotice && (
           <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-[var(--app-text-secondary)]">
             Vercel stores providers through environment variables. Add <span className="font-mono text-amber-300">{selectedEnvKey}</span> in
             Vercel Project Settings, then redeploy. You can test a key here, but it will not be saved.
@@ -326,7 +328,7 @@ export function ProviderSettingsPanel() {
             size="sm"
             className="h-8 gap-1 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)]"
             onClick={handleSave}
-            disabled={isLoading || isSaving || isTesting || !persistence.writable}
+            disabled={isSaving || isTesting || !persistenceUi.canSave}
             title={!persistence.writable ? `Configure ${selectedEnvKey} in Vercel Project Settings` : undefined}
           >
             {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
