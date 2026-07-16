@@ -67,6 +67,10 @@ export interface RenderLog {
   stl_vertices: number;
   png_resolution: string | null;
   warnings: string[];
+  artifact_pathnames?: {
+    stl: string;
+    png: string;
+  };
 }
 
 export interface RenderedArtifacts {

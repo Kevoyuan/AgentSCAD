@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { analyzeUserEdits, writeLearnedPatterns } from "@/lib/improvement-analyzer";
 import { authenticateBearer } from "@/lib/auth";
-import fs from "fs/promises";
-import path from "path";
+import {
+  checkPublicArtifact,
+  deleteSupersededJobArtifacts,
+} from "@/lib/tools/artifact-store";
 
 // ---------------------------------------------------------------------------
 // Authentication
@@ -62,6 +64,8 @@ async function retryFailed(): Promise<{
           data: {
             retryCount: current.retryCount + 1,
             state: "NEW",
+            stlPath: null,
+            pngPath: null,
             renderLog: null,
             validationResults: null,
             executionLogs: JSON.stringify([
@@ -149,129 +153,126 @@ async function warmIndex(): Promise<{
   missing: number;
   cached: number;
 }> {
-  const deliveredJobs = await db.job.findMany({
-    where: { state: "DELIVERED" },
-    select: {
-      id: true,
-      stlPath: true,
-      pngPath: true,
-      parameterValues: true,
-      validationResults: true,
-      partFamily: true,
-    },
-  });
-
   let warmed = 0;
   let missing = 0;
   let cached = 0;
+  let cursor: string | undefined;
 
-  for (const job of deliveredJobs) {
-    const artifactsDir = path.join(process.cwd(), "public", "artifacts", job.id);
+  do {
+    const deliveredJobs = await db.job.findMany({
+      where: { state: "DELIVERED" },
+      orderBy: { id: "asc" },
+      take: 100,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      select: {
+        id: true,
+        stlPath: true,
+        pngPath: true,
+        renderLog: true,
+        parameterValues: true,
+        validationResults: true,
+        executionLogs: true,
+      },
+    });
 
-    try {
-      // Check if artifact files exist on disk
-      let hasStl = false;
-      let hasPng = false;
+    for (let index = 0; index < deliveredJobs.length; index += 5) {
+      const batch = deliveredJobs.slice(index, index + 5);
+      const results = await Promise.all(
+        batch.map(async (job) => {
+          try {
+            const [stlStatus, pngStatus] = await Promise.all([
+              checkPublicArtifact(job.stlPath, job.renderLog, "stl"),
+              checkPublicArtifact(job.pngPath, job.renderLog, "png"),
+            ]);
+            const hasStl = stlStatus === "present";
+            const hasPng = pngStatus === "present";
 
-      try {
-        await fs.access(path.join(artifactsDir, "model.stl"));
-        hasStl = true;
-      } catch {
-        // STL missing
-      }
+            let paramCount = 0;
+            try {
+              if (job.parameterValues) {
+                const params = JSON.parse(job.parameterValues);
+                paramCount = Object.keys(params).length;
+              }
+            } catch {
+              // Ignore malformed legacy parameter data.
+            }
 
-      try {
-        await fs.access(path.join(artifactsDir, "preview.png"));
-        hasPng = true;
-      } catch {
-        // PNG missing
-      }
+            let validationScore = 0;
+            try {
+              if (job.validationResults) {
+                const results = JSON.parse(job.validationResults);
+                if (Array.isArray(results)) {
+                  const passed = results.filter(
+                    (result: { passed?: boolean }) => result.passed
+                  ).length;
+                  validationScore =
+                    results.length > 0
+                      ? Math.round((passed / results.length) * 100)
+                      : 0;
+                }
+              }
+            } catch {
+              // Ignore malformed legacy validation data.
+            }
 
-      if (hasStl && hasPng) {
-        cached++;
-      } else {
-        missing++;
-        // Update the job record to reflect missing artifacts
-        await db.job.update({
-          where: { id: job.id },
-          data: {
-            stlPath: hasStl ? job.stlPath : null,
-            pngPath: hasPng ? job.pngPath : null,
-          },
-        });
-      }
+            let logs: Array<{
+              timestamp: string;
+              event: string;
+              message: string;
+            }> = [];
+            if (job.executionLogs) {
+              try {
+                logs = JSON.parse(job.executionLogs);
+              } catch {
+                logs = [];
+              }
+            }
+            logs = logs.filter((log) => log.event !== "INDEX_WARMED");
+            logs.push({
+              timestamp: new Date().toISOString(),
+              event: "INDEX_WARMED",
+              message: `Cache warmed: ${paramCount} params, validation ${validationScore}%, STL=${stlStatus}, PNG=${pngStatus}`,
+            });
 
-      // Compute cached metadata (parameter count, validation score)
-      let paramCount = 0;
-      try {
-        if (job.parameterValues) {
-          const params = JSON.parse(job.parameterValues);
-          paramCount = Object.keys(params).length;
-        }
-      } catch {
-        // Ignore parse errors
-      }
+            await db.job.update({
+              where: { id: job.id },
+              data: {
+                stlPath: stlStatus === "missing" ? null : job.stlPath,
+                pngPath: pngStatus === "missing" ? null : job.pngPath,
+                executionLogs: JSON.stringify(logs),
+              },
+            });
+            try {
+              await deleteSupersededJobArtifacts(job.id, job.renderLog);
+            } catch (cleanupError) {
+              console.error(
+                `Cron warm-index: failed to clean superseded artifacts for ${job.id}:`,
+                cleanupError
+              );
+            }
 
-      let validationScore = 0;
-      try {
-        if (job.validationResults) {
-          const results = JSON.parse(job.validationResults);
-          if (Array.isArray(results)) {
-            const passed = results.filter(
-              (r: { passed?: boolean }) => r.passed
-            ).length;
-            validationScore =
-              results.length > 0
-                ? Math.round((passed / results.length) * 100)
-                : 0;
+            return {
+              warmed: true,
+              cached: hasStl && hasPng,
+              missing: stlStatus === "missing" || pngStatus === "missing",
+            };
+          } catch (error) {
+            console.error(`Cron warm-index: error for job ${job.id}:`, error);
+            return { warmed: false, cached: false, missing: true };
           }
-        }
-      } catch {
-        // Ignore parse errors
-      }
+        })
+      );
 
-      // Store metadata as a lightweight cache annotation
-      // We update the executionLogs to include cache warming info
-      // This is idempotent — warming again just refreshes the timestamp
-      const existingLogs = await db.job.findUnique({
-        where: { id: job.id },
-        select: { executionLogs: true },
-      });
-
-      let logs: Array<{
-        timestamp: string;
-        event: string;
-        message: string;
-      }> = [];
-      if (existingLogs?.executionLogs) {
-        try {
-          logs = JSON.parse(existingLogs.executionLogs);
-        } catch {
-          logs = [];
-        }
-      }
-
-      // Remove previous warm entries to keep logs clean
-      logs = logs.filter((l) => l.event !== "INDEX_WARMED");
-      logs.push({
-        timestamp: new Date().toISOString(),
-        event: "INDEX_WARMED",
-        message: `Cache warmed: ${paramCount} params, validation ${validationScore}%, STL=${hasStl}, PNG=${hasPng}`,
-      });
-
-      await db.job.update({
-        where: { id: job.id },
-        data: {
-          executionLogs: JSON.stringify(logs),
-        },
-      });
-
-      warmed++;
-    } catch (err) {
-      console.error(`Cron warm-index: error for job ${job.id}:`, err);
-      missing++;
+      warmed += results.filter((result) => result.warmed).length;
+      cached += results.filter((result) => result.cached).length;
+      missing += results.filter((result) => result.missing).length;
     }
-  }
+
+    cursor = deliveredJobs.at(-1)?.id;
+    if (deliveredJobs.length < 100) {
+      cursor = undefined;
+    }
+  } while (cursor);
 
   return { warmed, missing, cached };
 }

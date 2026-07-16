@@ -12,6 +12,7 @@ import { checkHoleCount } from "@/lib/validation/hole-check";
 import { computeReport } from "@/lib/validation/report";
 import type { ValidationCheck, ValidationReport } from "@/lib/validation/validation-types";
 import type { CadValidationTargets } from "@/lib/harness/types";
+import { cleanupArtifactWorkspace } from "@/lib/tools/artifact-store";
 
 export { clearValidationCache, validateStl, validatePreviewAgainstRequest };
 export type { ValidationResult, ValidationCheck, ValidationReport };
@@ -48,6 +49,16 @@ export interface ValidateRenderedInput {
  * - Hole count check (H001 — Euler characteristic genus estimate)
  */
 export async function validateRenderedArtifacts(
+  input: ValidateRenderedInput
+): Promise<ValidationResult[]> {
+  try {
+    return await runRenderedValidation(input);
+  } finally {
+    await cleanupArtifactWorkspace(input.stlFilePath);
+  }
+}
+
+async function runRenderedValidation(
   input: ValidateRenderedInput
 ): Promise<ValidationResult[]> {
   const meshResults = await validateStl(input.stlFilePath, input.wallThickness, input.jobId);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { trackVersion } from '@/lib/version-tracker'
+import { toPublicJob } from '@/lib/public-job'
 
 export async function PATCH(
   request: NextRequest,
@@ -28,7 +29,7 @@ export async function PATCH(
       data: { notes },
     })
 
-    return NextResponse.json({ job: updated })
+    return NextResponse.json({ job: toPublicJob(updated) })
   } catch (error) {
     console.error('Update notes error:', error)
     return NextResponse.json({ error: 'Failed to update notes' }, { status: 500 })

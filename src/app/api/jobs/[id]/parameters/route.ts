@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { toPublicJob } from "@/lib/public-job";
 import { db } from "@/lib/db";
 import { appendLog } from "@/lib/stores/job-store";
 import { buildRenderFailureLog, renderScadArtifacts } from "@/lib/tools/scad-renderer";
@@ -141,7 +142,7 @@ export async function PATCH(
     });
 
     return NextResponse.json({
-      job: updatedJob,
+      job: toPublicJob(updatedJob),
       updatedParameters: Object.keys(parameters),
       parameterValues: currentValues,
       rendered: Boolean(renderedArtifacts),

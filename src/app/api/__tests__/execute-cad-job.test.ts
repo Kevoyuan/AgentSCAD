@@ -161,6 +161,9 @@ beforeEach(() => {
     parameterValues: JSON.stringify({ wall_thickness: 2 }),
     executionLogs: null,
     modelId: "test-model",
+    stlPath: "/artifacts/job-pipeline/old.stl",
+    pngPath: "/artifacts/job-pipeline/old.png",
+    renderLog: "{\"openscad_version\":\"old\"}",
   };
 });
 
@@ -174,6 +177,8 @@ describe("executeCadJob", () => {
 
     expect(updates.map((update) => update.data.state)).toContain("SCAD_GENERATED");
     expect(updates.at(-1)?.data.state).toBe("GEOMETRY_FAILED");
+    expect(updates.at(-1)?.data.stlPath).toBeNull();
+    expect(updates.at(-1)?.data.pngPath).toBeNull();
     expect(JSON.parse(updates.at(-1)?.data.renderLog as string).warnings[0]).toContain("openscad failed");
     expect(events.at(-1)).toMatchObject({
       state: "GEOMETRY_FAILED",

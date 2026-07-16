@@ -1,9 +1,18 @@
 import fs from "fs/promises";
+import { randomUUID } from "crypto";
 import os from "os";
 import path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { getJobArtifactPaths, writeJobScadSource } from "@/lib/tools/artifact-store";
+import {
+  cleanupArtifactWorkspace,
+  getJobArtifactPaths,
+  deletePersistedArtifactPathnames,
+  persistJobArtifacts,
+  writeJobScadSource,
+} from "@/lib/tools/artifact-store";
+import { isEphemeralRuntime } from "@/lib/runtime-environment";
+import { db } from "@/lib/db";
 import { buildOpenScadExecEnv } from "@/lib/tools/scad-library-resolver";
 import type { RenderedArtifacts, RenderLog } from "@/lib/harness/types";
 
@@ -85,30 +94,63 @@ export async function renderScadArtifacts(
   scadSource: string,
   definitions?: Record<string, unknown>
 ): Promise<RenderedArtifacts> {
-  const paths = await writeJobScadSource(jobId, scadSource);
+  if (isEphemeralRuntime()) {
+    const job = await db.job.findUnique({
+      where: { id: jobId },
+      select: { state: true },
+    });
+    if (!job || ["CANCELLED", "DELETING"].includes(job.state)) {
+      throw new Error("Artifact render cancelled because the job is being deleted");
+    }
+  }
+
+  const paths = await writeJobScadSource(
+    jobId,
+    scadSource,
+    isEphemeralRuntime() ? `render-${randomUUID()}` : undefined
+  );
   const startTime = Date.now();
 
-  await renderStl(paths.scadFilePath, paths.stlFilePath, definitions);
-  await renderPng(paths.scadFilePath, paths.pngFilePath, definitions);
+  try {
+    await renderStl(paths.scadFilePath, paths.stlFilePath, definitions);
+    await renderPng(paths.scadFilePath, paths.pngFilePath, definitions);
+    const artifactPathnames = await persistJobArtifacts(jobId, paths);
+    if (isEphemeralRuntime() && artifactPathnames) {
+      const job = await db.job.findUnique({
+        where: { id: jobId },
+        select: { state: true },
+      });
+      if (!job || ["CANCELLED", "DELETING"].includes(job.state)) {
+        await deletePersistedArtifactPathnames(artifactPathnames);
+        throw new Error("Artifact render cancelled because the job is being deleted");
+      }
+    }
 
-  const renderLog: RenderLog = {
-    openscad_version: "real",
-    render_time_ms: Date.now() - startTime,
-    stl_triangles: 0,
-    stl_vertices: 0,
-    png_resolution: "800x600",
-    warnings: [],
-  };
+    const renderLog: RenderLog = {
+      openscad_version: "real",
+      render_time_ms: Date.now() - startTime,
+      stl_triangles: 0,
+      stl_vertices: 0,
+      png_resolution: "800x600",
+      warnings: [],
+      ...(artifactPathnames
+        ? { artifact_pathnames: artifactPathnames }
+        : {}),
+    };
 
-  return {
-    artifactsDir: paths.artifactsDir,
-    scadFilePath: paths.scadFilePath,
-    stlFilePath: paths.stlFilePath,
-    pngFilePath: paths.pngFilePath,
-    stlPath: paths.publicStlPath,
-    pngPath: paths.publicPngPath,
-    renderLog,
-  };
+    return {
+      artifactsDir: paths.artifactsDir,
+      scadFilePath: paths.scadFilePath,
+      stlFilePath: paths.stlFilePath,
+      pngFilePath: paths.pngFilePath,
+      stlPath: paths.publicStlPath,
+      pngPath: paths.publicPngPath,
+      renderLog,
+    };
+  } catch (error) {
+    await cleanupArtifactWorkspace(paths.scadFilePath);
+    throw error;
+  }
 }
 
 export function buildRenderFailureLog(renderTime = 0, warnings: string[] = []): RenderLog {
