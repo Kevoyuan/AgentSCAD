@@ -40,7 +40,11 @@ const EMPTY_FORM = {
   keepExistingApiKey: false,
 }
 
-export function ProviderSettingsPanel() {
+export function ProviderSettingsPanel({
+  onProvidersChanged,
+}: {
+  onProvidersChanged?: () => void
+}) {
   const [providers, setProviders] = useState<ProviderConfig[]>([])
   const [envProviders, setEnvProviders] = useState<EnvProviderConfig[]>([])
   const [persistence, setPersistence] = useState<ProviderSettingsPersistence>(DEFAULT_PROVIDER_PERSISTENCE)
@@ -122,6 +126,7 @@ export function ProviderSettingsPanel() {
       toast.success(form.id ? 'Provider updated' : 'Provider added')
       handleReset()
       await loadProviders()
+      onProvidersChanged?.()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save provider')
     } finally {
@@ -147,6 +152,7 @@ export function ProviderSettingsPanel() {
       toast.success('Provider removed')
       if (form.id === provider.id) handleReset()
       await loadProviders()
+      onProvidersChanged?.()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to delete provider')
     }
@@ -158,6 +164,7 @@ export function ProviderSettingsPanel() {
       toast.success('Provider keys cleared from this browser session')
       handleReset()
       await loadProviders()
+      onProvidersChanged?.()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to clear provider keys')
     }
@@ -176,6 +183,7 @@ export function ProviderSettingsPanel() {
         isDefault: true,
       })
       await loadProviders()
+      onProvidersChanged?.()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to set default')
     }
