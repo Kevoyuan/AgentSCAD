@@ -32,7 +32,7 @@ describe("provider settings persistence", () => {
   test("rejects Vercel writes before touching the read-only filesystem", async () => {
     process.env.VERCEL = "1";
 
-    expect(
+    await expect(
       upsertProviderSettings({
         name: "OpenRouter",
         type: "openrouter",

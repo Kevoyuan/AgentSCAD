@@ -38,8 +38,8 @@ export function ProviderSettingsPanel() {
   const [providers, setProviders] = useState<ProviderConfig[]>([])
   const [envProviders, setEnvProviders] = useState<EnvProviderConfig[]>([])
   const [persistence, setPersistence] = useState<ProviderSettingsPersistence>({
-    mode: 'file',
-    writable: true,
+    mode: 'environment',
+    writable: false,
   })
   const [form, setForm] = useState(EMPTY_FORM)
   const [isLoading, setIsLoading] = useState(true)
@@ -326,7 +326,7 @@ export function ProviderSettingsPanel() {
             size="sm"
             className="h-8 gap-1 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)]"
             onClick={handleSave}
-            disabled={isSaving || isTesting || !persistence.writable}
+            disabled={isLoading || isSaving || isTesting || !persistence.writable}
             title={!persistence.writable ? `Configure ${selectedEnvKey} in Vercel Project Settings` : undefined}
           >
             {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
