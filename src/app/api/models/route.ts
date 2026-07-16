@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
+
+import {
+  getProviderPreset,
+  getRecommendedProviderModel,
+  PROVIDER_PRESETS,
+  type ProviderModelCategory,
+  type RecommendedProviderModel,
+} from "@/lib/provider-catalog";
 import {
   getEnvProviderConfigs,
+  parseProviderModelId,
   readProviderSettings,
   toProviderModelId,
+  type ProviderConfig,
+  type PublicProviderConfig,
 } from "@/lib/provider-settings";
 
 export interface ModelInfo {
@@ -13,494 +24,116 @@ export interface ModelInfo {
   providerName: string;
   multimodal: boolean;
   reasoning: boolean;
-  category: "flagship" | "fast" | "reasoning" | "vision" | "code";
-  released?: string;
-  deprecated?: boolean;
+  category: ProviderModelCategory;
 }
 
-// ─── 2026 Latest AI Model Matrix ──────────────────────────────────────────
-// Updated April 2026 based on official API documentation verification
-// Sources: developers.openai.com, platform.claude.com, ai.google.dev,
-//          api-docs.deepseek.com, bigmodel.cn, alibabacloud.com
+function recommendedModelInfo(args: {
+  id: string;
+  providerId: string;
+  providerName: string;
+  model: RecommendedProviderModel;
+}): ModelInfo {
+  return {
+    id: args.id,
+    name: args.model.label,
+    description: args.model.description,
+    provider: args.providerId,
+    providerName: args.providerName,
+    multimodal: args.model.multimodal,
+    reasoning: args.model.reasoning,
+    category: args.model.category,
+  };
+}
 
-const AVAILABLE_MODELS: ModelInfo[] = [
-  // ─── Xiaomi MiMo ─────────────────────────────────────────────────────────
-  {
-    id: "mimo-v2.5",
-    name: "MiMo-V2.5",
-    description: "Xiaomi MiMo native multimodal model for fast general agent tasks.",
-    provider: "mimo",
-    providerName: "Xiaomi MiMo",
-    multimodal: true,
-    reasoning: true,
-    category: "vision",
-    released: "2026-04",
-  },
-  {
-    id: "mimo-v2.5-pro",
-    name: "MiMo-V2.5-Pro",
-    description: "Xiaomi MiMo OpenAI-compatible default model.",
-    provider: "mimo",
-    providerName: "Xiaomi MiMo",
-    multimodal: false,
-    reasoning: true,
-    category: "flagship",
-    released: "2026-04",
-  },
-  {
-    id: "mimo-v2-omni",
-    name: "MiMo-V2-Omni",
-    description: "Xiaomi MiMo legacy full-modal model for image, audio, and video turns.",
-    provider: "mimo",
-    providerName: "Xiaomi MiMo",
-    multimodal: true,
-    reasoning: true,
-    category: "vision",
-    released: "2025-12",
-  },
+function uniqueModels(models: ModelInfo[]) {
+  const seen = new Set<string>();
+  return models.filter((model) => {
+    if (seen.has(model.id)) return false;
+    seen.add(model.id);
+    return true;
+  });
+}
 
-  // ─── OpenAI ──────────────────────────────────────────────────────────────
-  {
-    id: "gpt-4.1",
-    name: "GPT-4.1",
-    description: "OpenAI's latest GPT-4.1, enhanced instruction following and coding capabilities, supports long context",
-    provider: "openai",
-    providerName: "OpenAI",
-    multimodal: true,
-    reasoning: false,
-    category: "flagship",
-    released: "2025-03",
-  },
-  {
-    id: "gpt-4.1-mini",
-    name: "GPT-4.1 Mini",
-    description: "GPT-4.1 lightweight version, faster response speed, high cost-effectiveness",
-    provider: "openai",
-    providerName: "OpenAI",
-    multimodal: true,
-    reasoning: false,
-    category: "fast",
-    released: "2025-03",
-  },
-  {
-    id: "gpt-4.1-nano",
-    name: "GPT-4.1 Nano",
-    description: "GPT-4.1 ultra-lightweight version, lowest latency and cost, suitable for edge deployment",
-    provider: "openai",
-    providerName: "OpenAI",
-    multimodal: false,
-    reasoning: false,
-    category: "fast",
-    released: "2025-03",
-  },
-  {
-    id: "gpt-5",
-    name: "GPT-5",
-    description: "OpenAI flagship GPT-5, strongest reasoning and coding capabilities, built-in reasoning",
-    provider: "openai",
-    providerName: "OpenAI",
-    multimodal: true,
-    reasoning: true,
-    category: "flagship",
-    released: "2025-07",
-  },
-  {
-    id: "gpt-5-mini",
-    name: "GPT-5 Mini",
-    description: "GPT-5 lightweight version, strong reasoning capability, balances speed and cost",
-    provider: "openai",
-    providerName: "OpenAI",
-    multimodal: true,
-    reasoning: true,
-    category: "fast",
-    released: "2025-09",
-  },
-  {
-    id: "o3",
-    name: "o3",
-    description: "OpenAI advanced reasoning model, enhanced chain-of-thought reasoning, suitable for complex problems",
-    provider: "openai",
-    providerName: "OpenAI",
-    multimodal: false,
-    reasoning: true,
-    category: "reasoning",
-    released: "2025-04",
-  },
-  {
-    id: "o4-mini",
-    name: "o4 Mini",
-    description: "OpenAI latest lightweight reasoning model, efficient reasoning capabilities",
-    provider: "openai",
-    providerName: "OpenAI",
-    multimodal: true,
-    reasoning: true,
-    category: "reasoning",
-    released: "2025-06",
-  },
-  {
-    id: "gpt-4o",
-    name: "GPT-4o",
-    description: "OpenAI classic multimodal model (replaced by GPT-4.1, but still usable)",
-    provider: "openai",
-    providerName: "OpenAI",
-    multimodal: true,
-    reasoning: false,
-    category: "flagship",
-    released: "2024-05",
-    deprecated: true,
-  },
+export function buildModelCatalog(args: {
+  providers: ProviderConfig[];
+  envProviders: PublicProviderConfig[];
+  includeBuiltIns: boolean;
+}): ModelInfo[] {
+  const configuredModels: ModelInfo[] = args.providers
+    .filter((provider) => provider.enabled)
+    .map((provider) => {
+      const recommendation = getRecommendedProviderModel(provider.defaultModel);
+      return {
+        id: toProviderModelId(provider),
+        name: recommendation?.model.label || provider.defaultModel,
+        description:
+          recommendation?.model.description ||
+          `Configured in Settings > Providers via ${provider.name}.`,
+        provider: provider.id,
+        providerName: provider.name,
+        multimodal: recommendation?.model.multimodal ?? false,
+        reasoning: recommendation?.model.reasoning ?? true,
+        category: recommendation?.model.category || (provider.isDefault ? "flagship" : "code"),
+      };
+    });
 
-  // ─── OpenRouter ─────────────────────────────────────────────────────────
-  {
-    id: "openai/gpt-5.5",
-    name: "GPT-5.5 via OpenRouter",
-    description: "OpenAI GPT-5.5 routed via OpenRouter, suitable for high-quality CAD reasoning and OpenSCAD generation.",
-    provider: "openrouter",
-    providerName: "OpenRouter",
-    multimodal: true,
-    reasoning: true,
-    category: "flagship",
-    released: "2026-04",
-  },
+  const envModels: ModelInfo[] = args.envProviders
+    .filter((provider) => provider.enabled)
+    .flatMap((provider) => {
+      const providerId = provider.id.replace(/^env-/, "");
+      const preset = getProviderPreset(providerId);
+      if (!preset) return [];
 
-  // ─── Anthropic ───────────────────────────────────────────────────────────
-  {
-    id: "claude-opus-4-7-20260401",
-    name: "Claude Opus 4.7",
-    description: "Anthropic's strongest model, extremely strong visual understanding and agent capabilities, supports 1M context",
-    provider: "anthropic",
-    providerName: "Anthropic",
-    multimodal: true,
-    reasoning: true,
-    category: "flagship",
-    released: "2026-04",
-  },
-  {
-    id: "claude-opus-4-6-20260205",
-    name: "Claude Opus 4.6",
-    description: "Anthropic highly reliable coding model, suitable for complex long-duration tasks",
-    provider: "anthropic",
-    providerName: "Anthropic",
-    multimodal: true,
-    reasoning: true,
-    category: "reasoning",
-    released: "2026-02",
-  },
-  {
-    id: "claude-sonnet-4-6-20260217",
-    name: "Claude Sonnet 4.6",
-    description: "Anthropic latest Sonnet, comprehensive upgrade in coding/agents/reasoning",
-    provider: "anthropic",
-    providerName: "Anthropic",
-    multimodal: true,
-    reasoning: true,
-    category: "flagship",
-    released: "2026-02",
-  },
-  {
-    id: "claude-sonnet-4-5-20251022",
-    name: "Claude Sonnet 4.5",
-    description: "Anthropic classic high-performance model, widely used",
-    provider: "anthropic",
-    providerName: "Anthropic",
-    multimodal: true,
-    reasoning: true,
-    category: "flagship",
-    released: "2025-10",
-  },
-  {
-    id: "claude-haiku-4-5-20251022",
-    name: "Claude Haiku 4.5",
-    description: "Anthropic fast model, extremely fast response, low latency and high throughput",
-    provider: "anthropic",
-    providerName: "Anthropic",
-    multimodal: true,
-    reasoning: false,
-    category: "fast",
-    released: "2025-10",
-  },
+      return preset.recommendedModels.map((recommended) =>
+        recommendedModelInfo({
+          id: `provider:${provider.id}:${recommended.id}`,
+          providerId,
+          providerName: provider.name,
+          model: recommended,
+        }),
+      );
+    });
 
-  // ─── Google Gemini ───────────────────────────────────────────────────────
-  {
-    id: "gemini-3.1-pro",
-    name: "Gemini 3.1 Pro",
-    description: "Google strongest reasoning model, top choice for complex tasks, 1M context",
-    provider: "google",
-    providerName: "Google",
-    multimodal: true,
-    reasoning: true,
-    category: "flagship",
-    released: "2026-02",
-  },
-  {
-    id: "gemini-3.1-flash",
-    name: "Gemini 3.1 Flash",
-    description: "Google latest fast reasoning model, balances speed and intelligence, includes TTS enhancement",
-    provider: "google",
-    providerName: "Google",
-    multimodal: true,
-    reasoning: true,
-    category: "fast",
-    released: "2026-03",
-  },
-  {
-    id: "gemini-3-flash",
-    name: "Gemini 3 Flash",
-    description: "Google 3.0 fast multimodal model, 1M context, efficient reasoning",
-    provider: "google",
-    providerName: "Google",
-    multimodal: true,
-    reasoning: true,
-    category: "fast",
-    released: "2025-12",
-  },
-  {
-    id: "gemini-2.5-pro",
-    name: "Gemini 2.5 Pro",
-    description: "Google thinking AI (replaced by 3.1, but still usable)",
-    provider: "google",
-    providerName: "Google",
-    multimodal: true,
-    reasoning: true,
-    category: "reasoning",
-    released: "2025-03",
-    deprecated: true,
-  },
-  {
-    id: "gemini-2.5-flash",
-    name: "Gemini 2.5 Flash",
-    description: "Google fast reasoning model (replaced by 3.1, but still usable)",
-    provider: "google",
-    providerName: "Google",
-    multimodal: true,
-    reasoning: true,
-    category: "fast",
-    released: "2025-05",
-    deprecated: true,
-  },
+  const builtInModels: ModelInfo[] = PROVIDER_PRESETS.flatMap((preset) =>
+    preset.recommendedModels.map((recommended) =>
+      recommendedModelInfo({
+        id: recommended.id,
+        providerId: preset.id,
+        providerName: preset.label,
+        model: recommended,
+      }),
+    ),
+  );
 
-  // ─── DeepSeek ────────────────────────────────────────────────────────────
-  {
-    id: "deepseek-v4-pro",
-    name: "DeepSeek V4 Pro",
-    description: "DeepSeek V4 Pro reasoning-enhanced model, suitable for complex CAD/OpenSCAD generation.",
-    provider: "deepseek",
-    providerName: "DeepSeek",
-    multimodal: false,
-    reasoning: true,
-    category: "reasoning",
-    released: "2026-04",
-  },
-  {
-    id: "deepseek-v4-flash",
-    name: "DeepSeek V4 Flash",
-    description: "DeepSeek V4 Flash fast model, suitable for low-latency CAD draft generation.",
-    provider: "deepseek",
-    providerName: "DeepSeek",
-    multimodal: false,
-    reasoning: true,
-    category: "fast",
-    released: "2026-04",
-  },
-  {
-    id: "deepseek-chat",
-    name: "DeepSeek-V3",
-    description: "DeepSeek flagship chat model, 671B MoE architecture, extremely high cost-effectiveness",
-    provider: "deepseek",
-    providerName: "DeepSeek",
-    multimodal: false,
-    reasoning: false,
-    category: "flagship",
-    released: "2024-12",
-  },
-  {
-    id: "deepseek-reasoner",
-    name: "DeepSeek-R1",
-    description: "DeepSeek reasoning model, enhanced reasoning and mathematical capabilities, benchmarking o1",
-    provider: "deepseek",
-    providerName: "DeepSeek",
-    multimodal: false,
-    reasoning: true,
-    category: "reasoning",
-    released: "2025-01",
-  },
-
-  // ─── Zhipu / GLM ─────────────────────────────────────────────────────────
-  {
-    id: "glm-5.1",
-    name: "GLM-5.1",
-    description: "Zhipu latest flagship, 744B MoE, coding benchmarks at GPT-5 level, can work continuously for 8 hours",
-    provider: "zhipu",
-    providerName: "Zhipu AI",
-    multimodal: true,
-    reasoning: true,
-    category: "flagship",
-    released: "2026-04",
-  },
-  {
-    id: "glm-5-turbo",
-    name: "GLM-5 Turbo",
-    description: "Zhipu GLM-5 accelerated version, faster response, suitable for daily tasks",
-    provider: "zhipu",
-    providerName: "Zhipu AI",
-    multimodal: true,
-    reasoning: false,
-    category: "fast",
-    released: "2026-03",
-  },
-  {
-    id: "glm-4v-plus",
-    name: "GLM-4V-Plus",
-    description: "Zhipu enhanced vision model, stronger image understanding capabilities",
-    provider: "zhipu",
-    providerName: "Zhipu AI",
-    multimodal: true,
-    reasoning: false,
-    category: "vision",
-    released: "2025-09",
-  },
-  {
-    id: "glm-4-flash",
-    name: "GLM-4 Flash",
-    description: "Zhipu efficient free/low-cost model, extremely fast response",
-    provider: "zhipu",
-    providerName: "Zhipu AI",
-    multimodal: false,
-    reasoning: false,
-    category: "fast",
-    released: "2024-06",
-  },
-
-  // ─── Qwen / Alibaba ─────────────────────────────────────────────────────
-  {
-    id: "qwen3-max",
-    name: "Qwen3 Max",
-    description: "Alibaba Qwen strongest flagship model, top choice for complex tasks",
-    provider: "qwen",
-    providerName: "Alibaba Cloud",
-    multimodal: false,
-    reasoning: true,
-    category: "flagship",
-    released: "2025-12",
-  },
-  {
-    id: "qwen3.5-plus",
-    name: "Qwen3.5 Plus",
-    description: "Alibaba latest enhanced version, text comparable to Qwen3-Max, multimodal enhanced",
-    provider: "qwen",
-    providerName: "Alibaba Cloud",
-    multimodal: true,
-    reasoning: false,
-    category: "fast",
-    released: "2026-01",
-  },
-  {
-    id: "qwen3-vl",
-    name: "Qwen3 VL",
-    description: "Qwen vision flagship model, image understanding and interaction",
-    provider: "qwen",
-    providerName: "Alibaba Cloud",
-    multimodal: true,
-    reasoning: false,
-    category: "vision",
-    released: "2025-11",
-  },
-  {
-    id: "qwen-turbo",
-    name: "Qwen Turbo",
-    description: "Alibaba Qwen ultra-fast model, lowest latency",
-    provider: "qwen",
-    providerName: "Alibaba Cloud",
-    multimodal: false,
-    reasoning: false,
-    category: "fast",
-    released: "2024-06",
-  },
-
-  // ─── Mistral ─────────────────────────────────────────────────────────────
-  {
-    id: "mistral-large-latest",
-    name: "Mistral Large",
-    description: "Mistral flagship model, top-tier reasoning capabilities",
-    provider: "mistral",
-    providerName: "Mistral AI",
-    multimodal: false,
-    reasoning: false,
-    category: "flagship",
-    released: "2025-02",
-  },
-  {
-    id: "mistral-small-latest",
-    name: "Mistral Small",
-    description: "Mistral lightweight model, fast and efficient",
-    provider: "mistral",
-    providerName: "Mistral AI",
-    multimodal: false,
-    reasoning: false,
-    category: "fast",
-    released: "2025-02",
-  },
-  {
-    id: "codestral-latest",
-    name: "Codestral",
-    description: "Mistral code-specific model, 22B parameters, coding specialized",
-    provider: "mistral",
-    providerName: "Mistral AI",
-    multimodal: false,
-    reasoning: false,
-    category: "code",
-    released: "2024-05",
-  },
-];
+  return uniqueModels([
+    ...configuredModels,
+    ...envModels,
+    ...(args.includeBuiltIns ? builtInModels : []),
+  ]);
+}
 
 /**
- * Check if a model supports multimodal (vision) input.
- * Looks up the model in the built-in registry, then falls back to
- * configured providers (which default to multimodal).
- * Returns false for truly unknown models to avoid silent failures.
+ * Check whether a built-in or provider-qualified model accepts image input.
+ * Unknown configured models remain conservative because silently forwarding
+ * images to a text-only endpoint produces provider-specific failures.
  */
 export function isModelMultimodal(modelId: string | null | undefined): boolean {
   if (!modelId) return false;
-  const builtIn = AVAILABLE_MODELS.find((m) => m.id === modelId);
-  if (builtIn) return builtIn.multimodal;
-  // Configured provider models default to multimodal (the models route
-  // sets multimodal: true for all user-configured providers).
-  // Unknown models: assume non-multimodal to avoid silent image stripping.
-  return false;
+  const parsed = parseProviderModelId(modelId);
+  const recommended = getRecommendedProviderModel(parsed?.model || modelId);
+  return recommended?.model.multimodal ?? false;
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const includeBuiltIns = searchParams.get("includeBuiltIns") === "true";
   const providers = await readProviderSettings();
-  const configuredModels: ModelInfo[] = providers
-    .filter((provider) => provider.enabled)
-    .map((provider) => ({
-      id: toProviderModelId(provider),
-      name: provider.defaultModel,
-      description: `Configured in Settings > Providers via ${provider.name}.`,
-      provider: provider.id,
-      providerName: provider.name,
-      multimodal: true,
-      reasoning: true,
-      category: provider.isDefault ? "flagship" : "code",
-    }));
-  const envModels: ModelInfo[] = getEnvProviderConfigs()
-    .filter((provider) => provider.enabled)
-    .map((provider) => ({
-      id: toProviderModelId(provider),
-      name: provider.defaultModel,
-      description: `Detected from environment or local preset via ${provider.name}.`,
-      provider: provider.id.replace(/^env-/, ""),
-      providerName: provider.name,
-      multimodal: true,
-      reasoning: true,
-      category: "code",
-    }));
 
   return NextResponse.json({
-    models: includeBuiltIns
-      ? [...configuredModels, ...AVAILABLE_MODELS]
-      : [...configuredModels],
+    models: buildModelCatalog({
+      providers,
+      envProviders: getEnvProviderConfigs(),
+      includeBuiltIns,
+    }),
   });
 }

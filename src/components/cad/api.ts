@@ -448,7 +448,7 @@ export interface ModelInfo {
   providerName: string
   multimodal: boolean
   reasoning: boolean
-  category: "flagship" | "fast" | "reasoning" | "vision" | "code"
+  category: "flagship" | "balanced" | "fast" | "reasoning" | "vision" | "code"
 }
 
 export async function fetchModels(): Promise<{ models: ModelInfo[] }> {

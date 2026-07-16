@@ -27,7 +27,7 @@ const EMPTY_FORM = {
   type: 'openai-compatible',
   baseUrl: 'https://api.openai.com/v1',
   apiKey: '',
-  defaultModel: 'gpt-4.1',
+  defaultModel: 'gpt-5.6',
   enabled: true,
   isDefault: false,
   keepExistingApiKey: false,
@@ -61,6 +61,10 @@ export function ProviderSettingsPanel() {
   const activeEnvProviders = useMemo(
     () => envProviders.filter(provider => provider.enabled),
     [envProviders]
+  )
+  const selectedPreset = useMemo(
+    () => PROVIDER_PRESETS.find(preset => preset.id === form.preset),
+    [form.preset]
   )
 
   const updateForm = (partial: Partial<typeof EMPTY_FORM>) => {
@@ -236,7 +240,7 @@ export function ProviderSettingsPanel() {
             </SelectContent>
           </Select>
           <div className="text-[10px] leading-4 text-[var(--app-text-muted)]">
-            {PROVIDER_PRESETS.find(preset => preset.id === form.preset)?.description}
+            {selectedPreset?.description}
           </div>
         </div>
         <div className="space-y-1.5">
@@ -268,6 +272,25 @@ export function ProviderSettingsPanel() {
         <div className="space-y-1.5">
           <Label className="text-xs text-[var(--app-text-muted)]">Model</Label>
           <Input value={form.defaultModel} onChange={event => updateForm({ defaultModel: event.target.value })} className="h-8 bg-[var(--app-bg)] border-[color:var(--app-border)]" />
+          {selectedPreset && selectedPreset.recommendedModels.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-0.5">
+              {selectedPreset.recommendedModels.map(recommended => (
+                <button
+                  key={recommended.id}
+                  type="button"
+                  title={recommended.description}
+                  onClick={() => updateForm({ defaultModel: recommended.id })}
+                  className={`rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
+                    form.defaultModel === recommended.id
+                      ? 'border-[color:var(--app-accent)] bg-[var(--app-accent-bg)] text-[var(--app-accent-text)]'
+                      : 'border-[color:var(--app-border)] text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'
+                  }`}
+                >
+                  {recommended.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

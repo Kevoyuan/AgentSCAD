@@ -176,7 +176,9 @@ export async function findProviderForModel(model?: string) {
 export function getEnvProviderConfigs(): PublicProviderConfig[] {
   const now = new Date(0).toISOString();
   return PROVIDER_PRESETS
-    .filter((preset) => preset.apiKeyEnv || !preset.requiresApiKey)
+    // Keyless local presets are not necessarily running. They become active
+    // only after the user explicitly adds them in Provider Settings.
+    .filter((preset) => preset.category !== "local" && Boolean(preset.apiKeyEnv))
     .map((preset) => {
       const apiKey = preset.apiKeyEnv ? process.env[preset.apiKeyEnv]?.trim() : undefined;
       const enabled = preset.requiresApiKey ? Boolean(apiKey) : true;

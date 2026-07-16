@@ -45,7 +45,7 @@ export async function POST(
     if (job.modelId && !isModelMultimodal(job.modelId)) {
       return NextResponse.json(
         {
-          error: `Model "${job.modelId}" does not support vision. Switch to a vision-capable model (e.g. mimo-v2.5, gpt-4.1, claude-sonnet-4-6) in job settings before running visual repair.`,
+          error: `Model "${job.modelId}" does not support vision. Switch to a vision-capable model (e.g. mimo-v2.5, gpt-5.6, claude-sonnet-5) in job settings before running visual repair.`,
         },
         { status: 400 }
       );

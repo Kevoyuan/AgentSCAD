@@ -34,7 +34,7 @@ It uses a progressive pipeline: one LLM call generates structured CAD intent and
 
 ![Delivered CAD artifacts remain inspectable with preview, STL readiness, SCAD source, and validation status.](./docs/images/Example.png)
 
-![Configure keys and options for 30+ LLM providers including OpenAI, DeepSeek, OpenRouter, and local models.](./docs/images/providers.png)
+![Configure keys and recommended models for 20+ LLM providers including OpenAI, Anthropic, Gemini, DeepSeek, OpenRouter, and local models.](./docs/images/providers.png)
 
 
 ## 60-Second Overview
