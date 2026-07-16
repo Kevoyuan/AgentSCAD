@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import { usesOpenScadWasm } from "@/lib/tools/openscad-backend";
 
 export interface ScadLibraryInfo {
   name: string;
@@ -37,6 +38,7 @@ function splitConfiguredPaths(value: string | undefined): string[] {
 }
 
 function defaultOpenScadLibraryPaths(): string[] {
+  if (usesOpenScadWasm()) return [];
   const home = process.env.HOME;
   return [
     ...(process.env.AGENTSCAD_OPENSCAD_LIBRARY_DIR ? [process.env.AGENTSCAD_OPENSCAD_LIBRARY_DIR] : []),
@@ -139,6 +141,12 @@ export async function buildScadLibraryPrompt(): Promise<string> {
       "No optional OpenSCAD libraries are currently available in the renderer search path.",
       "Generate portable OpenSCAD using built-in primitives only.",
       "Do not include BOSL, BOSL2, MCAD, or other libraries unless they are listed here as available.",
+      ...(usesOpenScadWasm()
+        ? [
+            "The serverless OpenSCAD WASM renderer supports agentscad_std.scad, which is inlined by the runtime.",
+            "Do not use text(), surface(), import(), or other features that require external files or fonts.",
+          ]
+        : []),
     ].join("\n");
   }
 

@@ -507,7 +507,7 @@ function QuickStartDashboard({ onShowComposer }: QuickStartDashboardProps) {
           {[
             { step: '01', title: 'Intake Request', desc: 'Briefly describe your hardware part, wall thickness, and mounting holes.' },
             { step: '02', title: 'Synthesize CAD', desc: 'LLM infers parameter bounds and generates parametric OpenSCAD source code.' },
-            { step: '03', title: 'Render Mesh', desc: 'OpenSCAD CLI compiles the geometry into STL mesh and PNG preview.' },
+            { step: '03', title: 'Render Mesh', desc: 'OpenSCAD compiles the STL mesh, then AgentSCAD creates its PNG preview.' },
             { step: '04', title: 'Validate Model', desc: 'Rules engine checks wall thickness, water-tight manifold, and physical limits.' }
           ].map((item, idx) => (
             <div key={item.step} className="p-3.5 rounded-xl border border-[color:var(--app-border-subtle)] bg-[var(--app-surface)] relative flex flex-col space-y-2">

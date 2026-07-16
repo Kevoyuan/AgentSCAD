@@ -13,6 +13,7 @@ For setup failures and common runtime issues, see [Troubleshooting](./TROUBLESHO
 | Build | `bun run build` |
 | Start production server | `bun run start` |
 | Core unit tests | `bun run test` or `bun run test:unit` |
+| OpenSCAD WASM integration tests | `bun run test:wasm` |
 | OpenSCAD integration tests | `OPENSCAD_BIN=openscad bun run test:openscad` |
 | Typecheck | `bun run typecheck` |
 | Lint | `bun run lint` |
@@ -51,6 +52,7 @@ Local development saves custom Provider Settings to `.agentscad/providers.json`.
 |---|---:|---|
 | `DATABASE_URL` | Yes | SQLite database path used by Prisma. Defaults to `file:../db/dev.db` in `.env.example`. |
 | `OPENSCAD_BIN` | Optional | Path to the external OpenSCAD CLI. Defaults to `openscad`. |
+| `AGENTSCAD_OPENSCAD_BACKEND` | Optional | Selects `native` or `wasm`. Vercel and AWS Lambda default to the verified WASM runtime. |
 | `MIMO_API_KEY` | Optional | Enables MiMo generation fallback and MiMo-backed visual validation where supported. |
 | `OPENROUTER_API_KEY` | Optional | Enables OpenRouter model routing. |
 | `DEEPSEEK_API_KEY` | Optional | Enables DeepSeek model routing. |
@@ -78,10 +80,19 @@ Run core checks:
 bun run lint
 bun run typecheck
 bun run test:unit
+bun run test:wasm
 bun run build
 ```
 
-Run OpenSCAD integration checks locally:
+Run the official checksum-pinned OpenSCAD WASM integration checks:
+
+```bash
+bun run test:wasm
+```
+
+The first install/build downloads the reviewed upstream snapshot into the
+ignored `.openscad-runtime` directory and verifies its archive, runtime, and
+license checksums. Run native OpenSCAD integration checks locally with:
 
 ```bash
 OPENSCAD_BIN=openscad bun run test:openscad
@@ -125,12 +136,17 @@ This job is strict: failures fail the workflow.
 
 ### OpenSCAD Integration Checks
 
-Rendering and mesh validation depend on the external OpenSCAD CLI. These checks are separated from Core CI because OpenSCAD is a system-level CAD dependency and rendering behavior can vary across environments.
+CI installs the checksum-pinned official WASM runtime, audits its license and
+integrity metadata, runs the WASM renderer suite, and verifies the traced
+standalone runtime. Native OpenSCAD checks remain separate because the system
+CLI and OpenGL behavior can vary across environments.
 
 OpenSCAD integration checks cover:
 
 - SCAD to STL rendering
-- preview generation
+- STL to PNG preview generation without OpenGL
+- WASM child-process filesystem and secret isolation
+- runtime checksum tamper detection and render capacity recovery
 - mesh/manufacturing validation on rendered artifacts when Python mesh dependencies are available
 - render pipeline smoke tests that require the OpenSCAD executable
 

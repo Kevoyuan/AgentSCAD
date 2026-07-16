@@ -2,7 +2,9 @@
 
 | Problem | Cause | Fix |
 |---|---|---|
-| `openscad` not found | OpenSCAD is not installed or not in PATH | Install OpenSCAD and set `OPENSCAD_BIN` if needed |
+| `openscad` not found locally | Native OpenSCAD is not installed or not in PATH | Install OpenSCAD and set `OPENSCAD_BIN`, or set `AGENTSCAD_OPENSCAD_BACKEND=wasm` and rebuild |
+| Serverless WASM runtime unavailable | The verified runtime was not installed during the build or its checksum changed | Run `bun run runtime:openscad:install`, then `bun run license:audit` and redeploy |
+| Serverless render capacity exhausted | The deployment-wide 20-render-starts-per-minute limit was reached | Wait until the next minute and retry |
 | Prisma/database error | SQLite DB or schema is not initialized | Run `mkdir -p db`, `touch db/dev.db`, then `bun run db:push` |
 | No AI generation | Provider keys are missing or provider calls failed | Add at least one provider key to `.env`; fallback/template generation may still run |
 | Provider Save is disabled on Vercel | `PROVIDER_SETTINGS_SECRET` is missing or shorter than 32 characters | Generate a secret with `openssl rand -base64 48`, add it to Vercel Project Settings, then redeploy |

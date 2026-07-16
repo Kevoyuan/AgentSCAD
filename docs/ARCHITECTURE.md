@@ -7,7 +7,7 @@ AgentSCAD is organized like a production agent project rather than a single prom
 - **Frontend**: React 19 + Next.js 16 App Router + Tailwind CSS v4 + Shadcn UI
 - **Backend API**: Next.js Route Handlers
 - **Database**: SQLite with Prisma ORM
-- **Runtime CAD dependency**: external OpenSCAD CLI, invoked through `OPENSCAD_BIN` or `openscad`
+- **Runtime CAD dependency**: native OpenSCAD CLI locally, or the checksum-pinned official OpenSCAD WebAssembly Node CLI in serverless deployments
 
 ## Repo Mental Model
 
@@ -46,7 +46,7 @@ At runtime, `executeCadJob()` owns the state transitions:
 | Intake | `NEW` / `starting` | Load job, merge parameter values, detect part family. |
 | Generation | `NEW` / `generating_llm` | Local example retrieval → one-shot structured CAD JSON + SCAD generation with standard library. |
 | Source of truth | `SCAD_GENERATED` | Persist `scadSource`, `cadIntentJson`, `modelingPlanJson`, `validationTargetsJson`, parameter schema/values. |
-| Rendering | `RENDERED` or `GEOMETRY_FAILED` | Run OpenSCAD CLI, write STL + PNG under `/artifacts/{jobId}/`. |
+| Rendering | `RENDERED` or `GEOMETRY_FAILED` | Run native OpenSCAD or the isolated WASM child process, then publish STL + PNG under `/artifacts/{jobId}/`. |
 | Repair | `REPAIRING` | On validation failure: one auto-repair via LLM with validation feedback, re-render, re-validate. Caps at 1 repair. |
 | Validation | `VALIDATED` or `HUMAN_REVIEW` | Deterministic checks: compile (C001), bbox (B001), components (C002), hole count (H001), mesh (R001-3). Visual validation (V001) is user-triggered only. |
 | Delivery | `DELIVERED` | Mark completion, expose final STL, preview, SCAD, report paths. |
@@ -65,6 +65,12 @@ Stable contracts:
 - Model-provided parameter JSON is compatibility metadata and fallback, not the primary CAD representation.
 
 Shared tools under `src/lib/tools/` handle rendering, validation, SCAD sanitization, OpenSCAD library resolution, artifact IO, and parameter extraction.
+
+On Vercel, the official OpenSCAD WASM Node CLI runs as a separate child process
+with a minimal environment, bounded memory/time/output, a fresh empty working
+directory, and host filesystem access denied. It produces binary STL on
+standard output; AgentSCAD projects that mesh into the PNG preview. Native
+development continues to use `OPENSCAD_BIN` or `openscad`.
 
 ## Realtime Updates
 

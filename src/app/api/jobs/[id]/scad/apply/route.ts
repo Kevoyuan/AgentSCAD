@@ -17,6 +17,8 @@ import {
 import { buildJobQuality } from '@/lib/validation/job-quality'
 import type { ParameterDef, RenderedArtifacts } from '@/lib/harness/types'
 
+export const maxDuration = 300
+
 interface RouteParams {
   params: Promise<{ id: string }>
 }

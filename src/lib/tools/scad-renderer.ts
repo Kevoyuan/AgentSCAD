@@ -1,5 +1,5 @@
 import fs from "fs/promises";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import os from "os";
 import path from "path";
 import { exec } from "child_process";
@@ -12,41 +12,65 @@ import {
   writeJobScadSource,
 } from "@/lib/tools/artifact-store";
 import { isEphemeralRuntime } from "@/lib/runtime-environment";
+import { usesOpenScadWasm } from "@/lib/tools/openscad-backend";
 import { db } from "@/lib/db";
 import { buildOpenScadExecEnv } from "@/lib/tools/scad-library-resolver";
+import {
+  prepareScadForWasm,
+  renderScadToStlWasm,
+} from "@/lib/tools/openscad-wasm-runtime";
+import { renderStlFilePreview } from "@/lib/tools/stl-preview";
+import { getOpenScadDefinitionEntries } from "@/lib/tools/scad-definitions";
+import openScadPolicy from "../../../config/openscad-wasm-runtime.json";
 import type { RenderedArtifacts, RenderLog } from "@/lib/harness/types";
 
 const execAsync = promisify(exec);
 
-/** External CLI boundary — uses user-provided or system OpenSCAD. Not bundled. */
+/** Native OpenSCAD is external; serverless uses the reviewed child-process WASM runtime. */
 const OPENSCAD_BIN = process.env.OPENSCAD_BIN || "openscad";
 const RENDER_TIMEOUT_MS = 120_000; // 2 minutes — rendering is slower than validation
+const MAX_VALIDATED_WASM_CACHE_ENTRIES = 2;
+const validatedWasmStlCache = new Map<string, Buffer>();
+
+function wasmCacheKey(scadSource: string): string {
+  return createHash("sha256").update(scadSource).digest("hex");
+}
+
+function cacheValidatedWasmStl(scadSource: string, stl: Buffer): void {
+  validatedWasmStlCache.set(wasmCacheKey(scadSource), stl);
+  while (validatedWasmStlCache.size > MAX_VALIDATED_WASM_CACHE_ENTRIES) {
+    const oldest = validatedWasmStlCache.keys().next().value;
+    if (oldest === undefined) break;
+    validatedWasmStlCache.delete(oldest);
+  }
+}
+
+function takeValidatedWasmStl(scadSource: string): Buffer | null {
+  const key = wasmCacheKey(scadSource);
+  const stl = validatedWasmStlCache.get(key) ?? null;
+  validatedWasmStlCache.delete(key);
+  return stl;
+}
 
 function quoteShellArg(value: string): string {
   return `"${value.replace(/(["\\$`])/g, "\\$1")}"`;
 }
 
-function formatOpenScadDefineValue(value: unknown): string | null {
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (typeof value === "string") return JSON.stringify(value);
-  return null;
-}
-
 export function buildOpenScadDefineArgs(definitions?: Record<string, unknown>): string {
-  if (!definitions) return "";
-
-  return Object.entries(definitions)
-    .filter(([key]) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key))
-    .map(([key, value]) => {
-      const formatted = formatOpenScadDefineValue(value);
-      return formatted ? `-D ${quoteShellArg(`${key}=${formatted}`)}` : null;
-    })
-    .filter(Boolean)
+  return getOpenScadDefinitionEntries(definitions)
+    .map(([key, value]) => `-D ${quoteShellArg(`${key}=${value}`)}`)
     .join(" ");
 }
 
 export async function validateGeneratedScadSource(scadSource: string): Promise<void> {
+  if (usesOpenScadWasm()) {
+    await prepareScadForWasm(scadSource);
+    cacheValidatedWasmStl(
+      scadSource,
+      await renderScadToStlWasm(scadSource)
+    );
+    return;
+  }
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "agentscad-scad-"));
   const tempScadPath = path.join(tmpDir, "validate.scad");
   const tempStlPath = path.join(tmpDir, "validate.stl");
@@ -70,6 +94,15 @@ export async function renderStl(
   stlFilePath: string,
   definitions?: Record<string, unknown>
 ): Promise<void> {
+  if (usesOpenScadWasm()) {
+    const source = await fs.readFile(scadFilePath, "utf8");
+    const hasDefinitions = getOpenScadDefinitionEntries(definitions).length > 0;
+    const stl =
+      (hasDefinitions ? null : takeValidatedWasmStl(source)) ??
+      (await renderScadToStlWasm(source, definitions));
+    await fs.writeFile(stlFilePath, stl);
+    return;
+  }
   const defineArgs = buildOpenScadDefineArgs(definitions);
   await execAsync(`${OPENSCAD_BIN} ${defineArgs} -o ${quoteShellArg(stlFilePath)} ${quoteShellArg(scadFilePath)}`, {
     env: await buildOpenScadExecEnv(),
@@ -87,6 +120,13 @@ export async function renderPng(
     env: await buildOpenScadExecEnv(),
     timeout: RENDER_TIMEOUT_MS,
   });
+}
+
+export async function renderStlPreview(
+  stlFilePath: string,
+  pngFilePath: string
+): Promise<{ triangleCount: number }> {
+  return renderStlFilePreview(stlFilePath, pngFilePath);
 }
 
 export async function renderScadArtifacts(
@@ -113,7 +153,14 @@ export async function renderScadArtifacts(
 
   try {
     await renderStl(paths.scadFilePath, paths.stlFilePath, definitions);
-    await renderPng(paths.scadFilePath, paths.pngFilePath, definitions);
+    let triangleCount = 0;
+    if (usesOpenScadWasm()) {
+      triangleCount = (
+        await renderStlPreview(paths.stlFilePath, paths.pngFilePath)
+      ).triangleCount;
+    } else {
+      await renderPng(paths.scadFilePath, paths.pngFilePath, definitions);
+    }
     const artifactPathnames = await persistJobArtifacts(jobId, paths);
     if (isEphemeralRuntime() && artifactPathnames) {
       const job = await db.job.findUnique({
@@ -127,9 +174,11 @@ export async function renderScadArtifacts(
     }
 
     const renderLog: RenderLog = {
-      openscad_version: "real",
+      openscad_version: usesOpenScadWasm()
+        ? `${openScadPolicy.version}-wasm`
+        : "real",
       render_time_ms: Date.now() - startTime,
-      stl_triangles: 0,
+      stl_triangles: triangleCount,
       stl_vertices: 0,
       png_resolution: "800x600",
       warnings: [],
