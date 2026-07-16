@@ -2,7 +2,7 @@
 // AgentSCAD Memory System v3.0
 //
 // Design principles borrowed from gstack's learning system, adapted for CAD:
-// - Append-only JSONL (no read-merge-write, no data loss)
+// - Append-only JSONL for local deployments (no read-merge-write)
 // - Structured numerical observations (not prose — LLM can reason on numbers)
 // - Source trust levels (user_edit > repair_success > validation_pattern > generation_default)
 // - Quality feedback loop (delivery_rate, repair_rate, user_edit_rate)
@@ -13,6 +13,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { db } from "@/lib/db";
+import { isEphemeralRuntime } from "@/lib/runtime-environment";
 
 // ---------------------------------------------------------------------------
 // v3.0 Data Model
@@ -113,7 +114,8 @@ function sanitizeForPromptInjection(text: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Storage layer — append-only JSONL
+// Storage layer — append-only local JSONL. Serverless writes are intentionally
+// disabled until a private persistence backend is configured.
 // ---------------------------------------------------------------------------
 
 const OBSERVATIONS_PATH = path.join(
@@ -131,7 +133,19 @@ const LEGACY_PATTERNS_PATH = path.join(
   "learned-patterns.json"
 );
 
+let learningWriteWarningEmitted = false;
+
 async function appendObservation(obs: Observation): Promise<void> {
+  if (isEphemeralRuntime()) {
+    if (!learningWriteWarningEmitted) {
+      console.info(
+        "[learning] Observation persistence is disabled in serverless runtime because the configured Blob store is public"
+      );
+      learningWriteWarningEmitted = true;
+    }
+    return;
+  }
+
   const dir = path.dirname(OBSERVATIONS_PATH);
   await fs.mkdir(dir, { recursive: true });
   const line = JSON.stringify(obs) + "\n";

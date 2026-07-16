@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { toPublicJob } from '@/lib/public-job'
 
 export async function PATCH(
   request: NextRequest,
@@ -21,7 +22,7 @@ export async function PATCH(
         where: { id },
         data: { parentId: null },
       })
-      return NextResponse.json({ job: updated })
+      return NextResponse.json({ job: toPublicJob(updated) })
     }
 
     // Validate parent exists
@@ -53,7 +54,7 @@ export async function PATCH(
       data: { parentId },
     })
 
-    return NextResponse.json({ job: updated })
+    return NextResponse.json({ job: toPublicJob(updated) })
   } catch (error) {
     console.error('Link job error:', error)
     return NextResponse.json({ error: 'Failed to link job' }, { status: 500 })

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { deleteJobArtifacts } from '@/lib/tools/artifact-store'
 
 const CANCELABLE_STATES = ['NEW', 'SCAD_GENERATED', 'RENDERED', 'VALIDATED', 'DEBUGGING', 'REPAIRING']
 
@@ -16,10 +17,34 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'delete': {
-        const deleteResult = await db.job.deleteMany({
+        const jobs = await db.job.findMany({
           where: { id: { in: jobIds } },
+          select: { id: true },
         })
-        results.success = jobIds // Assume all deleted
+        const existingIds = jobs.map(job => job.id)
+        await db.job.updateMany({
+          where: { id: { in: existingIds } },
+          data: { state: 'DELETING' },
+        })
+        const cleanupResults = await Promise.allSettled(
+          existingIds.map(async id => {
+            await deleteJobArtifacts(id)
+            return id
+          })
+        )
+        const cleanedIds = cleanupResults
+          .filter(
+            (result): result is PromiseFulfilledResult<string> =>
+              result.status === 'fulfilled'
+          )
+          .map(result => result.value)
+        if (cleanedIds.length > 0) {
+          await db.job.deleteMany({
+            where: { id: { in: cleanedIds } },
+          })
+        }
+        results.success = cleanedIds
+        results.failed = jobIds.filter(id => !cleanedIds.includes(id))
         break
       }
 
