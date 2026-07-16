@@ -21,6 +21,7 @@ import {
 } from '@/components/cad/api'
 import {
   DEFAULT_PROVIDER_PERSISTENCE,
+  getProviderEnvironmentKey,
   getProviderSettingsUiState,
 } from '@/components/cad/provider-settings-state'
 import { PROVIDER_PRESETS } from '@/lib/provider-catalog'
@@ -73,7 +74,7 @@ export function ProviderSettingsPanel() {
     () => PROVIDER_PRESETS.find(preset => preset.id === form.preset),
     [form.preset]
   )
-  const selectedEnvKey = selectedPreset?.apiKeyEnv || 'the provider API key'
+  const selectedEnvKey = getProviderEnvironmentKey(selectedPreset?.apiKeyEnv)
   const persistenceUi = getProviderSettingsUiState(persistence, isLoading)
 
   const updateForm = (partial: Partial<typeof EMPTY_FORM>) => {

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   DEFAULT_PROVIDER_PERSISTENCE,
+  getProviderEnvironmentKey,
   getProviderSettingsUiState,
 } from "@/components/cad/provider-settings-state";
 
@@ -32,5 +33,12 @@ describe("provider settings UI state", () => {
       showEnvironmentNotice: false,
       canSave: true,
     });
+  });
+
+  test("maps the selected OpenRouter preset to its Vercel environment key", () => {
+    expect(getProviderEnvironmentKey("OPENROUTER_API_KEY")).toBe(
+      "OPENROUTER_API_KEY"
+    );
+    expect(getProviderEnvironmentKey()).toBe("the provider API key");
   });
 });

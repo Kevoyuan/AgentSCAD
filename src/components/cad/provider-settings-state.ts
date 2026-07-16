@@ -14,3 +14,7 @@ export function getProviderSettingsUiState(
     canSave: !isLoading && persistence.writable,
   };
 }
+
+export function getProviderEnvironmentKey(apiKeyEnv?: string) {
+  return apiKeyEnv || "the provider API key";
+}
