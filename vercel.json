@@ -1,4 +1,4 @@
 {
   "framework": "nextjs",
-  "buildCommand": "bun run db:generate && bun run build"
+  "buildCommand": "node scripts/prepare-vercel-prisma.mjs && bun run build"
 }
