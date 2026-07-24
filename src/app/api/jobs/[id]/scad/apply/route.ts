@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sanitizeRenderLogForClient, toPublicJob } from '@/lib/public-job'
 import { db } from '@/lib/db'
+import { getJobAccessScope, jobAccessFilter } from '@/lib/job-session'
 import { trackVersion } from '@/lib/version-tracker'
 import { appendLog, parameterDefsToValues } from '@/lib/stores/job-store'
 import { sanitizeGeneratedScadSource } from '@/lib/tools/scad-sanitizer'
@@ -69,7 +70,11 @@ export async function POST(
   const { id } = await params
 
   try {
-    const job = await db.job.findUnique({ where: { id } })
+    const access = await getJobAccessScope(request)
+    if (!access) {
+      return NextResponse.json({ error: 'Browser session required' }, { status: 401 })
+    }
+    const job = await db.job.findFirst({ where: { id, ...jobAccessFilter(access) } })
     if (!job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 })
     }

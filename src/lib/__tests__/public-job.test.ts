@@ -5,6 +5,7 @@ describe("public job serialization", () => {
   test("removes internal Blob pathnames while preserving render diagnostics", () => {
     const job = {
       id: "job_public",
+      browserSessionId: "internal-browser-scope-hash",
       renderLog: JSON.stringify({
         openscad_version: "real",
         warnings: ["example"],
@@ -23,6 +24,7 @@ describe("public job serialization", () => {
       openscad_version: "real",
       warnings: ["example"],
     });
+    expect(publicJob).not.toHaveProperty("browserSessionId");
     expect(JSON.parse(job.renderLog).artifact_pathnames).toBeDefined();
   });
 });

@@ -13,12 +13,15 @@ export function sanitizeRenderLogForClient(
 }
 
 export function toPublicJob<T extends object>(job: T): T {
-  const renderLog = (job as { renderLog?: string | null }).renderLog;
-  if (!renderLog) return job;
-  return {
-    ...job,
-    renderLog: sanitizeRenderLogForClient(renderLog),
+  const { browserSessionId: _browserSessionId, ...publicJob } = job as T & {
+    browserSessionId?: string | null;
   };
+  const renderLog = (job as { renderLog?: string | null }).renderLog;
+  if (!renderLog) return publicJob as T;
+  return {
+    ...publicJob,
+    renderLog: sanitizeRenderLogForClient(renderLog),
+  } as T;
 }
 
 export function toPublicJobOrNull<T extends object>(job: T | null): T | null {

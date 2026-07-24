@@ -8,6 +8,7 @@ beforeAll(() => {
     db: {
       job: {
         findUnique: mock(async () => currentJob),
+        findFirst: mock(async () => currentJob),
         update: mock(async (args: { where: { id: string }; data: Record<string, unknown> }) => {
           updates.push(args);
           currentJob = { ...currentJob, ...args.data };
@@ -141,6 +142,9 @@ describe("manual SCAD apply route", () => {
     const { POST } = await import("@/app/api/jobs/[id]/scad/apply/route");
     const request = new Request("http://localhost/api/jobs/job-apply/scad/apply", {
       method: "POST",
+      headers: {
+        "x-agentscad-job-session": "11111111-1111-4111-8111-111111111111",
+      },
       body: JSON.stringify({
         scadSource: "wall_thickness = 3;\nmodule part() { cube([1,1,1]); }\npart();",
       }),

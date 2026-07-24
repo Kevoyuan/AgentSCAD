@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
+import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import { toPublicJob } from "@/lib/public-job";
 import { db } from "@/lib/db";
 
@@ -27,6 +29,11 @@ type JobState = (typeof VALID_STATES)[number];
  */
 export async function GET(request: NextRequest) {
   try {
+    const access = await getJobAccessScope(request);
+    if (!access) {
+      return NextResponse.json({ error: "Browser session required" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const state = searchParams.get("state") as JobState | null;
     const limitParam = searchParams.get("limit");
@@ -44,7 +51,10 @@ export async function GET(request: NextRequest) {
     }
 
     const summary = searchParams.get("summary") === "true";
-    const where = state ? { state } : {};
+    const where: Prisma.JobWhereInput = {
+      ...jobAccessFilter(access),
+      ...(state ? { state } : {}),
+    };
 
     const take = includeCount ? limit : limit + 1;
     const jobs = summary
@@ -114,6 +124,11 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const access = await getJobAccessScope(request);
+    if (!access) {
+      return NextResponse.json({ error: "Browser session required" }, { status: 401 });
+    }
+
     const body = await request.json();
     const { inputRequest, customerId, modelId } = body;
 
@@ -204,6 +219,8 @@ export async function POST(request: NextRequest) {
 
     const job = await db.job.create({
       data: {
+        browserSessionId:
+          access.kind === "browser" ? access.browserSessionId : null,
         inputRequest: inputRequest.trim(),
         customerId: customerId || null,
         modelId: selectedModelId,

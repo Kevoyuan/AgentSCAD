@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import { appendLog } from "@/lib/stores/job-store";
 import { runVisualRepair } from "@/lib/repair/visual-repair-controller";
 import {
@@ -37,8 +38,14 @@ export async function POST(
   { params }: RouteParams
 ) {
   try {
+    const access = await getJobAccessScope(request);
+    if (!access) {
+      return NextResponse.json({ error: "Browser session required" }, { status: 401 });
+    }
     const { id } = await params;
-    const job = await db.job.findUnique({ where: { id } });
+    const job = await db.job.findFirst({
+      where: { id, ...jobAccessFilter(access) },
+    });
 
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });

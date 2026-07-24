@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getJobAccessScope, jobAccessFilter } from '@/lib/job-session'
 import { toPublicJob } from '@/lib/public-job'
 
 export async function PATCH(
@@ -7,11 +8,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const access = await getJobAccessScope(request)
+    if (!access) {
+      return NextResponse.json({ error: 'Browser session required' }, { status: 401 })
+    }
+    const accessFilter = jobAccessFilter(access)
     const { id } = await params
     const body = await request.json()
     const { parentId } = body
 
-    const job = await db.job.findUnique({ where: { id } })
+    const job = await db.job.findFirst({ where: { id, ...accessFilter } })
     if (!job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 })
     }
@@ -26,7 +32,7 @@ export async function PATCH(
     }
 
     // Validate parent exists
-    const parent = await db.job.findUnique({ where: { id: parentId } })
+    const parent = await db.job.findFirst({ where: { id: parentId, ...accessFilter } })
     if (!parent) {
       return NextResponse.json({ error: 'Parent job not found' }, { status: 404 })
     }
@@ -46,7 +52,9 @@ export async function PATCH(
       if (visited.has(currentParent.id)) break
       visited.add(currentParent.id)
       if (!currentParent.parentId) break
-      currentParent = await db.job.findUnique({ where: { id: currentParent.parentId } })
+      currentParent = await db.job.findFirst({
+        where: { id: currentParent.parentId, ...accessFilter },
+      })
     }
 
     const updated = await db.job.update({

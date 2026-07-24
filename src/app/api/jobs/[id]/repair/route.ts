@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import { appendLog, incrementRetryCount } from "@/lib/stores/job-store";
 import { runRepair } from "@/lib/repair/repair-controller";
 import {
@@ -13,7 +14,7 @@ import {
 } from "@/lib/tools/validation-tool";
 import { sanitizeGeneratedScadSource } from "@/lib/tools/scad-sanitizer";
 import { buildJobQuality } from "@/lib/validation/job-quality";
-import { toPublicJobOrNull } from "@/lib/public-job";
+import { toPublicJob, toPublicJobOrNull } from "@/lib/public-job";
 
 export const maxDuration = 300;
 
@@ -30,12 +31,18 @@ const REPAIRABLE_STATES = new Set([
 ]);
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: RouteParams
 ) {
   try {
+    const access = await getJobAccessScope(request);
+    if (!access) {
+      return NextResponse.json({ error: "Browser session required" }, { status: 401 });
+    }
     const { id } = await params;
-    const job = await db.job.findUnique({ where: { id } });
+    const job = await db.job.findFirst({
+      where: { id, ...jobAccessFilter(access) },
+    });
 
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
@@ -43,7 +50,7 @@ export async function POST(
 
     if (!REPAIRABLE_STATES.has(job.state)) {
       return NextResponse.json({
-        job,
+        job: toPublicJob(job),
         repaired: false,
         recommendation: "none",
         reason: `Job state '${job.state}' is not repairable.`,
@@ -53,7 +60,7 @@ export async function POST(
     // Need SCAD source to repair
     if (!job.scadSource) {
       return NextResponse.json({
-        job,
+        job: toPublicJob(job),
         repaired: false,
         recommendation: "retry",
         reason: "No SCAD source available to repair. Re-process the job instead.",

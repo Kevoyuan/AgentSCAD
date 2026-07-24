@@ -19,6 +19,7 @@ import {
   recordValidationFailure,
 } from "@/lib/improvement-analyzer";
 import { buildJobQuality } from "@/lib/validation/job-quality";
+import { toPublicJobOrNull } from "@/lib/public-job";
 import type {
   ParameterDef,
   PartFamily,
@@ -599,7 +600,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
       state: "DELIVERED",
       step: "delivered",
       message: "Job completed successfully! All deliverables are ready.",
-      job: finalJob,
+      job: toPublicJobOrNull(finalJob),
     });
   } catch (error) {
     console.error("Error during job processing:", error);

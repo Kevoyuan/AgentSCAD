@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import {
   ARTIFACT_CONTENT_TYPES,
   ARTIFACT_FILENAMES,
@@ -17,10 +18,14 @@ interface RouteParams {
 const VALID_ARTIFACT_TYPES = Object.keys(ARTIFACT_FILENAMES) as ArtifactType[];
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: RouteParams
 ) {
   try {
+    const access = await getJobAccessScope(request);
+    if (!access) {
+      return NextResponse.json({ error: "Browser session required" }, { status: 401 });
+    }
     const { id, type } = await params;
 
     if (!VALID_ARTIFACT_TYPES.includes(type as (typeof VALID_ARTIFACT_TYPES)[number])) {
@@ -30,7 +35,9 @@ export async function GET(
       );
     }
 
-    const job = await db.job.findUnique({ where: { id } });
+    const job = await db.job.findFirst({
+      where: { id, ...jobAccessFilter(access) },
+    });
 
     if (!job) {
       return NextResponse.json({ error: `Job not found with id: ${id}` }, { status: 404 });
