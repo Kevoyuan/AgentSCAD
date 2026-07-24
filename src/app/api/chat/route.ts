@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import { createMimoChatCompletion, getMimoConfig, MIMO_DEFAULT_MODEL } from "@/lib/mimo";
 import { createOpenRouterChatCompletion, isOpenRouterModel } from "@/lib/openrouter";
 import { createProviderChatCompletion, findProviderForModel } from "@/lib/provider-settings";
@@ -52,7 +53,16 @@ When proposing OpenSCAD changes, optimize for one-click application:
     let systemPrompt = (await loadSkill("scad-chat")) || SKILL_FALLBACK;
 
     if (jobId) {
-      const job = await db.job.findUnique({ where: { id: jobId } });
+      const access = await getJobAccessScope(request);
+      if (!access) {
+        return new Response(
+          JSON.stringify({ error: "Browser session required" }),
+          { status: 401, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      const job = await db.job.findFirst({
+        where: { id: jobId, ...jobAccessFilter(access) },
+      });
       if (job) {
         let paramSchema = null;
         let paramValues = null;

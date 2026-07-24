@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import { deleteJobArtifacts } from "@/lib/tools/artifact-store";
 import { toPublicJob } from "@/lib/public-job";
 
@@ -12,14 +13,18 @@ interface RouteParams {
  * Get a single job by ID
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: RouteParams
 ) {
   try {
+    const access = await getJobAccessScope(request);
+    if (!access) {
+      return NextResponse.json({ error: "Browser session required" }, { status: 401 });
+    }
     const { id } = await params;
 
-    const job = await db.job.findUnique({
-      where: { id },
+    const job = await db.job.findFirst({
+      where: { id, ...jobAccessFilter(access) },
     });
 
     if (!job) {
@@ -44,14 +49,18 @@ export async function GET(
  * Delete a job by ID
  */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: RouteParams
 ) {
   try {
+    const access = await getJobAccessScope(request);
+    if (!access) {
+      return NextResponse.json({ error: "Browser session required" }, { status: 401 });
+    }
     const { id } = await params;
 
-    const existingJob = await db.job.findUnique({
-      where: { id },
+    const existingJob = await db.job.findFirst({
+      where: { id, ...jobAccessFilter(access) },
     });
 
     if (!existingJob) {

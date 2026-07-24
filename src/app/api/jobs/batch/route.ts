@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getJobAccessScope, jobAccessFilter } from '@/lib/job-session'
 import { deleteJobArtifacts } from '@/lib/tools/artifact-store'
 
 const CANCELABLE_STATES = ['NEW', 'SCAD_GENERATED', 'RENDERED', 'VALIDATED', 'DEBUGGING', 'REPAIRING']
 
 export async function POST(request: NextRequest) {
   try {
+    const access = await getJobAccessScope(request)
+    if (!access) {
+      return NextResponse.json({ error: 'Browser session required' }, { status: 401 })
+    }
+    const accessFilter = jobAccessFilter(access)
     const body = await request.json()
     const { action, jobIds } = body as { action: string; jobIds: string[] }
 
@@ -18,12 +24,12 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case 'delete': {
         const jobs = await db.job.findMany({
-          where: { id: { in: jobIds } },
+          where: { id: { in: jobIds }, ...accessFilter },
           select: { id: true },
         })
         const existingIds = jobs.map(job => job.id)
         await db.job.updateMany({
-          where: { id: { in: existingIds } },
+          where: { id: { in: existingIds }, ...accessFilter },
           data: { state: 'DELETING' },
         })
         const cleanupResults = await Promise.allSettled(
@@ -40,7 +46,7 @@ export async function POST(request: NextRequest) {
           .map(result => result.value)
         if (cleanedIds.length > 0) {
           await db.job.deleteMany({
-            where: { id: { in: cleanedIds } },
+            where: { id: { in: cleanedIds }, ...accessFilter },
           })
         }
         results.success = cleanedIds
@@ -50,7 +56,7 @@ export async function POST(request: NextRequest) {
 
       case 'cancel': {
         const jobs = await db.job.findMany({
-          where: { id: { in: jobIds } },
+          where: { id: { in: jobIds }, ...accessFilter },
         })
         const cancelableIds = jobs
           .filter(j => CANCELABLE_STATES.includes(j.state))
@@ -59,7 +65,7 @@ export async function POST(request: NextRequest) {
 
         if (cancelableIds.length > 0) {
           await db.job.updateMany({
-            where: { id: { in: cancelableIds } },
+            where: { id: { in: cancelableIds }, ...accessFilter },
             data: { state: 'CANCELLED', completedAt: new Date() },
           })
         }
@@ -70,7 +76,7 @@ export async function POST(request: NextRequest) {
 
       case 'reprocess': {
         const jobs = await db.job.findMany({
-          where: { id: { in: jobIds } },
+          where: { id: { in: jobIds }, ...accessFilter },
         })
         const reprocessableIds = jobs
           .filter(j => j.state === 'DELIVERED' || j.state === 'CANCELLED' || CANCELABLE_STATES.includes(j.state))
@@ -78,7 +84,7 @@ export async function POST(request: NextRequest) {
 
         if (reprocessableIds.length > 0) {
           await db.job.updateMany({
-            where: { id: { in: reprocessableIds } },
+            where: { id: { in: reprocessableIds }, ...accessFilter },
             data: { state: 'NEW', completedAt: null },
           })
         }

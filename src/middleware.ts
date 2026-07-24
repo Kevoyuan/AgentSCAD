@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authenticateBearer, isSameOriginRequest } from "@/lib/auth";
+import {
+  createJobSessionToken,
+  isValidJobSessionToken,
+  JOB_SESSION_COOKIE_NAME,
+  JOB_SESSION_HEADER,
+} from "@/lib/job-session";
 
-const PROTECTED_PATTERNS = [/^\/api\/jobs(\/|$)/, /^\/api\/chat(\/|$)/, /^\/api\/providers(\/|$)/];
+const PROTECTED_PATTERNS = [
+  /^\/api\/jobs(\/|$)/,
+  /^\/api\/chat(\/|$)/,
+  /^\/api\/providers(\/|$)/,
+  /^\/artifacts(\/|$)/,
+];
 
 function isProtectedRoute(pathname: string): boolean {
   return PROTECTED_PATTERNS.some((p) => p.test(pathname));
@@ -15,22 +26,51 @@ export function middleware(request: NextRequest) {
 
   const apiSecret = process.env.API_SECRET;
 
-  if (authenticateBearer(request, apiSecret)) {
+  if (apiSecret && authenticateBearer(request, apiSecret)) {
     return NextResponse.next();
   }
 
-  // No valid Bearer token — apply secondary checks when secret is unset
+  let browserRequestAllowed = false;
+
+  // No valid Bearer token: apply secondary checks when the secret is unset.
   if (!apiSecret) {
     if (process.env.NODE_ENV !== "production") {
-      // Development convenience: allow all
-      return NextResponse.next();
+      browserRequestAllowed = true;
     }
 
     // Production without API_SECRET: only allow same-origin requests
     // as a lightweight defence-in-depth measure.
-    if (isSameOriginRequest(request)) {
-      return NextResponse.next();
+    if (process.env.NODE_ENV === "production" && isSameOriginRequest(request)) {
+      browserRequestAllowed = true;
     }
+  }
+
+  if (browserRequestAllowed) {
+    const requestHeaders = new Headers(request.headers);
+    const existingToken = request.cookies.get(JOB_SESSION_COOKIE_NAME)?.value;
+    const token = isValidJobSessionToken(existingToken)
+      ? existingToken
+      : createJobSessionToken();
+
+    // Always overwrite this internal header so callers cannot spoof a scope.
+    requestHeaders.set(JOB_SESSION_HEADER, token);
+    const response = NextResponse.next({
+      request: { headers: requestHeaders },
+    });
+
+    if (token !== existingToken) {
+      response.cookies.set({
+        name: JOB_SESSION_COOKIE_NAME,
+        value: token,
+        httpOnly: true,
+        sameSite: "strict",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    }
+
+    return response;
   }
 
   return NextResponse.json(
@@ -40,5 +80,10 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/jobs/:path*", "/api/chat", "/api/providers/:path*"],
+  matcher: [
+    "/api/jobs/:path*",
+    "/api/chat",
+    "/api/providers/:path*",
+    "/artifacts/:path*",
+  ],
 };

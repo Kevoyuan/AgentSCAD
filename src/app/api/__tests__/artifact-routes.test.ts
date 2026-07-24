@@ -22,6 +22,9 @@ const artifactPathnames = {
 };
 let blobMissing = false;
 let blobReadCount = 0;
+const JOB_SESSION_HEADERS = {
+  "x-agentscad-job-session": "11111111-1111-4111-8111-111111111111",
+};
 
 beforeAll(() => {
   class TestBlobNotFoundError extends Error {}
@@ -48,6 +51,7 @@ beforeAll(() => {
     db: {
       job: {
         findUnique: mock(async () => currentJob),
+        findFirst: mock(async () => currentJob),
       },
     },
   }));
@@ -86,7 +90,9 @@ describe("canonical artifact route", () => {
   test("serves SCAD from the database without exposing Blob storage", async () => {
     const { GET } = await import("@/app/artifacts/[id]/[filename]/route");
     const response = await GET(
-      new Request("https://agentscad.test/artifacts/job_remote/model.scad") as never,
+      new Request("https://agentscad.test/artifacts/job_remote/model.scad", {
+        headers: JOB_SESSION_HEADERS,
+      }) as never,
       {
         params: Promise.resolve({
           id: "job_remote",
@@ -105,7 +111,9 @@ describe("canonical artifact route", () => {
     const { GET } = await import("@/app/artifacts/[id]/[filename]/route");
 
     const unknownFile = await GET(
-      new Request("https://agentscad.test/artifacts/job_remote/secrets.txt") as never,
+      new Request("https://agentscad.test/artifacts/job_remote/secrets.txt", {
+        headers: JOB_SESSION_HEADERS,
+      }) as never,
       {
         params: Promise.resolve({
           id: "job_remote",
@@ -114,7 +122,9 @@ describe("canonical artifact route", () => {
       }
     );
     const unsafeId = await GET(
-      new Request("https://agentscad.test/artifacts/unsafe/model.stl") as never,
+      new Request("https://agentscad.test/artifacts/unsafe/model.stl", {
+        headers: JOB_SESSION_HEADERS,
+      }) as never,
       {
         params: Promise.resolve({
           id: "../unsafe",
@@ -124,7 +134,9 @@ describe("canonical artifact route", () => {
     );
     currentJob = null;
     const missingJob = await GET(
-      new Request("https://agentscad.test/artifacts/missing/model.stl") as never,
+      new Request("https://agentscad.test/artifacts/missing/model.stl", {
+        headers: JOB_SESSION_HEADERS,
+      }) as never,
       {
         params: Promise.resolve({
           id: "missing",
@@ -142,7 +154,9 @@ describe("canonical artifact route", () => {
     const { GET } = await import("@/app/artifacts/[id]/[filename]/route");
 
     const stl = await GET(
-      new Request("https://agentscad.test/artifacts/job_remote/model.stl") as never,
+      new Request("https://agentscad.test/artifacts/job_remote/model.stl", {
+        headers: JOB_SESSION_HEADERS,
+      }) as never,
       {
         params: Promise.resolve({
           id: "job_remote",
@@ -151,7 +165,9 @@ describe("canonical artifact route", () => {
       }
     );
     const png = await GET(
-      new Request("https://agentscad.test/artifacts/job_remote/preview.png") as never,
+      new Request("https://agentscad.test/artifacts/job_remote/preview.png", {
+        headers: JOB_SESSION_HEADERS,
+      }) as never,
       {
         params: Promise.resolve({
           id: "job_remote",
@@ -176,7 +192,9 @@ describe("canonical artifact route", () => {
     };
 
     const response = await GET(
-      new Request("https://agentscad.test/artifacts/job_remote/model.stl") as never,
+      new Request("https://agentscad.test/artifacts/job_remote/model.stl", {
+        headers: JOB_SESSION_HEADERS,
+      }) as never,
       {
         params: Promise.resolve({
           id: "job_remote",
@@ -196,7 +214,9 @@ describe("canonical artifact route", () => {
     const { GET } = await import("@/app/artifacts/[id]/[filename]/route");
 
     const response = await GET(
-      new Request("https://agentscad.test/artifacts/job_remote/model.scad") as never,
+      new Request("https://agentscad.test/artifacts/job_remote/model.scad", {
+        headers: JOB_SESSION_HEADERS,
+      }) as never,
       {
         params: Promise.resolve({
           id: "job_remote",
@@ -215,7 +235,9 @@ describe("artifact download API", () => {
     const { GET } = await import("@/app/api/jobs/[id]/artifacts/[type]/route");
 
     const response = await GET(
-      new Request("https://agentscad.test/api/jobs/job_remote/artifacts/stl") as never,
+      new Request("https://agentscad.test/api/jobs/job_remote/artifacts/stl", {
+        headers: JOB_SESSION_HEADERS,
+      }) as never,
       { params: Promise.resolve({ id: "job_remote", type: "stl" }) }
     );
 
@@ -232,13 +254,17 @@ describe("artifact download API", () => {
     const { GET } = await import("@/app/api/jobs/[id]/artifacts/[type]/route");
 
     const invalidType = await GET(
-      new Request("https://agentscad.test/api/jobs/job_remote/artifacts/exe") as never,
+      new Request("https://agentscad.test/api/jobs/job_remote/artifacts/exe", {
+        headers: JOB_SESSION_HEADERS,
+      }) as never,
       { params: Promise.resolve({ id: "job_remote", type: "exe" }) }
     );
 
     currentJob = { ...currentJob, stlPath: null };
     const absent = await GET(
-      new Request("https://agentscad.test/api/jobs/job_remote/artifacts/stl") as never,
+      new Request("https://agentscad.test/api/jobs/job_remote/artifacts/stl", {
+        headers: JOB_SESSION_HEADERS,
+      }) as never,
       { params: Promise.resolve({ id: "job_remote", type: "stl" }) }
     );
 
@@ -248,7 +274,9 @@ describe("artifact download API", () => {
     };
     blobMissing = true;
     const failedRead = await GET(
-      new Request("https://agentscad.test/api/jobs/job_remote/artifacts/stl") as never,
+      new Request("https://agentscad.test/api/jobs/job_remote/artifacts/stl", {
+        headers: JOB_SESSION_HEADERS,
+      }) as never,
       { params: Promise.resolve({ id: "job_remote", type: "stl" }) }
     );
 

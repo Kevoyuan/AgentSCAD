@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import {
   ARTIFACT_CONTENT_TYPES,
   ARTIFACT_FILENAMES,
@@ -23,17 +24,22 @@ const FILES = Object.fromEntries(
 ) as Record<string, { type: ArtifactType; contentType: string }>;
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: RouteParams
 ) {
+  const access = await getJobAccessScope(request);
+  if (!access) {
+    return NextResponse.json({ error: "Artifact not found" }, { status: 404 });
+  }
+
   const { id, filename } = await params;
   const file = FILES[filename];
   if (!file || !/^[A-Za-z0-9_-]+$/.test(id)) {
     return NextResponse.json({ error: "Artifact not found" }, { status: 404 });
   }
 
-  const job = await db.job.findUnique({
-    where: { id },
+  const job = await db.job.findFirst({
+    where: { id, ...jobAccessFilter(access) },
     select: {
       scadSource: true,
       stlPath: true,

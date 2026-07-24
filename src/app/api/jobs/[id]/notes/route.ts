@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getJobAccessScope, jobAccessFilter } from '@/lib/job-session'
 import { trackVersion } from '@/lib/version-tracker'
 import { toPublicJob } from '@/lib/public-job'
 
@@ -8,6 +9,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const access = await getJobAccessScope(request)
+    if (!access) {
+      return NextResponse.json({ error: 'Browser session required' }, { status: 401 })
+    }
     const { id } = await params
     const body = await request.json()
     const { notes } = body
@@ -16,7 +21,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Notes must be a string' }, { status: 400 })
     }
 
-    const job = await db.job.findUnique({ where: { id } })
+    const job = await db.job.findFirst({ where: { id, ...jobAccessFilter(access) } })
     if (!job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 })
     }

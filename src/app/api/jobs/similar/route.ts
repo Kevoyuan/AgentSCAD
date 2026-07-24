@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 
 /**
  * GET /api/jobs/similar
@@ -9,6 +10,10 @@ import { db } from "@/lib/db";
  */
 export async function GET(request: NextRequest) {
   try {
+    const access = await getJobAccessScope(request);
+    if (!access) {
+      return NextResponse.json({ error: "Browser session required" }, { status: 401 });
+    }
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q") || "";
     const partFamily = searchParams.get("partFamily") || "";
@@ -30,6 +35,7 @@ export async function GET(request: NextRequest) {
 
     // Build where clause: only DELIVERED jobs, with keyword matching
     const where: Record<string, unknown> = {
+      ...jobAccessFilter(access),
       state: "DELIVERED",
     };
 

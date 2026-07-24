@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import {
   canProcessJobState,
   executeCadJob,
@@ -22,13 +23,19 @@ interface RouteParams {
  * - same frontend-visible step strings and payload fields emitted by executeCadJob
  */
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: RouteParams
 ) {
   const { id } = await params;
 
   try {
-    const job = await db.job.findUnique({ where: { id } });
+    const access = await getJobAccessScope(request);
+    if (!access) {
+      return NextResponse.json({ error: "Browser session required" }, { status: 401 });
+    }
+    const job = await db.job.findFirst({
+      where: { id, ...jobAccessFilter(access) },
+    });
 
     if (!job) {
       return NextResponse.json(

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { toPublicJob } from "@/lib/public-job";
 import { db } from "@/lib/db";
+import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import { appendLog } from "@/lib/stores/job-store";
 import { buildRenderFailureLog, renderScadArtifacts } from "@/lib/tools/scad-renderer";
 import { clearValidationCache } from "@/lib/tools/validation-tool";
@@ -21,6 +22,10 @@ export async function PATCH(
   { params }: RouteParams
 ) {
   try {
+    const access = await getJobAccessScope(request);
+    if (!access) {
+      return NextResponse.json({ error: "Browser session required" }, { status: 401 });
+    }
     const { id } = await params;
     const body = await request.json();
     const parameters = body.parameters ?? body.parameterValues;
@@ -32,7 +37,9 @@ export async function PATCH(
       );
     }
 
-    const job = await db.job.findUnique({ where: { id } });
+    const job = await db.job.findFirst({
+      where: { id, ...jobAccessFilter(access) },
+    });
 
     if (!job) {
       return NextResponse.json(

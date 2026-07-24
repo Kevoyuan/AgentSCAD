@@ -9,6 +9,7 @@ datasource db {
 
 model Job {
   id              String   @id @default(cuid())
+  browserSessionId String?
   state           String   @default("NEW")
   inputRequest    String
   customerId      String?
@@ -50,6 +51,7 @@ model Job {
   versions        JobVersion[]
 
   @@index([createdAt])
+  @@index([browserSessionId, createdAt])
   @@index([state, createdAt])
   @@index([parentId])
 }
