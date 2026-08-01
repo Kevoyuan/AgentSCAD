@@ -4,7 +4,6 @@ import { appendLog, incrementRetryCount, parameterDefsToValues } from "@/lib/sto
 import {
   detectPartFamily,
   generateMockScadCode,
-  getParameterSchema,
   runScadGenerationSkill,
 } from "@/lib/harness/skill-runner";
 import { buildRenderFailureLog, renderScadArtifacts } from "@/lib/tools/scad-renderer";
@@ -14,15 +13,17 @@ import {
   validateRenderedArtifacts,
 } from "@/lib/tools/validation-tool";
 import { runRepair } from "@/lib/repair/repair-controller";
-import {
-  recordParameterDrift,
-  recordValidationFailure,
-} from "@/lib/improvement-analyzer";
 import { buildJobQuality } from "@/lib/validation/job-quality";
+import { isValidationActionable } from "@/lib/validation/evidence-status";
 import { toPublicJobOrNull } from "@/lib/public-job";
+import { analyzeCadRequest } from "@/lib/intake/request-intelligence";
+import { runModelCadIntake } from "@/lib/intake/model-intake";
+import {
+  buildApprovedGenerationRequest,
+  restoreApprovedRequestIntelligence,
+  restorePersistedRequestIntelligence,
+} from "@/lib/intake/request-approval";
 import type {
-  ParameterDef,
-  PartFamily,
   RenderedArtifacts,
   StructuredGenerationResult,
 } from "@/lib/harness/types";
@@ -47,8 +48,17 @@ export function processableJobStatesMessage(): string {
   return PROCESSABLE_JOB_STATES.join(", ");
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+export function getDemoDelayMs(env: Readonly<Record<string, string | undefined>> = process.env): number {
+  const parsed = Number(env.AGENTSCAD_DEMO_DELAY_MS ?? 0);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.min(Math.round(parsed), 5_000);
+}
+
+function demoDelay(): Promise<void> {
+  const ms = getDemoDelayMs();
+  return ms > 0
+    ? new Promise((resolve) => setTimeout(resolve, ms))
+    : Promise.resolve();
 }
 
 export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) {
@@ -70,9 +80,99 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
 
     const wallThickness = (paramValues.wall_thickness as number) ?? 2.0;
     const inputRequest = job.inputRequest ?? "generic part";
+    const restoredRequestIntelligence = restoreApprovedRequestIntelligence(inputRequest, job.intentResult);
+    const restoredPersistedIntelligence = restoredRequestIntelligence
+      ?? restorePersistedRequestIntelligence(inputRequest, job.intentResult);
+    let requestIntelligence = restoredPersistedIntelligence ?? analyzeCadRequest(inputRequest);
 
     sendEvent({ state: "NEW", step: "starting", message: "Starting job processing pipeline..." });
-    await delay(800);
+    await demoDelay();
+
+    if (!restoredPersistedIntelligence && requestIntelligence.status === "UNKNOWN") {
+      sendEvent({
+        state: "NEW",
+        step: "analyzing_intent_llm",
+        message: "Building a structured CAD brief before geometry generation...",
+      });
+      try {
+        const modelIntelligence = await runModelCadIntake(inputRequest, job.modelId);
+        if (modelIntelligence.status !== "UNKNOWN") {
+          requestIntelligence = modelIntelligence;
+        } else {
+          sendEvent({
+            state: "NEW",
+            step: "intent_analysis_degraded",
+            message: "The intake model returned no reliable interpretation; generation will use only the original request.",
+          });
+        }
+      } catch (intakeError) {
+        const message = intakeError instanceof Error ? intakeError.message : "Unknown intake error";
+        console.warn(`CAD intake analysis failed; continuing without a model brief: ${message}`);
+        sendEvent({
+          state: "NEW",
+          step: "intent_analysis_degraded",
+          message: "Structured intake was unavailable; generation will use only the original request.",
+        });
+      }
+    }
+
+    sendEvent({
+      state: "NEW",
+      step: "intent_analyzed",
+      message: requestIntelligence.status === "AMBIGUOUS"
+        ? "The request has multiple plausible CAD meanings. Clarification is required before generation."
+        : `Request intent analyzed: ${requestIntelligence.status.toLowerCase()}`,
+      intentResult: requestIntelligence,
+    });
+
+    if (requestIntelligence.status === "AMBIGUOUS") {
+      const clarificationQuestion = requestIntelligence.clarificationQuestion
+        ?? "Which interpretation should AgentSCAD model?";
+
+      await db.job.update({
+        where: { id: jobId },
+        data: {
+          state: "HUMAN_REVIEW",
+          partFamily: null,
+          builderName: null,
+          generationPath: "intent_clarification",
+          intentResult: JSON.stringify(requestIntelligence),
+          cadIntentJson: JSON.stringify({ request_intelligence: requestIntelligence }),
+          scadSource: null,
+          stlPath: null,
+          pngPath: null,
+          renderLog: null,
+          reportPath: null,
+          validationResults: null,
+          visualRepairReportJson: null,
+          validationReportJson: null,
+          qualityScore: null,
+          completedAt: null,
+          executionLogs: appendLog(
+            job.executionLogs,
+            "HUMAN_REVIEW",
+            `Intent clarification required: ${clarificationQuestion}`,
+          ),
+        },
+      });
+
+      sendEvent({
+        state: "HUMAN_REVIEW",
+        step: "intent_clarification_required",
+        message: clarificationQuestion,
+        reviewReason: "intent_ambiguous",
+        clarificationQuestion,
+        alternatives: requestIntelligence.interpretations,
+        intentResult: requestIntelligence,
+        generationPath: "intent_clarification",
+      });
+      return;
+    }
+
+    const generationRequest = buildApprovedGenerationRequest(inputRequest, requestIntelligence);
+    // Classify only the user's request. Internal intent IDs/labels must not
+    // silently route an approved assembly to an unrelated product template.
+    const partFamily = detectPartFamily(inputRequest);
 
     let generationResult: StructuredGenerationResult;
     let usedLLM = false;
@@ -84,21 +184,25 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         step: "generating_llm",
         message: `Generating SCAD code via ${job.modelId || process.env.MIMO_MODEL || MIMO_DEFAULT_MODEL}...`,
       });
-      generationResult = await runScadGenerationSkill(inputRequest, paramValues, job.modelId);
+      generationResult = await runScadGenerationSkill(
+        generationRequest,
+        paramValues,
+        job.modelId,
+        partFamily,
+      );
       usedLLM = true;
     } catch (llmError) {
       const errMsg = llmError instanceof Error ? llmError.message : "Unknown LLM error";
-      console.warn(`LLM generation failed, falling back to mock: ${errMsg}`);
-      sendEvent({
-        state: "NEW",
-        step: "generating_mock",
-        message: `LLM unavailable (${errMsg}), using template generation...`,
-      });
-      await delay(300);
-      generationResult = await generateMockScadCode(inputRequest, paramValues);
+      if (partFamily === "unknown") {
+        console.warn(`LLM generation failed and no safe template is available: ${errMsg}`);
+        throw new Error("LLM generation unavailable and no safe template exists for this request");
+      }
+      console.warn(`LLM generation failed, falling back to ${partFamily} template: ${errMsg}`);
+      sendEvent({ state: "NEW", step: "generating_mock", message: `LLM unavailable (${errMsg}), using the ${partFamily} template...` });
+      await demoDelay();
+      generationResult = await generateMockScadCode(generationRequest, paramValues, partFamily);
     }
 
-    const partFamily = detectPartFamily(inputRequest);
     let scadCode = generationResult.scad_source;
     const generationPath = usedLLM ? "llm_parametric" : "template_parametric";
     const builderName = usedLLM
@@ -119,6 +223,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         parameterSchema: JSON.stringify(generationResult.parameters),
         parameterValues: JSON.stringify(parameterDefsToValues(generationResult.parameters)),
         cadIntentJson: JSON.stringify({
+          request_intelligence: requestIntelligence,
           part_type: generationResult.part_type,
           summary: generationResult.summary,
           units: generationResult.units,
@@ -136,11 +241,10 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
           similar_designs: usedLLM ? [] : ["standard_box_enclosure_v1", "parametric_case_v2"],
           best_practices: ["Minimum wall thickness 1.2mm for FDM", "Add fillets for strength"],
         }),
-        intentResult: JSON.stringify({
-          geometry_type: generationResult.part_type || partFamily,
-          features: generationResult.features.map((f) => f.name),
-          constraints: generationResult.constraints.geometry,
-        }),
+        // Keep the approved intake at the top level so a later re-process can
+        // restore the user's choice without another clarification/model call.
+        // Generated geometry metadata already lives in cadIntentJson above.
+        intentResult: JSON.stringify(requestIntelligence),
         designResult: JSON.stringify({
           approach: generationPath,
           model_id: job.modelId || process.env.MIMO_MODEL || MIMO_DEFAULT_MODEL,
@@ -163,7 +267,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
       parameters: generationResult.parameters,
       partFamily,
     });
-    await delay(1200);
+    await demoDelay();
 
     sendEvent({
       state: "SCAD_GENERATED",
@@ -248,7 +352,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
       stlPath: renderedArtifacts.stlPath,
       pngPath: renderedArtifacts.pngPath,
     });
-    await delay(1000);
+    await demoDelay();
 
     currentStage = "validate";
     sendEvent({
@@ -256,7 +360,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
       step: "validating",
       message: "Running validation rules...",
     });
-    await delay(1200);
+    await demoDelay();
 
     const validationResults = await validateRenderedArtifacts({
       jobId,
@@ -279,21 +383,6 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
       validationResults,
     });
     let wasRepaired = false;
-
-    // v3.0 memory: record validation failures for learning
-    try {
-      for (const result of validationResults) {
-        if (!result.passed) {
-          recordValidationFailure({
-            family: partFamily ?? "unknown",
-            ruleId: result.rule_id,
-            ruleName: result.rule_name,
-            passed: false,
-            repairSucceeded: null, // repair hasn't run yet
-          }).catch((err) => { console.warn("[pipeline] recordValidationFailure failed:", err); });
-        }
-      }
-    } catch { /* memory system is non-critical */ }
 
     if (criticalFailures.length > 0) {
       // Attempt auto-repair once (Phase 3: validation-driven repair)
@@ -459,7 +548,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
               validationResults: revalidationResults,
               qualityReport: repairQuality.readiness,
             });
-            await delay(800);
+            await demoDelay();
             wasRepaired = true;
             // Fall through to DELIVERED below
           }
@@ -491,7 +580,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
           step: "validated",
           message: "Validation passed after repair - all critical rules satisfied",
         });
-        await delay(800);
+        await demoDelay();
       } else {
         // Already tried max repairs — go to HUMAN_REVIEW
         await db.job.update({
@@ -534,7 +623,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
             (await db.job.findUnique({ where: { id: jobId } }))?.executionLogs,
             "VALIDATED",
             (() => {
-              const actionable = validationResults.filter((r) => !r.message.toLowerCase().startsWith("skipped"));
+              const actionable = validationResults.filter(isValidationActionable);
               const skipped = validationResults.length - actionable.length;
               return `Validation passed: ${actionable.filter((r) => r.passed).length}/${actionable.length} actionable rules passed` +
                 (skipped > 0 ? `, ${skipped} skipped` : " [real mesh analysis]");
@@ -550,7 +639,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         validationResults,
         qualityReport: validationQuality.readiness,
       });
-      await delay(800);
+      await demoDelay();
     }
 
     currentStage = "deliver";
@@ -559,7 +648,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
       step: "delivering",
       message: "Preparing final deliverables...",
     });
-    await delay(600);
+    await demoDelay();
 
     await db.job.update({
       where: { id: jobId },
@@ -575,26 +664,6 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
     });
 
     const finalJob = await db.job.findUnique({ where: { id: jobId } });
-
-    // v3.0 memory: record parameter drift for learning
-    try {
-      for (const param of generationResult.parameters) {
-        const schemaDefault = param.value;
-        const finalParams = paramValues;
-        const userValue = (finalParams as Record<string, unknown>)[param.key] as number | undefined;
-        if (userValue !== undefined && Math.abs(userValue - schemaDefault) > 0.01) {
-          recordParameterDrift({
-            family: partFamily ?? "unknown",
-            parameter: param.key,
-            default_value: schemaDefault,
-            user_value: userValue,
-            source: "user_edit",
-            deliverySucceeded: true,
-            repairSucceeded: wasRepaired ? true : null,
-          }).catch((err) => { console.warn("[pipeline] recordParameterDrift failed:", err); });
-        }
-      }
-    } catch { /* memory system is non-critical */ }
 
     sendEvent({
       state: "DELIVERED",

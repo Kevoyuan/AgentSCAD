@@ -35,6 +35,7 @@ export async function createOpenRouterChatCompletion(args: {
   messages: MimoMessage[];
   model?: string;
   stream?: boolean;
+  signal?: AbortSignal;
 }) {
   const { apiKey, baseUrl, defaultModel, enabled, referer, title } = getOpenRouterConfig();
 
@@ -60,6 +61,7 @@ export async function createOpenRouterChatCompletion(args: {
       messages: args.messages,
       stream: args.stream ?? false,
     }),
+    signal: args.signal,
   });
 
   if (!response.ok) {

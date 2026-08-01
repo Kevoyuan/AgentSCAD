@@ -20,6 +20,33 @@ export interface ModelRouterRequest {
   model?: string;
   stream?: boolean;
   preferMimo?: boolean;
+  signal?: AbortSignal;
+}
+
+export function hasImageInput(messages: MimoMessage[]): boolean {
+  return messages.some((message) =>
+    Array.isArray(message.content)
+    && message.content.some((part) => part.type === "image_url"),
+  );
+}
+
+function waitForModel<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(new DOMException("Model request timed out", "AbortError"));
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(new DOMException("Model request timed out", "AbortError"));
+    signal.addEventListener("abort", abort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", abort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", abort);
+        reject(error);
+      },
+    );
+  });
 }
 
 export async function createChatCompletionWithFallback({
@@ -27,6 +54,7 @@ export async function createChatCompletionWithFallback({
   model,
   stream = false,
   preferMimo = true,
+  signal,
 }: ModelRouterRequest): Promise<string> {
   const configuredProvider = await findProviderForModel(model);
   if (configuredProvider) {
@@ -35,6 +63,7 @@ export async function createChatCompletionWithFallback({
       model: configuredProvider.model,
       messages,
       stream,
+      signal,
     });
     const result = await providerResponse.json();
     return result?.choices?.[0]?.message?.content ?? JSON.stringify(result);
@@ -45,6 +74,7 @@ export async function createChatCompletionWithFallback({
       model,
       messages,
       stream,
+      signal,
     });
     const result = await openRouterResponse.json();
     return result?.choices?.[0]?.message?.content ?? JSON.stringify(result);
@@ -55,6 +85,7 @@ export async function createChatCompletionWithFallback({
       model,
       messages,
       stream,
+      signal,
     });
     const result = await deepSeekResponse.json();
     return result?.choices?.[0]?.message?.content ?? JSON.stringify(result);
@@ -65,16 +96,23 @@ export async function createChatCompletionWithFallback({
       model: model || process.env.MIMO_MODEL || MIMO_DEFAULT_MODEL,
       messages,
       stream,
+      signal,
     });
     const result = await mimoResponse.json();
     return result?.choices?.[0]?.message?.content ?? JSON.stringify(result);
+  }
+
+  if (hasImageInput(messages)) {
+    throw new Error(
+      "Visual requests require a configured multimodal provider; text-only fallback is disabled",
+    );
   }
 
   const ZAIModule = await import("z-ai-web-dev-sdk");
   const ZAI = ZAIModule.default;
   const zai = await ZAI.create();
 
-  const result = await zai.chat.completions.create({
+  const result = await waitForModel(zai.chat.completions.create({
     messages: messages.map((message) => ({
       role:
         message.role === "system" || message.role === "assistant"
@@ -89,7 +127,7 @@ export async function createChatCompletionWithFallback({
               .join("\n"),
     })),
     stream,
-  });
+  }), signal);
 
   return (
     result?.choices?.[0]?.message?.content ??

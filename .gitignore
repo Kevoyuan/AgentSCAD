@@ -46,6 +46,7 @@ public/artifacts/
 .openscad-runtime/
 skills/scad-generation/learned-patterns.json
 benchmark-results.txt
+benchmark-render-results.json
 
 # agent/IDE context directories
 .codex/
@@ -100,5 +101,4 @@ prisma/test.db
 .ralph-state/
 **/.ralph-state
 **/.ralph-state/
-
 

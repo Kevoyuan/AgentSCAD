@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { CheckCircle2, XCircle, AlertTriangle, Shield } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Job, ValidationResult, parseJSON } from './types'
+import { Job, ValidationResult, getValidationEvidenceStatus, parseJSON } from './types'
 import { CadExportChecklist } from './cad-primitives'
 import { fadeInUp, fadeInUpTransition, staggerContainer, staggerChild, staggerTransition } from './motion-presets'
 
@@ -19,12 +19,16 @@ export function ValidationPanel({ job }: { job: Job }) {
     </div>
   )
 
-  const isSkipped = (result: ValidationResult) => result.message.toLowerCase().startsWith('skipped')
-  const actionableResults = results.filter(r => !isSkipped(r))
-  const skipped = results.length - actionableResults.length
-  const passed = actionableResults.filter(r => r.passed).length
-  const failed = actionableResults.filter(r => !r.passed).length
-  const score = actionableResults.length > 0 ? Math.round((passed / actionableResults.length) * 100) : 0
+  const statuses = results.map(getValidationEvidenceStatus)
+  const actionable = statuses.filter(status => ['PASS', 'WARN', 'FAIL'].includes(status))
+  const passed = statuses.filter(status => status === 'PASS').length
+  const warnings = statuses.filter(status => status === 'WARN').length
+  const failed = statuses.filter(status => status === 'FAIL').length
+  const unresolved = statuses.filter(status => ['SKIP', 'ERROR', 'NOT_RUN'].includes(status)).length
+  const evidenceComplete = unresolved === 0
+  const score = actionable.length > 0
+    ? Math.round((passed + warnings * 0.5) / actionable.length * 100)
+    : 0
 
   return (
     <div className="flex flex-col h-full">
@@ -33,13 +37,14 @@ export function ValidationPanel({ job }: { job: Job }) {
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">
             <div className="w-8 h-1.5 rounded-full bg-[var(--app-surface-raised)] overflow-hidden">
-              <div className={`h-full rounded-full transition-all ${score === 100 ? 'bg-emerald-500' : score >= 60 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${score}%` }} />
+              <div className={`h-full rounded-full transition-all ${evidenceComplete && score === 100 ? 'bg-emerald-500' : score >= 60 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${score}%` }} />
             </div>
-            <span className="text-xs font-mono text-[var(--app-text-muted)]">{score}%</span>
+            <span className="text-xs font-mono text-[var(--app-text-muted)]" title="Score across checks that produced actionable evidence">{score}% actionable</span>
           </div>
           <Badge variant="outline" className="text-xs h-4 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">{passed}✓</Badge>
+          {warnings > 0 && <Badge variant="outline" className="text-xs h-4 bg-amber-500/10 text-amber-400 border-amber-500/20">{warnings} warn</Badge>}
           {failed > 0 && <Badge variant="outline" className="text-xs h-4 bg-rose-500/10 text-rose-400 border-rose-500/20">{failed}✗</Badge>}
-          {skipped > 0 && <Badge variant="outline" className="text-xs h-4 bg-amber-500/10 text-amber-400 border-amber-500/20">{skipped} skipped</Badge>}
+          {unresolved > 0 && <Badge variant="outline" className="text-xs h-4 bg-slate-500/10 text-slate-400 border-slate-500/20">{unresolved} unresolved</Badge>}
         </div>
       </div>
       <ScrollArea className="flex-1">
@@ -51,22 +56,28 @@ export function ValidationPanel({ job }: { job: Job }) {
           exit="exit"
         >
           <CadExportChecklist job={job} />
-          {results.map((r, i) => (
+          {results.map((r, i) => {
+            const status = getValidationEvidenceStatus(r)
+            return (
             <motion.div
               key={i}
               variants={staggerChild}
               transition={staggerTransition}
               className={`flex items-start gap-2 p-2.5 rounded-lg linear-transition ${
-                isSkipped(r)
+                status === 'WARN'
                   ? 'bg-amber-500/5 border border-amber-500/10 hover:bg-amber-500/10'
-                  : r.passed
+                  : status === 'ERROR'
+                  ? 'bg-rose-500/5 border border-rose-500/15 hover:bg-rose-500/10'
+                  : ['SKIP', 'NOT_RUN'].includes(status)
+                  ? 'bg-slate-500/5 border border-slate-500/10 hover:bg-slate-500/10'
+                  : status === 'PASS'
                   ? 'bg-[var(--app-surface)] hover:bg-[var(--app-surface-hover)]'
                   : 'bg-rose-500/5 border border-rose-500/10 hover:bg-rose-500/10'
               }`}
             >
-              {isSkipped(r)
+              {status === 'WARN' || ['SKIP', 'NOT_RUN'].includes(status)
                 ? <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-                : r.passed
+                : status === 'PASS'
                 ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
                 : <XCircle className="w-3.5 h-3.5 text-rose-500 mt-0.5 shrink-0" />
               }
@@ -79,17 +90,13 @@ export function ValidationPanel({ job }: { job: Job }) {
                       <AlertTriangle className="w-2.5 h-2.5" />CRITICAL
                     </span>
                   )}
-                  {isSkipped(r) && (
-                    <span className="flex items-center gap-0.5 text-[8px] text-amber-500">
-                      SKIPPED
-                    </span>
-                  )}
+                  <span className="flex items-center gap-0.5 text-[8px] text-[var(--app-text-muted)]">{status}</span>
                   <Badge variant="outline" className="text-[8px] h-3 px-1 border-[color:var(--app-border)] text-[var(--app-text-muted)]">{r.level}</Badge>
                 </div>
                 <p className="text-sm text-[var(--app-text-muted)] mt-0.5">{r.message}</p>
               </div>
             </motion.div>
-          ))}
+          )})}
         </motion.div>
       </ScrollArea>
     </div>

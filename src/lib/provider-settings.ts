@@ -51,7 +51,7 @@ export class ProviderSettingsReadOnlyError extends Error {
 
   constructor() {
     super(
-      "Custom provider settings cannot be saved on Vercel. Add the provider API key in Vercel Project Settings → Environment Variables, then redeploy. Connection tests remain available, but keys entered here are not stored."
+      "Provider settings cannot be saved without secure per-browser storage. Configure PROVIDER_SETTINGS_SECRET with at least 32 characters, then redeploy."
     );
     this.name = "ProviderSettingsReadOnlyError";
   }
@@ -67,13 +67,21 @@ export class ProviderValidationError extends Error {
 }
 
 export function getProviderSettingsPersistence(): ProviderSettingsPersistence {
-  if (process.env.VERCEL) {
+  const publicProduction =
+    (process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL)) &&
+    !process.env.API_SECRET;
+  if (process.env.VERCEL || publicProduction) {
     if ((process.env.PROVIDER_SETTINGS_SECRET?.trim().length || 0) >= 32) {
       return { mode: "encrypted-cookie", writable: true };
     }
     return { mode: "environment", writable: false };
   }
   return { mode: "file", writable: true };
+}
+
+export function sharedProviderCredentialsAllowed(): boolean {
+  const production = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+  return !production || Boolean(process.env.API_SECRET);
 }
 
 const PROVIDER_SETTINGS_DIR = path.join(process.cwd(), ".agentscad");
@@ -321,12 +329,15 @@ export async function findProviderForModel(model?: string) {
 
 export function getEnvProviderConfigs(): PublicProviderConfig[] {
   const now = new Date(0).toISOString();
+  const allowSharedCredentials = sharedProviderCredentialsAllowed();
   return PROVIDER_PRESETS
     // Keyless local presets are not necessarily running. They become active
     // only after the user explicitly adds them in Provider Settings.
     .filter((preset) => preset.category !== "local" && Boolean(preset.apiKeyEnv))
     .map((preset) => {
-      const apiKey = preset.apiKeyEnv ? process.env[preset.apiKeyEnv]?.trim() : undefined;
+      const apiKey = allowSharedCredentials && preset.apiKeyEnv
+        ? process.env[preset.apiKeyEnv]?.trim()
+        : undefined;
       const enabled = preset.requiresApiKey ? Boolean(apiKey) : true;
       return toPublicProvider({
         id: `env-${preset.id}`,
@@ -344,6 +355,7 @@ export function getEnvProviderConfigs(): PublicProviderConfig[] {
 }
 
 function findEnvProviderForModel(model?: string) {
+  if (!sharedProviderCredentialsAllowed()) return null;
   const preset = getProviderPresetByModel(model);
   if (!preset) return null;
   const apiKey = preset.apiKeyEnv ? process.env[preset.apiKeyEnv]?.trim() : undefined;
@@ -368,6 +380,7 @@ function findEnvProviderForModel(model?: string) {
 }
 
 function findEnvProviderForModelId(providerId: string, model: string) {
+  if (!sharedProviderCredentialsAllowed()) return null;
   const presetId = providerId.replace(/^env-/, "");
   const preset = PROVIDER_PRESETS.find((item) => item.id === presetId);
   if (!preset) return null;
@@ -398,6 +411,7 @@ export async function createProviderChatCompletion(args: {
   model?: string;
   messages: MimoMessage[];
   stream?: boolean;
+  signal?: AbortSignal;
 }) {
   const baseUrl = validateProviderBaseUrl(args.provider.baseUrl);
   const headers: Record<string, string> = {
@@ -417,7 +431,9 @@ export async function createProviderChatCompletion(args: {
     method: "POST",
     headers,
     redirect: "error",
-    signal: AbortSignal.timeout(20_000),
+    signal: args.signal
+      ? AbortSignal.any([args.signal, AbortSignal.timeout(20_000)])
+      : AbortSignal.timeout(20_000),
     body: JSON.stringify({
       model: args.model || args.provider.defaultModel,
       messages: args.messages,

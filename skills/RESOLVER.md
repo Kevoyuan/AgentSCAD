@@ -6,6 +6,7 @@ Use this resolver to choose the smallest SCAD skill needed for a job. Keep the r
 
 | Situation | Skill |
 |---|---|
+| Interpret or classify a request before generation | `skills/scad-intake/SKILL.md` |
 | Generate a new CAD artifact from a user request | `skills/scad-generation/SKILL.md` |
 | Repair invalid or failed OpenSCAD while preserving intent | `skills/scad-repair/SKILL.md` |
 | Review validation output, logs, previews, or artifacts | `skills/scad-validation-review/SKILL.md` |
@@ -26,16 +27,16 @@ Do not change these contracts from skill content:
 
 - SSE frames are emitted as `data: ${JSON.stringify(payload)}\n\n`.
 - Job state strings include `NEW`, `SCAD_GENERATED`, `RENDERED`, `VALIDATED`, `DELIVERED`, `DEBUGGING`, `REPAIRING`, `VALIDATION_FAILED`, `GEOMETRY_FAILED`, `RENDER_FAILED`, `HUMAN_REVIEW`, and `CANCELLED`.
-- Process step strings include `starting`, `generating_llm`, `generating_mock`, `scad_generated`, `rendering`, `render_failed`, `rendered`, `validating`, `validation_failed`, `validated`, `delivering`, and `delivered`.
+- Process step strings include `starting`, `analyzing_intent_llm`, `intent_analysis_degraded`, `intent_analyzed`, `intent_clarification_required`, `generating_llm`, `generating_mock`, `scad_generated`, `rendering`, `render_failed`, `rendered`, `validating`, `validation_failed`, `validated`, `repairing`, `repair_rendering`, `repair_render_failed`, `repair_partial`, `repair_success`, `repair_error`, `delivering`, `delivered`, and `error`.
 - Manual SCAD apply also uses `scad_applied` before the same render/validate/deliver steps.
 - Artifact paths are public URLs rooted at `/artifacts/{jobId}/`: `model.scad`, `model.stl`, `preview.png`, and optional `report`.
-- `validationResults` is an array of objects with `rule_id`, `rule_name`, `level`, `passed`, `is_critical`, and `message`.
+- `validationResults` is an array of objects with `rule_id`, `rule_name`, `level`, `passed`, `is_critical`, and `message`, plus optional `status` (`PASS|WARN|FAIL|SKIP|ERROR|NOT_RUN`). Unexecuted or unavailable checks are never counted as passed.
 - SCAD generation remains JSON-compatible with `summary`, `parameters`, and `scad_source`, but `scad_source` is the source of truth.
 - Editable numeric parameters must exist as top-level OpenSCAD assignments before geometry. Deterministic tools may parse them into `ParameterDef[]`.
 - Each parameter object keeps `key`, `label`, `kind`, `unit`, `value`, `min`, `max`, `step`, `source`, `editable`, `description`, and `group`.
 - Rendering uses native OpenSCAD or the isolated official WASM CLI to produce STL; serverless preview code projects the STL to PNG.
-- Mesh validation uses Python/trimesh when available and may fall back to mock validation.
-- Model fallback order is MiMo when `MIMO_API_KEY` is configured, then `z-ai-web-dev-sdk`, then template generation.
+- Mesh validation uses Python/trimesh when available. When it is unavailable, affected mesh rules are `SKIP`; unavailable checks are never mocked as passing.
+- Model routing uses an explicitly configured provider/model first, then matching OpenRouter or DeepSeek routes, then MiMo when enabled. Text-only requests may fall back to `z-ai-web-dev-sdk`; visual requests may not. After generation failure, only supported known part families may use template generation.
 
 ## Guardrails
 

@@ -3,6 +3,8 @@ import { NextRequest } from "next/server";
 
 import {
   getProviderSettingsPersistence,
+  getEnvProviderConfigs,
+  findProviderForModel,
   ProviderSettingsReadOnlyError,
   upsertProviderSettings,
 } from "@/lib/provider-settings";
@@ -12,6 +14,9 @@ import { POST as TEST_PROVIDER } from "@/app/api/providers/test/route";
 const originalVercel = process.env.VERCEL;
 const originalProviderSettingsSecret = process.env.PROVIDER_SETTINGS_SECRET;
 const originalApiSecret = process.env.API_SECRET;
+const originalNodeEnv = process.env.NODE_ENV;
+const originalOpenAiKey = process.env.OPENAI_API_KEY;
+const mutableEnv = process.env as Record<string, string | undefined>;
 
 describe("provider settings persistence", () => {
   beforeEach(() => {
@@ -30,6 +35,10 @@ describe("provider settings persistence", () => {
     }
     if (originalApiSecret === undefined) delete process.env.API_SECRET;
     else process.env.API_SECRET = originalApiSecret;
+    if (originalNodeEnv === undefined) delete mutableEnv.NODE_ENV;
+    else mutableEnv.NODE_ENV = originalNodeEnv;
+    if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalOpenAiKey;
   });
 
   test("uses environment-managed providers on Vercel", () => {
@@ -56,6 +65,34 @@ describe("provider settings persistence", () => {
       mode: "encrypted-cookie",
       writable: true,
     });
+  });
+
+  test("disables shared environment credentials in public production", async () => {
+    mutableEnv.NODE_ENV = "production";
+    process.env.OPENAI_API_KEY = "deployment-owned-key";
+    delete process.env.API_SECRET;
+
+    expect(getProviderSettingsPersistence()).toEqual({
+      mode: "environment",
+      writable: false,
+    });
+    expect(getEnvProviderConfigs().find((provider) => provider.id === "env-openai")).toMatchObject({
+      enabled: false,
+      hasApiKey: false,
+    });
+    expect(await findProviderForModel("gpt-5.6")).toBeNull();
+  });
+
+  test("allows shared environment credentials only behind administrative access", async () => {
+    mutableEnv.NODE_ENV = "production";
+    process.env.OPENAI_API_KEY = "deployment-owned-key";
+    process.env.API_SECRET = "private-deployment-secret";
+
+    expect(getEnvProviderConfigs().find((provider) => provider.id === "env-openai")).toMatchObject({
+      enabled: true,
+      hasApiKey: true,
+    });
+    expect((await findProviderForModel("gpt-5.6"))?.provider.id).toBe("env-openai");
   });
 
   test("saves, reloads, and clears an encrypted provider session", async () => {
@@ -242,7 +279,7 @@ describe("provider settings persistence", () => {
 
     expect(response.status).toBe(409);
     expect(body.code).toBe("PROVIDER_SETTINGS_READ_ONLY");
-    expect(body.error).toContain("Vercel Project Settings");
+    expect(body.error).toContain("PROVIDER_SETTINGS_SECRET");
   });
 
   test("rejects deletes on Vercel with the same actionable conflict", async () => {

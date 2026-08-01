@@ -8,8 +8,9 @@ For setup failures and common runtime issues, see [Troubleshooting](./TROUBLESHO
 
 | Task | Command |
 |---|---|
-| Dev app | `bun run dev:all` or `bun run dev` |
-| Dev app alias | `bun run dev:app` |
+| Dev app | `bun run dev` |
+| Compatibility aliases | `bun run dev:all` or `bun run dev:app` (currently start the same Next.js process) |
+| Author preflight | `bun run doctor` |
 | Build | `bun run build` |
 | Start production server | `bun run start` |
 | Core unit tests | `bun run test` or `bun run test:unit` |
@@ -25,9 +26,11 @@ For setup failures and common runtime issues, see [Troubleshooting](./TROUBLESHO
 | Generate Prisma client | `bun run db:generate` |
 | Run DB migrations | `bun run db:migrate` |
 | Reset DB | `bun run db:reset` |
-| Eval all benchmarks | `bun run cad:eval` |
-| Eval simple cases only | `bun run cad:eval:fast` |
-| Eval report as JSON | `bun run cad:eval:report` |
+| Offline harness full regression | `bun run cad:eval` |
+| Offline harness, simple fixtures | `bun run cad:eval:fast` |
+| One evidence case | `bun run cad:eval:case <id>` |
+| Parse the last harness report | `bun run cad:eval:report` |
+| Real deterministic WASM render benchmark | `bun run cad:eval:render` |
 
 Reviewed third-party license obligations are tracked in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). Run `bun run license:audit` before changing package dependencies or OpenSCAD library policy.
 
@@ -39,14 +42,15 @@ if (!(Test-Path .env)) { Copy-Item .env.example .env }
 New-Item -ItemType Directory -Force db
 if (!(Test-Path db/dev.db)) { New-Item -ItemType File db/dev.db }
 bun run db:push
-bun run dev:all
+bun run doctor
+bun run dev
 ```
 
 ## Configuration
 
-Model providers are optional for local exploration and required for full AI-assisted generation/repair quality. Start by copying `.env.example` to `.env`, then add the providers you want to use.
+Model providers are optional for UI/deterministic-tool exploration and required for real LLM-assisted generation/repair quality. The primary product path is to start the app and configure your own key under **Settings → Providers → Test → Save**. Environment variables remain useful for unattended or shared deployments.
 
-Local development saves custom Provider Settings to `.agentscad/providers.json`. On Vercel, set `PROVIDER_SETTINGS_SECRET` to enable per-browser Provider Save without writing credentials to the read-only application filesystem or database. The server encrypts settings into an HttpOnly session cookie; visitors can remove it immediately with **Clear keys**. Closing a tab alone is not a guaranteed wipe because browsers control session restoration. Environment-backed provider keys remain available for deployments that intentionally share a provider configuration with every visitor.
+Local development saves custom Provider Settings to `.agentscad/providers.json`. In public production, set `PROVIDER_SETTINGS_SECRET` to enable per-browser Provider Save without writing credentials to the application filesystem or database. The server encrypts settings into an HttpOnly session cookie; visitors can remove it immediately with **Clear keys**. Closing a tab alone is not a guaranteed wipe because browsers control session restoration. When `API_SECRET` is unset, production ignores environment- and file-backed provider credentials. Shared environment providers are available only to private administrative deployments protected by `API_SECRET`.
 
 | Variable | Required | Purpose |
 |---|---:|---|
@@ -59,8 +63,8 @@ Local development saves custom Provider Settings to `.agentscad/providers.json`.
 | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `DASHSCOPE_API_KEY`, etc. | Optional | Enable additional configured providers and their recommended model lists. |
 | `AGENTSCAD_OPENSCAD_LIBRARY_DIR` | Optional | Overrides the managed OpenSCAD library directory. |
 | `OPENSCAD_LIBRARY_PATHS` | Optional | Adds extra local OpenSCAD library search paths. |
-| `CRON_SECRET` | Production | Protects the cron endpoint in production. |
-| `API_SECRET` | Production | Protects job/chat API routes in production. |
+| `CRON_SECRET` | Conditional | Required when the production cron endpoint is enabled. |
+| `API_SECRET` | Optional | Enables bearer-token administrative API access and permits environment-backed shared provider credentials. Without it, production uses same-origin browser requests, HttpOnly job-session scoping, and encrypted per-browser BYO provider keys only. This is not an account system. |
 | `PROVIDER_SETTINGS_SECRET` | Vercel | Encrypts per-browser provider settings in an HttpOnly session cookie. Generate at least 32 random characters; rotating it invalidates saved sessions. |
 | `PROVIDER_BASE_URL_ALLOWLIST` | Optional | Comma-separated exact HTTPS base URLs for trusted custom providers in production. |
 
@@ -116,6 +120,22 @@ Test categories:
 - Unit tests: no OpenSCAD, no external model APIs, safe for every PR.
 - OpenSCAD integration tests: require OpenSCAD and may render filesystem artifacts.
 - Model/API tests: should be mocked by default and should not require paid provider keys in CI.
+
+### Reading Evaluation Results Correctly
+
+The offline evaluator exercises fixture loading, the shared request-intelligence analyzer, part-family detection, family schema loading, and local retrieval. Facts use `PASS|FAIL|SKIP|ERROR|NOT_RUN`; unexecuted LLM, compile, mesh, bbox, and visual facts remain `NOT_RUN`. Do not quote the offline suite as CAD generation quality. `bun run cad:eval` includes frozen regression requirements and exits nonzero whenever required evidence regresses; use `bun run cad:eval:fast` for the smallest harness smoke path. See [Benchmarking](./BENCHMARK.md).
+
+For a CAD pipeline change today, pair unit tests with at least one real backend check:
+
+```bash
+bun run test:wasm
+# or, for a local native installation
+OPENSCAD_BIN=openscad bun run test:openscad
+```
+
+`bun run cad:eval:case planetary-engine-ambiguity` invokes the same deterministic analyzer as the product pipeline and verifies the frozen two-option clarification contract. It still reports SCAD/STL/views/validation/baseline data as `NOT_RUN`.
+
+`bun run cad:eval:render` is the separate real-backend gate. It invokes the pinned OpenSCAD WASM runtime, parses the generated binary STL, measures the expected bounding box, verifies the PNG artifact, and writes ignored JSON evidence. It does not call a model and therefore leaves manifold and visual fidelity as `NOT_RUN`. Online model quality/cost evaluation remains a separate future mode.
 
 ## CI Strategy
 
