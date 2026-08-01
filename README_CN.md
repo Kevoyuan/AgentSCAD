@@ -252,6 +252,8 @@ bun run build
 - [Skills](./docs/SKILLS.md)
 - [OpenSCAD 运行时和库](./docs/OPENSCAD_LIBRARIES.md)
 - [故障排查](./docs/TROUBLESHOOTING.md)
+- [参与贡献](./CONTRIBUTING.md)
+- [更新日志](./CHANGELOG.md)
 
 ## 许可证
 

@@ -26,7 +26,7 @@ For setup failures and common runtime issues, see [Troubleshooting](./TROUBLESHO
 | Generate Prisma client | `bun run db:generate` |
 | Run DB migrations | `bun run db:migrate` |
 | Reset DB | `bun run db:reset` |
-| Offline harness smoke test | `bun run cad:eval` |
+| Offline harness full regression | `bun run cad:eval` |
 | Offline harness, simple fixtures | `bun run cad:eval:fast` |
 | One evidence case | `bun run cad:eval:case <id>` |
 | Parse the last harness report | `bun run cad:eval:report` |

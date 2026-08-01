@@ -79,7 +79,7 @@ Next.js Route Handlers under `src/app/api/`:
 
 ### Frontend
 
-`src/components/cad/workspace/MainWorkspace.tsx` (~1700 lines) is the central UI — a 3-panel IDE-like layout:
+`src/components/cad/workspace/MainWorkspace.tsx` is the central UI — a 3-panel IDE-like layout:
 - **Left**: Job list with drag-and-drop reordering
 - **Center**: 3D viewer (Three.js/R3F) + pipeline status
 - **Right**: 6-tab inspector (SPEC, PARAMETERS, ASSIST, VALIDATION, HISTORY, CODE)
