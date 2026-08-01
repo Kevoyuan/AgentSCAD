@@ -8,7 +8,7 @@ import { validatePreviewAgainstRequest } from "@/lib/visual-validator";
 import { checkCompile } from "@/lib/validation/compile-check";
 import { checkBoundingBox } from "@/lib/validation/bbox-check";
 import { checkComponents } from "@/lib/validation/component-check";
-import { checkHoleCount } from "@/lib/validation/hole-check";
+import { checkHoleCount, inferExpectedMinimumHoleCount } from "@/lib/validation/hole-check";
 import { computeReport } from "@/lib/validation/report";
 import type { ValidationCheck, ValidationReport } from "@/lib/validation/validation-types";
 import type { CadValidationTargets } from "@/lib/harness/types";
@@ -69,7 +69,6 @@ async function runRenderedValidation(
     : await validatePreviewAgainstRequest({
         inputRequest: input.inputRequest,
         partFamily: input.partFamily,
-        scadSource: input.scadSource,
         previewImagePath: input.previewImagePath,
       });
 
@@ -90,10 +89,9 @@ async function runRenderedValidation(
     additionalChecks.push(checkComponents(meshData));
 
     // Estimate required holes from validation targets
-    const holeRelatedChecks = input.validationTargets?.required_feature_checks?.filter(
-      (c) => c.toLowerCase().includes("hole")
+    const expectedMinHoles = inferExpectedMinimumHoleCount(
+      input.validationTargets?.required_feature_checks,
     );
-    const expectedMinHoles = holeRelatedChecks?.length;
     additionalChecks.push(checkHoleCount(meshData, expectedMinHoles));
   }
 
@@ -103,6 +101,7 @@ async function runRenderedValidation(
     rule_name: check.rule_name,
     level: check.level,
     passed: check.passed,
+    status: check.status,
     is_critical: check.is_critical,
     message: check.message,
   }));
@@ -111,7 +110,9 @@ async function runRenderedValidation(
 }
 
 export function getCriticalValidationFailures(results: ValidationResult[]): ValidationResult[] {
-  return results.filter((rule) => !rule.passed && rule.is_critical);
+  return results.filter((rule) =>
+    (rule.status === "FAIL" || (!rule.status && !rule.passed)) && rule.is_critical,
+  );
 }
 
 /**
@@ -123,6 +124,7 @@ export function buildValidationReport(results: ValidationResult[]): ValidationRe
     rule_name: r.rule_name,
     level: r.level as ValidationCheck["level"],
     passed: r.passed,
+    status: r.status,
     is_critical: r.is_critical,
     message: r.message,
   }));

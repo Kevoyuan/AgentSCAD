@@ -6,10 +6,11 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 | Task | Command |
 |---|---|
-| Dev (app only) | `bun run dev` |
-| Dev (everything: app + WS service + DB) | `bun run dev:all` |
+| Dev | `bun run dev` |
+| Dev compatibility alias | `bun run dev:all` (currently the same Next.js process) |
 | Build for production | `bun run build` |
 | Start production server | `bun run start` |
+| Author preflight | `bun run doctor` |
 | Lint | `bun run lint` |
 | Test | `bun run test` |
 | Test OpenSCAD WASM runtime | `bun run test:wasm` |
@@ -21,15 +22,21 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 | Generate Prisma client | `bun run db:generate` |
 | Run DB migrations | `bun run db:migrate` |
 | Reset DB | `bun run db:reset` |
-| Eval all benchmarks | `bun run cad:eval` |
-| Eval simple cases only | `bun run cad:eval:fast` |
-| Eval report as JSON | `bun run cad:eval:report` |
+| Run offline CAD harness fixtures | `bun run cad:eval` |
+| Run simple offline fixtures | `bun run cad:eval:fast` |
+| Run one evidence case | `bun run cad:eval:case <id>` |
+| Parse last harness report as JSON | `bun run cad:eval:report` |
+| Run real deterministic WASM render benchmark | `bun run cad:eval:render` |
 
 Tests use Bun's built-in test runner. Run `bun run test` before handing off CAD pipeline or skill resolver changes.
 
+The offline evaluator uses `PASS|FAIL|SKIP|ERROR|NOT_RUN` evidence and never marks unexecuted geometry facts as passing. It does not call an LLM or OpenSCAD; treat it as intent/schema/retrieval evidence, not compile, mesh, bbox, semantic-quality, or model-comparison evidence. `cad:eval:render` is a separate real WASM compile/STL/bbox/PNG gate and still does not imply manifold, visual, or model quality. `cad:eval` includes frozen regressions; `cad:eval:fast` is the smallest offline smoke suite.
+
 ## Architecture
 
-**AgentSCAD** is an AI-powered CAD job management platform. Users submit natural-language descriptions; an LLM pipeline generates parametric OpenSCAD code, renders it via OpenSCAD CLI, and validates the geometry.
+**AgentSCAD** is a local-first, open-source parametric CAD web app. It has no account system. Users configure their own model provider/API key, submit natural-language descriptions, and receive editable OpenSCAD plus rendered STL/PNG artifacts and validation evidence. Local development stores jobs in SQLite, artifacts on the local filesystem, and custom provider settings in `.agentscad/providers.json`.
+
+OpenSCAD is the core CAD execution engine. Local development can use the native CLI; serverless and explicit `AGENTSCAD_OPENSCAD_BACKEND=wasm` runs use the checksum-pinned official OpenSCAD WASM CLI. LLMs handle request interpretation, SCAD generation, repair, chat, and optional visual review. Deterministic code remains authoritative for compiling/rendering geometry and checking measurable mesh/manufacturing facts.
 
 ### Core Pipeline
 
@@ -37,26 +44,26 @@ Tests use Bun's built-in test runner. Run `bun run test` before handing off CAD 
 
 `src/lib/pipeline/execute-cad-job.ts` owns the current runtime state machine:
 
-1. **INTAKE** — parse the user's request
-2. **GENERATE** — LLM generates OpenSCAD code (falls back to template-based mock code). Auto-detects part family (spur_gear, device_stand, electronics_enclosure, phone_case).
-3. **RENDER** — native OpenSCAD or the isolated WASM child process renders SCAD to STL; serverless preview code projects the STL to PNG
-4. **VALIDATE** — rules engine checks wall thickness, dimensions, manifold geometry
-5. **DELIVER** — artifacts ready (SCAD source, STL, PNG, parameters, validation report)
+1. **INTAKE** — analyze the deterministic intent index first; index-unknown requests get one bounded model intake whose untrusted JSON is validated. Any supported ambiguity is persisted and moves to `HUMAN_REVIEW`; the UI records the user's selected meaning before continuing.
+2. **GENERATE** — the selected/configured LLM generates structured CAD intent and complete OpenSCAD. The current fallback is template generation for four known families (spur_gear, device_stand, electronics_enclosure, phone_case).
+3. **RENDER** — native OpenSCAD or the isolated WASM child process renders SCAD to STL; the serverless preview path projects the STL to PNG.
+4. **VALIDATE** — deterministic rules inspect compile/render evidence, dimensions, connectivity, holes, wall thickness, and mesh facts. Visual review is a separate user-triggered VLM path.
+5. **DELIVER** — SCAD, STL, PNG, parameters, and validation reports are available. `DELIVERED` does not prove that the artifact matches the user's intent or that the user accepted it.
 
-Each step emits SSE events to the frontend and broadcasts via WebSocket.
+Each step emits SSE events to the requesting frontend. The broader workspace refreshes job data through polling; there is no separate WebSocket service in the current repository.
 
 ### Thin Harness, Fat Skills Rules
 
 - Keep CAD reasoning, repair strategy, validation interpretation, and manufacturing judgment in `skills/`.
-- Keep deterministic work in code: OpenSCAD rendering, Python/trimesh validation, Prisma writes, artifact paths, SCAD sanitization, SSE formatting, Socket.IO broadcasts, file IO, and tests.
-- Preserve runtime contracts unless a migration explicitly updates the frontend and tests: SSE `data: ${JSON.stringify(payload)}\n\n`, existing state strings, existing step strings, `/artifacts/{jobId}/model.stl`, `/artifacts/{jobId}/preview.png`, and `validationResults` objects with `rule_id`, `rule_name`, `level`, `passed`, `is_critical`, `message`.
-- Preserve model fallback behavior: MiMo when configured, otherwise `z-ai-web-dev-sdk`, and template generation when generation fails.
+- Keep deterministic work in code: OpenSCAD rendering, Python/trimesh validation, Prisma writes, artifact paths, SCAD sanitization, SSE formatting, polling adapters, file IO, and tests.
+- Preserve runtime contracts unless a migration explicitly updates the frontend and tests: SSE `data: ${JSON.stringify(payload)}\n\n`, existing state strings, existing step strings, `/artifacts/{jobId}/model.stl`, `/artifacts/{jobId}/preview.png`, and the legacy `validationResults` fields `rule_id`, `rule_name`, `level`, `passed`, `is_critical`, `message`. Results may add explicit `status` (`PASS|WARN|FAIL|SKIP|ERROR|NOT_RUN`); skipped/unavailable checks must not be counted as passed.
+- Preserve model routing behavior: an explicitly configured provider/model first, then built-in OpenRouter/DeepSeek/MiMo routing where applicable, then `z-ai-web-dev-sdk`; template generation remains the pipeline fallback when model generation fails.
 - Prefer wrappers and adapters over route rewrites. The process route should become thinner gradually, only after behavior-preserving tools are proven.
 - Prefer artifact-first CAD architecture: generate or repair complete OpenSCAD, then let deterministic tools parse parameters from top-level SCAD assignments. Do not make hidden JSON-only parameters the source of truth.
 - Improve CAD quality through general library support, render feedback, and repair loops rather than hardcoded product-family geometry.
 - Do not copy third-party CAD app or library source code into this repository without explicit licensing review.
 - Keep approved OpenSCAD library policy in `skills/scad-library-policy/manifest.json`, not hardcoded route logic.
-- Managed OpenSCAD libraries live outside the repo at `~/.cadcad/openscad-libraries` by default. `CADCAD_OPENSCAD_LIBRARY_DIR` may override this location.
+- Managed OpenSCAD libraries live outside the repo at `~/.agentscad/openscad-libraries` by default. `AGENTSCAD_OPENSCAD_LIBRARY_DIR` overrides it; legacy `CADCAD_OPENSCAD_LIBRARY_DIR` is still accepted.
 - Use `OPENSCAD_LIBRARY_PATHS`/`OPENSCADPATH` only for additional reviewed local OpenSCAD library parent directories.
 - Default library installation must not include GPL libraries. NopSCADlib requires explicit opt-in through `bun run scad:libs:install:gpl`.
 - Keep `src/app/api/jobs/[id]/process/route.ts` as a thin HTTP/SSE adapter. Put CAD job state-machine work in `src/lib/pipeline/execute-cad-job.ts` or lower-level tools.
@@ -81,14 +88,12 @@ Key client files:
 - `src/components/cad/api.ts` — client-side API functions + SSE streaming helpers
 - `src/components/cad/types.tsx` — job types, state colors, pipeline step definitions
 
-### Database
+### Persistence and Realtime
 
-Prisma ORM with SQLite (`db/custom.db`). Two models: `Job` (18 fields) and `JobVersion` (field-level audit trail).
-
-### Mini-Services
-
-- `mini-services/ws-service/` — standalone Socket.IO server on port 3003 for real-time job update broadcasts
-- `mini-services/next-dev/` — dev wrapper that auto-restarts Next.js on crash
+- Prisma ORM uses SQLite locally (`DATABASE_URL`, default `db/dev.db`). The current canonical schema has `Job` and `JobVersion` models.
+- Rendered artifacts use local files in normal local development and Vercel Blob in serverless deployments.
+- Browser requests receive an opaque HttpOnly job-session cookie for isolation. This is not an account or user-management system.
+- Active process progress uses SSE; workspace list refresh uses polling. No standalone WebSocket or mini-service runtime exists in the current tree.
 
 ### LLM Integration
 
@@ -96,7 +101,7 @@ Prisma ORM with SQLite (`db/custom.db`). Two models: `Job` (18 fields) and `JobV
 - `src/lib/openrouter.ts` — OpenRouter API client (defaults to GPT-5.6 Sol)
 - `src/lib/provider-catalog.ts` — source of truth for provider presets and recommended model metadata
 - `src/lib/tools/model-router.ts` — Routes requests to MiMo, OpenRouter, DeepSeek, or fallback
-- Primary LLM provider, with `z-ai-web-dev-sdk` as fallback
+- User-configured OpenAI-compatible providers are the primary product path; environment presets and `z-ai-web-dev-sdk` provide compatibility/fallback paths.
 
 ### OpenSCAD Library Bundle
 
@@ -138,11 +143,11 @@ Prisma ORM with SQLite (`db/custom.db`). Two models: `Job` (18 fields) and `JobV
 
 ## Env Variables
 
-Copy `.env.example` to `.env`. Required: `DATABASE_URL` (SQLite path), `MIMO_BASE_URL`, `MIMO_MODEL`, `MIMO_API_KEY`. Optional provider keys include `OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `GEMINI_API_KEY`.
+Copy `.env.example` to `.env`. `DATABASE_URL` is required and already defaults to local SQLite. Provider variables are optional at process startup because users can add their own provider in **Settings → Providers**; full LLM-backed CAD quality requires at least one working provider/key. Template generation without a key is diagnostic fallback behavior, not the main quality path.
 
 OpenSCAD library env:
 
-- `CADCAD_OPENSCAD_LIBRARY_DIR` overrides the managed library directory.
+- `AGENTSCAD_OPENSCAD_LIBRARY_DIR` overrides the managed library directory; `CADCAD_OPENSCAD_LIBRARY_DIR` is legacy compatibility.
 - `OPENSCAD_LIBRARY_PATHS` adds extra reviewed library parent paths.
 - `OPENSCADPATH` is passed through to OpenSCAD and augmented by the resolver.
 

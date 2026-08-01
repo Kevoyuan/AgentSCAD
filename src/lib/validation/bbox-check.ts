@@ -20,6 +20,7 @@ export function checkBoundingBox(
       rule_name: "Bounding Box Match",
       level: "ENGINEERING",
       passed: true,
+      status: "SKIP",
       is_critical: false,
       message: "Skipped — no mesh bounding box available",
     };
@@ -31,6 +32,7 @@ export function checkBoundingBox(
       rule_name: "Bounding Box Match",
       level: "INFO",
       passed: true,
+      status: "SKIP",
       is_critical: false,
       message: "Skipped — no expected bounding box specified in validation targets",
       details: {
@@ -52,6 +54,7 @@ export function checkBoundingBox(
       rule_name: "Bounding Box Match",
       level: "ENGINEERING",
       passed: true,
+      status: "PASS",
       is_critical: false,
       message: `Bbox matches expected: actual [${actual.join(", ")}] vs expected [${expected.join(", ")}] (±${BBOX_TOLERANCE_MM}mm tolerance)`,
       details: { actual, expected, deviations, tolerance: BBOX_TOLERANCE_MM },
@@ -68,6 +71,7 @@ export function checkBoundingBox(
     rule_name: "Bounding Box Match",
     level: "ENGINEERING",
     passed: false,
+    status: "FAIL",
     is_critical: true,
     message: `Bbox mismatch: actual [${actual.join(", ")}] vs expected [${expected.join(", ")}]. ` +
       `Deviations: ${failingAxes.join(", ")}. Max deviation: ${maxDeviation.toFixed(1)}mm`,

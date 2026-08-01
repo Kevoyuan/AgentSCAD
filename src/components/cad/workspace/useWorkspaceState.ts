@@ -15,7 +15,7 @@ import {
 import {
   fetchJobs, fetchJob, createJob, deleteJob, processJob,
   cancelJob, batchOperation, sendChatMessageStream,
-  applyScadSource, repairJob, visualRepairJob,
+  applyScadSource, repairJob, visualRepairJob, resolveJobIntent,
 } from '@/components/cad/api'
 import {
   FilterState, DEFAULT_FILTER_STATE, applyFilters,
@@ -349,6 +349,19 @@ export function useWorkspaceState() {
     }
   }
 
+  const handleResolveIntent = async (job: Job, selectedInterpretationId: string) => {
+    try {
+      const { job: approvedJob } = await resolveJobIntent(job.id, selectedInterpretationId)
+      setSelectedJob(approvedJob)
+      toast.success('Interpretation confirmed', { description: 'Starting CAD generation with the approved meaning.' })
+      await handleProcess(approvedJob)
+    } catch (error) {
+      toast.error('Could not confirm interpretation', {
+        description: error instanceof Error ? error.message : 'Please try again',
+      })
+    }
+  }
+
   const handleApplyScad = useCallback(async (job: Job, scadSource: string) => {
     setIsProcessing(true)
     setSelectedJob(job)
@@ -452,6 +465,9 @@ export function useWorkspaceState() {
   }
 
   const handleVisualRepair = async (job: Job) => {
+    if (isProcessing) return
+    setIsProcessing(true)
+    setProcessingJobId(job.id)
     try {
       toast.info('Running visual repair...', { description: 'Analyzing preview image with VLM' })
       const result = await visualRepairJob(job.id)
@@ -474,6 +490,9 @@ export function useWorkspaceState() {
       await loadJobs()
     } catch (error) {
       toast.error('Visual repair failed', { description: error instanceof Error ? error.message : 'Failed' })
+    } finally {
+      setIsProcessing(false)
+      setProcessingJobId(null)
     }
   }
 
@@ -692,7 +711,7 @@ export function useWorkspaceState() {
     sensors, handleDragStart, handleDragEnd, handleDragCancel,
     sortedJobsForDnd: sortedJobs,
     // Job actions
-    handleCreate, handleProcess, handleApplyScad,
+    handleCreate, handleProcess, handleResolveIntent, handleApplyScad,
     handleDelete, handleDuplicate, handleCancel, handleRepair, handleVisualRepair,
     handleBatchAction, toggleSelect,
     handleLinkParent,

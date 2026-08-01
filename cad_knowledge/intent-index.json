@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "ambiguity_groups": [
+    {
+      "id": "planetary_engine_meaning",
+      "shared_concept": {
+        "id": "planetary_engine",
+        "label": "行星发动机"
+      },
+      "clarification_question": "你指的是行星推进用的科幻巨型发动机，还是行星齿轮电机/减速机构？",
+      "candidates": [
+        {
+          "id": "planetary_propulsion_megastructure",
+          "label": "行星推进用的科幻巨型发动机",
+          "domain": "conceptual",
+          "object_kind": "assembly",
+          "shared_aliases": ["行星发动机", "planetary engine"],
+          "strong_aliases": ["行星推进发动机", "planetary propulsion engine", "地球发动机"],
+          "supporting_aliases": ["科幻", "巨型推进", "推进塔", "流浪地球", "推进地球", "megastructure", "science fiction"],
+          "conflicting_aliases": ["行星齿轮", "太阳轮", "齿圈", "减速器", "gearbox", "gear motor"]
+        },
+        {
+          "id": "planetary_gear_motor",
+          "label": "行星齿轮电机/减速机构",
+          "domain": "mechanical",
+          "object_kind": "mechanism",
+          "shared_aliases": ["行星发动机", "planetary engine"],
+          "strong_aliases": ["行星齿轮电机", "行星减速电机", "行星齿轮减速机构", "planetary gear motor", "planetary gearbox"],
+          "supporting_aliases": ["行星齿轮", "减速", "扭矩", "太阳轮", "行星轮", "齿圈", "电机", "gearbox", "gear motor", "sun gear", "ring gear"],
+          "conflicting_aliases": ["流浪地球", "地球发动机", "巨型推进", "推进地球", "megastructure"]
+        }
+      ]
+    }
+  ]
+}

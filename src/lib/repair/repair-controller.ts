@@ -12,6 +12,7 @@ import { sanitizeGeneratedScadSource } from "@/lib/tools/scad-sanitizer";
 import { normalizeGenerationResult } from "@/lib/harness/structured-output";
 import type { StructuredGenerationResult, CadValidationTargets } from "@/lib/harness/types";
 import type { ValidationResult } from "@/lib/mesh-validator";
+import { getValidationEvidenceStatus } from "@/lib/validation/evidence-status";
 
 export interface RepairInput {
   originalRequest: string;
@@ -65,7 +66,7 @@ function buildRepairPrompt(input: RepairInput): string {
     .join("\n");
 
   const passedRules = input.validationResults
-    .filter((r) => r.passed && !r.message.toLowerCase().startsWith("skipped"))
+    .filter((r) => ["PASS", "WARN"].includes(getValidationEvidenceStatus(r)))
     .map((r) => `- ${r.rule_id} ${r.rule_name}: ${r.message}`)
     .join("\n");
 
