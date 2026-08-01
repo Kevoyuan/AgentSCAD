@@ -150,6 +150,19 @@ export async function processJob(id: string, onEvent: (data: Record<string, unkn
   }
 }
 
+export async function resolveJobIntent(
+  id: string,
+  selectedInterpretationId: string,
+): Promise<{ job: Job }> {
+  const res = await fetch(`/api/jobs/${id}/intent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ selectedInterpretationId }),
+  })
+  if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to resolve request intent'))
+  return res.json()
+}
+
 export async function updateParameters(id: string, parameterValues: Record<string, unknown>): Promise<Job> {
   const res = await fetch(`/api/jobs/${id}/parameters`, {
     method: 'PATCH',

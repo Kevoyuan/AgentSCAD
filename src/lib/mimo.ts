@@ -29,6 +29,7 @@ export async function createMimoChatCompletion(args: {
   messages: MimoMessage[];
   model?: string;
   stream?: boolean;
+  signal?: AbortSignal;
 }) {
   const { apiKey, baseUrl, defaultModel, enabled } = getMimoConfig();
 
@@ -47,6 +48,7 @@ export async function createMimoChatCompletion(args: {
       messages: args.messages,
       stream: args.stream ?? false,
     }),
+    signal: args.signal,
   });
 
   if (!response.ok) {

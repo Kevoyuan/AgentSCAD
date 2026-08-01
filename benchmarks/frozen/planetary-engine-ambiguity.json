@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "planetary-engine-ambiguity",
+  "suite": "frozen",
+  "prompt": "行星发动机模型",
+  "difficulty": "hard",
+  "expected_part_family": "unknown",
+  "required_features": [],
+  "required_evidence": ["fixture_parse", "part_family", "intent_ambiguity"],
+  "expected_intent": {
+    "status": "AMBIGUOUS",
+    "interpretations": [
+      {
+        "id": "planetary_propulsion_megastructure",
+        "label": "行星推进用的科幻巨型发动机"
+      },
+      {
+        "id": "planetary_gear_motor",
+        "label": "行星齿轮电机/减速机构"
+      }
+    ],
+    "clarification_question": "你指的是行星推进用的科幻巨型发动机，还是行星齿轮电机/减速机构？",
+    "forbidden_assumptions": [
+      "可打印",
+      "剖面",
+      "塔数量",
+      "功能件",
+      "概念模型"
+    ]
+  }
+}

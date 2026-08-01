@@ -1,3 +1,5 @@
+import { getValidationEvidenceStatus } from "./evidence-status";
+
 export type DeliveryReadinessStatus =
   | "pending"
   | "ready"
@@ -21,6 +23,7 @@ export interface DeliveryValidationResult {
   passed: boolean;
   is_critical: boolean;
   message: string;
+  status?: import("./evidence-status").ValidationEvidenceStatus;
 }
 
 export interface DeliveryReadinessInput {
@@ -43,8 +46,11 @@ export interface DeliveryReadinessReport {
   counts: {
     total: number;
     passed: number;
+    warnings: number;
     failed: number;
     skipped: number;
+    errors: number;
+    notRun: number;
     criticalFailures: number;
     artifactsReady: number;
     artifactsTotal: number;
@@ -54,8 +60,8 @@ export interface DeliveryReadinessReport {
 const FAILED_STATES = new Set(["VALIDATION_FAILED", "GEOMETRY_FAILED", "RENDER_FAILED"]);
 const ACTIVE_STATES = new Set(["SCAD_GENERATED", "RENDERED", "VALIDATED", "DEBUGGING", "REPAIRING"]);
 
-export function isSkippedValidation(result: Pick<DeliveryValidationResult, "message">): boolean {
-  return result.message.toLowerCase().startsWith("skipped");
+export function isSkippedValidation(result: DeliveryValidationResult): boolean {
+  return getValidationEvidenceStatus(result) === "SKIP";
 }
 
 function clampScore(value: number): number {
@@ -69,11 +75,16 @@ function summarizeRule(result: DeliveryValidationResult): string {
 export function buildDeliveryReadiness(input: DeliveryReadinessInput): DeliveryReadinessReport {
   const state = input.state || "NEW";
   const validationResults = input.validationResults ?? [];
-  const skipped = validationResults.filter(isSkippedValidation);
-  const actionable = validationResults.filter((result) => !isSkippedValidation(result));
-  const failed = actionable.filter((result) => !result.passed);
-  const criticalFailures = actionable.filter((result) => !result.passed && result.is_critical);
-  const passed = actionable.filter((result) => result.passed);
+  const statusOf = (result: DeliveryValidationResult) => getValidationEvidenceStatus(result);
+  const passed = validationResults.filter((result) => statusOf(result) === "PASS");
+  const evidenceWarnings = validationResults.filter((result) => statusOf(result) === "WARN");
+  const failed = validationResults.filter((result) => statusOf(result) === "FAIL");
+  const skipped = validationResults.filter((result) => statusOf(result) === "SKIP");
+  const errors = validationResults.filter((result) => statusOf(result) === "ERROR");
+  const notRun = validationResults.filter((result) => statusOf(result) === "NOT_RUN");
+  const unresolved = [...skipped, ...errors, ...notRun];
+  const actionable = [...passed, ...evidenceWarnings, ...failed];
+  const criticalFailures = failed.filter((result) => result.is_critical);
 
   const artifactChecks = [
     { label: "SCAD source", ok: Boolean(input.scadSource) },
@@ -86,9 +97,11 @@ export function buildDeliveryReadiness(input: DeliveryReadinessInput): DeliveryR
   const hasAllArtifacts = missingArtifacts.length === 0;
 
   const artifactScore = artifactsReady / artifactChecks.length;
-  const actionableScore = actionable.length > 0 ? passed.length / actionable.length : 0;
+  const actionableScore = actionable.length > 0
+    ? (passed.length + evidenceWarnings.length * 0.5) / actionable.length
+    : 0;
   const certaintyScore = validationResults.length > 0
-    ? 1 - skipped.length / validationResults.length
+    ? 1 - unresolved.length / validationResults.length
     : 0;
   let score = clampScore(artifactScore * 0.35 + actionableScore * 0.5 + certaintyScore * 0.15);
 
@@ -97,9 +110,22 @@ export function buildDeliveryReadiness(input: DeliveryReadinessInput): DeliveryR
     ...criticalFailures.map(summarizeRule),
   ];
   const warnings = [
+    ...evidenceWarnings.map(summarizeRule),
     ...failed.filter((result) => !result.is_critical).map(summarizeRule),
-    ...skipped.map(summarizeRule),
+    ...unresolved.map(summarizeRule),
   ];
+  const counts = {
+    total: validationResults.length,
+    passed: passed.length,
+    warnings: evidenceWarnings.length,
+    failed: failed.length,
+    skipped: skipped.length,
+    errors: errors.length,
+    notRun: notRun.length,
+    criticalFailures: criticalFailures.length,
+    artifactsReady,
+    artifactsTotal: artifactChecks.length,
+  };
 
   if (state === "NEW" && !hasAnyArtifact) {
     return {
@@ -111,15 +137,7 @@ export function buildDeliveryReadiness(input: DeliveryReadinessInput): DeliveryR
       nextActionLabel: "Process Job",
       blockers: [],
       warnings: [],
-      counts: {
-        total: validationResults.length,
-        passed: passed.length,
-        failed: failed.length,
-        skipped: skipped.length,
-        criticalFailures: criticalFailures.length,
-        artifactsReady,
-        artifactsTotal: artifactChecks.length,
-      },
+      counts,
     };
   }
 
@@ -133,15 +151,7 @@ export function buildDeliveryReadiness(input: DeliveryReadinessInput): DeliveryR
       nextActionLabel: "Wait",
       blockers: [],
       warnings,
-      counts: {
-        total: validationResults.length,
-        passed: passed.length,
-        failed: failed.length,
-        skipped: skipped.length,
-        criticalFailures: criticalFailures.length,
-        artifactsReady,
-        artifactsTotal: artifactChecks.length,
-      },
+      counts,
     };
   }
 
@@ -158,15 +168,7 @@ export function buildDeliveryReadiness(input: DeliveryReadinessInput): DeliveryR
       nextActionLabel: input.scadSource ? "Auto Repair" : "Reprocess",
       blockers,
       warnings,
-      counts: {
-        total: validationResults.length,
-        passed: passed.length,
-        failed: failed.length,
-        skipped: skipped.length,
-        criticalFailures: criticalFailures.length,
-        artifactsReady,
-        artifactsTotal: artifactChecks.length,
-      },
+      counts,
     };
   }
 
@@ -181,15 +183,7 @@ export function buildDeliveryReadiness(input: DeliveryReadinessInput): DeliveryR
       nextActionLabel: "Rebuild STL",
       blockers,
       warnings,
-      counts: {
-        total: validationResults.length,
-        passed: passed.length,
-        failed: failed.length,
-        skipped: skipped.length,
-        criticalFailures: criticalFailures.length,
-        artifactsReady,
-        artifactsTotal: artifactChecks.length,
-      },
+      counts,
     };
   }
 
@@ -204,21 +198,13 @@ export function buildDeliveryReadiness(input: DeliveryReadinessInput): DeliveryR
       nextActionLabel: "Inspect Validation",
       blockers: [],
       warnings,
-      counts: {
-        total: validationResults.length,
-        passed: passed.length,
-        failed: failed.length,
-        skipped: skipped.length,
-        criticalFailures: criticalFailures.length,
-        artifactsReady,
-        artifactsTotal: artifactChecks.length,
-      },
+      counts,
     };
   }
 
-  if (failed.length > 0 || skipped.length > 0 || state === "HUMAN_REVIEW") {
-    score = Math.min(score, skipped.length > 0 ? 0.82 : 0.9);
-    const hasVisualOrSemanticSkipped = skipped.some((result) =>
+  if (failed.length > 0 || evidenceWarnings.length > 0 || unresolved.length > 0 || state === "HUMAN_REVIEW") {
+    score = Math.min(score, unresolved.length > 0 ? 0.82 : 0.9);
+    const hasVisualOrSemanticSkipped = unresolved.some((result) =>
       result.rule_id.startsWith("V") || result.rule_id.startsWith("S")
     );
 
@@ -226,22 +212,14 @@ export function buildDeliveryReadiness(input: DeliveryReadinessInput): DeliveryR
       status: "review",
       score,
       label: "Review before printing",
-      summary: skipped.length > 0
-        ? `${skipped.length} validation check${skipped.length === 1 ? "" : "s"} were skipped, so the result is not fully proven.`
-        : `${failed.length} non-critical validation warning${failed.length === 1 ? "" : "s"} need review.`,
+      summary: unresolved.length > 0
+        ? `${unresolved.length} validation check${unresolved.length === 1 ? "" : "s"} did not produce conclusive evidence, so the result is not fully proven.`
+        : `${failed.length + evidenceWarnings.length} non-critical validation warning${failed.length + evidenceWarnings.length === 1 ? "" : "s"} need review.`,
       nextAction: hasVisualOrSemanticSkipped ? "visual_repair" : "inspect_validation",
       nextActionLabel: hasVisualOrSemanticSkipped ? "Run Visual Check" : "Inspect Validation",
       blockers: [],
       warnings,
-      counts: {
-        total: validationResults.length,
-        passed: passed.length,
-        failed: failed.length,
-        skipped: skipped.length,
-        criticalFailures: criticalFailures.length,
-        artifactsReady,
-        artifactsTotal: artifactChecks.length,
-      },
+      counts,
     };
   }
 
@@ -254,14 +232,6 @@ export function buildDeliveryReadiness(input: DeliveryReadinessInput): DeliveryR
     nextActionLabel: "Export",
     blockers: [],
     warnings: [],
-    counts: {
-      total: validationResults.length,
-      passed: passed.length,
-      failed: failed.length,
-      skipped: skipped.length,
-      criticalFailures: criticalFailures.length,
-      artifactsReady,
-      artifactsTotal: artifactChecks.length,
-    },
+    counts,
   };
 }

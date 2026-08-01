@@ -3,6 +3,30 @@
 All notable changes to AgentSCAD are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.4.0.0] - 2026-08-01
+
+### Added
+- Ambiguity-aware CAD intake with a frozen `行星发动机模型` benchmark and explicit user approval before any generation or rendering
+- Bounded model-assisted intake for requests not covered by the local intent index
+- Truthful offline and real OpenSCAD WASM render benchmarks with explicit `PASS`, `FAIL`, `SKIP`, `ERROR`, and `NOT_RUN` evidence
+- `bun run doctor` for local runtime, database, provider, OpenSCAD, library, and artifact readiness checks
+
+### Changed
+- Validation, visual repair, retrieval, skill loading, and prompt-memory behavior now preserve evidence boundaries and avoid unsupported success claims
+- Approved interpretations remain visible and reusable across processing while unsupported requests no longer fall back to unrelated CAD templates
+- Public production deployments use encrypted per-browser BYO provider keys; shared environment credentials require `API_SECRET`
+- Documentation now describes AgentSCAD as a local-first, account-free parametric CAD Web App with OpenSCAD as its geometry engine
+
+### Fixed
+- Concurrent intent approvals and visual-repair requests can no longer overwrite one another or duplicate paid work
+- Post-repair visual validation is rerun against rendered pixels and cannot silently downgrade to a text-only model
+- Validation warnings, incomplete evidence, and operational errors retain distinct server and UI semantics
+- Reprocessing restores validated intake evidence instead of repeating paid model calls, and stale artifacts are cleared before clarification
+
+### Security
+- Production fails closed for deployment-owned provider credentials unless administrative bearer access is configured
+- Public visual-repair errors no longer expose filesystem paths or upstream provider details
+
 ## [0.3.3.0] - 2026-07-16
 
 ### Added

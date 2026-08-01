@@ -44,6 +44,13 @@ export async function POST(
       );
     }
 
+    if (job.state === "HUMAN_REVIEW" && job.generationPath === "intent_clarification") {
+      return NextResponse.json(
+        { error: "Resolve the pending intent clarification before processing this job" },
+        { status: 409 },
+      );
+    }
+
     if (!canProcessJobState(job.state)) {
       return NextResponse.json(
         {

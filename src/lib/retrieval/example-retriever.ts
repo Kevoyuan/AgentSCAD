@@ -25,6 +25,7 @@ export interface RetrievalContext {
   examples: RetrievedExample[];
   patterns: RetrievedPattern[];
   failures: RetrievedFailure[];
+  matchedKeywords: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -141,24 +142,31 @@ async function listMdFiles(dir: string): Promise<string[]> {
  * Match keywords from the input request against known example/pattern mappings.
  * Returns deduplicated example and pattern names.
  */
-function matchKeywords(input: string): { exampleNames: Set<string>; patternNames: Set<string> } {
+function matchKeywords(input: string): {
+  exampleNames: Set<string>;
+  patternNames: Set<string>;
+  matchedKeywords: Set<string>;
+} {
   const lower = input.toLowerCase();
   const exampleNames = new Set<string>();
   const patternNames = new Set<string>();
+  const matchedKeywords = new Set<string>();
 
   for (const [keyword, examples] of Object.entries(KEYWORD_EXAMPLE_MAP)) {
     if (lower.includes(keyword)) {
+      matchedKeywords.add(keyword);
       for (const e of examples) exampleNames.add(e);
     }
   }
 
   for (const [keyword, patterns] of Object.entries(KEYWORD_PATTERN_MAP)) {
     if (lower.includes(keyword)) {
+      matchedKeywords.add(keyword);
       for (const p of patterns) patternNames.add(p);
     }
   }
 
-  return { exampleNames, patternNames };
+  return { exampleNames, patternNames, matchedKeywords };
 }
 
 /**
@@ -168,26 +176,21 @@ function matchKeywords(input: string): { exampleNames: Set<string>; patternNames
  * - Patterns: keyword-matched from cad_knowledge/patterns/. Markdown content returned.
  * - Failures: all failure docs always included (small, high-value for avoiding errors).
  *
- * Falls back to a small set of default examples when nothing matches.
+ * Unknown input returns no examples or design patterns. Injecting files chosen
+ * by directory order creates false context and is worse than honest emptiness.
+ * Generic failure-mode guidance remains available independently.
  */
 export async function retrieveContext(input: string): Promise<RetrievalContext> {
-  const { exampleNames, patternNames } = matchKeywords(input);
-  const availableExamples = await listScadFiles(examplesDir());
-  const availablePatterns = await listMdFiles(patternsDir());
-  const availableFailures = await listMdFiles(failuresDir());
+  const { exampleNames, patternNames, matchedKeywords } = matchKeywords(input);
+  const [availableExamples, availablePatterns, availableFailures] = await Promise.all([
+    listScadFiles(examplesDir()),
+    listMdFiles(patternsDir()),
+    listMdFiles(failuresDir()),
+  ]);
 
-  // Resolve example names to actual files (fall back to first 2 if no match)
-  let resolvedExamples = [...exampleNames].filter((n) => availableExamples.includes(n));
-  if (resolvedExamples.length === 0) {
-    resolvedExamples = availableExamples.slice(0, 2); // default: first 2 examples
-  }
+  const resolvedExamples = [...exampleNames].filter((n) => availableExamples.includes(n));
 
-  // Resolve pattern names
   const resolvedPatterns = [...patternNames].filter((n) => availablePatterns.includes(n));
-  // If no pattern matched, include printable_rules as a sensible default
-  if (resolvedPatterns.length === 0 && availablePatterns.includes("printable_rules")) {
-    resolvedPatterns.push("printable_rules");
-  }
 
   // Always include all failure docs
   const resolvedFailures = availableFailures.filter((n) =>
@@ -220,6 +223,7 @@ export async function retrieveContext(input: string): Promise<RetrievalContext> 
     examples: examples.filter((e) => e.scad_code.length > 0),
     patterns: patterns.filter((p) => p.content.length > 0),
     failures: failures.filter((f) => f.content.length > 0),
+    matchedKeywords: [...matchedKeywords].sort(),
   };
 }
 

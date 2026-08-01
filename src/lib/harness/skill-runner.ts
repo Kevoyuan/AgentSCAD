@@ -145,9 +145,10 @@ function emptyStructuredDefaults(): Pick<
 
 async function generateMockScadCode(
   inputRequest: string,
-  parameterValues: Record<string, unknown>
+  parameterValues: Record<string, unknown>,
+  familyOverride?: PartFamily,
 ): Promise<StructuredGenerationResult> {
-  const partFamily = detectPartFamily(inputRequest);
+  const partFamily = familyOverride ?? detectPartFamily(inputRequest);
   const paramSchema = await getParameterSchema(partFamily, parameterValues);
   const ts = new Date().toISOString();
 
@@ -400,9 +401,10 @@ export { generateMockScadCode, delay };
 export async function runScadGenerationSkill(
   inputRequest: string,
   parameterValues: Record<string, unknown>,
-  requestedModel?: string | null
+  requestedModel?: string | null,
+  familyOverride?: PartFamily,
 ): Promise<StructuredGenerationResult> {
-  const partFamily = detectPartFamily(inputRequest);
+  const partFamily = familyOverride ?? detectPartFamily(inputRequest);
   const paramSchema = await getParameterSchema(partFamily, parameterValues);
   const prompt = await buildScadPrompt(inputRequest, partFamily, parameterValues);
 

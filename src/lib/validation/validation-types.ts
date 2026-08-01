@@ -9,6 +9,7 @@ export interface ValidationCheck {
   passed: boolean;
   is_critical: boolean;
   message: string;
+  status?: import("./evidence-status").ValidationEvidenceStatus;
   details?: Record<string, unknown>;
 }
 
@@ -19,10 +20,14 @@ export interface ValidationReport {
   summary: {
     total: number;
     passed: number;
+    warnings: number;
     failed: number;
     skipped: number;
+    errors: number;
+    not_run: number;
     critical_failures: number;
   };
+  evidence_complete: boolean;
   delivery?: import("./delivery-readiness").DeliveryReadinessReport;
 }
 

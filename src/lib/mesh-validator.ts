@@ -34,6 +34,7 @@ export interface ValidationResult {
   passed: boolean;
   is_critical: boolean;
   message: string;
+  status?: import("@/lib/validation/evidence-status").ValidationEvidenceStatus;
 }
 
 // Python script output format (internal)
@@ -112,6 +113,7 @@ function transformPythonResults(pyOutput: PythonOutput, jobId?: string): Validat
       rule_name: rule.name,
       level: meta.level,
       passed: rule.status !== "fail",
+      status: rule.status === "pass" ? "PASS" : rule.status === "warn" ? "WARN" : "FAIL",
       is_critical: meta.is_critical,
       message: rule.message,
     });
@@ -123,6 +125,7 @@ function transformPythonResults(pyOutput: PythonOutput, jobId?: string): Validat
     rule_name: "Semantic Geometry Match",
     level: "ENGINEERING",
     passed: true,
+    status: "SKIP",
     is_critical: true,
     message: "Skipped — requires LLM reasoning (not yet implemented)",
   });
@@ -132,6 +135,7 @@ function transformPythonResults(pyOutput: PythonOutput, jobId?: string): Validat
     rule_name: "Design Intent Preservation",
     level: "ENGINEERING",
     passed: true,
+    status: "SKIP",
     is_critical: false,
     message: "Skipped — requires LLM reasoning (not yet implemented)",
   });
@@ -198,6 +202,7 @@ function generateSkippedValidationResults(reason: string): ValidationResult[] {
       rule_name: "Minimum Wall Thickness",
       level: "ENGINEERING",
       passed: true,
+      status: "SKIP",
       is_critical: false,
       message: `Skipped — mesh validator unavailable: ${reason}`,
     },
@@ -206,6 +211,7 @@ function generateSkippedValidationResults(reason: string): ValidationResult[] {
       rule_name: "Maximum Dimensions",
       level: "MANUFACTURING",
       passed: true,
+      status: "SKIP",
       is_critical: false,
       message: `Skipped — mesh validator unavailable: ${reason}`,
     },
@@ -214,6 +220,7 @@ function generateSkippedValidationResults(reason: string): ValidationResult[] {
       rule_name: "Manifold Geometry",
       level: "ENGINEERING",
       passed: true,
+      status: "SKIP",
       is_critical: false,
       message: `Skipped — mesh validator unavailable: ${reason}`,
     },
@@ -222,6 +229,7 @@ function generateSkippedValidationResults(reason: string): ValidationResult[] {
       rule_name: "Semantic Geometry Match",
       level: "ENGINEERING",
       passed: true,
+      status: "SKIP",
       is_critical: false,
       message: "Skipped — semantic mesh validator is not implemented; visual validation handles design intent",
     },
@@ -230,6 +238,7 @@ function generateSkippedValidationResults(reason: string): ValidationResult[] {
       rule_name: "Design Intent Preservation",
       level: "ENGINEERING",
       passed: true,
+      status: "SKIP",
       is_critical: false,
       message: "Skipped — semantic mesh validator is not implemented; visual validation handles design intent",
     },

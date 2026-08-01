@@ -1,7 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
 import { buildScadLibraryPrompt } from "@/lib/tools/scad-library-resolver";
-import { getLearnedPatternsForFamily } from "@/lib/improvement-analyzer";
 import { retrieveContext, formatRetrievalContext } from "@/lib/retrieval/example-retriever";
 
 // ---------------------------------------------------------------------------
@@ -36,6 +35,14 @@ const skillCache = new Map<string, string>();
 const familyCache = new Map<string, FamilySchemaFile>();
 let stdLibDocCache: string | null = null;
 
+export const PROMPT_SECTION_CHAR_BUDGETS = {
+  generationSkill: 24_000,
+  standardLibrary: 12_000,
+  externalLibraries: 12_000,
+  retrieval: 16_000,
+  experimentalMemory: 4_000,
+} as const;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -59,6 +66,18 @@ async function readJsonFile<T>(filePath: string): Promise<T | null> {
   } catch {
     return null;
   }
+}
+
+export function boundPromptSection(content: string, maxChars: number, label: string): string {
+  if (content.length <= maxChars) return content;
+  const omitted = content.length - maxChars;
+  return `${content.slice(0, maxChars)}\n\n[${label} truncated: ${omitted} characters omitted]`;
+}
+
+export function isExperimentalMemoryPromptEnabled(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  return env.NODE_ENV !== "production" && env.AGENTSCAD_MEMORY_PROMPT_ENABLED === "true";
 }
 
 // ---------------------------------------------------------------------------
@@ -133,14 +152,35 @@ export async function buildScadPrompt(
   partFamily: string,
   parameterValues: Record<string, unknown>
 ): Promise<{ systemPrompt: string; userPrompt: string } | null> {
-  const skillContent = await loadSkill("scad-generation");
+  const [skillContent, familySchema, libraryPromptRaw, retrievalCtx, stdLibDocRaw] = await Promise.all([
+    loadSkill("scad-generation"),
+    loadFamilySchema(partFamily),
+    buildScadLibraryPrompt(),
+    retrieveContext(inputRequest),
+    loadStdLibDoc(),
+  ]);
   if (!skillContent) return null;
 
-  const familySchema = await loadFamilySchema(partFamily);
-  const libraryPrompt = await buildScadLibraryPrompt();
-  const retrievalCtx = await retrieveContext(inputRequest);
-  const retrievalText = formatRetrievalContext(retrievalCtx);
-  const stdLibDoc = await loadStdLibDoc();
+  const boundedSkill = boundPromptSection(
+    skillContent,
+    PROMPT_SECTION_CHAR_BUDGETS.generationSkill,
+    "generation skill",
+  );
+  const libraryPrompt = boundPromptSection(
+    libraryPromptRaw,
+    PROMPT_SECTION_CHAR_BUDGETS.externalLibraries,
+    "OpenSCAD library guidance",
+  );
+  const retrievalText = boundPromptSection(
+    formatRetrievalContext(retrievalCtx),
+    PROMPT_SECTION_CHAR_BUDGETS.retrieval,
+    "retrieval context",
+  );
+  const stdLibDoc = boundPromptSection(
+    stdLibDocRaw,
+    PROMPT_SECTION_CHAR_BUDGETS.standardLibrary,
+    "AgentSCAD standard library",
+  );
 
   // Apply parameter overrides to the schema defaults
   const params = (familySchema?.parameters ?? []).map((p) => {
@@ -162,23 +202,23 @@ export async function buildScadPrompt(
   // Split the skill file into system prompt (everything before the
   // "## User Request" section) and user prompt (the section itself).
   const marker = "## User Request";
-  const markerIdx = skillContent.indexOf(marker);
+  const markerIdx = boundedSkill.indexOf(marker);
 
   let systemPrompt: string;
   let userPromptTemplate: string;
 
   if (markerIdx >= 0) {
     systemPrompt = [
-      skillContent.slice(0, markerIdx).trim(),
+      boundedSkill.slice(0, markerIdx).trim(),
       stdLibDoc,
       libraryPrompt,
       retrievalText,
     ].filter(Boolean).join("\n\n");
-    userPromptTemplate = skillContent.slice(markerIdx + marker.length).trim();
+    userPromptTemplate = boundedSkill.slice(markerIdx + marker.length).trim();
   } else {
     // Fallback: entire file is the system prompt, build a simple user prompt
     systemPrompt = [
-      skillContent.trim(),
+      boundedSkill.trim(),
       stdLibDoc,
       libraryPrompt,
       retrievalText,
@@ -218,11 +258,15 @@ export async function buildScadPrompt(
     }
   }
 
-  // Inject learned patterns from user edit history (self-learning loop).
-  // These are optional context — they enhance generation quality but are
-  // never treated as hard constraints.
-  if (partFamily && partFamily !== "unknown") {
+  // Experimental learned observations are off by default and cannot run in
+  // production. They do not yet have artifact-linked acceptance provenance.
+  if (
+    isExperimentalMemoryPromptEnabled() &&
+    partFamily &&
+    partFamily !== "unknown"
+  ) {
     try {
+      const { getLearnedPatternsForFamily } = await import("@/lib/improvement-analyzer");
       const learnedContext = await getLearnedPatternsForFamily(partFamily);
       if (learnedContext) {
         // Insert learned patterns before the final "Return the JSON..." instruction
@@ -236,7 +280,11 @@ export async function buildScadPrompt(
             "\n\n## Learned patterns from user edits (optional context)\n" +
             "The following patterns have been observed from how users edit generated code for this part family. " +
             "Use these insights to improve your generation, but treat them as guidance, not strict requirements.\n\n" +
-            learnedContext +
+            boundPromptSection(
+              learnedContext,
+              PROMPT_SECTION_CHAR_BUDGETS.experimentalMemory,
+              "experimental memory",
+            ) +
             "\n\n" +
             afterMarker;
         }

@@ -1,9 +1,8 @@
 FROM oven/bun:1 AS base
 WORKDIR /app
 
-# Install system dependencies.
-# OpenSCAD is NOT bundled — it is invoked as an external CLI via OPENSCAD_BIN.
-# Users who need rendering must install OpenSCAD separately.
+# Install system dependencies. The build script installs the checksum-pinned
+# OpenSCAD WASM runtime. A native OpenSCAD CLI is not installed in this image.
 RUN apt-get update && apt-get install -y \
   python3 \
   python3-pip \

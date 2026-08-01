@@ -21,6 +21,7 @@ export async function createDeepSeekChatCompletion(args: {
   messages: MimoMessage[];
   model?: string;
   stream?: boolean;
+  signal?: AbortSignal;
 }) {
   const { apiKey, baseUrl, defaultModel, enabled } = getDeepSeekConfig();
 
@@ -47,6 +48,7 @@ export async function createDeepSeekChatCompletion(args: {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
+    signal: args.signal,
   });
 
   if (!response.ok) {

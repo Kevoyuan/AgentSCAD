@@ -173,6 +173,7 @@ export function ViewerPanel({
   processingJobId,
   pipelineEvents,
   onProcess,
+  onResolveIntent,
   onCancel,
   onDelete,
   onDownloadScad,
@@ -190,6 +191,7 @@ export function ViewerPanel({
   processingJobId: string | null
   pipelineEvents: Array<{ step: string; state: string; message: string; timestamp: string }>
   onProcess: (job: Job) => void
+  onResolveIntent: (job: Job, selectedInterpretationId: string) => Promise<void>
   onCancel: (job: Job) => void
   onDelete: (id: string) => void
   onDownloadScad: (job: Job) => void
@@ -319,6 +321,7 @@ export function ViewerPanel({
                     onViewLogs={() => onSetActiveTab('LOG')}
                     onViewError={() => onSetActiveTab('VALIDATION')}
                     onCancel={onCancel}
+                    onResolveIntent={(selectedInterpretationId) => onResolveIntent(selectedJob, selectedInterpretationId)}
                     isCancelable={isCancelable || isSelectedProcessing}
                   />
                 )
@@ -331,6 +334,7 @@ export function ViewerPanel({
                     onViewLogs={() => onSetActiveTab('LOG')}
                     onViewError={() => onSetActiveTab('VALIDATION')}
                     onCancel={onCancel}
+                    onResolveIntent={(selectedInterpretationId) => onResolveIntent(selectedJob, selectedInterpretationId)}
                     isCancelable={false}
                   />
                 )

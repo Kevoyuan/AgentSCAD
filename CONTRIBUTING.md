@@ -17,32 +17,41 @@ bun install --frozen-lockfile
 
 # 3. Set up environment
 cp .env.example .env
-# Edit .env to add your API keys (optional — template fallback works without keys)
+# API keys may be added here, or configured in Settings → Providers after startup.
+# Template fallback is diagnostic only and does not represent full AI CAD quality.
 
 # 4. Initialize database
 mkdir -p db && touch db/dev.db
 bun run db:push
 
-# 5. Start development server
+# 5. Verify the local author environment
+bun run doctor
+
+# 6. Start development server
 bun run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
-> **Tip:** Install [OpenSCAD](https://openscad.org/downloads.html) and add it to your PATH to enable real STL/PNG rendering. Without it, the app works but jobs stay in `GEOMETRY_FAILED` state.
+Then configure your own provider/key under **Settings → Providers → Test → Save**. Local settings are written to `.agentscad/providers.json`; never commit or share that file.
+
+> **OpenSCAD is the core CAD engine.** Install the [native CLI](https://openscad.org/downloads.html) and add it to PATH, or configure `AGENTSCAD_OPENSCAD_BACKEND=wasm`. Without a working OpenSCAD backend, AgentSCAD cannot produce real STL/PNG geometry.
 
 ## Development Commands
 
 | Command | What it does |
 |---|---|
 | `bun run dev` | Start Next.js dev server on port 3000 |
+| `bun run doctor` | Check author runtime, SQLite, provider setup, OpenSCAD, libraries, artifacts, and local secret boundaries |
 | `bun run test` | Run unit tests |
 | `bun run test:wasm` | Run the verified OpenSCAD WASM integration suite |
 | `bun run lint` | Check for lint errors |
 | `bun run typecheck` | TypeScript type-check |
 | `bun run build` | Production build |
-| `bun run cad:eval:fast` | Run CAD benchmark (simple cases) |
-| `bun run cad:eval` | Run full CAD benchmark suite (14 cases) |
+| `bun run cad:eval:fast` | Run the offline intent/schema/retrieval harness for simple fixtures |
+| `bun run cad:eval` | Run dev plus frozen offline fixtures; any missing required evidence or regression exits nonzero |
+| `bun run cad:eval:case <id>` | Inspect one case with tagged evidence and provenance |
+| `bun run cad:eval:render` | Run the real checksum-pinned WASM compile/STL/bbox/PNG benchmark |
 
 ## Making Changes
 
@@ -76,10 +85,11 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Keep these in mind when contributing:
 
-- **Thin HTTP routes, fat pipeline**: Keep CAD reasoning in `skills/`, deterministic work in `src/lib/`.
-- **Skills over hardcoded logic**: CAD generation, repair, and validation rules live in `skills/scad-*/SKILL.md`.
+- **Thin HTTP routes, fat pipeline**: Keep CAD reasoning guidance in `skills/`, deterministic work in `src/lib/`.
+- **Explicit judgment boundary**: Model-facing CAD guidance lives in `skills/`; measurable render/mesh/manufacturing checks live in deterministic TypeScript/Python code.
 - **Artifact-first**: OpenSCAD source is the source of truth — not hidden JSON parameters.
 - **Test the deterministic parts**: Unit tests for `src/lib/tools/`, `src/lib/validation/`, and `src/lib/pipeline/`.
+- **Separate evidence levels**: `DELIVERED` means artifacts are available; it does not mean the design matches the request or that a user accepted it.
 
 See [ARCHITECTURE.md](./docs/ARCHITECTURE.md) for the full design context.
 
@@ -94,7 +104,7 @@ See [ARCHITECTURE.md](./docs/ARCHITECTURE.md) for the full design context.
 
 - Keep PRs focused — one feature or fix per PR.
 - Include a brief description of what changed and why.
-- If your change affects the CAD pipeline, run `bun run cad:eval:fast` and paste the results.
+- If your change affects the CAD pipeline, run the relevant unit tests and at least one real OpenSCAD backend check (`bun run test:wasm`, `bun run cad:eval:render`, or `OPENSCAD_BIN=openscad bun run test:openscad`). You may also attach `bun run cad:eval:fast` as offline harness evidence, but its LLM/compile/mesh/bbox/visual fields remain `NOT_RUN` and are not CAD quality evidence. The render benchmark proves only its named compile/STL/bbox/PNG facts.
 - If your change touches UI, attach a screenshot or short screen recording.
 
 ## Reporting Issues

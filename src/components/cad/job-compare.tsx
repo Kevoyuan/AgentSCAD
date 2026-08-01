@@ -29,6 +29,8 @@ import {
   ValidationResult,
   parseJSON,
   getStateInfo,
+  getValidationEvidenceStatus,
+  type ValidationEvidenceStatus,
 } from './types'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -120,20 +122,33 @@ function ParamRow({
 
 function ValidationRow({
   ruleName,
-  leftPassed,
-  rightPassed,
+  leftStatus,
+  rightStatus,
   isCritical,
 }: {
   ruleName: string
-  leftPassed: boolean
-  rightPassed: boolean
+  leftStatus: ValidationEvidenceStatus | 'MISSING'
+  rightStatus: ValidationEvidenceStatus | 'MISSING'
   isCritical: boolean
 }) {
-  const bothSame = leftPassed === rightPassed
+  const bothSame = leftStatus === rightStatus
+  const statusIcon = (status: ValidationEvidenceStatus | 'MISSING') => {
+    const icon = status === 'PASS'
+      ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+      : status === 'FAIL' || status === 'ERROR'
+        ? <XCircle className="w-3.5 h-3.5 text-rose-400" />
+        : <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+    return (
+      <span className="flex flex-col items-center gap-0.5" aria-label={status} title={status}>
+        {icon}
+        <span className="text-[7px] font-mono leading-none text-[var(--app-text-dim)]">{status}</span>
+      </span>
+    )
+  }
 
   return (
     <div
-      className={`grid grid-cols-[1fr_40px_20px_40px] items-center gap-1 py-1.5 px-2 border-b border-[color:var(--app-border)] last:border-0 ${
+      className={`grid grid-cols-[1fr_58px_20px_58px] items-center gap-1 py-1.5 px-2 border-b border-[color:var(--app-border)] last:border-0 ${
         !bothSame ? 'bg-amber-500/5' : ''
       }`}
     >
@@ -142,21 +157,13 @@ function ValidationRow({
         {ruleName}
       </span>
       <span className="flex items-center justify-center">
-        {leftPassed ? (
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-        ) : (
-          <XCircle className="w-3.5 h-3.5 text-rose-400" />
-        )}
+        {statusIcon(leftStatus)}
       </span>
       <span className="flex items-center justify-center">
         {!bothSame && <span className="w-1 h-1 rounded-full bg-amber-400" />}
       </span>
       <span className="flex items-center justify-center">
-        {rightPassed ? (
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-        ) : (
-          <XCircle className="w-3.5 h-3.5 text-rose-400" />
-        )}
+        {statusIcon(rightStatus)}
       </span>
     </div>
   )
@@ -422,8 +429,8 @@ export function JobCompare({ jobs }: JobCompareProps) {
                       <ValidationRow
                         key={ruleId}
                         ruleName={meta.rule_name}
-                        leftPassed={leftResult?.passed ?? false}
-                        rightPassed={rightResult?.passed ?? false}
+                        leftStatus={leftResult ? getValidationEvidenceStatus(leftResult) : 'MISSING'}
+                        rightStatus={rightResult ? getValidationEvidenceStatus(rightResult) : 'MISSING'}
                         isCritical={meta.is_critical}
                       />
                     )

@@ -25,9 +25,12 @@ export async function fetchWithRetry(
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const signal = init.signal
+        ? AbortSignal.any([init.signal, controller.signal])
+        : controller.signal;
 
       try {
-        const response = await fetch(url, { ...init, signal: controller.signal });
+        const response = await fetch(url, { ...init, signal });
 
         // Retry on 429 (rate limit) and 5xx (server error)
         if (response.status === 429 || response.status >= 500) {

@@ -15,6 +15,7 @@ export function checkComponents(meshData: RawMeshData): ValidationCheck {
       rule_name: "Connected Components",
       level: "ENGINEERING",
       passed: true,
+      status: "SKIP",
       is_critical: false,
       message: "Skipped — component count not available from mesh analysis",
     };
@@ -31,6 +32,7 @@ export function checkComponents(meshData: RawMeshData): ValidationCheck {
       rule_name: "Connected Components",
       level: "ENGINEERING",
       passed: true,
+      status: "PASS",
       is_critical: true,
       message: `Single ${extra} body, no floating parts detected`,
       details: { componentCount, isWatertight, isVolume },
@@ -43,6 +45,7 @@ export function checkComponents(meshData: RawMeshData): ValidationCheck {
       rule_name: "Connected Components",
       level: "ENGINEERING",
       passed: false,
+      status: "FAIL",
       is_critical: true,
       message: `Mesh has ${componentCount} disconnected components. ` +
         `Floating parts detected — the model would print as separate pieces. ` +
@@ -56,6 +59,7 @@ export function checkComponents(meshData: RawMeshData): ValidationCheck {
     rule_name: "Connected Components",
     level: "ENGINEERING",
     passed: false,
+    status: "FAIL",
     is_critical: true,
     message: `Mesh has ${componentCount} disconnected components — severe fragmentation. ` +
       `Possible boolean operation errors or missing union().`,

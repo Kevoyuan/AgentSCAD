@@ -4,12 +4,13 @@ import { useMemo, useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Loader2, Code2, CheckCircle2,
-  XCircle, Clock, FileText, Ban, AlertCircle,
+  XCircle, Clock, FileText, Ban, AlertCircle, GitBranch,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Job, PIPELINE_STEPS, getPipelineProgress, parseJSON, ExecutionLog,
   timeAgo, getStateInfo, ValidationResult,
+  getValidationEvidenceStatus,
 } from './types'
 import { highlightScad } from '@/lib/scad-highlight'
 
@@ -21,7 +22,23 @@ interface JobStatusPageProps {
   onViewLogs: () => void
   onViewError?: () => void
   onCancel: (job: Job) => void
+  onResolveIntent?: (selectedInterpretationId: string) => Promise<void>
   isCancelable: boolean
+}
+
+interface IntentInterpretation {
+  id: string
+  label: string
+  domain?: string
+  objectKind?: string
+  probability?: number
+  evidence?: string[]
+}
+
+interface IntentClarification {
+  status?: string
+  clarificationQuestion?: string | null
+  interpretations?: IntentInterpretation[]
 }
 
 // ─── Step Time Estimation ───────────────────────────────────────────────────
@@ -87,6 +104,84 @@ function parseObject(value: string | null): Record<string, unknown> {
   return parseJSON<Record<string, unknown>>(value, {})
 }
 
+function IntentClarificationCard({
+  job,
+  onResolveIntent,
+}: {
+  job: Job
+  onResolveIntent?: (selectedInterpretationId: string) => Promise<void>
+}) {
+  const [submittingId, setSubmittingId] = useState<string | null>(null)
+  const intent = parseJSON<IntentClarification>(job.intentResult, {})
+  const interpretations = Array.isArray(intent.interpretations) ? intent.interpretations : []
+  const question = intent.clarificationQuestion
+    || 'This request has multiple plausible CAD meanings. Which one should AgentSCAD build?'
+
+  const selectInterpretation = async (id: string) => {
+    if (!onResolveIntent || submittingId) return
+    setSubmittingId(id)
+    try {
+      await onResolveIntent(id)
+    } finally {
+      setSubmittingId(null)
+    }
+  }
+
+  return (
+    <div className="flex flex-1 items-center justify-center overflow-y-auto p-6">
+      <div className="w-full max-w-3xl rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-6 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-amber-500/25 bg-amber-500/10 text-amber-300">
+            <GitBranch className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-mono uppercase tracking-widest text-amber-300">Clarification required</p>
+            <h3 className="mt-2 text-lg font-semibold leading-snug text-[var(--app-text-primary)]">{question}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--app-text-muted)]">
+              No model has been generated yet. Your choice is stored locally as explicit input and can be audited later.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          {interpretations.map((interpretation) => (
+            <button
+              key={interpretation.id}
+              type="button"
+              className="group rounded-lg border border-[color:var(--app-border)] bg-[var(--app-surface)] p-4 text-left transition-colors hover:border-amber-500/40 hover:bg-amber-500/[0.05] disabled:cursor-wait disabled:opacity-60"
+              disabled={!onResolveIntent || Boolean(submittingId)}
+              onClick={() => void selectInterpretation(interpretation.id)}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-sm font-semibold text-[var(--app-text-primary)]">{interpretation.label}</span>
+                {submittingId === interpretation.id && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-amber-300" />}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {interpretation.domain && (
+                  <span className="rounded border border-[color:var(--app-border)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--app-text-muted)]">
+                    {interpretation.domain}
+                  </span>
+                )}
+                {interpretation.objectKind && (
+                  <span className="rounded border border-[color:var(--app-border)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--app-text-muted)]">
+                    {interpretation.objectKind}
+                  </span>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {interpretations.length === 0 && (
+          <p className="mt-5 rounded-lg border border-rose-500/20 bg-rose-500/5 p-3 text-sm text-rose-300">
+            Clarification options are unavailable. Re-run intake or create a new job with a more specific request.
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Live Elapsed Timer ─────────────────────────────────────────────────────
 
 function LiveElapsed({ createdAt }: { createdAt: string }) {
@@ -110,7 +205,9 @@ function FailureDiagnostics({ job }: { job: Job }) {
     const text = `${log.event} ${log.message}`.toLowerCase()
     return text.includes('failed') || text.includes('error')
   })
-  const failedValidation = validationResults.filter((rule) => !rule.passed)
+  const failedValidation = validationResults.filter((rule) =>
+    !['PASS', 'WARN'].includes(getValidationEvidenceStatus(rule)),
+  )
   const renderMessages = [...(renderLog?.errors || []), ...(renderLog?.warnings || [])]
   const hasDiagnostics = failedLogs.length > 0 || failedValidation.length > 0 || renderMessages.length > 0
 
@@ -261,13 +358,20 @@ function GenerationEvidence({
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
-export function JobStatusPage({ job, streamEvents = [], onViewLogs, onViewError, onCancel, isCancelable }: JobStatusPageProps) {
+export function JobStatusPage({ job, streamEvents = [], onViewLogs, onViewError, onCancel, onResolveIntent, isCancelable }: JobStatusPageProps) {
   const state = job.state
   const progress = getPipelineProgress(state)
   const currentIdx = PIPELINE_STEPS.findIndex(s => s.key === state)
   const failedStates = ['VALIDATION_FAILED', 'GEOMETRY_FAILED', 'RENDER_FAILED']
   const isFailed = failedStates.includes(state)
   const isDelivered = state === 'DELIVERED'
+  const isIntentClarification = state === 'HUMAN_REVIEW' && job.generationPath === 'intent_clarification'
+  const persistedIntent = parseJSON<IntentClarification & {
+    approval?: { selectedInterpretationId?: string }
+  }>(job.intentResult, {})
+  const approvedInterpretation = persistedIntent.interpretations?.find(
+    interpretation => interpretation.id === persistedIntent.approval?.selectedInterpretationId,
+  )
   const stepDurations = useMemo(() => getStepDurations(job.executionLogs), [job.executionLogs])
   const latestEvent = streamEvents[streamEvents.length - 1]
 
@@ -279,9 +383,10 @@ export function JobStatusPage({ job, streamEvents = [], onViewLogs, onViewError,
       return step ? `Failed at ${step.label}` : 'Failed'
     }
     if (isDelivered) return 'Complete'
+    if (isIntentClarification) return 'Clarify request'
     const step = PIPELINE_STEPS.find(s => s.key === state)
     return step ? step.label : state
-  }, [state, isFailed, isDelivered])
+  }, [state, isFailed, isDelivered, isIntentClarification])
 
   // Calculate effective progress (for failed, show up to the failed step)
   const effectiveProgress = isFailed
@@ -305,10 +410,12 @@ export function JobStatusPage({ job, streamEvents = [], onViewLogs, onViewError,
               <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${
                 isFailed ? 'border-rose-500/25 bg-rose-500/10 text-rose-300' :
                 isDelivered ? 'border-lime-500/25 bg-lime-500/10 text-lime-300' :
+                isIntentClarification ? 'border-amber-500/25 bg-amber-500/10 text-amber-300' :
                 'border-[color:var(--app-border)] bg-[var(--app-accent-bg)] text-[var(--app-accent-text)]'
               }`}>
                 {isFailed ? <XCircle className="h-5 w-5" /> :
                  isDelivered ? <CheckCircle2 className="h-5 w-5" /> :
+                 isIntentClarification ? <GitBranch className="h-5 w-5" /> :
                  <Loader2 className="h-5 w-5 animate-spin" />}
               </div>
               <div className="min-w-0">
@@ -316,6 +423,7 @@ export function JobStatusPage({ job, streamEvents = [], onViewLogs, onViewError,
                   <h2 className={`text-lg font-semibold tracking-tight ${
                     isFailed ? 'text-rose-400' :
                     isDelivered ? 'text-lime-400' :
+                    isIntentClarification ? 'text-amber-300' :
                     'text-[var(--app-text-primary)]'
                   }`}>
                     {currentStepLabel}
@@ -325,6 +433,14 @@ export function JobStatusPage({ job, streamEvents = [], onViewLogs, onViewError,
                   </span>
                 </div>
                 <div className="mt-1 flex items-center gap-2">
+                  {approvedInterpretation && (
+                    <span
+                      className="max-w-[260px] truncate rounded border border-cyan-500/20 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-medium text-cyan-300"
+                      title={`Approved interpretation: ${approvedInterpretation.label}. Create a new job to choose a different interpretation.`}
+                    >
+                      Approved: {approvedInterpretation.label}
+                    </span>
+                  )}
                   <span className="truncate text-xs text-[var(--app-text-muted)]">
                     {latestEvent?.message || 'Queued CAD generation pipeline...'}
                   </span>
@@ -487,7 +603,11 @@ export function JobStatusPage({ job, streamEvents = [], onViewLogs, onViewError,
 
             {/* Main Stage (Generation Evidence) */}
             <div className="flex-1 flex flex-col min-w-0 bg-[var(--app-surface)]">
-              <GenerationEvidence job={job} streamEvents={streamEvents} />
+              {isIntentClarification ? (
+                <IntentClarificationCard job={job} onResolveIntent={onResolveIntent} />
+              ) : (
+                <GenerationEvidence job={job} streamEvents={streamEvents} />
+              )}
               {isFailed && (
                 <div className="shrink-0 p-6 border-t border-[color:var(--app-border)] bg-rose-500/5">
                   <FailureDiagnostics job={job} />

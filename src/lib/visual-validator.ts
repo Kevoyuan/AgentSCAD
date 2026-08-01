@@ -18,16 +18,13 @@ type VisualValidationResponse = {
   missing_features?: string[];
 };
 
-type VisualValidationContext = {
-  scadSource?: string;
-};
-
 function skippedResult(reason: string): ValidationResult {
   return {
     rule_id: "V001",
     rule_name: "Visual Design Intent Match",
     level: "SEMANTIC",
     passed: true,
+    status: "SKIP",
     is_critical: false,
     message: `Skipped — ${reason}`,
   };
@@ -48,50 +45,30 @@ function extractJsonObject(raw: string): VisualValidationResponse | null {
   }
 }
 
-function normalizeFeatureName(value: string): string {
-  return value.toLowerCase().replace(/[_-]+/g, " ");
-}
-
-function hasSourceEvidenceForFeature(feature: string, scadSource: string): boolean {
-  const normalized = normalizeFeatureName(feature);
-  const source = scadSource.toLowerCase();
-  const tokens = normalized
-    .split(/[^a-z0-9]+/i)
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 4);
-
-  if (tokens.length === 0) return false;
-  return tokens.some((token) => source.includes(token));
-}
-
-function isCoveredBySourceEvidence(issue: VisualValidationIssue, scadSource: string): boolean {
-  const feature = issue.feature || "";
-  const message = issue.message || "";
-  return hasSourceEvidenceForFeature(feature, scadSource) || hasSourceEvidenceForFeature(message, scadSource);
-}
-
-function buildResult(
+export function buildVisualValidationResult(
   parsed: VisualValidationResponse,
   raw: string,
-  context: VisualValidationContext = {}
 ): ValidationResult {
-  const scadSource = context.scadSource || "";
   const issues = Array.isArray(parsed.issues) ? parsed.issues : [];
   const missingFeatures = Array.isArray(parsed.missing_features) ? parsed.missing_features : [];
-  const unresolvedIssues = scadSource
-    ? issues.filter((issue) => !isCoveredBySourceEvidence(issue, scadSource))
-    : issues;
-  const unresolvedMissingFeatures = scadSource
-    ? missingFeatures.filter((feature) => !hasSourceEvidenceForFeature(feature, scadSource))
-    : missingFeatures;
-  const criticalIssues = unresolvedIssues.filter((issue) => issue.severity === "critical");
-  const sourceResolvedDisagreement =
-    (issues.length > unresolvedIssues.length || missingFeatures.length > unresolvedMissingFeatures.length) &&
-    criticalIssues.length === 0 &&
-    unresolvedMissingFeatures.length === 0;
-  const passed = sourceResolvedDisagreement || (parsed.passed !== false && criticalIssues.length === 0);
-  const summary = parsed.summary?.trim() || (passed ? "Rendered preview matches visible design intent" : "Rendered preview has visible design-intent issues");
-  const issueSummary = unresolvedIssues
+  const criticalIssues = issues.filter((issue) => issue.severity === "critical");
+  const confidence = typeof parsed.confidence === "number"
+    ? Math.max(0, Math.min(1, parsed.confidence))
+    : null;
+  const failed = parsed.passed === false || criticalIssues.length > 0 || missingFeatures.length > 0;
+  const uncertain = !failed && (
+    confidence === null
+    || confidence < 0.7
+    || issues.some((issue) => issue.severity === "warning")
+  );
+  const status = failed ? "FAIL" : uncertain ? "WARN" : "PASS";
+  const passed = status !== "FAIL";
+  const summary = parsed.summary?.trim() || (failed
+    ? "Rendered preview has visible design-intent issues"
+    : uncertain
+      ? "Rendered preview needs human review because visual evidence is uncertain"
+      : "Rendered preview matches visible design intent");
+  const issueSummary = issues
     .map((issue) => {
       const feature = issue.feature ? `${issue.feature}: ` : "";
       return `${feature}${issue.message || issue.severity || "visual issue"}`;
@@ -99,31 +76,27 @@ function buildResult(
     .filter(Boolean)
     .slice(0, 3)
     .join(" | ");
-  const missingSummary = unresolvedMissingFeatures.length ? ` Missing: ${unresolvedMissingFeatures.slice(0, 5).join(", ")}.` : "";
-  const sourceEvidenceSummary = sourceResolvedDisagreement
-    ? " Source evidence found in OpenSCAD; preview angle treated as inconclusive rather than critical."
-    : "";
-  const confidence = typeof parsed.confidence === "number" ? ` Confidence: ${Math.round(parsed.confidence * 100)}%.` : "";
+  const missingSummary = missingFeatures.length ? ` Missing: ${missingFeatures.slice(0, 5).join(", ")}.` : "";
+  const confidenceSummary = confidence !== null ? ` Confidence: ${Math.round(confidence * 100)}%.` : " Confidence: not reported.";
 
   return {
     rule_id: "V001",
     rule_name: "Visual Design Intent Match",
     level: "SEMANTIC",
     passed,
-    is_critical: !passed,
-    message: `${summary}${issueSummary ? ` Issues: ${issueSummary}.` : ""}${missingSummary}${sourceEvidenceSummary}${confidence}`.trim() || raw.slice(0, 240),
+    status,
+    is_critical: failed,
+    message: `${summary}${issueSummary ? ` Issues: ${issueSummary}.` : ""}${missingSummary}${confidenceSummary}`.trim() || raw.slice(0, 240),
   };
 }
 
 export async function validatePreviewAgainstRequest({
   inputRequest,
   partFamily,
-  scadSource,
   previewImagePath,
 }: {
   inputRequest: string;
   partFamily: string | null;
-  scadSource: string;
   previewImagePath: string;
 }): Promise<ValidationResult[]> {
   const mimoConfig = getMimoConfig();
@@ -153,11 +126,7 @@ export async function validatePreviewAgainstRequest({
     `Original request: ${inputRequest}`,
     `Detected part family: ${partFamily || "unknown"}`,
     "",
-    "Current OpenSCAD source:",
-    "```openscad",
-    scadSource.slice(0, 12000),
-    "```",
-    "",
+    "Judge only the approved request text and pixels in the rendered preview. Do not infer hidden geometry.",
     "Return strict JSON according to the skill output contract.",
   ].join("\n");
 
@@ -188,7 +157,7 @@ export async function validatePreviewAgainstRequest({
       return [skippedResult(`vision response was not valid JSON: ${raw.slice(0, 160)}`)];
     }
 
-    return [buildResult(parsed, raw, { scadSource })];
+    return [buildVisualValidationResult(parsed, raw)];
   } catch (error) {
     const message = error instanceof Error ? error.message : "visual validation failed";
     return [skippedResult(message)];

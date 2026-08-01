@@ -388,6 +388,7 @@ export function MainWorkspace() {
             processingJobId={state.processingJobId}
             pipelineEvents={state.pipelineEvents}
             onProcess={state.handleProcess}
+            onResolveIntent={state.handleResolveIntent}
             onCancel={(j) => state.setCancelTarget(j)}
             onDelete={state.handleDelete}
             onDownloadScad={state.downloadScad}
