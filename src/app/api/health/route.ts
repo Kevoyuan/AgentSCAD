@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import packageJson from "../../../../package.json";
+
+const APP_VERSION = packageJson.version;
 
 export async function GET() {
   try {
@@ -9,7 +12,7 @@ export async function GET() {
       status: "healthy",
       timestamp: new Date().toISOString(),
       service: "AgentSCAD API",
-      version: "1.0.0",
+      version: APP_VERSION,
       database: "connected",
     });
   } catch (error) {
@@ -18,7 +21,7 @@ export async function GET() {
         status: "unhealthy",
         timestamp: new Date().toISOString(),
         service: "AgentSCAD API",
-        version: "1.0.0",
+        version: APP_VERSION,
         database: "disconnected",
         error: error instanceof Error ? error.message : "Unknown error",
       },
