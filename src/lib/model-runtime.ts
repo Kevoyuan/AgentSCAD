@@ -1,6 +1,5 @@
-export const DEFAULT_MODEL_REQUEST_TIMEOUT_MS = 90_000;
 export const MIN_MODEL_REQUEST_TIMEOUT_MS = 5_000;
-export const MAX_MODEL_REQUEST_TIMEOUT_MS = 240_000;
+export const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 export type ModelErrorCode =
   | "LLM_TIMEOUT"
@@ -24,27 +23,30 @@ export class ModelRequestError extends Error {
     this.retryable = retryable;
   }
 }
+
 export function getModelRequestTimeoutMs(
   env: Readonly<Record<string, string | undefined>> = process.env,
-): number {
+): number | null {
   const raw = env.AGENTSCAD_LLM_TIMEOUT_MS?.trim();
-  const parsed = raw ? Number(raw) : DEFAULT_MODEL_REQUEST_TIMEOUT_MS;
-  if (!Number.isFinite(parsed)) return DEFAULT_MODEL_REQUEST_TIMEOUT_MS;
+  if (!raw || raw === "0") return null;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
   return Math.min(
     Math.max(Math.round(parsed), MIN_MODEL_REQUEST_TIMEOUT_MS),
-    MAX_MODEL_REQUEST_TIMEOUT_MS,
+    MAX_TIMER_DELAY_MS,
   );
 }
 
 export function createModelRequestSignal(
   signal?: AbortSignal,
   timeoutMs = getModelRequestTimeoutMs(),
-): AbortSignal {
+): AbortSignal | undefined {
   // A caller-provided signal owns the operation's deadline (for example the
   // visual-repair route's 120-second budget). Do not silently shorten it with
-  // the router's default timeout; callers without a deadline still receive a
-  // bounded signal below.
+  // an optional operator-configured timeout. Without either, model execution
+  // remains unbounded at the application layer.
   if (signal) return signal;
+  if (timeoutMs === null) return undefined;
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
   return timeoutSignal;
 }
@@ -73,7 +75,9 @@ export function normalizeModelRequestError(
   ) {
     return new ModelRequestError(
       "LLM_TIMEOUT",
-      `Model generation timed out after ${Math.round(timeoutMs / 1_000)} seconds. Retry or choose a faster model.`,
+      timeoutMs === null
+        ? "Model generation timed out before it completed. Retry or check the provider's own request limits."
+        : `Model generation timed out after ${Math.round(timeoutMs / 1_000)} seconds. Retry or increase AGENTSCAD_LLM_TIMEOUT_MS.`,
       true,
       { cause },
     );

@@ -12,7 +12,7 @@ import {
   sealProviderSettings,
   serializeProviderCookie,
 } from "@/lib/provider-cookie-store";
-import { getModelRequestTimeoutMs } from "@/lib/model-runtime";
+import { createModelRequestSignal } from "@/lib/model-runtime";
 
 export type ProviderType =
   | "openai-compatible"
@@ -432,7 +432,7 @@ export async function createProviderChatCompletion(args: {
     method: "POST",
     headers,
     redirect: "error",
-    signal: args.signal ?? AbortSignal.timeout(getModelRequestTimeoutMs()),
+    signal: createModelRequestSignal(args.signal),
     body: JSON.stringify({
       model: args.model || args.provider.defaultModel,
       messages: args.messages,

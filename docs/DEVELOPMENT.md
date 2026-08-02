@@ -67,7 +67,7 @@ Local development saves custom Provider Settings to `.agentscad/providers.json`.
 | `API_SECRET` | Optional | Enables bearer-token administrative API access and permits environment-backed shared provider credentials. Without it, production uses same-origin browser requests, HttpOnly job-session scoping, and encrypted per-browser BYO provider keys only. This is not an account system. |
 | `PROVIDER_SETTINGS_SECRET` | Vercel | Encrypts per-browser provider settings in an HttpOnly session cookie. Generate at least 32 random characters; rotating it invalidates saved sessions. |
 | `PROVIDER_BASE_URL_ALLOWLIST` | Optional | Comma-separated exact HTTPS base URLs for trusted custom providers in production. |
-| `AGENTSCAD_LLM_TIMEOUT_MS` | Optional | Total budget for one model request. Defaults to `90000`, bounded to 5–240 seconds. |
+| `AGENTSCAD_LLM_TIMEOUT_MS` | Optional | Application-level model timeout in milliseconds. Unset or `0` disables it; positive values are opt-in. Hosting platforms may still enforce their own function duration limit. |
 | `AGENTSCAD_TEMPLATE_FALLBACK` | Optional demo only | Set to `true` only for deterministic legacy-template diagnostics. Disabled by default and never required for arbitrary/freeform CAD. |
 
 Built-in production presets are already trusted. To enable a custom OpenAI-compatible endpoint, add its exact base URL, without a trailing slash, for example:
