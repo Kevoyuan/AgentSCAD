@@ -3,6 +3,20 @@
 All notable changes to AgentSCAD are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.4.1.0] - 2026-08-02
+
+### Added
+- Generate arbitrary, non-template parametric OpenSCAD models through the configured LLM, including explicit generation-path metadata for freeform requests
+- Configurable long-running model request timeouts with actionable timeout, authentication, rate-limit, and provider-unavailable diagnostics
+
+### Changed
+- Template generation is now opt-in demo behavior instead of a silent production fallback, so unsupported creative requests fail honestly and can be retried with a provider
+- Visual repair can be launched for delivered jobs that still need visual evidence, while atomic repair leases prevent duplicate paid work
+- Documentation and environment examples now describe the local-first BYO-key workflow and the freeform generation contract
+
+### Fixed
+- Preserve the original request's family classification after intent approval instead of routing internal intent IDs to unrelated templates
+
 ## [0.4.0.0] - 2026-08-01
 
 ### Added

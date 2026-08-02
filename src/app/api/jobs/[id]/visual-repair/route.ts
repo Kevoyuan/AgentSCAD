@@ -97,7 +97,7 @@ export async function POST(
       where: {
         id,
         ...jobAccessFilter(access),
-        state: "HUMAN_REVIEW",
+        state: { in: ["HUMAN_REVIEW", "DELIVERED"] },
       },
       data: {
         state: "REPAIRING",

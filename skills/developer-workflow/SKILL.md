@@ -29,7 +29,7 @@ Preserve these exactly unless the user explicitly requests a coordinated runtime
 - Generation JSON: `summary`, `parameters`, `scad_source`.
 - Parameter fields: `key`, `label`, `kind`, `unit`, `value`, `min`, `max`, `step`, `source`, `editable`, `description`, `group`.
 - Validation fields: `rule_id`, `rule_name`, `level`, `passed`, `is_critical`, `message`.
-- Provider fallback: MiMo when configured, then ZAI SDK, then template generation.
+- Provider fallback: MiMo when configured, then ZAI SDK. Product generation fails visibly when no model succeeds; legacy templates are available only through the explicit demo-only switch.
 - Rendering and validation: OpenSCAD CLI renders artifacts; Python/trimesh validates STL with mock fallback.
 - Keep deterministic behavior in TypeScript/Python tools, not prompts.
 
