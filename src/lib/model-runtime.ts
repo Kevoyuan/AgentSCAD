@@ -39,8 +39,13 @@ export function createModelRequestSignal(
   signal?: AbortSignal,
   timeoutMs = getModelRequestTimeoutMs(),
 ): AbortSignal {
+  // A caller-provided signal owns the operation's deadline (for example the
+  // visual-repair route's 120-second budget). Do not silently shorten it with
+  // the router's default timeout; callers without a deadline still receive a
+  // bounded signal below.
+  if (signal) return signal;
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
-  return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+  return timeoutSignal;
 }
 
 function errorMessage(error: unknown): string {
