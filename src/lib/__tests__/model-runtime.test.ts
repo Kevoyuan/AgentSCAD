@@ -9,6 +9,7 @@ import {
 describe("model runtime", () => {
   test("uses a complex-generation-friendly timeout with bounded overrides", () => {
     expect(getModelRequestTimeoutMs({})).toBe(DEFAULT_MODEL_REQUEST_TIMEOUT_MS);
+    expect(getModelRequestTimeoutMs({ AGENTSCAD_LLM_TIMEOUT_MS: "" })).toBe(DEFAULT_MODEL_REQUEST_TIMEOUT_MS);
     expect(getModelRequestTimeoutMs({ AGENTSCAD_LLM_TIMEOUT_MS: "60000" })).toBe(60_000);
     expect(getModelRequestTimeoutMs({ AGENTSCAD_LLM_TIMEOUT_MS: "100" })).toBe(5_000);
     expect(getModelRequestTimeoutMs({ AGENTSCAD_LLM_TIMEOUT_MS: "999999" })).toBe(240_000);

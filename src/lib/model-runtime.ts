@@ -27,7 +27,8 @@ export class ModelRequestError extends Error {
 export function getModelRequestTimeoutMs(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): number {
-  const parsed = Number(env.AGENTSCAD_LLM_TIMEOUT_MS ?? DEFAULT_MODEL_REQUEST_TIMEOUT_MS);
+  const raw = env.AGENTSCAD_LLM_TIMEOUT_MS?.trim();
+  const parsed = raw ? Number(raw) : DEFAULT_MODEL_REQUEST_TIMEOUT_MS;
   if (!Number.isFinite(parsed)) return DEFAULT_MODEL_REQUEST_TIMEOUT_MS;
   return Math.min(
     Math.max(Math.round(parsed), MIN_MODEL_REQUEST_TIMEOUT_MS),
