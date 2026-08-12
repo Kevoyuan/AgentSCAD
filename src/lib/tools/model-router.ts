@@ -14,6 +14,11 @@ import {
   createProviderChatCompletion,
   findProviderForModel,
 } from "@/lib/provider-settings";
+import {
+  createModelRequestSignal,
+  getModelRequestTimeoutMs,
+  normalizeModelRequestError,
+} from "@/lib/model-runtime";
 
 export interface ModelRouterRequest {
   messages: MimoMessage[];
@@ -56,84 +61,91 @@ export async function createChatCompletionWithFallback({
   preferMimo = true,
   signal,
 }: ModelRouterRequest): Promise<string> {
-  const configuredProvider = await findProviderForModel(model);
-  if (configuredProvider) {
-    const providerResponse = await createProviderChatCompletion({
-      provider: configuredProvider.provider,
-      model: configuredProvider.model,
-      messages,
-      stream,
-      signal,
-    });
-    const result = await providerResponse.json();
-    return result?.choices?.[0]?.message?.content ?? JSON.stringify(result);
-  }
+  const timeoutMs = getModelRequestTimeoutMs();
+  const requestSignal = createModelRequestSignal(signal, timeoutMs);
 
-  if (isOpenRouterModel(model)) {
-    const openRouterResponse = await createOpenRouterChatCompletion({
-      model,
-      messages,
-      stream,
-      signal,
-    });
-    const result = await openRouterResponse.json();
-    return result?.choices?.[0]?.message?.content ?? JSON.stringify(result);
-  }
+  try {
+    const configuredProvider = await findProviderForModel(model);
+    if (configuredProvider) {
+      const providerResponse = await createProviderChatCompletion({
+        provider: configuredProvider.provider,
+        model: configuredProvider.model,
+        messages,
+        stream,
+        signal: requestSignal,
+      });
+      const result = await providerResponse.json();
+      return result?.choices?.[0]?.message?.content ?? JSON.stringify(result);
+    }
 
-  if (model?.startsWith("deepseek-")) {
-    const deepSeekResponse = await createDeepSeekChatCompletion({
-      model,
-      messages,
-      stream,
-      signal,
-    });
-    const result = await deepSeekResponse.json();
-    return result?.choices?.[0]?.message?.content ?? JSON.stringify(result);
-  }
+    if (isOpenRouterModel(model)) {
+      const openRouterResponse = await createOpenRouterChatCompletion({
+        model,
+        messages,
+        stream,
+        signal: requestSignal,
+      });
+      const result = await openRouterResponse.json();
+      return result?.choices?.[0]?.message?.content ?? JSON.stringify(result);
+    }
 
-  if (preferMimo && getMimoConfig().enabled) {
-    const mimoResponse = await createMimoChatCompletion({
-      model: model || process.env.MIMO_MODEL || MIMO_DEFAULT_MODEL,
-      messages,
-      stream,
-      signal,
-    });
-    const result = await mimoResponse.json();
-    return result?.choices?.[0]?.message?.content ?? JSON.stringify(result);
-  }
+    if (model?.startsWith("deepseek-")) {
+      const deepSeekResponse = await createDeepSeekChatCompletion({
+        model,
+        messages,
+        stream,
+        signal: requestSignal,
+      });
+      const result = await deepSeekResponse.json();
+      return result?.choices?.[0]?.message?.content ?? JSON.stringify(result);
+    }
 
-  if (hasImageInput(messages)) {
-    throw new Error(
-      "Visual requests require a configured multimodal provider; text-only fallback is disabled",
+    if (preferMimo && getMimoConfig().enabled) {
+      const mimoResponse = await createMimoChatCompletion({
+        model: model || process.env.MIMO_MODEL || MIMO_DEFAULT_MODEL,
+        messages,
+        stream,
+        signal: requestSignal,
+      });
+      const result = await mimoResponse.json();
+      return result?.choices?.[0]?.message?.content ?? JSON.stringify(result);
+    }
+
+    if (hasImageInput(messages)) {
+      throw new Error(
+        "Visual requests require a configured multimodal provider; text-only fallback is disabled",
+      );
+    }
+
+    const ZAIModule = await import("z-ai-web-dev-sdk");
+    const ZAI = ZAIModule.default;
+    const zai = await ZAI.create();
+
+    const result = await waitForModel(zai.chat.completions.create({
+      messages: messages.map((message) => ({
+        role:
+          message.role === "system" || message.role === "assistant"
+            ? message.role
+            : "user",
+        content:
+          typeof message.content === "string"
+            ? message.content
+            : message.content
+                .filter((part) => part.type === "text")
+                .map((part) => part.text)
+                .join("\n"),
+      })),
+      stream,
+    }), requestSignal);
+
+    return (
+      result?.choices?.[0]?.message?.content ??
+      result?.data?.content ??
+      (typeof result === "string" ? result : JSON.stringify(result))
     );
+  } catch (error) {
+    throw normalizeModelRequestError(error, timeoutMs);
   }
-
-  const ZAIModule = await import("z-ai-web-dev-sdk");
-  const ZAI = ZAIModule.default;
-  const zai = await ZAI.create();
-
-  const result = await waitForModel(zai.chat.completions.create({
-    messages: messages.map((message) => ({
-      role:
-        message.role === "system" || message.role === "assistant"
-          ? message.role
-          : "user",
-      content:
-        typeof message.content === "string"
-          ? message.content
-          : message.content
-              .filter((part) => part.type === "text")
-              .map((part) => part.text)
-              .join("\n"),
-    })),
-    stream,
-  }), signal);
-
-  return (
-    result?.choices?.[0]?.message?.content ??
-    result?.data?.content ??
-    (typeof result === "string" ? result : JSON.stringify(result))
-  );
 }
 
 export async function callModelText(request: ModelRouterRequest): Promise<string> {

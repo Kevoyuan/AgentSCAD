@@ -36,7 +36,7 @@ Do not change these contracts from skill content:
 - Each parameter object keeps `key`, `label`, `kind`, `unit`, `value`, `min`, `max`, `step`, `source`, `editable`, `description`, and `group`.
 - Rendering uses native OpenSCAD or the isolated official WASM CLI to produce STL; serverless preview code projects the STL to PNG.
 - Mesh validation uses Python/trimesh when available. When it is unavailable, affected mesh rules are `SKIP`; unavailable checks are never mocked as passing.
-- Model routing uses an explicitly configured provider/model first, then matching OpenRouter or DeepSeek routes, then MiMo when enabled. Text-only requests may fall back to `z-ai-web-dev-sdk`; visual requests may not. After generation failure, only supported known part families may use template generation.
+- Model routing uses an explicitly configured provider/model first, then matching OpenRouter or DeepSeek routes, then MiMo when enabled. Text-only requests may fall back to `z-ai-web-dev-sdk`; visual requests may not. Known and unknown families both use LLM generation; legacy templates require the explicit demo-only `AGENTSCAD_TEMPLATE_FALLBACK=true` switch.
 
 ## Guardrails
 

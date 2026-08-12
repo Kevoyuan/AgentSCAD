@@ -45,7 +45,7 @@ OpenSCAD is the core CAD execution engine. Local development can use the native 
 `src/lib/pipeline/execute-cad-job.ts` owns the current runtime state machine:
 
 1. **INTAKE** — analyze the deterministic intent index first; index-unknown requests get one bounded model intake whose untrusted JSON is validated. Any supported ambiguity is persisted and moves to `HUMAN_REVIEW`; the UI records the user's selected meaning before continuing.
-2. **GENERATE** — the selected/configured LLM generates structured CAD intent and complete OpenSCAD. The current fallback is template generation for four known families (spur_gear, device_stand, electronics_enclosure, phone_case).
+2. **GENERATE** — the selected/configured LLM generates structured CAD intent and complete OpenSCAD for both known families and arbitrary freeform requests. Family detection is optional prompt/retrieval context, never a generation gate. Legacy templates for four known families are disabled by default and available only through the explicit `AGENTSCAD_TEMPLATE_FALLBACK=true` demo switch.
 3. **RENDER** — native OpenSCAD or the isolated WASM child process renders SCAD to STL; the serverless preview path projects the STL to PNG.
 4. **VALIDATE** — deterministic rules inspect compile/render evidence, dimensions, connectivity, holes, wall thickness, and mesh facts. Visual review is a separate user-triggered VLM path.
 5. **DELIVER** — SCAD, STL, PNG, parameters, and validation reports are available. `DELIVERED` does not prove that the artifact matches the user's intent or that the user accepted it.
@@ -57,7 +57,7 @@ Each step emits SSE events to the requesting frontend. The broader workspace ref
 - Keep CAD reasoning, repair strategy, validation interpretation, and manufacturing judgment in `skills/`.
 - Keep deterministic work in code: OpenSCAD rendering, Python/trimesh validation, Prisma writes, artifact paths, SCAD sanitization, SSE formatting, polling adapters, file IO, and tests.
 - Preserve runtime contracts unless a migration explicitly updates the frontend and tests: SSE `data: ${JSON.stringify(payload)}\n\n`, existing state strings, existing step strings, `/artifacts/{jobId}/model.stl`, `/artifacts/{jobId}/preview.png`, and the legacy `validationResults` fields `rule_id`, `rule_name`, `level`, `passed`, `is_critical`, `message`. Results may add explicit `status` (`PASS|WARN|FAIL|SKIP|ERROR|NOT_RUN`); skipped/unavailable checks must not be counted as passed.
-- Preserve model routing behavior: an explicitly configured provider/model first, then built-in OpenRouter/DeepSeek/MiMo routing where applicable, then `z-ai-web-dev-sdk`; template generation remains the pipeline fallback when model generation fails.
+- Preserve model routing behavior: an explicitly configured provider/model first, then built-in OpenRouter/DeepSeek/MiMo routing where applicable, then `z-ai-web-dev-sdk`. Do not silently replace failed model generation with product-family templates; keep templates behind the explicit demo-only switch.
 - Prefer wrappers and adapters over route rewrites. The process route should become thinner gradually, only after behavior-preserving tools are proven.
 - Prefer artifact-first CAD architecture: generate or repair complete OpenSCAD, then let deterministic tools parse parameters from top-level SCAD assignments. Do not make hidden JSON-only parameters the source of truth.
 - Improve CAD quality through general library support, render feedback, and repair loops rather than hardcoded product-family geometry.
