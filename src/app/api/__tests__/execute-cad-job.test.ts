@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { ModelRequestError } from "@/lib/model-runtime";
 
 const updates: Array<{ where: { id: string }; data: Record<string, unknown> }> = [];
 let currentJob: Record<string, unknown>;
 let generationCalls = 0;
+let templateCalls = 0;
 let renderCalls = 0;
 let intakeCalls = 0;
 let modelIntakeResult: Record<string, unknown>;
@@ -31,43 +33,46 @@ beforeAll(() => {
         ? "electronics_enclosure"
         : "unknown"),
     getParameterSchema: mock(async () => []),
-    generateMockScadCode: mock(async () => ({
-      part_type: "electronics_enclosure",
-      summary: "Generated test enclosure (mock)",
-      units: "mm",
-      features: [],
-      constraints: {
-        dimensions: {},
-        assumptions: [],
-        manufacturing: { min_wall_thickness: 2, printable: true },
-        geometry: { must_be_manifold: true, centered: true, no_floating_parts: true },
-        code: { use_parameters: true, use_library_modules: true, avoid_magic_numbers: true, top_level_module: "generated_part" },
-      },
-      modeling_plan: [],
-      design_rationale: [],
-      validation_targets: {
-        expected_bbox: [],
-        required_feature_checks: [],
-        forbidden_failure_modes: [],
-      },
-      parameters: [
-        {
-          key: "wall_thickness",
-          label: "Wall Thickness",
-          kind: "float",
-          unit: "mm",
-          value: 2,
-          min: 1,
-          max: 6,
-          step: 0.1,
-          source: "user",
-          editable: true,
-          description: "Wall",
-          group: "Dimensions",
+    generateMockScadCode: mock(async () => {
+      templateCalls += 1;
+      return ({
+        part_type: "electronics_enclosure",
+        summary: "Generated test enclosure (mock)",
+        units: "mm",
+        features: [],
+        constraints: {
+          dimensions: {},
+          assumptions: [],
+          manufacturing: { min_wall_thickness: 2, printable: true },
+          geometry: { must_be_manifold: true, centered: true, no_floating_parts: true },
+          code: { use_parameters: true, use_library_modules: true, avoid_magic_numbers: true, top_level_module: "generated_part" },
         },
-      ],
-      scad_source: "wall_thickness = 2; cube([10, 10, 10]);",
-    })),
+        modeling_plan: [],
+        design_rationale: [],
+        validation_targets: {
+          expected_bbox: [],
+          required_feature_checks: [],
+          forbidden_failure_modes: [],
+        },
+        parameters: [
+          {
+            key: "wall_thickness",
+            label: "Wall Thickness",
+            kind: "float",
+            unit: "mm",
+            value: 2,
+            min: 1,
+            max: 6,
+            step: 0.1,
+            source: "user",
+            editable: true,
+            description: "Wall",
+            group: "Dimensions",
+          },
+        ],
+        scad_source: "wall_thickness = 2; cube([10, 10, 10]);",
+      });
+    }),
     runScadGenerationSkill: mock(async (
       request: string,
       _parameters: Record<string, unknown>,
@@ -187,6 +192,7 @@ afterAll(() => {
 beforeEach(() => {
   updates.length = 0;
   generationCalls = 0;
+  templateCalls = 0;
   renderCalls = 0;
   intakeCalls = 0;
   modelIntakeError = null;
@@ -238,11 +244,13 @@ beforeEach(() => {
 
 describe("executeCadJob", () => {
   test("demo delays default to zero and are bounded when explicitly enabled", async () => {
-    const { getDemoDelayMs } = await import("@/lib/pipeline/execute-cad-job");
+    const { getDemoDelayMs, isTemplateFallbackEnabled } = await import("@/lib/pipeline/execute-cad-job");
     expect(getDemoDelayMs({})).toBe(0);
     expect(getDemoDelayMs({ AGENTSCAD_DEMO_DELAY_MS: "250" })).toBe(250);
     expect(getDemoDelayMs({ AGENTSCAD_DEMO_DELAY_MS: "99999" })).toBe(5_000);
     expect(getDemoDelayMs({ AGENTSCAD_DEMO_DELAY_MS: "not-a-number" })).toBe(0);
+    expect(isTemplateFallbackEnabled({})).toBe(false);
+    expect(isTemplateFallbackEnabled({ AGENTSCAD_TEMPLATE_FALLBACK: "true" })).toBe(true);
   });
 
   test("marks the job as GEOMETRY_FAILED and emits render_failed when OpenSCAD rendering fails", async () => {
@@ -320,6 +328,11 @@ describe("executeCadJob", () => {
     expect(intakeCalls).toBe(0);
     expect(generationFamilies).toEqual(["unknown"]);
     expect(updates.map((update) => update.data.state)).toContain("SCAD_GENERATED");
+    expect(updates.find((update) => update.data.state === "SCAD_GENERATED")?.data).toMatchObject({
+      generationPath: "llm_freeform_parametric",
+      builderName: "AgentSCAD-LLM-freeform",
+      partFamily: "unknown",
+    });
     expect(events.some((event) => event.step === "intent_clarification_required")).toBe(false);
     const generatedIntent = JSON.parse(
       updates.find((update) => update.data.state === "SCAD_GENERATED")?.data.cadIntentJson as string,
@@ -390,6 +403,79 @@ describe("executeCadJob", () => {
     expect(renderCalls).toBe(0);
     expect(updates.at(-1)?.data.state).toBe("GEOMETRY_FAILED");
     expect(events.some((event) => event.step === "generating_mock")).toBe(false);
+    expect(events.at(-1)).toMatchObject({
+      errorCode: "CAD_GENERATION_FAILED",
+      failureStage: "generate",
+      retryable: true,
+    });
+    expect(templateCalls).toBe(0);
+  });
+
+  test("does not silently replace a known family with a template in the normal product path", async () => {
+    generationError = new Error("provider unavailable");
+    spyOn(console, "warn").mockImplementation(() => undefined);
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+
+    await executeCadJob("job-pipeline", (event) => events.push(event));
+
+    expect(generationFamilies).toEqual(["electronics_enclosure"]);
+    expect(templateCalls).toBe(0);
+    expect(renderCalls).toBe(0);
+    expect(events.some((event) => event.step === "generating_mock")).toBe(false);
+    expect(events.at(-1)).toMatchObject({
+      state: "GEOMETRY_FAILED",
+      errorCode: "CAD_GENERATION_FAILED",
+      retryable: true,
+    });
+  });
+
+  test("keeps the legacy template generator behind an explicit demo-only switch", async () => {
+    const previous = process.env.AGENTSCAD_TEMPLATE_FALLBACK;
+    process.env.AGENTSCAD_TEMPLATE_FALLBACK = "true";
+    generationError = new Error("provider unavailable");
+    spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+      const events: Record<string, unknown>[] = [];
+
+      await executeCadJob("job-pipeline", (event) => events.push(event));
+
+      expect(templateCalls).toBe(1);
+      expect(events.some((event) => event.step === "generating_mock")).toBe(true);
+      expect(updates.find((update) => update.data.state === "SCAD_GENERATED")?.data).toMatchObject({
+        generationPath: "template_demo_fallback",
+        builderName: "AgentSCAD-DemoTemplate-electronics_enclosure",
+      });
+    } finally {
+      if (previous === undefined) delete process.env.AGENTSCAD_TEMPLATE_FALLBACK;
+      else process.env.AGENTSCAD_TEMPLATE_FALLBACK = previous;
+    }
+  });
+
+  test("surfaces model timeouts as retryable LLM errors instead of template failures", async () => {
+    generationError = new ModelRequestError(
+      "LLM_TIMEOUT",
+      "Model generation timed out after 90 seconds. Retry or choose a faster model.",
+      true,
+    );
+    spyOn(console, "warn").mockImplementation(() => undefined);
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+
+    await executeCadJob("job-pipeline", (event) => events.push(event));
+
+    expect(templateCalls).toBe(0);
+    expect(renderCalls).toBe(0);
+    expect(events.at(-1)).toMatchObject({
+      state: "GEOMETRY_FAILED",
+      errorCode: "LLM_TIMEOUT",
+      failureStage: "generate",
+      retryable: true,
+      message: "Processing failed: Model generation timed out after 90 seconds. Retry or choose a faster model.",
+    });
+    expect(updates.at(-1)?.data.executionLogs).toContain("LLM_TIMEOUT");
+    expect(updates.at(-1)?.data.executionLogs).not.toContain("no safe template");
   });
 
   test("reuses a persisted model-derived match without another intake call", async () => {

@@ -27,6 +27,7 @@ import type {
   RenderedArtifacts,
   StructuredGenerationResult,
 } from "@/lib/harness/types";
+import { ModelRequestError } from "@/lib/model-runtime";
 
 export type ProcessSseEvent = Record<string, unknown>;
 export type ProcessEventSink = (data: ProcessSseEvent) => void;
@@ -52,6 +53,12 @@ export function getDemoDelayMs(env: Readonly<Record<string, string | undefined>>
   const parsed = Number(env.AGENTSCAD_DEMO_DELAY_MS ?? 0);
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
   return Math.min(Math.round(parsed), 5_000);
+}
+
+export function isTemplateFallbackEnabled(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  return env.AGENTSCAD_TEMPLATE_FALLBACK?.trim().toLowerCase() === "true";
 }
 
 function demoDelay(): Promise<void> {
@@ -193,21 +200,31 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
       usedLLM = true;
     } catch (llmError) {
       const errMsg = llmError instanceof Error ? llmError.message : "Unknown LLM error";
-      if (partFamily === "unknown") {
-        console.warn(`LLM generation failed and no safe template is available: ${errMsg}`);
-        throw new Error("LLM generation unavailable and no safe template exists for this request");
+      const canUseDemoTemplate = partFamily !== "unknown" && isTemplateFallbackEnabled();
+      if (!canUseDemoTemplate) {
+        const errorCode = llmError instanceof ModelRequestError
+          ? llmError.code
+          : "LLM_UNAVAILABLE";
+        console.warn(`LLM freeform generation failed [${errorCode}]: ${errMsg}`);
+        throw llmError;
       }
-      console.warn(`LLM generation failed, falling back to ${partFamily} template: ${errMsg}`);
-      sendEvent({ state: "NEW", step: "generating_mock", message: `LLM unavailable (${errMsg}), using the ${partFamily} template...` });
+      console.warn(`LLM generation failed, using explicit demo fallback for ${partFamily}: ${errMsg}`);
+      sendEvent({ state: "NEW", step: "generating_mock", message: `LLM unavailable (${errMsg}); explicit demo fallback is generating the ${partFamily} template...` });
       await demoDelay();
       generationResult = await generateMockScadCode(generationRequest, paramValues, partFamily);
     }
 
     let scadCode = generationResult.scad_source;
-    const generationPath = usedLLM ? "llm_parametric" : "template_parametric";
+    const generationPath = usedLLM
+      ? partFamily === "unknown"
+        ? "llm_freeform_parametric"
+        : "llm_parametric"
+      : "template_demo_fallback";
     const builderName = usedLLM
-      ? `AgentSCAD-LLM-${partFamily}`
-      : `AgentSCAD-Template-${partFamily}`;
+      ? partFamily === "unknown"
+        ? "AgentSCAD-LLM-freeform"
+        : `AgentSCAD-LLM-${partFamily}`
+      : `AgentSCAD-DemoTemplate-${partFamily}`;
 
     await db.job.update({
       where: { id: jobId },
@@ -678,6 +695,12 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
     const errorState = currentStage === "render" ? "RENDER_FAILED"
       : currentStage === "validate" ? "VALIDATION_FAILED"
       : "GEOMETRY_FAILED";
+    const modelError = error instanceof ModelRequestError ? error : null;
+    const errorCode = modelError?.code
+      ?? (currentStage === "render" ? "OPENSCAD_RENDER_FAILED"
+        : currentStage === "validate" ? "CAD_VALIDATION_FAILED"
+        : "CAD_GENERATION_FAILED");
+    const retryable = modelError?.retryable ?? currentStage !== "validate";
 
     await db.job.update({
       where: { id: jobId },
@@ -685,8 +708,8 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         state: errorState,
         executionLogs: appendLog(
           (await db.job.findUnique({ where: { id: jobId } }))?.executionLogs,
-          errorState,
-          `Processing failed during ${currentStage}: ${message}`
+          errorCode,
+          `Processing failed during ${currentStage} [${errorCode}]: ${message}`
         ),
       },
     });
@@ -695,6 +718,9 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
       state: errorState,
       step: "error",
       message: `Processing failed: ${message}`,
+      errorCode,
+      failureStage: currentStage,
+      retryable,
     });
   }
 }

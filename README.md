@@ -45,7 +45,7 @@ There is no account system. In local mode, jobs live in SQLite, artifacts stay o
 - Bring your own provider key. The normal product path is **Settings → Providers → Test → Save**, then create a job with the configured model.
 - OpenSCAD is always the geometry authority. Use the native CLI locally or the checksum-pinned official WASM CLI in serverless/explicit WASM mode.
 - LLMs handle interpretation, SCAD generation, repair, chat, and optional visual review. Deterministic tools handle rendering, artifact IO, parameter extraction, and measurable mesh/manufacturing checks.
-- Without a provider key, the UI and deterministic CAD tooling still run, and four known part families have a template fallback. That fallback is for diagnostics and local exploration, not representative AI CAD quality.
+- Without a provider key, the UI and deterministic CAD tooling still run, but new geometry generation is unavailable. Legacy templates are disabled by default and may be enabled only for explicit demo/diagnostic runs.
 - Code entry points: `src/lib/pipeline/execute-cad-job.ts`, `src/lib/tools/`, `src/components/cad/`, `src/app/api/`, `prisma/schema.prisma`, and `skills/`.
 
 ## Prerequisites
@@ -157,7 +157,7 @@ After creating and processing a job, you should see:
 - job history / version information
 - repair, visual repair, re-render, or export actions when the job state supports them
 
-Without a provider key, you can still inspect the UI, initialize the database, edit SCAD/parameters, inspect local artifacts, and run deterministic rendering/validation. If model generation fails, the current pipeline falls back to template-style parametric generation only for its supported families; the event stream identifies that path as `generating_mock`.
+Without a provider key, you can still inspect the UI, initialize the database, edit SCAD/parameters, inspect local artifacts, and run deterministic rendering/validation. New CAD generation requires a working model. Arbitrary requests use the same LLM-backed freeform parametric path as known families; family detection supplies optional context and never decides whether a request is generatable.
 
 ## Provider Key Boundary
 
@@ -169,7 +169,7 @@ Without a provider key, you can still inspect the UI, initialize the database, e
 - edit SCAD and extracted parameters
 - run OpenSCAD rendering if OpenSCAD is installed and reachable through `OPENSCAD_BIN` or `openscad`
 - run deterministic mesh/manufacturing validation after an STL exists
-- use the limited fallback/template CAD generation paths when model calls are unavailable
+- explicitly enable `AGENTSCAD_TEMPLATE_FALLBACK=true` for local demo/diagnostic runs of the four legacy families
 
 ### Requires a working provider/model
 
@@ -194,7 +194,7 @@ Expected artifacts:
 - validation report
 - editable parameters
 
-Without provider keys, generated geometry may come from the template fallback path. That is still useful for evaluating the workflow, artifacts, and deterministic checks, but not a substitute for reviewing model-backed CAD quality.
+Without provider keys, this sample does not generate new geometry in the normal product path. For offline workflow diagnostics only, explicitly set `AGENTSCAD_TEMPLATE_FALLBACK=true`; this is not representative of AgentSCAD's LLM-backed CAD quality.
 
 ## Features
 
