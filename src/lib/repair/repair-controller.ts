@@ -27,6 +27,7 @@ export interface RepairInput {
     validation_targets?: CadValidationTargets;
   };
   requestedModel?: string | null;
+  signal?: AbortSignal;
 }
 
 export interface RepairResult {
@@ -141,6 +142,7 @@ export async function runRepair(input: RepairInput): Promise<{
     ],
     model: input.requestedModel?.trim() || undefined,
     stream: false,
+    signal: input.signal,
   });
 
   const generationResult = normalizeGenerationResult(

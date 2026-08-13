@@ -3,6 +3,15 @@
 All notable changes to AgentSCAD are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.4.2.0] - 2026-08-13
+
+### Fixed
+- Automatically send LLM-generated OpenSCAD source and real compiler diagnostics through one bounded repair pass when parsing, CGAL geometry, or an empty top-level object prevents rendering
+- Preserve the latest editable SCAD and actionable validation evidence when automatic repair cannot finish, without replacing creative models with product templates
+- Prevent compile-repair races from overwriting cancellation or newer work, recover only expired compile-repair leases, and retain prior repair history
+- Keep serverless compile repair inside the request budget while leaving ordinary model generation without an application timeout
+- Avoid paid model repair for OpenSCAD runtime, capacity, integrity, and queue failures, while preserving provider and runtime error codes
+
 ## [0.4.1.0] - 2026-08-02
 
 ### Added
