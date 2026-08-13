@@ -226,7 +226,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
 
         sendEvent({
           state: "NEW",
-          step: "compile_repairing",
+          step: "repairing",
           message: "Generated SCAD failed OpenSCAD compilation. Attempting one geometry repair using the compiler diagnostics...",
           errorCode: "OPENSCAD_COMPILE_FAILED",
         });
@@ -260,7 +260,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
           currentStage = "generate";
           sendEvent({
             state: "NEW",
-            step: "compile_repair_success",
+            step: "repair_success",
             message: "The generated SCAD was repaired and passed OpenSCAD compilation.",
           });
         } catch (repairError) {
@@ -302,7 +302,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
           });
           sendEvent({
             state: "HUMAN_REVIEW",
-            step: "compile_repair_failed",
+            step: "repair_error",
             message: "Generated SCAD and its automatic repair both failed OpenSCAD compilation. The latest source is preserved for review.",
             errorCode: "OPENSCAD_COMPILE_FAILED",
             failureStage: "generate",

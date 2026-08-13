@@ -479,8 +479,8 @@ describe("executeCadJob", () => {
 
     expect(repairCalls).toBe(1);
     expect(renderCalls).toBe(1);
-    expect(events.some((event) => event.step === "compile_repairing")).toBe(true);
-    expect(events.some((event) => event.step === "compile_repair_success")).toBe(true);
+    expect(events.some((event) => event.step === "repairing")).toBe(true);
+    expect(events.some((event) => event.step === "repair_success")).toBe(true);
     expect(updates.find((update) => update.data.state === "SCAD_GENERATED")?.data.scadSource).toBe(repairedScad);
   });
 
@@ -506,7 +506,7 @@ describe("executeCadJob", () => {
     });
     expect(events.at(-1)).toMatchObject({
       state: "HUMAN_REVIEW",
-      step: "compile_repair_failed",
+      step: "repair_error",
       errorCode: "OPENSCAD_COMPILE_FAILED",
       failureStage: "generate",
     });
