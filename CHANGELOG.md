@@ -3,6 +3,19 @@
 All notable changes to AgentSCAD are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.5.0.0] - 2026-08-13
+
+### Added
+- Resume timed-out CAD generation from a persisted, fingerprinted geometry plan instead of repeating completed planning work
+- Use a focused SCAD coding stage that consumes approved intent, editable parameters, reviewed libraries, and relevant examples
+
+### Changed
+- Reduce phone-case coding prompt size by about 18% and require the coding model to return only the OpenSCAD artifact
+- Reserve production request time for compilation, rendering, validation, and persistence while keeping local model generation unrestricted
+
+### Fixed
+- Preserve planning history across compiler-guided repair and reject cached plans whenever the request, approved interpretation, family, or parameter values change
+
 ## [0.4.2.0] - 2026-08-13
 
 ### Fixed
