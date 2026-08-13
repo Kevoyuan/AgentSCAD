@@ -6,7 +6,12 @@ import {
   generateMockScadCode,
   runScadGenerationSkill,
 } from "@/lib/harness/skill-runner";
-import { buildRenderFailureLog, renderScadArtifacts } from "@/lib/tools/scad-renderer";
+import { GeneratedScadCompileError } from "@/lib/harness/generation-errors";
+import {
+  buildRenderFailureLog,
+  renderScadArtifacts,
+  validateGeneratedScadSource,
+} from "@/lib/tools/scad-renderer";
 import {
   clearValidationCache,
   getCriticalValidationFailures,
@@ -59,6 +64,21 @@ export function isTemplateFallbackEnabled(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
   return env.AGENTSCAD_TEMPLATE_FALLBACK?.trim().toLowerCase() === "true";
+}
+
+function compileFailureResult(message: string) {
+  const boundedMessage = message.length > 4_000
+    ? `${message.slice(0, 4_000)}…`
+    : message;
+  return {
+    rule_id: "C001",
+    rule_name: "OpenSCAD Compile",
+    level: "GEOMETRY",
+    passed: false,
+    status: "ERROR" as const,
+    is_critical: true,
+    message: boundedMessage,
+  };
 }
 
 function demoDelay(): Promise<void> {
@@ -199,19 +219,113 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
       );
       usedLLM = true;
     } catch (llmError) {
-      const errMsg = llmError instanceof Error ? llmError.message : "Unknown LLM error";
-      const canUseDemoTemplate = partFamily !== "unknown" && isTemplateFallbackEnabled();
-      if (!canUseDemoTemplate) {
-        const errorCode = llmError instanceof ModelRequestError
-          ? llmError.code
-          : "LLM_UNAVAILABLE";
-        console.warn(`LLM freeform generation failed [${errorCode}]: ${errMsg}`);
-        throw llmError;
+      if (llmError instanceof GeneratedScadCompileError) {
+        currentStage = "repair";
+        const compileFailure = compileFailureResult(llmError.compileLog);
+        let failedScad = llmError.generationResult.scad_source;
+
+        sendEvent({
+          state: "NEW",
+          step: "compile_repairing",
+          message: "Generated SCAD failed OpenSCAD compilation. Attempting one geometry repair using the compiler diagnostics...",
+          errorCode: "OPENSCAD_COMPILE_FAILED",
+        });
+
+        try {
+          const repairResult = await runRepair({
+            originalRequest: inputRequest,
+            partFamily,
+            currentScadCode: failedScad,
+            validationResults: [compileFailure],
+            cadIntent: {
+              part_type: llmError.generationResult.part_type,
+              features: llmError.generationResult.features,
+              constraints: llmError.generationResult.constraints,
+              modeling_plan: llmError.generationResult.modeling_plan,
+              validation_targets: llmError.generationResult.validation_targets,
+            },
+            requestedModel: job.modelId,
+          });
+          failedScad = repairResult.generationResult.scad_source;
+          await validateGeneratedScadSource(failedScad);
+          generationResult = {
+            ...llmError.generationResult,
+            ...repairResult.generationResult,
+            parameters: repairResult.generationResult.parameters.length > 0
+              ? repairResult.generationResult.parameters
+              : llmError.generationResult.parameters,
+            scad_source: failedScad,
+          };
+          usedLLM = true;
+          currentStage = "generate";
+          sendEvent({
+            state: "NEW",
+            step: "compile_repair_success",
+            message: "The generated SCAD was repaired and passed OpenSCAD compilation.",
+          });
+        } catch (repairError) {
+          const repairMessage = repairError instanceof Error
+            ? repairError.message
+            : "Unknown compile repair error";
+          const validationResults = [
+            compileFailure,
+            compileFailureResult(`Automatic compile repair failed: ${repairMessage}`),
+          ];
+          const quality = buildJobQuality({
+            state: "HUMAN_REVIEW",
+            scadSource: failedScad,
+            stlPath: null,
+            pngPath: null,
+            validationResults,
+          });
+
+          await db.job.update({
+            where: { id: jobId },
+            data: {
+              state: "HUMAN_REVIEW",
+              partFamily,
+              builderName: "AgentSCAD-LLM-compile-repair",
+              generationPath: "llm_compile_repair_failed",
+              scadSource: failedScad,
+              stlPath: null,
+              pngPath: null,
+              renderLog: JSON.stringify(buildRenderFailureLog(0, [repairMessage])),
+              validationResults: JSON.stringify(validationResults),
+              qualityScore: quality.qualityScore,
+              validationReportJson: quality.validationReportJson,
+              executionLogs: appendLog(
+                job.executionLogs,
+                "OPENSCAD_COMPILE_FAILED",
+                `Generated SCAD and automatic repair both failed OpenSCAD compilation: ${repairMessage}`,
+              ),
+            },
+          });
+          sendEvent({
+            state: "HUMAN_REVIEW",
+            step: "compile_repair_failed",
+            message: "Generated SCAD and its automatic repair both failed OpenSCAD compilation. The latest source is preserved for review.",
+            errorCode: "OPENSCAD_COMPILE_FAILED",
+            failureStage: "generate",
+            retryable: true,
+            validationResults,
+          });
+          return;
+        }
+      } else {
+        const errMsg = llmError instanceof Error ? llmError.message : "Unknown LLM error";
+        const canUseDemoTemplate = partFamily !== "unknown" && isTemplateFallbackEnabled();
+        if (!canUseDemoTemplate) {
+          const errorCode = llmError instanceof ModelRequestError
+            ? llmError.code
+            : "LLM_UNAVAILABLE";
+          console.warn(`LLM freeform generation failed [${errorCode}]: ${errMsg}`);
+          throw llmError;
+        }
+        console.warn(`LLM generation failed, using explicit demo fallback for ${partFamily}: ${errMsg}`);
+        sendEvent({ state: "NEW", step: "generating_mock", message: `LLM unavailable (${errMsg}); explicit demo fallback is generating the ${partFamily} template...` });
+        await demoDelay();
+        generationResult = await generateMockScadCode(generationRequest, paramValues, partFamily);
       }
-      console.warn(`LLM generation failed, using explicit demo fallback for ${partFamily}: ${errMsg}`);
-      sendEvent({ state: "NEW", step: "generating_mock", message: `LLM unavailable (${errMsg}); explicit demo fallback is generating the ${partFamily} template...` });
-      await demoDelay();
-      generationResult = await generateMockScadCode(generationRequest, paramValues, partFamily);
     }
 
     let scadCode = generationResult.scad_source;

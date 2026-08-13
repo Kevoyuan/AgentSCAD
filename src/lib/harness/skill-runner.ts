@@ -7,6 +7,7 @@ import {
   mergeExtractedParameters,
 } from "@/lib/tools/scad-parameter-extractor";
 import { normalizeGenerationResult } from "@/lib/harness/structured-output";
+import { GeneratedScadCompileError } from "@/lib/harness/generation-errors";
 import type { ParameterDef, PartFamily, StructuredGenerationResult } from "@/lib/harness/types";
 
 export { buildScadPrompt, loadFamilySchema, loadSkill, applyParameterOverrides };
@@ -427,15 +428,21 @@ export async function runScadGenerationSkill(
     `Generated ${partFamily} part`
   );
   const sanitizedScadSource = sanitizeGeneratedScadSource(generationResult.scad_source);
-  await validateGeneratedScadSource(sanitizedScadSource);
   const extractedParameters = mergeExtractedParameters(
     extractParameterDefsFromScad(sanitizedScadSource),
     generationResult.parameters
   );
-
-  return {
+  const preparedResult = {
     ...generationResult,
     parameters: extractedParameters,
     scad_source: sanitizedScadSource,
   };
+
+  try {
+    await validateGeneratedScadSource(sanitizedScadSource);
+  } catch (error) {
+    throw new GeneratedScadCompileError(preparedResult, error);
+  }
+
+  return preparedResult;
 }

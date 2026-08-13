@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { ModelRequestError } from "@/lib/model-runtime";
+import { GeneratedScadCompileError } from "@/lib/harness/generation-errors";
 
 const updates: Array<{ where: { id: string }; data: Record<string, unknown> }> = [];
 let currentJob: Record<string, unknown>;
@@ -12,6 +13,35 @@ let modelIntakeError: Error | null = null;
 const generationRequests: string[] = [];
 const generationFamilies: string[] = [];
 let generationError: Error | null = null;
+let repairError: Error | null = null;
+let repairCalls = 0;
+let repairedScad = "cube([12, 12, 12]);";
+let compileValidationError: Error | null = null;
+
+function generatedResult(scadSource: string) {
+  return {
+    part_type: "unknown",
+    summary: "Generated test part",
+    units: "mm",
+    features: [],
+    constraints: {
+      dimensions: {},
+      assumptions: [],
+      manufacturing: { min_wall_thickness: 2, printable: true },
+      geometry: { must_be_manifold: true, centered: true, no_floating_parts: true },
+      code: { use_parameters: true, use_library_modules: true, avoid_magic_numbers: true, top_level_module: "generated_part" },
+    },
+    modeling_plan: [],
+    design_rationale: [],
+    validation_targets: {
+      expected_bbox: [],
+      required_feature_checks: [],
+      forbidden_failure_modes: [],
+    },
+    parameters: [],
+    scad_source: scadSource,
+  };
+}
 
 beforeAll(() => {
   mock.module("@/lib/db", () => ({
@@ -160,9 +190,29 @@ beforeAll(() => {
       png_resolution: null,
       warnings,
     }),
+    validateGeneratedScadSource: mock(async () => {
+      if (compileValidationError) throw compileValidationError;
+    }),
     renderScadArtifacts: mock(async () => {
       renderCalls += 1;
       throw new Error("openscad failed");
+    }),
+  }));
+
+  mock.module("@/lib/repair/repair-controller", () => ({
+    runRepair: mock(async () => {
+      repairCalls += 1;
+      if (repairError) throw repairError;
+      return {
+        generationResult: generatedResult(repairedScad),
+        repairMeta: {
+          scad_source: repairedScad,
+          repair_summary: "Replaced degenerate hull geometry",
+          risk: "medium",
+          requires_rerender: true,
+          assumptions: [],
+        },
+      };
     }),
   }));
 
@@ -199,6 +249,10 @@ beforeEach(() => {
   generationRequests.length = 0;
   generationFamilies.length = 0;
   generationError = null;
+  repairError = null;
+  repairCalls = 0;
+  repairedScad = "cube([12, 12, 12]);";
+  compileValidationError = null;
   modelIntakeResult = {
     version: 1,
     rawRequest: "electronics enclosure",
@@ -409,6 +463,53 @@ describe("executeCadJob", () => {
       retryable: true,
     });
     expect(templateCalls).toBe(0);
+  });
+
+  test("repairs generated SCAD that fails OpenSCAD compilation before rendering", async () => {
+    const badScad = "hull() { cube([0, 0, 0]); }";
+    generationError = new GeneratedScadCompileError(
+      generatedResult(badScad),
+      new Error("CGAL error in applyHull(): assertion violation"),
+    );
+    spyOn(console, "warn").mockImplementation(() => undefined);
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+
+    await executeCadJob("job-pipeline", (event) => events.push(event));
+
+    expect(repairCalls).toBe(1);
+    expect(renderCalls).toBe(1);
+    expect(events.some((event) => event.step === "compile_repairing")).toBe(true);
+    expect(events.some((event) => event.step === "compile_repair_success")).toBe(true);
+    expect(updates.find((update) => update.data.state === "SCAD_GENERATED")?.data.scadSource).toBe(repairedScad);
+  });
+
+  test("preserves the latest SCAD for review when compile repair also fails", async () => {
+    const badScad = "hull() { cube([0, 0, 0]); }";
+    generationError = new GeneratedScadCompileError(
+      generatedResult(badScad),
+      new Error("CGAL error in applyHull(): assertion violation"),
+    );
+    compileValidationError = new Error("Current top level object is empty");
+    spyOn(console, "warn").mockImplementation(() => undefined);
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+
+    await executeCadJob("job-pipeline", (event) => events.push(event));
+
+    expect(repairCalls).toBe(1);
+    expect(renderCalls).toBe(0);
+    expect(updates.at(-1)?.data).toMatchObject({
+      state: "HUMAN_REVIEW",
+      generationPath: "llm_compile_repair_failed",
+      scadSource: repairedScad,
+    });
+    expect(events.at(-1)).toMatchObject({
+      state: "HUMAN_REVIEW",
+      step: "compile_repair_failed",
+      errorCode: "OPENSCAD_COMPILE_FAILED",
+      failureStage: "generate",
+    });
   });
 
   test("does not silently replace a known family with a template in the normal product path", async () => {
