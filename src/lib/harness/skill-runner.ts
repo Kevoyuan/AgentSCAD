@@ -2,6 +2,7 @@ import { buildScadPrompt, loadFamilySchema, loadSkill, applyParameterOverrides }
 import { createChatCompletionWithFallback } from "@/lib/tools/model-router";
 import { sanitizeGeneratedScadSource } from "@/lib/tools/scad-sanitizer";
 import { validateGeneratedScadSource } from "@/lib/tools/scad-renderer";
+import { isRepairableScadCompileError } from "@/lib/tools/scad-compile-error";
 import {
   extractParameterDefsFromScad,
   mergeExtractedParameters,
@@ -441,6 +442,7 @@ export async function runScadGenerationSkill(
   try {
     await validateGeneratedScadSource(sanitizedScadSource);
   } catch (error) {
+    if (!isRepairableScadCompileError(error)) throw error;
     throw new GeneratedScadCompileError(preparedResult, error);
   }
 

@@ -2,6 +2,10 @@ import { db } from "@/lib/db";
 import { MIMO_DEFAULT_MODEL } from "@/lib/mimo";
 import { appendLog, incrementRetryCount, parameterDefsToValues } from "@/lib/stores/job-store";
 import {
+  extractParameterDefsFromScad,
+  mergeExtractedParameters,
+} from "@/lib/tools/scad-parameter-extractor";
+import {
   detectPartFamily,
   generateMockScadCode,
   runScadGenerationSkill,
@@ -12,6 +16,7 @@ import {
   renderScadArtifacts,
   validateGeneratedScadSource,
 } from "@/lib/tools/scad-renderer";
+import { isRepairableScadCompileError } from "@/lib/tools/scad-compile-error";
 import {
   clearValidationCache,
   getCriticalValidationFailures,
@@ -33,9 +38,23 @@ import type {
   StructuredGenerationResult,
 } from "@/lib/harness/types";
 import { ModelRequestError } from "@/lib/model-runtime";
+import { isEphemeralRuntime } from "@/lib/runtime-environment";
+import { randomUUID } from "crypto";
 
 export type ProcessSseEvent = Record<string, unknown>;
 export type ProcessEventSink = (data: ProcessSseEvent) => void;
+
+const PROCESS_REQUEST_BUDGET_MS = 300_000;
+const COMPILE_REPAIR_MODEL_BUDGET_MS = 45_000;
+// Leave room for the worst-case WASM queue/render, mesh validation, preview,
+// artifact persistence, and final database writes after the repair model returns.
+const COMPILE_REPAIR_TAIL_RESERVE_MS = 220_000;
+export const STALE_REPAIR_LEASE_MS = 6 * 60_000;
+
+interface CompileRepairLeaseEntry {
+  type: "compile_repair_lease";
+  token: string;
+}
 
 export const PROCESSABLE_JOB_STATES = [
   "NEW",
@@ -52,6 +71,72 @@ export function canProcessJobState(state: string): boolean {
 
 export function processableJobStatesMessage(): string {
   return PROCESSABLE_JOB_STATES.join(", ");
+}
+
+export function isStaleRepairLease(
+  state: string,
+  updatedAt: Date | string,
+  repairHistory: string | null | undefined,
+  now = Date.now(),
+): boolean {
+  const updatedAtMs = new Date(updatedAt).getTime();
+  return state === "REPAIRING"
+    && getCompileRepairLeaseEntry(repairHistory) !== null
+    && Number.isFinite(updatedAtMs)
+    && now - updatedAtMs >= STALE_REPAIR_LEASE_MS;
+}
+
+function parseRepairHistory(repairHistory: string | null | undefined): unknown[] {
+  if (!repairHistory) return [];
+  try {
+    const parsed = JSON.parse(repairHistory);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function isCompileRepairLeaseEntry(value: unknown): value is CompileRepairLeaseEntry {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<CompileRepairLeaseEntry>;
+  return candidate.type === "compile_repair_lease"
+    && typeof candidate.token === "string"
+    && candidate.token.length > 0;
+}
+
+export function getCompileRepairLeaseEntry(
+  repairHistory: string | null | undefined,
+): CompileRepairLeaseEntry | null {
+  const history = parseRepairHistory(repairHistory);
+  const candidate = history.at(-1);
+  return isCompileRepairLeaseEntry(candidate) ? candidate : null;
+}
+
+export function removeCompileRepairLease(
+  repairHistory: string | null | undefined,
+): string | null {
+  const history = parseRepairHistory(repairHistory);
+  if (!isCompileRepairLeaseEntry(history.at(-1))) return repairHistory ?? null;
+  const restored = history.slice(0, -1);
+  return restored.length > 0 ? JSON.stringify(restored) : null;
+}
+
+export function getCompileRepairModelBudgetMs(
+  elapsedMs: number,
+  ephemeral = isEphemeralRuntime(),
+): number | undefined | null {
+  if (!ephemeral) return undefined;
+  const remainingMs = PROCESS_REQUEST_BUDGET_MS - Math.max(0, elapsedMs);
+  const modelBudgetMs = Math.min(
+    COMPILE_REPAIR_MODEL_BUDGET_MS,
+    remainingMs - COMPILE_REPAIR_TAIL_RESERVE_MS,
+  );
+  return modelBudgetMs >= 5_000 ? modelBudgetMs : null;
+}
+
+function compileRepairSignal(startedAt: number): AbortSignal | undefined | null {
+  const budgetMs = getCompileRepairModelBudgetMs(Date.now() - startedAt);
+  return typeof budgetMs === "number" ? AbortSignal.timeout(budgetMs) : budgetMs;
 }
 
 export function getDemoDelayMs(env: Readonly<Record<string, string | undefined>> = process.env): number {
@@ -89,6 +174,7 @@ function demoDelay(): Promise<void> {
 }
 
 export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) {
+  const startedAt = Date.now();
   const job = await db.job.findUnique({ where: { id: jobId } });
   if (!job) {
     throw new Error(`Job not found with id: ${jobId}`);
@@ -203,6 +289,10 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
 
     let generationResult: StructuredGenerationResult;
     let usedLLM = false;
+    let compileRepairClaimed = false;
+    let compileRepairLease: string | null = null;
+    let compileRepairPreviousHistory: string | null = job.repairHistory;
+    let generationExecutionLogs = job.executionLogs;
 
     try {
       currentStage = "generate";
@@ -223,6 +313,121 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         currentStage = "repair";
         const compileFailure = compileFailureResult(llmError.compileLog);
         let failedScad = llmError.generationResult.scad_source;
+        const failedParameters = mergeExtractedParameters(
+          extractParameterDefsFromScad(failedScad),
+          llmError.generationResult.parameters,
+        );
+        const repairSignal = compileRepairSignal(startedAt);
+        const generatedCadIntent = JSON.stringify({
+          request_intelligence: requestIntelligence,
+          part_type: llmError.generationResult.part_type,
+          summary: llmError.generationResult.summary,
+          units: llmError.generationResult.units,
+          features: llmError.generationResult.features,
+          constraints: llmError.generationResult.constraints,
+          design_rationale: llmError.generationResult.design_rationale,
+        });
+
+        if (repairSignal === null) {
+          const quality = buildJobQuality({
+            state: "HUMAN_REVIEW",
+            scadSource: failedScad,
+            stlPath: null,
+            pngPath: null,
+            validationResults: [compileFailure],
+          });
+          const committed = await db.job.updateMany({
+            where: { id: jobId, state: job.state },
+            data: {
+              state: "HUMAN_REVIEW",
+              partFamily,
+              builderName: "AgentSCAD-LLM-compile-review",
+              generationPath: "llm_compile_repair_deferred",
+              scadSource: failedScad,
+              parameterSchema: JSON.stringify(failedParameters),
+              parameterValues: JSON.stringify(parameterDefsToValues(failedParameters)),
+              cadIntentJson: generatedCadIntent,
+              modelingPlanJson: JSON.stringify(llmError.generationResult.modeling_plan),
+              validationTargetsJson: JSON.stringify(llmError.generationResult.validation_targets),
+              stlPath: null,
+              pngPath: null,
+              renderLog: JSON.stringify(buildRenderFailureLog(0, [llmError.compileLog])),
+              reportPath: null,
+              validationResults: JSON.stringify([compileFailure]),
+              visualRepairReportJson: null,
+              validationReportJson: quality.validationReportJson,
+              qualityScore: quality.qualityScore,
+              completedAt: null,
+              executionLogs: appendLog(
+                job.executionLogs,
+                "OPENSCAD_COMPILE_FAILED",
+                "Compile repair deferred because the serverless request budget was nearly exhausted",
+              ),
+            },
+          });
+          if (committed.count !== 1) return;
+          sendEvent({
+            state: "HUMAN_REVIEW",
+            step: "repair_error",
+            message: "Generated SCAD failed compilation. Automatic repair was deferred to preserve the source before the serverless request deadline.",
+            errorCode: "OPENSCAD_COMPILE_FAILED",
+            failureStage: "generate",
+            retryable: true,
+            validationResults: [compileFailure],
+          });
+          return;
+        }
+
+        generationExecutionLogs = appendLog(
+          job.executionLogs,
+          "REPAIRING",
+          "Generated SCAD failed compilation; starting one compiler-guided repair",
+        );
+        const repairLeaseEntry: CompileRepairLeaseEntry = {
+          type: "compile_repair_lease",
+          token: randomUUID(),
+        };
+        const repairLease = JSON.stringify([
+          ...parseRepairHistory(job.repairHistory),
+          repairLeaseEntry,
+        ]);
+        compileRepairLease = repairLease;
+        const claim = await db.job.updateMany({
+          where: { id: jobId, state: job.state },
+          data: {
+            state: "REPAIRING",
+            scadSource: failedScad,
+            parameterSchema: JSON.stringify(failedParameters),
+            parameterValues: JSON.stringify(parameterDefsToValues(failedParameters)),
+            cadIntentJson: generatedCadIntent,
+            modelingPlanJson: JSON.stringify(llmError.generationResult.modeling_plan),
+            validationTargetsJson: JSON.stringify(llmError.generationResult.validation_targets),
+            researchResult: null,
+            designResult: null,
+            repairHistory: repairLease,
+            stlPath: null,
+            pngPath: null,
+            renderLog: null,
+            reportPath: null,
+            validationResults: JSON.stringify([compileFailure]),
+            visualRepairReportJson: null,
+            validationReportJson: null,
+            qualityScore: null,
+            completedAt: null,
+            executionLogs: generationExecutionLogs,
+          },
+        });
+        if (claim.count !== 1) {
+          sendEvent({
+            state: "REPAIRING",
+            step: "repair_error",
+            message: "Compile repair was not started because the job state changed.",
+            errorCode: "JOB_STATE_CHANGED",
+            retryable: true,
+          });
+          return;
+        }
+        compileRepairClaimed = true;
 
         sendEvent({
           state: "NEW",
@@ -245,15 +450,20 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
               validation_targets: llmError.generationResult.validation_targets,
             },
             requestedModel: job.modelId,
+            signal: repairSignal,
           });
           failedScad = repairResult.generationResult.scad_source;
           await validateGeneratedScadSource(failedScad);
+          const repairedParameters = mergeExtractedParameters(
+            extractParameterDefsFromScad(failedScad),
+            repairResult.generationResult.parameters.length > 0
+              ? repairResult.generationResult.parameters
+              : llmError.generationResult.parameters,
+          );
           generationResult = {
             ...llmError.generationResult,
             ...repairResult.generationResult,
-            parameters: repairResult.generationResult.parameters.length > 0
-              ? repairResult.generationResult.parameters
-              : llmError.generationResult.parameters,
+            parameters: repairedParameters,
             scad_source: failedScad,
           };
           usedLLM = true;
@@ -267,10 +477,29 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
           const repairMessage = repairError instanceof Error
             ? repairError.message
             : "Unknown compile repair error";
-          const validationResults = [
-            compileFailure,
-            compileFailureResult(`Automatic compile repair failed: ${repairMessage}`),
-          ];
+          const providerError = repairError instanceof ModelRequestError ? repairError : null;
+          const repairValidationWasOperational = failedScad !== llmError.generationResult.scad_source
+            && !providerError
+            && !isRepairableScadCompileError(repairError);
+          const repairWasCompileFailure = !providerError
+            && !repairValidationWasOperational
+            && failedScad !== llmError.generationResult.scad_source;
+          const failureSummary = providerError
+            ? "Generated SCAD failed compilation and the repair model was unavailable"
+            : repairValidationWasOperational
+              ? "The repaired SCAD was preserved because OpenSCAD validation was unavailable"
+            : repairWasCompileFailure
+              ? "The automatic repair still failed OpenSCAD compilation"
+              : "Generated SCAD failed compilation and automatic repair could not complete";
+          const validationResults = repairWasCompileFailure
+            ? [compileFailureResult(`Automatic repair still failed OpenSCAD compilation: ${repairMessage}`)]
+            : [compileFailure];
+          const errorCode = providerError?.code
+            ?? (repairValidationWasOperational ? "OPENSCAD_RUNTIME_UNAVAILABLE" : "OPENSCAD_COMPILE_FAILED");
+          const persistedParameters = mergeExtractedParameters(
+            extractParameterDefsFromScad(failedScad),
+            llmError.generationResult.parameters,
+          );
           const quality = buildJobQuality({
             state: "HUMAN_REVIEW",
             scadSource: failedScad,
@@ -279,34 +508,41 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
             validationResults,
           });
 
-          await db.job.update({
-            where: { id: jobId },
+          const committed = await db.job.updateMany({
+            where: { id: jobId, state: "REPAIRING", repairHistory: repairLease },
             data: {
               state: "HUMAN_REVIEW",
               partFamily,
               builderName: "AgentSCAD-LLM-compile-repair",
               generationPath: "llm_compile_repair_failed",
               scadSource: failedScad,
+              parameterSchema: JSON.stringify(persistedParameters),
+              parameterValues: JSON.stringify(parameterDefsToValues(persistedParameters)),
               stlPath: null,
               pngPath: null,
+              reportPath: null,
               renderLog: JSON.stringify(buildRenderFailureLog(0, [repairMessage])),
               validationResults: JSON.stringify(validationResults),
+              visualRepairReportJson: null,
               qualityScore: quality.qualityScore,
               validationReportJson: quality.validationReportJson,
+              completedAt: null,
+              repairHistory: compileRepairPreviousHistory,
               executionLogs: appendLog(
-                job.executionLogs,
-                "OPENSCAD_COMPILE_FAILED",
-                `Generated SCAD and automatic repair both failed OpenSCAD compilation: ${repairMessage}`,
+                generationExecutionLogs,
+                errorCode,
+                `${failureSummary}: ${repairMessage}`,
               ),
             },
           });
+          if (committed.count !== 1) return;
           sendEvent({
             state: "HUMAN_REVIEW",
             step: "repair_error",
-            message: "Generated SCAD and its automatic repair both failed OpenSCAD compilation. The latest source is preserved for review.",
-            errorCode: "OPENSCAD_COMPILE_FAILED",
-            failureStage: "generate",
-            retryable: true,
+            message: `${failureSummary}. The latest source is preserved for review.`,
+            errorCode,
+            failureStage: providerError ? "repair" : "generate",
+            retryable: providerError?.retryable ?? true,
             validationResults,
           });
           return;
@@ -340,9 +576,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         : `AgentSCAD-LLM-${partFamily}`
       : `AgentSCAD-DemoTemplate-${partFamily}`;
 
-    await db.job.update({
-      where: { id: jobId },
-      data: {
+    const generatedData = {
         state: "SCAD_GENERATED",
         partFamily,
         scadSource: scadCode,
@@ -382,13 +616,22 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
           parameters_mapped: generationResult.parameters.map((p) => p.key),
           llm_used: usedLLM,
         }),
+        repairHistory: compileRepairClaimed ? compileRepairPreviousHistory : job.repairHistory,
         executionLogs: appendLog(
-          job.executionLogs,
+          generationExecutionLogs,
           "SCAD_GENERATED",
           `SCAD code generated via ${usedLLM ? "LLM" : "template"} (family: ${partFamily})`
         ),
-      },
-    });
+      };
+    if (compileRepairClaimed) {
+      const committed = await db.job.updateMany({
+        where: { id: jobId, state: "REPAIRING", repairHistory: compileRepairLease },
+        data: generatedData,
+      });
+      if (committed.count !== 1) return;
+    } else {
+      await db.job.update({ where: { id: jobId }, data: generatedData });
+    }
 
     sendEvent({
       state: "SCAD_GENERATED",

@@ -16,6 +16,9 @@ let generationError: Error | null = null;
 let repairError: Error | null = null;
 let repairCalls = 0;
 let repairedScad = "cube([12, 12, 12]);";
+let repairUsesParameters = false;
+let repairValidationResults: Array<{ message: string }> = [];
+let cancelDuringRepair = false;
 let compileValidationError: Error | null = null;
 
 function generatedResult(scadSource: string) {
@@ -52,6 +55,13 @@ beforeAll(() => {
           updates.push(args);
           currentJob = { ...currentJob, ...args.data };
           return currentJob;
+        }),
+        updateMany: mock(async (args: { where: { id: string; state?: string; repairHistory?: unknown }; data: Record<string, unknown> }) => {
+          if (args.where.state && currentJob.state !== args.where.state) return { count: 0 };
+          if (args.where.repairHistory !== undefined && currentJob.repairHistory !== args.where.repairHistory) return { count: 0 };
+          updates.push({ where: { id: args.where.id }, data: args.data });
+          currentJob = { ...currentJob, ...args.data };
+          return { count: 1 };
         }),
       },
     },
@@ -200,11 +210,31 @@ beforeAll(() => {
   }));
 
   mock.module("@/lib/repair/repair-controller", () => ({
-    runRepair: mock(async () => {
+    runRepair: mock(async (input: { validationResults: Array<{ message: string }> }) => {
       repairCalls += 1;
+      repairValidationResults = input.validationResults;
       if (repairError) throw repairError;
+      if (cancelDuringRepair) currentJob = { ...currentJob, state: "CANCELLED" };
       return {
-        generationResult: generatedResult(repairedScad),
+        generationResult: {
+          ...generatedResult(repairedScad),
+          parameters: repairUsesParameters
+            ? [{
+                key: "diameter",
+                label: "Diameter",
+                kind: "float",
+                unit: "mm",
+                value: 24,
+                min: 1,
+                max: 100,
+                step: 1,
+                source: "repair",
+                editable: true,
+                description: "Repaired diameter",
+                group: "geometry",
+              }]
+            : [],
+        },
         repairMeta: {
           scad_source: repairedScad,
           repair_summary: "Replaced degenerate hull geometry",
@@ -252,6 +282,9 @@ beforeEach(() => {
   repairError = null;
   repairCalls = 0;
   repairedScad = "cube([12, 12, 12]);";
+  repairUsesParameters = false;
+  repairValidationResults = [];
+  cancelDuringRepair = false;
   compileValidationError = null;
   modelIntakeResult = {
     version: 1,
@@ -297,6 +330,30 @@ beforeEach(() => {
 });
 
 describe("executeCadJob", () => {
+  test("recognizes only expired repair leases as stale", async () => {
+    const {
+      getCompileRepairModelBudgetMs,
+      getCompileRepairLeaseEntry,
+      isStaleRepairLease,
+      removeCompileRepairLease,
+    } = await import("@/lib/pipeline/execute-cad-job");
+    const now = Date.now();
+    const priorHistory = JSON.stringify([{ round: 1 }]);
+    const compileLeaseHistory = JSON.stringify([
+      { round: 1 },
+      { type: "compile_repair_lease", token: "lease-1" },
+    ]);
+
+    expect(isStaleRepairLease("REPAIRING", new Date(now - 7 * 60_000), compileLeaseHistory, now)).toBe(true);
+    expect(isStaleRepairLease("REPAIRING", new Date(now - 60_000), compileLeaseHistory, now)).toBe(false);
+    expect(isStaleRepairLease("HUMAN_REVIEW", new Date(now - 7 * 60_000), compileLeaseHistory, now)).toBe(false);
+    expect(isStaleRepairLease("REPAIRING", new Date(now - 7 * 60_000), priorHistory, now)).toBe(false);
+    expect(getCompileRepairLeaseEntry(compileLeaseHistory)?.token).toBe("lease-1");
+    expect(removeCompileRepairLease(compileLeaseHistory)).toBe(priorHistory);
+    expect(getCompileRepairModelBudgetMs(0, false)).toBeUndefined();
+    expect(getCompileRepairModelBudgetMs(10_000, true)).toBe(45_000);
+    expect(getCompileRepairModelBudgetMs(138_000, true)).toBeNull();
+  });
   test("demo delays default to zero and are bounded when explicitly enabled", async () => {
     const { getDemoDelayMs, isTemplateFallbackEnabled } = await import("@/lib/pipeline/execute-cad-job");
     expect(getDemoDelayMs({})).toBe(0);
@@ -510,6 +567,126 @@ describe("executeCadJob", () => {
       errorCode: "OPENSCAD_COMPILE_FAILED",
       failureStage: "generate",
     });
+    const persistedValidation = JSON.parse(String(updates.at(-1)?.data.validationResults));
+    expect(persistedValidation).toHaveLength(1);
+    expect(persistedValidation.every((result: { rule_id: string; status: string }) =>
+      result.rule_id === "C001" && result.status === "ERROR"
+    )).toBe(true);
+    expect(String(updates.at(-1)?.data.executionLogs)).toContain("OPENSCAD_COMPILE_FAILED");
+    expect(String(updates.at(-1)?.data.renderLog)).toContain("Current top level object is empty");
+  });
+
+  test("preserves the original generated SCAD when the compile repair provider fails", async () => {
+    const badScad = "hull() { cube([0, 0, 0]); }";
+    generationError = new GeneratedScadCompileError(
+      generatedResult(badScad),
+      new Error("CGAL error in applyHull(): assertion violation"),
+    );
+    repairError = new Error("repair provider unavailable");
+    spyOn(console, "warn").mockImplementation(() => undefined);
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+
+    await executeCadJob("job-pipeline", () => undefined);
+
+    expect(renderCalls).toBe(0);
+    expect(updates.at(-1)?.data).toMatchObject({
+      state: "HUMAN_REVIEW",
+      scadSource: badScad,
+    });
+    expect(String(updates.at(-1)?.data.renderLog)).toContain("repair provider unavailable");
+  });
+
+  test("bounds compiler diagnostics before sending them to the repair model", async () => {
+    generationError = new GeneratedScadCompileError(
+      generatedResult("hull() { cube([0, 0, 0]); }"),
+      new Error(`CGAL:${"x".repeat(5_000)}`),
+    );
+    spyOn(console, "warn").mockImplementation(() => undefined);
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+
+    await executeCadJob("job-pipeline", () => undefined);
+
+    expect(repairValidationResults).toHaveLength(1);
+    expect(repairValidationResults[0].message.length).toBe(4_001);
+    expect(repairValidationResults[0].message.endsWith("…")).toBe(true);
+  });
+
+  test("uses parameters returned by a successful compile repair", async () => {
+    generationError = new GeneratedScadCompileError(
+      generatedResult("hull() { cube([0, 0, 0]); }"),
+      new Error("CGAL error in applyHull(): assertion violation"),
+    );
+    repairedScad = "diameter = 24; cylinder(d = diameter, h = 10);";
+    repairUsesParameters = true;
+    spyOn(console, "warn").mockImplementation(() => undefined);
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+
+    await executeCadJob("job-pipeline", () => undefined);
+
+    const generatedUpdate = updates.find((update) => update.data.state === "SCAD_GENERATED");
+    expect(JSON.parse(String(generatedUpdate?.data.parameterSchema))).toMatchObject([
+      { key: "diameter", value: 24 },
+    ]);
+  });
+
+  test("does not overwrite cancellation that wins during compile repair", async () => {
+    generationError = new GeneratedScadCompileError(
+      generatedResult("hull() { cube([0, 0, 0]); }"),
+      new Error("CGAL error in applyHull(): assertion violation"),
+    );
+    cancelDuringRepair = true;
+    spyOn(console, "warn").mockImplementation(() => undefined);
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+
+    await executeCadJob("job-pipeline", () => undefined);
+
+    expect(currentJob.state).toBe("CANCELLED");
+    expect(updates.some((update) => update.data.state === "SCAD_GENERATED")).toBe(false);
+  });
+
+  test("preserves model-provider error semantics when compile repair is unavailable", async () => {
+    generationError = new GeneratedScadCompileError(
+      generatedResult("hull() { cube([0, 0, 0]); }"),
+      new Error("CGAL error in applyHull(): assertion violation"),
+    );
+    repairError = new ModelRequestError(
+      "LLM_RATE_LIMITED",
+      "Repair provider rate limited the request.",
+      true,
+    );
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+
+    await executeCadJob("job-pipeline", (event) => events.push(event));
+
+    expect(events.at(-1)).toMatchObject({
+      state: "HUMAN_REVIEW",
+      errorCode: "LLM_RATE_LIMITED",
+      failureStage: "repair",
+      retryable: true,
+    });
+    const persistedValidation = JSON.parse(String(updates.at(-1)?.data.validationResults));
+    expect(persistedValidation).toHaveLength(1);
+    expect(persistedValidation[0].rule_id).toBe("C001");
+  });
+
+  test("reports repaired-source validation infrastructure failures without mislabeling C001", async () => {
+    generationError = new GeneratedScadCompileError(
+      generatedResult("hull() { cube([0, 0, 0]); }"),
+      new Error("CGAL error in applyHull(): assertion violation"),
+    );
+    compileValidationError = new Error("OpenSCAD WASM renderer is busy; retry this render shortly");
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+
+    await executeCadJob("job-pipeline", (event) => events.push(event));
+
+    expect(events.at(-1)).toMatchObject({
+      state: "HUMAN_REVIEW",
+      errorCode: "OPENSCAD_RUNTIME_UNAVAILABLE",
+      retryable: true,
+    });
+    expect(updates.at(-1)?.data.scadSource).toBe(repairedScad);
   });
 
   test("does not silently replace a known family with a template in the normal product path", async () => {
