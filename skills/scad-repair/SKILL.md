@@ -63,8 +63,10 @@ generated_part();
 11. Do not invent new artifact paths, state strings, step strings, or validation result fields.
 12. Do not loosen validation constraints or remove required geometry to fake success.
 13. Overlap unioned solids by `_merge_tol` (0.2 mm) — never rely on coplanar face contact.
-14. Extend subtracted volumes past part surfaces by ≥ 0.5 mm for clean boolean cuts.
-15. All geometry inside `module generated_part() { ... }` called once with `generated_part();`.
+14. For `C001` CGAL `applyHull()` / `convex_hull_3.h` failures, inspect every `hull()` child. Remove empty loop branches and zero-size primitives; ensure each child is a real 3D solid with non-zero volume and that the hull receives enough distinct, non-coplanar geometry. Prefer a simpler union or explicit profile extrusion when a 3D hull remains degenerate.
+15. `Current top level object is empty` means the repaired program must end with at least one unconditional, non-zero-volume top-level solid. Do not merely suppress the failing module call.
+16. Extend subtracted volumes past part surfaces by ≥ 0.5 mm for clean boolean cuts.
+17. All geometry inside `module generated_part() { ... }` called once with `generated_part();`.
 
 ## Validation Awareness
 

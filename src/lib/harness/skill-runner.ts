@@ -2,11 +2,13 @@ import { buildScadPrompt, loadFamilySchema, loadSkill, applyParameterOverrides }
 import { createChatCompletionWithFallback } from "@/lib/tools/model-router";
 import { sanitizeGeneratedScadSource } from "@/lib/tools/scad-sanitizer";
 import { validateGeneratedScadSource } from "@/lib/tools/scad-renderer";
+import { isRepairableScadCompileError } from "@/lib/tools/scad-compile-error";
 import {
   extractParameterDefsFromScad,
   mergeExtractedParameters,
 } from "@/lib/tools/scad-parameter-extractor";
 import { normalizeGenerationResult } from "@/lib/harness/structured-output";
+import { GeneratedScadCompileError } from "@/lib/harness/generation-errors";
 import type { ParameterDef, PartFamily, StructuredGenerationResult } from "@/lib/harness/types";
 
 export { buildScadPrompt, loadFamilySchema, loadSkill, applyParameterOverrides };
@@ -427,15 +429,22 @@ export async function runScadGenerationSkill(
     `Generated ${partFamily} part`
   );
   const sanitizedScadSource = sanitizeGeneratedScadSource(generationResult.scad_source);
-  await validateGeneratedScadSource(sanitizedScadSource);
   const extractedParameters = mergeExtractedParameters(
     extractParameterDefsFromScad(sanitizedScadSource),
     generationResult.parameters
   );
-
-  return {
+  const preparedResult = {
     ...generationResult,
     parameters: extractedParameters,
     scad_source: sanitizedScadSource,
   };
+
+  try {
+    await validateGeneratedScadSource(sanitizedScadSource);
+  } catch (error) {
+    if (!isRepairableScadCompileError(error)) throw error;
+    throw new GeneratedScadCompileError(preparedResult, error);
+  }
+
+  return preparedResult;
 }

@@ -140,6 +140,18 @@ describe("OpenSCAD WASM renderer", () => {
     );
   });
 
+  test("compile validation exposes degenerate hull diagnostics for repair", async () => {
+    const degenerateHull = "hull() { cube([0, 0, 0]); }";
+    try {
+      await validateGeneratedScadSource(degenerateHull);
+      throw new Error("Expected degenerate hull compilation to fail");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      expect(message).toContain("OpenSCAD WASM failed");
+      expect(message).toMatch(/CGAL|empty/i);
+    }
+  });
+
   test("refuses a tampered runtime before executing it", async () => {
     const tempDir = await fs.mkdtemp(
       path.join(os.tmpdir(), "agentscad-wasm-integrity-test-")

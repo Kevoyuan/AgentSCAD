@@ -119,7 +119,7 @@ export async function createChatCompletionWithFallback({
 
     const ZAIModule = await import("z-ai-web-dev-sdk");
     const ZAI = ZAIModule.default;
-    const zai = await ZAI.create();
+    const zai = await waitForModel(ZAI.create(), requestSignal);
 
     const result = await waitForModel(zai.chat.completions.create({
       messages: messages.map((message) => ({
