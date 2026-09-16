@@ -1,4 +1,4 @@
-import { buildScadPrompt, loadFamilySchema, loadSkill, applyParameterOverrides } from "@/lib/skill-resolver";
+import { buildScadCodingPrompt, buildScadPrompt, loadFamilySchema, loadSkill, applyParameterOverrides } from "@/lib/skill-resolver";
 import { createChatCompletionWithFallback } from "@/lib/tools/model-router";
 import { sanitizeGeneratedScadSource } from "@/lib/tools/scad-sanitizer";
 import { validateGeneratedScadSource } from "@/lib/tools/scad-renderer";
@@ -9,7 +9,7 @@ import {
 } from "@/lib/tools/scad-parameter-extractor";
 import { normalizeGenerationResult } from "@/lib/harness/structured-output";
 import { GeneratedScadCompileError } from "@/lib/harness/generation-errors";
-import type { ParameterDef, PartFamily, StructuredGenerationResult } from "@/lib/harness/types";
+import type { CadGenerationPlan, ParameterDef, PartFamily, StructuredGenerationResult } from "@/lib/harness/types";
 
 export { buildScadPrompt, loadFamilySchema, loadSkill, applyParameterOverrides };
 
@@ -400,18 +400,35 @@ function delay(ms: number): Promise<void> {
 
 export { generateMockScadCode, delay };
 
+export function applyGenerationPlan(
+  generationResult: StructuredGenerationResult,
+  generationPlan?: CadGenerationPlan,
+): StructuredGenerationResult {
+  if (!generationPlan) return generationResult;
+  return {
+    ...generationResult,
+    ...generationPlan,
+    parameters: generationResult.parameters,
+    scad_source: generationResult.scad_source,
+  };
+}
+
 export async function runScadGenerationSkill(
   inputRequest: string,
   parameterValues: Record<string, unknown>,
   requestedModel?: string | null,
   familyOverride?: PartFamily,
+  generationPlan?: CadGenerationPlan,
+  signal?: AbortSignal,
 ): Promise<StructuredGenerationResult> {
   const partFamily = familyOverride ?? detectPartFamily(inputRequest);
   const paramSchema = await getParameterSchema(partFamily, parameterValues);
-  const prompt = await buildScadPrompt(inputRequest, partFamily, parameterValues);
+  const prompt = generationPlan
+    ? await buildScadCodingPrompt(inputRequest, partFamily, parameterValues, generationPlan)
+    : await buildScadPrompt(inputRequest, partFamily, parameterValues);
 
   if (!prompt) {
-    throw new Error("scad-generation skill is missing");
+    throw new Error(`${generationPlan ? "scad-coding" : "scad-generation"} skill is missing`);
   }
 
   const rawContent = await createChatCompletionWithFallback({
@@ -421,6 +438,7 @@ export async function runScadGenerationSkill(
     ],
     model: requestedModel?.trim() || undefined,
     stream: false,
+    signal,
   });
 
   const generationResult = normalizeGenerationResult(
@@ -428,13 +446,14 @@ export async function runScadGenerationSkill(
     paramSchema,
     `Generated ${partFamily} part`
   );
-  const sanitizedScadSource = sanitizeGeneratedScadSource(generationResult.scad_source);
+  const plannedResult = applyGenerationPlan(generationResult, generationPlan);
+  const sanitizedScadSource = sanitizeGeneratedScadSource(plannedResult.scad_source);
   const extractedParameters = mergeExtractedParameters(
     extractParameterDefsFromScad(sanitizedScadSource),
-    generationResult.parameters
+    plannedResult.parameters
   );
   const preparedResult = {
-    ...generationResult,
+    ...plannedResult,
     parameters: extractedParameters,
     scad_source: sanitizedScadSource,
   };

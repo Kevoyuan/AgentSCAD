@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   PROMPT_SECTION_CHAR_BUDGETS,
   boundPromptSection,
+  buildScadCodingPrompt,
   buildScadPrompt,
   isExperimentalMemoryPromptEnabled,
 } from "./skill-resolver";
@@ -38,5 +39,18 @@ describe("skill resolver containment", () => {
       if (previous === undefined) delete process.env.AGENTSCAD_MEMORY_PROMPT_ENABLED;
       else process.env.AGENTSCAD_MEMORY_PROMPT_ENABLED = previous;
     }
+  });
+
+  test("planned coding uses a focused prompt and requests only SCAD output", async () => {
+    const prompt = await buildScadCodingPrompt(
+      "phone case with camera opening",
+      "phone_case",
+      { wall_thickness: 2 },
+      { modeling_plan: ["create shell", "subtract camera opening"] },
+    );
+    expect(prompt).not.toBeNull();
+    expect(prompt?.userPrompt).toContain("<generation_plan>");
+    expect(prompt?.userPrompt).toContain("Return only one ```scad fenced block");
+    expect(prompt?.systemPrompt).not.toContain("Part 1 — CAD Intent JSON");
   });
 });

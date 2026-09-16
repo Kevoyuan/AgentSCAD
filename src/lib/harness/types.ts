@@ -60,6 +60,11 @@ export interface StructuredGenerationResult extends LLMGenerationResult {
   validation_targets: CadValidationTargets;
 }
 
+export type CadGenerationPlan = Omit<
+  StructuredGenerationResult,
+  "parameters" | "scad_source"
+>;
+
 export interface RenderLog {
   openscad_version: string;
   render_time_ms: number;

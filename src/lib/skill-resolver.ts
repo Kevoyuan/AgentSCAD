@@ -41,6 +41,10 @@ export const PROMPT_SECTION_CHAR_BUDGETS = {
   externalLibraries: 12_000,
   retrieval: 16_000,
   experimentalMemory: 4_000,
+  codingSkill: 8_000,
+  codingStandardLibrary: 8_000,
+  codingExternalLibraries: 6_000,
+  codingRetrieval: 8_000,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -295,6 +299,44 @@ export async function buildScadPrompt(
   }
 
   return { systemPrompt, userPrompt };
+}
+
+/** Build the smaller code-agent prompt used after a generation plan exists. */
+export async function buildScadCodingPrompt(
+  inputRequest: string,
+  partFamily: string,
+  parameterValues: Record<string, unknown>,
+  generationPlan: unknown,
+): Promise<{ systemPrompt: string; userPrompt: string } | null> {
+  const [skillContent, familySchema, libraryPromptRaw, retrievalCtx, stdLibDocRaw] = await Promise.all([
+    loadSkill("scad-coding"),
+    loadFamilySchema(partFamily),
+    buildScadLibraryPrompt(),
+    retrieveContext(inputRequest),
+    loadStdLibDoc(),
+  ]);
+  if (!skillContent) return null;
+
+  const params = (familySchema?.parameters ?? []).map((parameter) => ({
+    ...parameter,
+    value: parameterValues[parameter.key] ?? parameter.value,
+  }));
+  return {
+    systemPrompt: [
+      boundPromptSection(skillContent, PROMPT_SECTION_CHAR_BUDGETS.codingSkill, "coding skill"),
+      boundPromptSection(stdLibDocRaw, PROMPT_SECTION_CHAR_BUDGETS.codingStandardLibrary, "AgentSCAD standard library"),
+      boundPromptSection(libraryPromptRaw, PROMPT_SECTION_CHAR_BUDGETS.codingExternalLibraries, "OpenSCAD library guidance"),
+      boundPromptSection(formatRetrievalContext(retrievalCtx), PROMPT_SECTION_CHAR_BUDGETS.codingRetrieval, "retrieval context"),
+    ].filter(Boolean).join("\n\n"),
+    userPrompt: [
+      "Implement this approved CAD generation plan as complete OpenSCAD.",
+      `<user_request>\n${inputRequest}\n</user_request>`,
+      `<generation_plan>\n${JSON.stringify(generationPlan, null, 2)}\n</generation_plan>`,
+      `<editable_parameters>\n${JSON.stringify(params, null, 2)}\n</editable_parameters>`,
+      `<current_values>\n${JSON.stringify(parameterValues, null, 2)}\n</current_values>`,
+      "Return only one ```scad fenced block. Do not repeat the plan or add commentary.",
+    ].join("\n\n"),
+  };
 }
 
 /**
