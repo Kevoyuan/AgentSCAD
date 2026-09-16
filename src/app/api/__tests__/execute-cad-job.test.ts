@@ -12,6 +12,7 @@ let modelIntakeResult: Record<string, unknown>;
 let modelIntakeError: Error | null = null;
 const generationRequests: string[] = [];
 const generationFamilies: string[] = [];
+const generationPlans: Array<Record<string, unknown> | undefined> = [];
 let generationError: Error | null = null;
 let repairError: Error | null = null;
 let repairCalls = 0;
@@ -118,10 +119,12 @@ beforeAll(() => {
       _parameters: Record<string, unknown>,
       _model?: string | null,
       familyOverride?: string,
+      generationPlan?: Record<string, unknown>,
     ) => {
       generationCalls += 1;
       generationRequests.push(request);
       generationFamilies.push(familyOverride || "unset");
+      generationPlans.push(generationPlan);
       if (generationError) throw generationError;
       return {
         part_type: "electronics_enclosure",
@@ -278,6 +281,7 @@ beforeEach(() => {
   modelIntakeError = null;
   generationRequests.length = 0;
   generationFamilies.length = 0;
+  generationPlans.length = 0;
   generationError = null;
   repairError = null;
   repairCalls = 0;
@@ -333,6 +337,7 @@ describe("executeCadJob", () => {
   test("recognizes only expired repair leases as stale", async () => {
     const {
       getCompileRepairModelBudgetMs,
+      getGenerationModelBudgetMs,
       getCompileRepairLeaseEntry,
       isStaleRepairLease,
       removeCompileRepairLease,
@@ -353,6 +358,9 @@ describe("executeCadJob", () => {
     expect(getCompileRepairModelBudgetMs(0, false)).toBeUndefined();
     expect(getCompileRepairModelBudgetMs(10_000, true)).toBe(45_000);
     expect(getCompileRepairModelBudgetMs(138_000, true)).toBeNull();
+    expect(getGenerationModelBudgetMs(0, false)).toBeUndefined();
+    expect(getGenerationModelBudgetMs(0, true)).toBe(240_000);
+    expect(getGenerationModelBudgetMs(296_000, true)).toBeNull();
   });
   test("demo delays default to zero and are bounded when explicitly enabled", async () => {
     const { getDemoDelayMs, isTemplateFallbackEnabled } = await import("@/lib/pipeline/execute-cad-job");
@@ -438,6 +446,11 @@ describe("executeCadJob", () => {
     expect(renderCalls).toBe(1);
     expect(intakeCalls).toBe(0);
     expect(generationFamilies).toEqual(["unknown"]);
+    expect(generationPlans[0]).toMatchObject({
+      part_type: "mechanism",
+      units: "mm",
+    });
+    expect(updates.some((update) => update.data.generationPath === "structured_plan_ready")).toBe(true);
     expect(updates.map((update) => update.data.state)).toContain("SCAD_GENERATED");
     expect(updates.find((update) => update.data.state === "SCAD_GENERATED")?.data).toMatchObject({
       generationPath: "llm_freeform_parametric",
@@ -769,6 +782,34 @@ describe("executeCadJob", () => {
     expect(intakeCalls).toBe(0);
     expect(generationCalls).toBe(1);
     expect(renderCalls).toBe(1);
+  });
+
+  test("reuses a matching generation plan checkpoint after a coding retry", async () => {
+    const { buildGenerationPlan } = await import("@/lib/planning/generation-plan");
+    const checkpoint = buildGenerationPlan({
+      request: currentJob.inputRequest as string,
+      family: "electronics_enclosure",
+      parameterValues: { wall_thickness: 2 },
+      parameterSchema: [],
+      intelligence: modelIntakeResult as never,
+    });
+    currentJob = {
+      ...currentJob,
+      intentResult: JSON.stringify(modelIntakeResult),
+      cadIntentJson: JSON.stringify({
+        request_intelligence: modelIntakeResult,
+        generation_plan: checkpoint,
+      }),
+    };
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+
+    await executeCadJob("job-pipeline", (event) => events.push(event));
+
+    expect(events.some((event) => event.step === "planning_reused")).toBe(true);
+    expect(events.some((event) => event.step === "planning_geometry")).toBe(false);
+    expect(updates.some((update) => update.data.generationPath === "structured_plan_ready")).toBe(false);
+    expect(generationPlans[0]).toEqual(checkpoint.plan);
   });
 
   test("degrades UNKNOWN model intake to the original request and still attempts rendering", async () => {

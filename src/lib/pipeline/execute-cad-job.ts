@@ -8,6 +8,7 @@ import {
 import {
   detectPartFamily,
   generateMockScadCode,
+  getParameterSchema,
   runScadGenerationSkill,
 } from "@/lib/harness/skill-runner";
 import { GeneratedScadCompileError } from "@/lib/harness/generation-errors";
@@ -40,11 +41,17 @@ import type {
 import { ModelRequestError } from "@/lib/model-runtime";
 import { isEphemeralRuntime } from "@/lib/runtime-environment";
 import { randomUUID } from "crypto";
+import {
+  buildGenerationPlan,
+  generationPlanFingerprint,
+  restoreGenerationPlan,
+} from "@/lib/planning/generation-plan";
 
 export type ProcessSseEvent = Record<string, unknown>;
 export type ProcessEventSink = (data: ProcessSseEvent) => void;
 
 const PROCESS_REQUEST_BUDGET_MS = 300_000;
+const GENERATION_TAIL_RESERVE_MS = 60_000;
 const COMPILE_REPAIR_MODEL_BUDGET_MS = 45_000;
 // Leave room for the worst-case WASM queue/render, mesh validation, preview,
 // artifact persistence, and final database writes after the repair model returns.
@@ -131,6 +138,16 @@ export function getCompileRepairModelBudgetMs(
     COMPILE_REPAIR_MODEL_BUDGET_MS,
     remainingMs - COMPILE_REPAIR_TAIL_RESERVE_MS,
   );
+  return modelBudgetMs >= 5_000 ? modelBudgetMs : null;
+}
+
+export function getGenerationModelBudgetMs(
+  elapsedMs: number,
+  ephemeral = isEphemeralRuntime(),
+): number | undefined | null {
+  if (!ephemeral) return undefined;
+  const remainingMs = PROCESS_REQUEST_BUDGET_MS - Math.max(0, elapsedMs);
+  const modelBudgetMs = remainingMs - GENERATION_TAIL_RESERVE_MS;
   return modelBudgetMs >= 5_000 ? modelBudgetMs : null;
 }
 
@@ -287,15 +304,79 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
     // silently route an approved assembly to an unrelated product template.
     const partFamily = detectPartFamily(inputRequest);
 
+    const parameterSchema = await getParameterSchema(partFamily, paramValues);
+    const planFingerprint = generationPlanFingerprint(
+      inputRequest,
+      partFamily,
+      paramValues,
+      requestIntelligence,
+    );
+    let generationPlanCheckpoint = restoreGenerationPlan(job.cadIntentJson, planFingerprint);
+    let generationExecutionLogs = job.executionLogs;
+
+    if (generationPlanCheckpoint) {
+      sendEvent({
+        state: "NEW",
+        step: "planning_reused",
+        message: "Reusing the persisted geometry plan; resuming directly at SCAD coding...",
+      });
+    } else {
+      currentStage = "plan";
+      sendEvent({
+        state: "NEW",
+        step: "planning_geometry",
+        message: "Creating a compact geometry contract for the SCAD coding stage...",
+      });
+      generationPlanCheckpoint = buildGenerationPlan({
+        request: inputRequest,
+        family: partFamily,
+        parameterValues: paramValues,
+        parameterSchema,
+        intelligence: requestIntelligence,
+      });
+      generationExecutionLogs = appendLog(
+        job.executionLogs,
+        "CAD_PLANNED",
+        `Persisted generation plan ${generationPlanCheckpoint.fingerprint.slice(0, 12)} for ${partFamily}`,
+      );
+      await db.job.update({
+        where: { id: jobId },
+        data: {
+          generationPath: "structured_plan_ready",
+          cadIntentJson: JSON.stringify({
+            request_intelligence: requestIntelligence,
+            generation_plan: generationPlanCheckpoint,
+          }),
+          modelingPlanJson: JSON.stringify(generationPlanCheckpoint.plan.modeling_plan),
+          validationTargetsJson: JSON.stringify(generationPlanCheckpoint.plan.validation_targets),
+          intentResult: JSON.stringify(requestIntelligence),
+          executionLogs: generationExecutionLogs,
+        },
+      });
+      sendEvent({
+        state: "NEW",
+        step: "geometry_planned",
+        message: "Geometry plan persisted. Starting the focused SCAD coding stage...",
+        planFingerprint: generationPlanCheckpoint.fingerprint,
+      });
+    }
+
     let generationResult: StructuredGenerationResult;
     let usedLLM = false;
     let compileRepairClaimed = false;
     let compileRepairLease: string | null = null;
     let compileRepairPreviousHistory: string | null = job.repairHistory;
-    let generationExecutionLogs = job.executionLogs;
 
     try {
       currentStage = "generate";
+      const generationBudgetMs = getGenerationModelBudgetMs(Date.now() - startedAt);
+      if (generationBudgetMs === null) {
+        throw new ModelRequestError(
+          "LLM_TIMEOUT",
+          "Not enough serverless request time remains for CAD generation. Retry to resume from the saved plan.",
+          true,
+        );
+      }
       sendEvent({
         state: "NEW",
         step: "generating_llm",
@@ -306,6 +387,10 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         paramValues,
         job.modelId,
         partFamily,
+        generationPlanCheckpoint.plan,
+        typeof generationBudgetMs === "number"
+          ? AbortSignal.timeout(generationBudgetMs)
+          : undefined,
       );
       usedLLM = true;
     } catch (llmError) {
@@ -320,6 +405,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         const repairSignal = compileRepairSignal(startedAt);
         const generatedCadIntent = JSON.stringify({
           request_intelligence: requestIntelligence,
+          generation_plan: generationPlanCheckpoint,
           part_type: llmError.generationResult.part_type,
           summary: llmError.generationResult.summary,
           units: llmError.generationResult.units,
@@ -359,7 +445,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
               qualityScore: quality.qualityScore,
               completedAt: null,
               executionLogs: appendLog(
-                job.executionLogs,
+                generationExecutionLogs,
                 "OPENSCAD_COMPILE_FAILED",
                 "Compile repair deferred because the serverless request budget was nearly exhausted",
               ),
@@ -379,7 +465,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         }
 
         generationExecutionLogs = appendLog(
-          job.executionLogs,
+          generationExecutionLogs,
           "REPAIRING",
           "Generated SCAD failed compilation; starting one compiler-guided repair",
         );
@@ -589,6 +675,7 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         parameterValues: JSON.stringify(parameterDefsToValues(generationResult.parameters)),
         cadIntentJson: JSON.stringify({
           request_intelligence: requestIntelligence,
+          generation_plan: generationPlanCheckpoint,
           part_type: generationResult.part_type,
           summary: generationResult.summary,
           units: generationResult.units,
@@ -612,6 +699,8 @@ export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) 
         intentResult: JSON.stringify(requestIntelligence),
         designResult: JSON.stringify({
           approach: generationPath,
+          orchestration: "planned_code_validate_repair_v1",
+          plan_fingerprint: generationPlanCheckpoint.fingerprint,
           model_id: job.modelId || process.env.MIMO_MODEL || MIMO_DEFAULT_MODEL,
           parameters_mapped: generationResult.parameters.map((p) => p.key),
           llm_used: usedLLM,
