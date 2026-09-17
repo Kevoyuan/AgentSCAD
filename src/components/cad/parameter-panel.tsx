@@ -520,18 +520,18 @@ export function ParameterPanel({
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-[var(--app-surface)]">
       {/* Sleek Parameter Header */}
-      <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-[color:var(--app-border)] px-3 py-2">
+      <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-[var(--app-border)] px-3 py-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-[12px] font-semibold uppercase tracking-wider font-mono text-[var(--app-text-primary)]">
+          <h3 className="text-xs font-semibold uppercase tracking-wider font-mono text-[var(--app-text-primary)]">
             Parameters
           </h3>
-          <span className="rounded-[4px] bg-[var(--app-surface-raised)] border border-[color:var(--app-border)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--app-text-muted)] tabular-nums">
+          <span className="rounded-[4px] bg-[var(--app-surface-raised)] border border-[var(--app-border)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--app-text-muted)] tabular-nums">
             {schema.parameters.length}
           </span>
         </div>
         <div className="flex min-w-0 shrink-0 items-center gap-2">
           {changedCount > 0 && (
-            <span className="rounded bg-[var(--cad-accent-soft)] px-1.5 py-0.5 text-[10px] font-mono font-medium text-[var(--cad-accent)] tabular-nums">
+            <span className="rounded bg-[var(--app-accent-bg)] px-1.5 py-0.5 text-[10px] font-mono font-medium text-[var(--app-accent)] tabular-nums">
               {changedCount} modified
             </span>
           )}
@@ -546,13 +546,22 @@ export function ParameterPanel({
             Reset All
           </Button>
           {isUpdating && (
-            <span className="flex items-center gap-1 text-[11px] font-mono text-[var(--cad-accent)]">
+            <span className="flex items-center gap-1 text-[11px] font-mono text-[var(--app-accent)]">
               <Loader2 className="w-3 h-3 animate-spin" />
               saving
             </span>
           )}
         </div>
       </div>
+
+      {/* Stale Artifact Status Alert */}
+      {changedCount > 0 && (
+        <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--app-warning-bg)] border-b border-[var(--app-warning)]/20 text-xs text-[var(--app-status-warning-text)] shrink-0">
+          <span className="font-mono text-[11px]">
+            Preview updated · Rebuild required for STL
+          </span>
+        </div>
+      )}
 
       {/* Parameter List */}
       <div className="stable-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2">

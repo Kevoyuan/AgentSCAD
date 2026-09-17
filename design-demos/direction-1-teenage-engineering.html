@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentSCAD · Direction 1: Teenage Engineering × Leica</title>
+<style>
+  :root {
+    --bg-chassis: #121518;
+    --panel-chassis: #1a1e23;
+    --panel-surface: #22272e;
+    --panel-border: #2d333b;
+    --border-metal: #38404a;
+    --text-main: #f0f3f6;
+    --text-muted: #8b949e;
+    --text-faint: #545d68;
+    --accent-orange: #ff5722;
+    --accent-orange-glow: rgba(255, 87, 34, 0.25);
+    --measure-cyan: #00e5ff;
+    --measure-cyan-glow: rgba(0, 229, 255, 0.2);
+    --status-green: #00e676;
+    --knob-bg: #2a313a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background-color: var(--bg-chassis);
+    color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    font-size: 13px;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+  .mono { font-family: "SF Mono", Menlo, Monaco, Consolas, monospace; }
+
+  /* 顶部物理标尺与仪表机架 */
+  header.chassis-head {
+    height: 44px;
+    background: #171b20;
+    border-bottom: 2px solid #282f37;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    position: relative;
+  }
+  .ruler-ticks {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background-image: repeating-linear-gradient(to right, #38404a, #38404a 1px, transparent 1px, transparent 10px);
+    opacity: 0.6;
+  }
+  .brand-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .brand-badge .knob-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent-orange);
+    box-shadow: 0 0 8px var(--accent-orange);
+  }
+  .brand-title {
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    font-size: 13px;
+    color: #ffffff;
+  }
+  .chassis-tag {
+    font-size: 10px;
+    background: #252c34;
+    border: 1px solid #3d4653;
+    padding: 1px 6px;
+    border-radius: 2px;
+    color: var(--text-muted);
+  }
+
+  .top-telemetry {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .tele-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tele-val {
+    color: var(--text-main);
+    font-weight: 600;
+  }
+  .btn-physical {
+    background: #272e37;
+    border: 1px solid #3c4653;
+    border-bottom: 2px solid #1c2128;
+    color: #fff;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.08s;
+  }
+  .btn-physical:hover {
+    background: #313a45;
+  }
+  .btn-physical:active {
+    border-bottom-width: 1px;
+    transform: translateY(1px);
+  }
+  .btn-physical.primary {
+    background: var(--accent-orange);
+    border-color: #ff7043;
+    border-bottom-color: #d84315;
+    color: #fff;
+  }
+
+  /* 主工作区三栏布局 */
+  .workspace-main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 280px 1fr 340px;
+    background: var(--bg-chassis);
+    overflow: hidden;
+  }
+
+  /* 左侧：物理插槽设计库 (Card Slots) */
+  .slot-deck {
+    background: #15191d;
+    border-right: 1px solid var(--panel-border);
+    display: flex;
+    flex-direction: column;
+  }
+  .slot-header {
+    height: 38px;
+    background: #1c2127;
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+  .slot-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .design-card {
+    background: #1c2126;
+    border: 1px solid #2b333c;
+    border-left: 3px solid #3d4653;
+    padding: 10px 12px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+  }
+  .design-card:hover {
+    background: #232931;
+    border-color: #404b57;
+  }
+  .design-card.active {
+    background: #232a32;
+    border-color: #00e5ff;
+    border-left: 3px solid #00e5ff;
+    box-shadow: inset 0 0 12px rgba(0, 229, 255, 0.05);
+  }
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+  }
+  .card-id {
+    font-size: 10px;
+    color: var(--text-faint);
+  }
+  .card-status {
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 2px;
+    background: #132b26;
+    color: var(--status-green);
+    border: 1px solid #00e67644;
+  }
+  .card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 6px;
+    line-height: 1.3;
+  }
+  .card-caliper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--measure-cyan);
+    background: #00e5ff0d;
+    border: 1px solid #00e5ff26;
+    padding: 2px 6px;
+    border-radius: 2px;
+    width: fit-content;
+  }
+
+  /* 中央：Hero 3D 测绘台 (Optical Stage) */
+  .center-stage {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    background: radial-gradient(circle at center, #1b2128 0%, #0d1013 100%);
+    overflow: hidden;
+  }
+  .stage-hud-overlay {
+    position: absolute;
+    top: 14px;
+    left: 16px;
+    right: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .hud-badge {
+    pointer-events: auto;
+    background: rgba(22, 27, 33, 0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid #343d48;
+    padding: 6px 12px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11px;
+  }
+  .hud-badge .dim-val {
+    color: var(--measure-cyan);
+    font-weight: 700;
+  }
+  .hud-badge .axis {
+    color: var(--text-muted);
+    font-size: 10px;
+  }
+  .stage-canvas-container {
+    flex: 1;
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+  #webgl-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* 悬浮激光投影网格指示 */
+  .viewport-crosshairs {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: 
+      linear-gradient(to right, rgba(0, 229, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-position: center center;
+  }
+  .crosshair-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 30px;
+    height: 30px;
+    transform: translate(-50%, -50%);
+    border: 1px dashed rgba(0, 229, 255, 0.3);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  /* 视口浮动控制条 */
+  .viewport-controls-bar {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20, 24, 29, 0.9);
+    border: 1px solid #3c4654;
+    border-radius: 6px;
+    padding: 4px;
+    display: flex;
+    gap: 4px;
+    backdrop-filter: blur(10px);
+    z-index: 10;
+  }
+  .ctrl-chip {
+    padding: 5px 10px;
+    border-radius: 3px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .ctrl-chip.active, .ctrl-chip:hover {
+    background: #2c3540;
+    color: #fff;
+    border-color: #455263;
+  }
+  .ctrl-chip.measure {
+    color: var(--measure-cyan);
+    border-color: rgba(0, 229, 255, 0.3);
+    background: rgba(0, 229, 255, 0.08);
+  }
+
+  /* 右侧：物理推子与参数硬件面板 (Modular Deck) */
+  .hardware-deck {
+    background: #171b20;
+    border-left: 1px solid var(--panel-border);
+    display: flex;
+    flex-direction: column;
+  }
+  .deck-nav {
+    height: 38px;
+    background: #1d2228;
+    border-bottom: 1px solid var(--panel-border);
+    display: flex;
+    padding: 3px 6px;
+    gap: 4px;
+  }
+  .deck-tab {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .deck-tab.active {
+    background: #272f38;
+    color: #fff;
+    border-bottom: 2px solid var(--accent-orange);
+  }
+
+  .deck-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* 物理旋钮与滑块群组 */
+  .knobs-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    text-align: center;
+  }
+  .knob-widget {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .knob-dial {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #3a4450 0%, #1c2228 100%);
+    border: 2px solid #485463;
+    position: relative;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.1);
+    cursor: pointer;
+  }
+  .knob-dial::after {
+    content: '';
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    width: 2px;
+    height: 10px;
+    background: var(--accent-orange);
+    transform: translateX(-50%);
+    border-radius: 1px;
+  }
+  .knob-title {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .knob-val {
+    font-size: 11px;
+    color: var(--text-main);
+    font-weight: 700;
+  }
+
+  /* 实体推子 (Fader) */
+  .fader-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .fader-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+  }
+  .fader-name {
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .fader-val-pill {
+    background: #121519;
+    padding: 1px 6px;
+    border-radius: 2px;
+    border: 1px solid #2b333c;
+    color: var(--measure-cyan);
+    font-weight: 600;
+  }
+  .fader-track {
+    height: 22px;
+    background: #111417;
+    border: 1px solid #283038;
+    border-radius: 2px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+  }
+  .fader-fill {
+    height: 4px;
+    background: #2d3844;
+    border-radius: 2px;
+    width: 100%;
+    position: relative;
+  }
+  .fader-active-bar {
+    height: 100%;
+    background: var(--measure-cyan);
+    width: 65%;
+    border-radius: 2px;
+  }
+  .fader-thumb {
+    position: absolute;
+    left: 65%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 14px;
+    height: 24px;
+    background: #3c4654;
+    border: 1px solid #5a687a;
+    border-radius: 2px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    cursor: ew-resize;
+  }
+  .fader-thumb::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 2px;
+    background: #fff;
+  }
+
+  /* 底部状态底盘 (Baseline Chassis) */
+  footer.chassis-foot {
+    height: 28px;
+    background: #101316;
+    border-top: 1px solid #262c33;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+  .foot-segment {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .led-status {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--status-green);
+    box-shadow: 0 0 6px var(--status-green);
+  }
+</style>
+</head>
+<body>
+
+  <!-- 顶部物理机架与标尺 -->
+  <header class="chassis-head">
+    <div class="ruler-ticks"></div>
+    <div class="brand-badge">
+      <div class="knob-dot"></div>
+      <span class="brand-title mono">AGENTSCAD // FIELD-01</span>
+      <span class="chassis-tag mono">ISO-9001</span>
+    </div>
+
+    <div class="top-telemetry mono">
+      <div class="tele-item">
+        <span>PROJECT:</span>
+        <span class="tele-val">Hinged-Enclosure-Rev3</span>
+      </div>
+      <div class="tele-item">
+        <span>ENGINE:</span>
+        <span class="tele-val">OpenSCAD WASM</span>
+      </div>
+      <div class="tele-item">
+        <span>BASE_UNIT:</span>
+        <span class="tele-val" style="color: var(--measure-cyan);">MILLIMETERS</span>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 8px; z-index: 5;">
+      <button class="btn-physical mono">DIFF</button>
+      <button class="btn-physical mono">REBUILD</button>
+      <button class="btn-physical primary mono">EXPORT STL</button>
+    </div>
+  </header>
+
+  <!-- 工作区 -->
+  <main class="workspace-main">
+    
+    <!-- 左：卡尺插槽设计列表 -->
+    <aside class="slot-deck">
+      <div class="slot-header mono">
+        <span>SLOT BANK [04]</span>
+        <span style="color: var(--accent-orange);">+ NEW SLOT</span>
+      </div>
+      <div class="slot-list">
+        
+        <div class="design-card active">
+          <div class="card-top mono">
+            <span class="card-id">#0894-A</span>
+            <span class="card-status">WATERTIGHT</span>
+          </div>
+          <div class="card-title">Hinged electronics enclosure with 2.5mm walls</div>
+          <div class="card-caliper mono">
+            <span>CALIPER:</span>
+            <strong>120 × 80 × 32 mm</strong>
+          </div>
+        </div>
+
+        <div class="design-card">
+          <div class="card-top mono">
+            <span class="card-id">#0893-C</span>
+            <span class="card-status">COMPILED</span>
+          </div>
+          <div class="card-title">Parametric spur gear module 2 with 24 teeth</div>
+          <div class="card-caliper mono">
+            <span>CALIPER:</span>
+            <strong>52 × 52 × 16 mm</strong>
+          </div>
+        </div>
+
+        <div class="design-card">
+          <div class="card-top mono">
+            <span class="card-id">#0892-F</span>
+            <span class="card-status" style="color: var(--accent-orange); border-color: #ff572244; background: #2b1613;">NEEDS REVIEW</span>
+          </div>
+          <div class="card-title">Heavy duty L-bracket M5 counterbore holes</div>
+          <div class="card-caliper mono">
+            <span>CALIPER:</span>
+            <strong>60 × 60 × 24 mm</strong>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- 中：3D 激光测绘台 -->
+    <section class="center-stage">
+      <div class="viewport-crosshairs"></div>
+      <div class="crosshair-center"></div>
+
+      <!-- HUD 悬浮测绘数据 -->
+      <div class="stage-hud-overlay">
+        <div class="hud-badge mono">
+          <div><span class="axis">DIM_X:</span> <span class="dim-val" id="hud-x">120.00</span> mm</div>
+          <div><span class="axis">DIM_Y:</span> <span class="dim-val" id="hud-y">80.00</span> mm</div>
+          <div><span class="axis">DIM_Z:</span> <span class="dim-val" id="hud-z">32.00</span> mm</div>
+        </div>
+        <div class="hud-badge mono">
+          <div>TRIANGLES: <span style="color:#fff; font-weight:700;">1,420</span></div>
+          <div>GENUS: <span style="color:var(--status-green); font-weight:700;">0 (MANIFOLD)</span></div>
+        </div>
+      </div>
+
+      <!-- Canvas -->
+      
+      <!-- 纯净可靠的高精 3D 等轴测几何模型 (含激光测绘标尺) -->
+      <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:4;">
+        <svg width="680" height="420" viewBox="0 0 680 420" style="overflow:visible;">
+          <!-- 3D 阴影 -->
+          <polygon points="180,310 340,390 500,310 340,230" fill="rgba(0,0,0,0.5)" filter="blur(15px)" />
+          
+          <!-- 地面网格线 -->
+          <g stroke="#1a2530" stroke-width="1">
+            <line x1="100" y1="270" x2="340" y2="390" />
+            <line x1="180" y1="230" x2="420" y2="350" />
+            <line x1="260" y1="190" x2="500" y2="310" />
+            <line x1="580" y1="270" x2="340" y2="390" />
+            <line x1="500" y1="230" x2="260" y2="350" />
+            <line x1="420" y1="190" x2="180" y2="310" />
+          </g>
+
+          <!-- 3D 主体模型 (倒角机箱) -->
+          <!-- 顶面 -->
+          <polygon points="340,110 500,190 340,270 180,190" fill="#2d3744" stroke="#48596c" stroke-width="1.5" />
+          <!-- 顶面内凹槽 (腔体) -->
+          <polygon points="340,135 470,200 340,265 210,200" fill="#1c232c" stroke="#374453" stroke-width="1.5" />
+          <!-- 左侧面 -->
+          <polygon points="180,190 340,270 340,350 180,270" fill="#1f2630" stroke="#364353" stroke-width="1.5" />
+          <!-- 右侧面 -->
+          <polygon points="340,270 500,190 500,270 340,350" fill="#171c23" stroke="#2d3744" stroke-width="1.5" />
+
+          <!-- M3 螺钉安装柱 (4个) -->
+          <ellipse cx="260" cy="180" rx="8" ry="4" fill="#0d1115" stroke="#00e5ff" stroke-width="1.5" />
+          <ellipse cx="420" cy="180" rx="8" ry="4" fill="#0d1115" stroke="#00e5ff" stroke-width="1.5" />
+          <ellipse cx="340" cy="220" rx="8" ry="4" fill="#0d1115" stroke="#00e5ff" stroke-width="1.5" />
+          <ellipse cx="340" cy="150" rx="8" ry="4" fill="#0d1115" stroke="#00e5ff" stroke-width="1.5" />
+
+          <!-- 激光测绘青色辅助线与刻度标注 -->
+          <!-- X 轴尺寸线 (120.00 mm) -->
+          <g stroke="#00e5ff" stroke-width="1.5" opacity="0.85">
+            <line x1="170" y1="280" x2="330" y2="360" stroke-dasharray="3,3" />
+            <line x1="160" y1="275" x2="160" y2="285" />
+            <line x1="340" y1="355" x2="340" y2="365" />
+          </g>
+          <text x="225" y="335" fill="#00e5ff" font-family="'SF Mono', monospace" font-size="11" font-weight="700" transform="rotate(26, 225, 335)">120.00 mm (X)</text>
+
+          <!-- Y 轴尺寸线 (80.00 mm) -->
+          <g stroke="#00e5ff" stroke-width="1.5" opacity="0.85">
+            <line x1="350" y1="360" x2="510" y2="280" stroke-dasharray="3,3" />
+            <line x1="340" y1="355" x2="340" y2="365" />
+            <line x1="520" y1="275" x2="520" y2="285" />
+          </g>
+          <text x="445" y="315" fill="#00e5ff" font-family="'SF Mono', monospace" font-size="11" font-weight="700" transform="rotate(-26, 445, 315)">80.00 mm (Y)</text>
+
+          <!-- Z 轴高度线 (32.00 mm) -->
+          <g stroke="#00e5ff" stroke-width="1.5" opacity="0.85">
+            <line x1="520" y1="190" x2="520" y2="270" stroke-dasharray="3,3" />
+            <line x1="515" y1="190" x2="525" y2="190" />
+            <line x1="515" y1="270" x2="525" y2="270" />
+          </g>
+          <text x="535" y="235" fill="#00e5ff" font-family="'SF Mono', monospace" font-size="11" font-weight="700">32.00 mm (Z)</text>
+        </svg>
+      </div>
+
+      <div class="stage-canvas-container" id="stage-box">
+        <canvas id="webgl-canvas"></canvas>
+      </div>
+
+      <!-- 悬浮视口工具 -->
+      <div class="viewport-controls-bar mono">
+        <button class="ctrl-chip active">PERSPECTIVE</button>
+        <button class="ctrl-chip">TOP</button>
+        <button class="ctrl-chip">FRONT</button>
+        <button class="ctrl-chip measure active">📐 CALIPER ON</button>
+        <button class="ctrl-chip">WIREFRAME</button>
+      </div>
+    </section>
+
+    <!-- 右：物理硬件参数推子面板 -->
+    <aside class="hardware-deck">
+      <div class="deck-nav mono">
+        <button class="deck-tab active">PARAM_POT</button>
+        <button class="deck-tab">CHECKS</button>
+        <button class="deck-tab">SCAD_SRC</button>
+      </div>
+
+      <div class="deck-body">
+        
+        <!-- 实体旋钮群 -->
+        <div>
+          <div class="mono" style="font-size: 10px; color: var(--text-faint); margin-bottom: 12px; letter-spacing: 0.1em;">ROTARY ACTUATORS</div>
+          <div class="knobs-grid mono">
+            <div class="knob-widget">
+              <div class="knob-dial" style="transform: rotate(45deg);"></div>
+              <span class="knob-title">CORNER_R</span>
+              <span class="knob-val">6.0mm</span>
+            </div>
+            <div class="knob-widget">
+              <div class="knob-dial" style="transform: rotate(-30deg);"></div>
+              <span class="knob-title">WALL_THICK</span>
+              <span class="knob-val">2.5mm</span>
+            </div>
+            <div class="knob-widget">
+              <div class="knob-dial" style="transform: rotate(85deg);"></div>
+              <span class="knob-title">SCREW_D</span>
+              <span class="knob-val">M3.0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 物理推子 (Faders) -->
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="mono" style="font-size: 10px; color: var(--text-faint); letter-spacing: 0.1em;">LINEAR FADERS (DIMENSIONS)</div>
+
+          <div class="fader-item mono">
+            <div class="fader-header">
+              <span class="fader-name">LENGTH (X-AXIS)</span>
+              <span class="fader-val-pill" id="val-x">120.0 mm</span>
+            </div>
+            <div class="fader-track">
+              <div class="fader-fill">
+                <div class="fader-active-bar" style="width: 70%;"></div>
+                <div class="fader-thumb" style="left: 70%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fader-item mono">
+            <div class="fader-header">
+              <span class="fader-name">WIDTH (Y-AXIS)</span>
+              <span class="fader-val-pill" id="val-y">80.0 mm</span>
+            </div>
+            <div class="fader-track">
+              <div class="fader-fill">
+                <div class="fader-active-bar" style="width: 55%;"></div>
+                <div class="fader-thumb" style="left: 55%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fader-item mono">
+            <div class="fader-header">
+              <span class="fader-name">HEIGHT (Z-AXIS)</span>
+              <span class="fader-val-pill" id="val-z">32.0 mm</span>
+            </div>
+            <div class="fader-track">
+              <div class="fader-fill">
+                <div class="fader-active-bar" style="width: 40%;"></div>
+                <div class="fader-thumb" style="left: 40%;"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 机器制造合规性硬核状态卡 -->
+        <div style="background: #111417; border: 1px solid #28313c; padding: 12px; border-radius: 3px;" class="mono">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 10px; color: var(--text-muted); font-weight: 700;">METROLOGY GATE</span>
+            <span style="font-size: 10px; color: var(--status-green);">PASS [C001/R003]</span>
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted); line-height: 1.5;">
+            Watertight 2-manifold verification complete. Wall thickness >= 2.0mm confirmed. Ready for G-code slicing.
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- 底部物理底盘 -->
+  <footer class="chassis-foot mono">
+    <div class="foot-segment">
+      <div class="led-status"></div>
+      <span style="color: var(--text-main); font-weight: 600;">LINK: MODEL-ENGINE ONLINE</span>
+      <span>|</span>
+      <span>LATENCY: 18ms</span>
+      <span>|</span>
+      <span>REVISION: #04</span>
+    </div>
+    <div class="foot-segment">
+      <span>GRID: 10.0mm</span>
+      <span>SNAP: ON</span>
+      <span style="color: var(--measure-cyan);">CALIBRATED 2026.09</span>
+    </div>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    // 渲染高质感 3D 实体模型与测绘辅助线
+    const container = document.getElementById('stage-box');
+    const canvas = document.getElementById('webgl-canvas');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x111519);
+
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(160, 120, 180);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    // 光影
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight1.position.set(100, 200, 100);
+    scene.add(dirLight1);
+
+    const dirLight2 = new THREE.DirectionalLight(0x00e5ff, 0.4);
+    dirLight2.position.set(-100, -50, -100);
+    scene.add(dirLight2);
+
+    // 机床底盘网格
+    const grid = new THREE.GridHelper(300, 30, 0x00e5ff, 0x222a33);
+    grid.position.y = -20;
+    scene.add(grid);
+
+    // 工业外壳主体 (参数化倒角实体)
+    const geom = new THREE.BoxGeometry(120, 32, 80);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x3a4452,
+      metalness: 0.3,
+      roughness: 0.4,
+      wireframe: false
+    });
+    const boxMesh = new THREE.Mesh(geom, mat);
+    boxMesh.position.y = -4;
+    scene.add(boxMesh);
+
+    // 线框描边
+    const wireGeom = new THREE.WireframeGeometry(geom);
+    const wireMat = new THREE.LineBasicMaterial({ color: 0x00e5ff, linewidth: 1, transparent: true, opacity: 0.4 });
+    const wire = new THREE.LineSegments(wireGeom, wireMat);
+    boxMesh.add(wire);
+
+    // 包围盒与刻度指示线
+    const bbox = new THREE.BoxHelper(boxMesh, 0x00e5ff);
+    scene.add(bbox);
+
+    camera.lookAt(0, 0, 0);
+
+    // 简易旋转阻尼交互
+    let isDragging = false;
+    let prevMouse = { x: 0, y: 0 };
+    let rotX = 0.4;
+    let rotY = 0.6;
+
+    container.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      prevMouse = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('mouseup', () => isDragging = false);
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - prevMouse.x;
+      const dy = e.clientY - prevMouse.y;
+      rotY += dx * 0.008;
+      rotX += dy * 0.008;
+      prevMouse = { x: e.clientX, y: e.clientY };
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!isDragging) {
+        rotY += 0.002;
+      }
+      boxMesh.rotation.y = rotY;
+      boxMesh.rotation.x = rotX;
+      bbox.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+  </script>
+</body>
+</html>

@@ -137,19 +137,19 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
                         isClickable ? 'cursor-pointer hover:bg-[var(--cad-surface-raised)]' : 'cursor-default'
                       } ${
                         isFailedStep
-                          ? 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                          ? 'border-[var(--app-danger)]/30 bg-[var(--app-danger)]/10 text-[var(--app-danger)]'
                           : isCurrent && !isFailed
-                          ? 'border-[color:var(--app-accent)] bg-[var(--cad-accent-soft)] text-[var(--app-accent)] shadow-[0_0_8px_rgba(94,106,210,0.3)]'
+                          ? 'border-[var(--app-accent)] bg-[var(--app-accent-bg)] text-[var(--app-accent)]'
                           : isCompleted
-                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                          : 'border-[color:var(--app-border)] bg-[var(--app-surface)] text-[var(--app-text-dim)]'
+                          ? 'border-[var(--app-success)]/30 bg-[var(--app-success)]/10 text-[var(--app-success)]'
+                          : 'border-[var(--app-border)] bg-[var(--app-surface)] text-[var(--app-text-dim)]'
                       }`}
-                      whileHover={isClickable ? { scale: 1.08 } : undefined}
-                      whileTap={isClickable ? { scale: 0.95 } : undefined}
+                      whileHover={isClickable ? { scale: 1.05 } : undefined}
+                      whileTap={isClickable ? { scale: 0.96 } : undefined}
                       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                       onClick={() => {
                         if (isClickable) {
-                          onStepClick?.(step.key, stepToTabMap[step.key] || 'PARAMS')
+                          onStepClick?.(step.key, stepToTabMap[step.key] || 'PARAMETERS')
                         }
                       }}
                     >
@@ -187,19 +187,19 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
                   <TooltipContent side="bottom" className="text-xs max-w-[200px]">
                     <div className="font-mono font-semibold">{step.label}: {step.key.replace(/_/g, ' ')}</div>
                     {duration !== undefined && (
-                      <div className="text-[13px] text-[var(--app-text-muted)] mt-0.5">Duration: {formatDuration(duration)}</div>
+                      <div className="text-[12px] text-[var(--app-text-muted)] mt-0.5">Duration: {formatDuration(duration)}</div>
                     )}
                     {isCurrent && !isFailed && (
-                      <div className="text-[13px] text-amber-600 dark:text-amber-400 font-medium mt-0.5">Currently processing</div>
+                      <div className="text-[12px] text-[var(--app-warning)] font-medium mt-0.5">Currently processing</div>
                     )}
                     {isFailedStep && (
-                      <div className="text-[13px] text-rose-600 dark:text-rose-400 font-medium mt-0.5">Failed at this step</div>
+                      <div className="text-[12px] text-[var(--app-danger)] font-medium mt-0.5">Validation blocked at this step</div>
                     )}
                     {isCompleted && (
-                      <div className="text-[13px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">Completed</div>
+                      <div className="text-[12px] text-[var(--app-success)] font-medium mt-0.5">Completed</div>
                     )}
                     {isClickable && (
-                      <div className="text-[13px] text-[var(--app-text-muted)] mt-1">Click to view in inspector</div>
+                      <div className="text-[12px] text-[var(--app-text-muted)] mt-1">Click to view in inspector</div>
                     )}
                   </TooltipContent>
                 </Tooltip>
@@ -207,16 +207,16 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
 
               {idx < PIPELINE_STEPS.length - 1 && (
                 <div className="relative mx-1 flex items-center">
-                  <div className="h-0.5 w-4 rounded-full bg-[var(--app-border)]" />
+                  <div className="h-0.5 w-3 rounded-full bg-[var(--app-border)]" />
                   <AnimatePresence>
                     {isLineCompleted && (
                       <motion.div
                         className="absolute top-1/2 h-0.5 -translate-y-1/2 rounded-full"
                         style={{
-                          backgroundColor: isLineFailed ? 'var(--cad-danger)' : 'var(--app-accent)',
+                          backgroundColor: isLineFailed ? 'var(--app-danger)' : 'var(--app-accent)',
                         }}
                         initial={{ width: 0 }}
-                        animate={{ width: 16 }}
+                        animate={{ width: 12 }}
                         exit={{ width: 0 }}
                         transition={{ duration: getTransitionDuration(idx), ease: 'easeOut', delay: idx * 0.04 }}
                       />
@@ -225,9 +225,9 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
                   {isFailed && idx === failedStepIdx - 1 && (
                     <motion.div
                       className="absolute top-1/2 h-0.5 -translate-y-1/2 rounded-full"
-                      style={{ backgroundColor: 'var(--cad-danger)' }}
+                      style={{ backgroundColor: 'var(--app-danger)' }}
                       initial={{ width: 0 }}
-                      animate={{ width: 16 }}
+                      animate={{ width: 12 }}
                       transition={{ duration: getTransitionDuration(idx), ease: 'easeOut', delay: idx * 0.04 }}
                     />
                   )}
@@ -237,21 +237,102 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
           )
         })}
       </div>
-      <span className={`hidden min-w-0 truncate text-[13px] font-medium lg:inline ${
-        isFailed ? 'text-rose-600 dark:text-rose-400' : state === 'DELIVERED' ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--app-text-muted)]'
+      <span className={`hidden min-w-0 truncate text-xs font-medium lg:inline ${
+        isFailed ? 'text-[var(--app-danger)]' : state === 'DELIVERED' ? 'text-[var(--app-success)]' : 'text-[var(--app-text-muted)]'
       }`}>
         {currentLabel}
       </span>
-      <div className="pipeline-mini-progress ml-1 w-14">
+      <div className="pipeline-mini-progress ml-1 w-12">
         <div
           className={`pipeline-mini-progress-fill ${
-            isFailed ? 'bg-[var(--cad-danger)]' :
-            progress === 100 ? 'bg-emerald-500' :
+            isFailed ? 'bg-[var(--app-danger)]' :
+            progress === 100 ? 'bg-[var(--app-success)]' :
             'bg-[var(--app-accent)]'
           }`}
           style={{ width: `${isFailed ? Math.max(progress - 20, 20) : progress}%` }}
         />
       </div>
     </div>
+  )
+}
+
+/**
+ * RunProgress: Calm, compact metrology run-state indicator designed for the streamlined App Bar.
+ * Conforms to the AgentSCAD Design System: unobtrusive when idle, informative when executing.
+ */
+export function RunProgress({
+  state,
+  isProcessing,
+  onClick,
+}: {
+  state: string
+  isProcessing?: boolean
+  onClick?: () => void
+}) {
+  const currentIdx = PIPELINE_STEPS.findIndex(s => s.key === state)
+  const isFailed = ['GEOMETRY_FAILED', 'RENDER_FAILED', 'VALIDATION_FAILED'].includes(state)
+  const progress = getPipelineProgress(state)
+  const stepNumber = Math.max(1, currentIdx + 1)
+  const totalSteps = PIPELINE_STEPS.length
+
+  let stateLabel = 'Ready'
+  let dotClass = 'bg-[var(--app-text-dim)]'
+  let textClass = 'text-[var(--app-text-muted)]'
+  let borderClass = 'border-[var(--app-border)]'
+
+  if (isProcessing || ['SCAD_GENERATED', 'RENDERED', 'VALIDATED'].includes(state)) {
+    stateLabel = state === 'SCAD_GENERATED' ? 'Generating geometry' :
+                 state === 'RENDERED' ? 'Rendering model' :
+                 state === 'VALIDATED' ? 'Validating facts' : 'Executing run'
+    dotClass = 'bg-[var(--app-accent)] animate-pulse'
+    textClass = 'text-[var(--app-accent-text)]'
+    borderClass = 'border-[var(--app-accent-border)]'
+  } else if (state === 'DELIVERED') {
+    stateLabel = 'Artifacts ready'
+    dotClass = 'bg-[var(--app-success)]'
+    textClass = 'text-[var(--app-status-success-text)]'
+    borderClass = 'border-[var(--app-status-success-border)]'
+  } else if (state === 'HUMAN_REVIEW') {
+    stateLabel = 'Needs review'
+    dotClass = 'bg-[var(--app-warning)]'
+    textClass = 'text-[var(--app-status-warning-text)]'
+    borderClass = 'border-[var(--app-status-warning-border)]'
+  } else if (isFailed) {
+    stateLabel = 'Validation blocked'
+    dotClass = 'bg-[var(--app-danger)]'
+    textClass = 'text-[var(--app-status-danger-text)]'
+    borderClass = 'border-[var(--app-status-danger-border)]'
+  } else if (state === 'NEW') {
+    stateLabel = 'Draft'
+    dotClass = 'bg-[var(--app-text-dim)]'
+    textClass = 'text-[var(--app-text-muted)]'
+    borderClass = 'border-[var(--app-border)]'
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 px-2 py-0.5 rounded-[5px] border ${borderClass} bg-[var(--app-surface-raised)]/60 hover:bg-[var(--app-surface-raised)] transition-all cursor-pointer text-left`}
+      title="Click to view run details"
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${dotClass} shrink-0`} />
+      <span className={`text-xs font-medium font-mono ${textClass}`}>
+        {stateLabel}
+      </span>
+      {(isProcessing || (currentIdx > 0 && currentIdx < totalSteps - 1)) && (
+        <div className="flex items-center gap-1.5 pl-1 border-l border-[var(--app-border)]">
+          <span className="text-[11px] font-mono text-[var(--app-text-dim)]">
+            {stepNumber}/{totalSteps}
+          </span>
+          <div className="w-10 h-1 rounded-full bg-[var(--app-border)] overflow-hidden">
+            <div
+              className="h-full bg-[var(--app-accent)] transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      )}
+    </button>
   )
 }

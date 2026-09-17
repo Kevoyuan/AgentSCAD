@@ -112,7 +112,7 @@ function ProgressRing({
   value,
   size = 80,
   strokeWidth = 5,
-  color = '#5e6ad2',
+  color = '#F59E0B',
   label,
   sublabel,
 }: {

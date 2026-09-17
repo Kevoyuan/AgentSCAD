@@ -264,12 +264,12 @@ export function getPartFamilyLabel(family: string | null): string {
 export function getPartFamilyColor(family: string | null): string {
   if (!family) return 'text-[var(--app-text-muted)]'
   const colors: Record<string, string> = {
-    spur_gear: 'text-violet-400',
-    device_stand: 'text-cyan-400',
+    spur_gear: 'text-amber-400',
+    device_stand: 'text-teal-400',
     phone_case: 'text-emerald-400',
-    electronics_enclosure: 'text-amber-400',
+    electronics_enclosure: 'text-amber-500',
     bracket: 'text-rose-400',
-    bolt: 'text-blue-400',
+    bolt: 'text-stone-300',
   }
   return colors[family.toLowerCase()] || 'text-[var(--app-text-muted)]'
 }

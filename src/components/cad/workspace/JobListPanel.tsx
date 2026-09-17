@@ -107,7 +107,7 @@ export function JobListPanel({
       className="cad-left-panel min-w-0 overflow-hidden"
     >
       <PanelErrorBoundary panelName="Job List" resetKey={selectedJob?.id}>
-        <div className="flex flex-col h-full bg-[var(--app-bg)] min-w-0 overflow-hidden">
+        <div className="flex flex-col h-[calc(100%-16px)] m-2 rounded-2xl border border-white/[0.08] shadow-[0_16px_40px_-8px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl bg-[var(--app-surface)]/90 min-w-0 overflow-hidden">
           {/* Search & Filter Panel */}
           <SearchFilterPanel
             filters={filterState}
@@ -133,11 +133,11 @@ export function JobListPanel({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs px-2 gap-1 text-amber-400 hover:text-amber-300 shrink-0"
+                      className="h-7 text-xs px-2 gap-1 text-[var(--app-accent-text)] hover:bg-[var(--app-accent-bg)] shrink-0"
                       onClick={() => onBatchAction('reprocess')}
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
-                      <span className="hidden xl:inline">Reprocess</span>
+                      <span className="hidden xl:inline">Rebuild</span>
                     </Button>
                     <Button
                       variant="ghost"

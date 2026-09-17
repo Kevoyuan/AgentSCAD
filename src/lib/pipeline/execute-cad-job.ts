@@ -41,6 +41,7 @@ import type {
 import { ModelRequestError } from "@/lib/model-runtime";
 import { isEphemeralRuntime } from "@/lib/runtime-environment";
 import { randomUUID } from "crypto";
+import type { JobExecution } from "./job-execution";
 import {
   buildGenerationPlan,
   generationPlanFingerprint,
@@ -190,7 +191,11 @@ function demoDelay(): Promise<void> {
     : Promise.resolve();
 }
 
-export async function executeCadJob(jobId: string, sendEvent: ProcessEventSink) {
+export async function executeCadJob(
+  jobId: string,
+  sendEvent: ProcessEventSink,
+  _claimedExecution?: JobExecution
+) {
   const startedAt = Date.now();
   const job = await db.job.findUnique({ where: { id: jobId } });
   if (!job) {

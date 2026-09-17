@@ -72,12 +72,12 @@ function buildProceduralEnclosure(THREE: any, mainGroup: any, values: Record<str
     bevelSegments: 2,
   })
   const outerMat = new THREE.MeshPhongMaterial({
-    color: 0x4aa3ff,
+    color: 0x3A404D,
     transparent: true,
-    opacity: 0.55,
+    opacity: 0.85,
     side: THREE.DoubleSide,
     wireframe: controlsState.wireframe,
-    shininess: 60,
+    shininess: 50,
   })
   const outerMesh = new THREE.Mesh(outerGeo, outerMat)
   outerMesh.rotation.x = -Math.PI / 2
@@ -91,9 +91,9 @@ function buildProceduralEnclosure(THREE: any, mainGroup: any, values: Record<str
   const innerShape = createRoundedRectShape(THREE, innerW, innerD, innerR)
   const innerGeo = new THREE.ExtrudeGeometry(innerShape, { depth: innerH, bevelEnabled: false })
   const innerMat = new THREE.MeshPhongMaterial({
-    color: 0x22d3ee,
+    color: 0x22262E,
     transparent: true,
-    opacity: 0.08,
+    opacity: 0.4,
     side: THREE.BackSide,
     wireframe: controlsState.wireframe,
   })
@@ -103,7 +103,7 @@ function buildProceduralEnclosure(THREE: any, mainGroup: any, values: Record<str
   mainGroup.add(innerMesh)
 
   const outerEdges = new THREE.EdgesGeometry(outerGeo, 15)
-  const outerLine = new THREE.LineSegments(outerEdges, new THREE.LineBasicMaterial({ color: 0x9ccfff, transparent: true, opacity: 0.5 }))
+  const outerLine = new THREE.LineSegments(outerEdges, new THREE.LineBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.45 }))
   outerLine.rotation.x = -Math.PI / 2
   outerLine.position.y = 0
   mainGroup.add(outerLine)
@@ -117,12 +117,12 @@ function buildProceduralGear(THREE: any, mainGroup: any, values: Record<string, 
   const rootRadius = Math.max(outerDiameter * 0.32, outerDiameter / 2 - Math.max(2, outerDiameter * 0.08))
   const toothDepth = Math.max(1.2, outerDiameter / 2 - rootRadius)
   const mat = new THREE.MeshPhongMaterial({
-    color: 0x4aa3ff,
+    color: 0x3A404D,
     transparent: true,
-    opacity: 0.78,
+    opacity: 0.85,
     side: THREE.DoubleSide,
     wireframe: controlsState.wireframe,
-    shininess: 85,
+    shininess: 55,
   })
 
   const bodyGeo = new THREE.CylinderGeometry(rootRadius, rootRadius, thickness, Math.max(48, teeth * 3))
@@ -150,9 +150,9 @@ function buildProceduralGear(THREE: any, mainGroup: any, values: Record<string, 
 
   const boreGeo = new THREE.CylinderGeometry(Math.max(0.8, boreDiameter / 2), Math.max(0.8, boreDiameter / 2), thickness + 0.2, 48)
   const boreMat = new THREE.MeshPhongMaterial({
-    color: 0x080b10,
+    color: 0x181C23,
     transparent: true,
-    opacity: 0.82,
+    opacity: 0.9,
     side: THREE.DoubleSide,
   })
   const bore = new THREE.Mesh(boreGeo, boreMat)
@@ -160,7 +160,7 @@ function buildProceduralGear(THREE: any, mainGroup: any, values: Record<string, 
   mainGroup.add(bore)
 
   const edges = new THREE.EdgesGeometry(bodyGeo, 20)
-  const edgeLines = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x9ccfff, transparent: true, opacity: 0.35 }))
+  const edgeLines = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.4 }))
   edgeLines.position.y = thickness / 2
   mainGroup.add(edgeLines)
 }
@@ -182,17 +182,17 @@ function createDimensionOverlay(THREE: any, mainGroup: any) {
   const min = box.min
   const max = box.max
 
-  // Bounding box wireframe
+  // Bounding box wireframe (Warm Amber: 0xF59E0B)
   const bboxGeo = new THREE.BoxGeometry(size.x, size.y, size.z)
   const bboxCenter = box.getCenter(new THREE.Vector3())
   const bboxEdges = new THREE.EdgesGeometry(bboxGeo)
   const bboxLine = new THREE.LineSegments(
     bboxEdges,
-    new THREE.LineBasicMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.35 })
+    new THREE.LineBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.4 })
   )
   bboxLine.position.copy(bboxCenter)
 
-  // Origin axis arrows (small XYZ indicator)
+  // Origin axis arrows (XYZ: Red, Green, Amber)
   const axisGroup = new THREE.Group()
   const arrowLen = Math.max(size.x, size.y, size.z) * 0.15
   const arrowHeadLen = arrowLen * 0.2
@@ -204,16 +204,16 @@ function createDimensionOverlay(THREE: any, mainGroup: any) {
   )
   const yArrow = new THREE.ArrowHelper(
     new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0),
-    arrowLen, 0x22c55e, arrowHeadLen, arrowHeadWidth
+    arrowLen, 0x10b981, arrowHeadLen, arrowHeadWidth
   )
   const zArrow = new THREE.ArrowHelper(
     new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
-    arrowLen, 0x3b82f6, arrowHeadLen, arrowHeadWidth
+    arrowLen, 0xF59E0B, arrowHeadLen, arrowHeadWidth
   )
   axisGroup.add(xArrow, yArrow, zArrow)
 
-  // Dimension lines along each axis
-  const dimMat = new THREE.LineBasicMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.6 })
+  // Dimension lines along each axis (Warm Amber precision laser: 0xF59E0B)
+  const dimMat = new THREE.LineBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.65 })
   const offset = Math.max(size.x, size.y, size.z) * 0.08
 
   // Width line (along X, at bottom-front)
@@ -336,7 +336,7 @@ export function ThreeDViewer({
     }
     if (sceneRef.current && threeModuleRef.current) {
       sceneRef.current.background = new threeModuleRef.current.Color(
-        controlsState.darkBg ? 0x080b10 : 0x111827
+        controlsState.darkBg ? 0x0A0D10 : 0xF4F6F8
       )
     }
   }, [controlsState])
@@ -410,8 +410,8 @@ export function ThreeDViewer({
 
       try {
         const scene = new THREE.Scene()
-        scene.background = new THREE.Color(controlsState.darkBg ? 0x080b10 : 0x111827)
-        scene.fog = new THREE.Fog(0x080b10, 600, 1200)
+        scene.background = new THREE.Color(controlsState.darkBg ? 0x0B0F14 : 0xF4F6F8)
+        scene.fog = new THREE.Fog(controlsState.darkBg ? 0x0B0F14 : 0xF4F6F8, 600, 1200)
         sceneRef.current = scene
 
         const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000)
@@ -441,7 +441,12 @@ export function ThreeDViewer({
         controls.autoRotateSpeed = 0.5
         controlsObjRef.current = controls
 
-        const gridHelper = new THREE.GridHelper(120, 24, 0x24435f, 0x152434)
+        const gridHelper = new THREE.GridHelper(
+          120,
+          24,
+          controlsState.darkBg ? 0x2B3643 : 0xB8C5D3,
+          controlsState.darkBg ? 0x19222D : 0xD5DDE6
+        )
         gridHelper.position.y = -0.01
         gridHelper.visible = controlsState.showGrid
         scene.add(gridHelper)
@@ -456,7 +461,7 @@ export function ThreeDViewer({
         const mainGroup = new THREE.Group()
 
         // ─── Load real STL if available, otherwise fall back to procedural mesh ───
-        if (job.stlPath) {
+        if (hasStl && job.stlPath) {
           try {
             const { STLLoader } = await import('three/examples/jsm/loaders/STLLoader.js')
             const loader = new STLLoader()
@@ -487,12 +492,13 @@ export function ThreeDViewer({
             geometry.computeVertexNormals()
 
             const material = new THREE.MeshPhongMaterial({
-              color: 0x4aa3ff,
+              color: 0x3E4450,
               transparent: true,
-              opacity: 0.85,
+              opacity: 0.92,
               side: THREE.DoubleSide,
               wireframe: controlsState.wireframe,
-              shininess: 80,
+              shininess: 55,
+              specular: 0x222222,
             })
 
             const mesh = new THREE.Mesh(geometry, material)
@@ -500,9 +506,9 @@ export function ThreeDViewer({
             mesh.receiveShadow = true
             mainGroup.add(mesh)
 
-            // Wireframe overlay
+            // Wireframe overlay (Warm Amber laser precision)
             const edges = new THREE.EdgesGeometry(geometry, 30)
-            const edgeMat = new THREE.LineBasicMaterial({ color: 0x9ccfff, transparent: true, opacity: 0.4 })
+            const edgeMat = new THREE.LineBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.35 })
             const edgeLines = new THREE.LineSegments(edges, edgeMat)
             mainGroup.add(edgeLines)
 
@@ -543,24 +549,21 @@ export function ThreeDViewer({
         // distance, otherwise long phone-case models disappear into the background.
         const fitted = fitCameraToObject(THREE, camera, controls, mainGroup)
         scene.fog = new THREE.Fog(
-          0x080b10,
+          controlsState.darkBg ? 0x0A0D10 : 0xF4F6F8,
           Math.max(fitted.dist * 1.6, fitted.maxDim * 2.2, 220),
           Math.max(fitted.dist * 5.5, fitted.maxDim * 8, 900),
         )
 
-        // Lights
-        const ambient = new THREE.AmbientLight(0x404060, 2.5)
+        // Lights: calibrated neutral illumination without chromatic light pollution
+        const ambient = new THREE.AmbientLight(0xffffff, 2.2)
         scene.add(ambient)
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2)
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.4)
         dirLight.position.set(50, 80, 50)
         dirLight.castShadow = true
         scene.add(dirLight)
-        const pointLight1 = new THREE.PointLight(0x4aa3ff, 0.55, 200)
-        pointLight1.position.set(-30, 40, -30)
-        scene.add(pointLight1)
-        const pointLight2 = new THREE.PointLight(0x22d3ee, 0.3, 150)
-        pointLight2.position.set(30, 20, 30)
-        scene.add(pointLight2)
+        const rimLight = new THREE.DirectionalLight(0xced7e0, 0.6)
+        rimLight.position.set(-40, 30, -40)
+        scene.add(rimLight)
 
         setIsLoading(false)
 

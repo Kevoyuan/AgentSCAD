@@ -89,9 +89,10 @@ export function WorkspaceToolsMenu({
         <DropdownMenuItem
           onClick={onOpenCompare}
           className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-[4px] text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)] focus:bg-[var(--app-surface-hover)]"
+          title="Compare Jobs"
         >
           <GitCompare className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
-          <span className="flex-1 text-xs">Compare Jobs</span>
+          <span className="flex-1 text-xs">Compare Designs</span>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator className="bg-[var(--app-border-subtle)] my-1" />
