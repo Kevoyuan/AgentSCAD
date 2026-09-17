@@ -80,7 +80,7 @@
   --sidebar-ring: oklch(0.708 0 0);
 
   /* AgentSCAD custom - Light (precision instrument aesthetic) */
-  --app-bg: #f5f5f7;
+  --app-bg: #f4f5f7;
   --app-surface: #fbfbfc;
   --app-surface-raised: #f0f0f3;
   --app-surface-50: rgba(248, 249, 251, 0.5);
@@ -97,8 +97,8 @@
   --app-scrollbar-thumb: #b8c0cc;
   --app-scrollbar-thumb-hover: #8892a0;
   --app-scrollbar-track: transparent;
-  --app-focus-ring: rgba(37, 99, 235, 0.22);
-  --app-interactive-hover: rgba(37, 99, 235, 0.06);
+  --app-focus-ring: rgba(94, 106, 210, 0.28);
+  --app-interactive-hover: rgba(94, 106, 210, 0.08);
   --app-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
   --app-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.06);
   --app-keyboard-bg: #e2e6ec;
@@ -114,7 +114,7 @@
   --app-card-hover-shadow: 0 2px 8px rgba(15, 23, 42, 0.05), 0 0 0 1px rgba(15, 23, 42, 0.04);
   --app-pipeline-bg: rgba(15, 23, 42, 0.04);
   --app-activity-hover: rgba(15, 23, 42, 0.03);
-  --app-selected-bg: rgba(37, 99, 235, 0.06);
+  --app-selected-bg: rgba(94, 106, 210, 0.08);
   --app-code-copy-hover: rgba(15, 23, 42, 0.06);
   --app-empty-bg: rgba(15, 23, 42, 0.03);
   --app-accent: #5e6ad2;
@@ -131,6 +131,21 @@
   --app-success-bg: rgba(5, 150, 105, 0.08);
   --app-info: #2563eb;
   --app-info-bg: rgba(37, 99, 235, 0.08);
+
+  /* Dual-Theme Status Semantics (WCAG AA >= 4.5:1 compliant in light mode) */
+  --app-status-success-text: #065f46;
+  --app-status-success-bg: rgba(5, 150, 105, 0.10);
+  --app-status-success-border: rgba(5, 150, 105, 0.25);
+  --app-status-warning-text: #92400e;
+  --app-status-warning-bg: rgba(217, 119, 6, 0.10);
+  --app-status-warning-border: rgba(217, 119, 6, 0.25);
+  --app-status-danger-text: #991b1b;
+  --app-status-danger-bg: rgba(220, 38, 38, 0.10);
+  --app-status-danger-border: rgba(220, 38, 38, 0.25);
+  --app-status-info-text: #155e75;
+  --app-status-info-bg: rgba(2, 132, 199, 0.10);
+  --app-status-info-border: rgba(2, 132, 199, 0.25);
+
   --app-header-bg: rgba(248, 249, 251, 0.92);
   --app-dialog-overlay: rgba(15, 23, 42, 0.35);
   --app-dialog-bg: #f8f9fb;
@@ -138,18 +153,18 @@
   --app-code-border: rgba(15, 23, 42, 0.10);
   --app-tag-bg: rgba(15, 23, 42, 0.05);
   --app-tag-border: rgba(15, 23, 42, 0.10);
-  --app-batch-bar-bg: rgba(37, 99, 235, 0.06);
-  --app-batch-bar-text: #1d4ed8;
+  --app-batch-bar-bg: rgba(94, 106, 210, 0.08);
+  --app-batch-bar-text: #4e58b5;
   --app-input-bg: #ffffff;
-  --app-input-border: rgba(0, 0, 0, 0.14);
-  --app-input-focus-border: rgba(37, 99, 235, 0.45);
-  --app-hover-subtle: rgba(0, 0, 0, 0.04);
-  --app-border-separator: rgba(0, 0, 0, 0.08);
+  --app-input-border: rgba(15, 23, 42, 0.14);
+  --app-input-focus-border: rgba(94, 106, 210, 0.45);
+  --app-hover-subtle: rgba(15, 23, 42, 0.04);
+  --app-border-separator: rgba(15, 23, 42, 0.08);
   --app-state-neutral-bg: rgba(100, 100, 116, 0.12);
   --app-state-neutral-text: #4a4a58;
   --app-state-neutral-dot: #71717a;
   --app-state-neutral-border: rgba(100, 100, 116, 0.2);
-  --cad-bg: #f7f7f9;
+  --cad-bg: #f4f5f7;
   --cad-surface: #ffffff;
   --cad-surface-raised: #eef3f8;
   --cad-border: rgba(15, 23, 42, 0.12);
@@ -220,8 +235,8 @@
   --app-scrollbar-track: transparent;
   --app-focus-ring: rgba(94, 106, 210, 0.28);
   --app-interactive-hover: rgba(94, 106, 210, 0.08);
-  --app-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --app-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
+  --app-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --app-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
   --app-keyboard-bg: #111418;
   --app-keyboard-border: var(--cad-border);
   --app-keyboard-text: var(--cad-text-secondary);
@@ -232,7 +247,7 @@
   --app-footer-tooltip-border: var(--cad-border);
   --app-footer-tooltip-text: var(--cad-text-secondary);
   --app-gradient-separator: linear-gradient(90deg, transparent, var(--cad-border), transparent);
-  --app-card-hover-shadow: 0 2px 12px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--cad-border-strong);
+  --app-card-hover-shadow: 0 2px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--cad-border-strong);
   --app-pipeline-bg: rgba(255, 255, 255, 0.04);
   --app-activity-hover: rgba(255, 255, 255, 0.02);
   --app-selected-bg: var(--cad-accent-soft);
@@ -252,8 +267,23 @@
   --app-success-bg: rgba(53, 196, 111, 0.1);
   --app-info: var(--cad-info);
   --app-info-bg: rgba(74, 163, 255, 0.1);
+
+  /* Dual-Theme Status Semantics (WCAG AA >= 4.5:1 compliant in dark mode) */
+  --app-status-success-text: #34d399;
+  --app-status-success-bg: rgba(52, 211, 153, 0.12);
+  --app-status-success-border: rgba(52, 211, 153, 0.28);
+  --app-status-warning-text: #fbbf24;
+  --app-status-warning-bg: rgba(251, 191, 36, 0.12);
+  --app-status-warning-border: rgba(251, 191, 36, 0.28);
+  --app-status-danger-text: #f87171;
+  --app-status-danger-bg: rgba(248, 113, 113, 0.12);
+  --app-status-danger-border: rgba(248, 113, 113, 0.28);
+  --app-status-info-text: #22d3ee;
+  --app-status-info-bg: rgba(34, 211, 238, 0.12);
+  --app-status-info-border: rgba(34, 211, 238, 0.28);
+
   --app-header-bg: rgba(11, 13, 16, 0.88);
-  --app-dialog-overlay: rgba(0, 0, 0, 0.8);
+  --app-dialog-overlay: rgba(11, 13, 16, 0.8);
   --app-dialog-bg: #111418;
   --app-code-bg: #090a0d;
   --app-code-border: var(--cad-border);
@@ -589,7 +619,7 @@ pre:hover .code-copy-btn { opacity: 1; }
   opacity: 1;
 }
 
-/* Skeleton pulse - for loading states */
+/* Skeleton pulse - legacy gradient shimmer for loading states */
 .skeleton-pulse {
   background: linear-gradient(90deg, var(--app-skeleton-bg) 25%, var(--app-border) 50%, var(--app-skeleton-bg) 75%);
   background-size: 200% 100%;
@@ -600,6 +630,48 @@ pre:hover .code-copy-btn { opacity: 1; }
 @keyframes skeleton-shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+/* Skeleton shimmer — engineering scanline shimmer */
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--app-skeleton-bg);
+  border-radius: 6px;
+}
+
+.skeleton-shimmer::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.05) 20%,
+    rgba(255, 255, 255, 0.14) 60%,
+    rgba(255, 255, 255, 0)
+  );
+  animation: engineeringShimmer 1.8s infinite cubic-bezier(0.4, 0, 0.2, 1);
+  content: '';
+}
+
+:root:not(.dark) .skeleton-shimmer::after {
+  background-image: linear-gradient(
+    90deg,
+    rgba(15, 23, 42, 0) 0,
+    rgba(15, 23, 42, 0.04) 20%,
+    rgba(15, 23, 42, 0.10) 60%,
+    rgba(15, 23, 42, 0)
+  );
+}
+
+@keyframes engineeringShimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 /* Slide in from right (tab forward) */
@@ -677,6 +749,7 @@ pre:hover .code-copy-btn { opacity: 1; }
     transform: none;
   }
   .skeleton-pulse { animation: none; }
+  .skeleton-shimmer::after { animation: none; display: none; }
   .slide-in-right, .slide-in-left { animation: none; }
   .activity-slide-in { animation: none; }
   .state-bounce { animation: none; }
@@ -714,11 +787,11 @@ pre:hover .code-copy-btn { opacity: 1; }
 
 /* Typography tokens — section eyebrows (mono uppercase tracked) */
 .text-eyebrow {
-  font-size: 13px;
+  font-size: 11px;
   font-family: var(--font-mono), ui-monospace, monospace;
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   line-height: 1;
 }
 

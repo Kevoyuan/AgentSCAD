@@ -23,6 +23,7 @@ beforeAll(() => {
   }));
 
   mock.module("@/lib/tools/scad-renderer", () => ({
+    validateGeneratedScadSource: mock(async () => undefined),
     buildOpenScadDefineArgs: (definitions?: Record<string, unknown>) =>
       Object.entries(definitions ?? {})
         .filter(([key]) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key))

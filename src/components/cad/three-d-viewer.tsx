@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Box, Loader2, AlertCircle } from 'lucide-react'
+import { Box, AlertCircle } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Job, parseJSON, safeNum } from './types'
 import { ViewerControls, useViewerControls } from './viewer-controls'
 
@@ -47,6 +48,8 @@ function fitCameraToObject(THREE: any, camera: any, controls: any, object: any, 
   camera.far = Math.max(1000, dist * 8, maxDim * 10)
   camera.updateProjectionMatrix()
   controls.target.copy(center)
+  controls.minDistance = Math.max(0.5, dist * 0.05, maxDim * 0.1)
+  controls.maxDistance = Math.max(500, dist * 8, maxDim * 15)
   controls.update()
   return { center, size, maxDim, dist }
 }
@@ -78,7 +81,7 @@ function buildProceduralEnclosure(THREE: any, mainGroup: any, values: Record<str
   })
   const outerMesh = new THREE.Mesh(outerGeo, outerMat)
   outerMesh.rotation.x = -Math.PI / 2
-  outerMesh.position.y = height
+  outerMesh.position.y = 0
   mainGroup.add(outerMesh)
 
   const innerW = Math.max(0.1, width - 2 * wall)
@@ -96,13 +99,13 @@ function buildProceduralEnclosure(THREE: any, mainGroup: any, values: Record<str
   })
   const innerMesh = new THREE.Mesh(innerGeo, innerMat)
   innerMesh.rotation.x = -Math.PI / 2
-  innerMesh.position.y = height - wall
+  innerMesh.position.y = wall
   mainGroup.add(innerMesh)
 
   const outerEdges = new THREE.EdgesGeometry(outerGeo, 15)
   const outerLine = new THREE.LineSegments(outerEdges, new THREE.LineBasicMaterial({ color: 0x9ccfff, transparent: true, opacity: 0.5 }))
   outerLine.rotation.x = -Math.PI / 2
-  outerLine.position.y = height
+  outerLine.position.y = 0
   mainGroup.add(outerLine)
 }
 
@@ -124,6 +127,7 @@ function buildProceduralGear(THREE: any, mainGroup: any, values: Record<string, 
 
   const bodyGeo = new THREE.CylinderGeometry(rootRadius, rootRadius, thickness, Math.max(48, teeth * 3))
   const body = new THREE.Mesh(bodyGeo, mat)
+  body.position.y = thickness / 2
   body.castShadow = true
   body.receiveShadow = true
   mainGroup.add(body)
@@ -135,7 +139,7 @@ function buildProceduralGear(THREE: any, mainGroup: any, values: Record<string, 
     const tooth = new THREE.Mesh(toothGeo, mat.clone())
     tooth.position.set(
       Math.sin(angle) * (rootRadius + toothDepth / 2),
-      0,
+      thickness / 2,
       Math.cos(angle) * (rootRadius + toothDepth / 2)
     )
     tooth.rotation.y = angle
@@ -152,10 +156,12 @@ function buildProceduralGear(THREE: any, mainGroup: any, values: Record<string, 
     side: THREE.DoubleSide,
   })
   const bore = new THREE.Mesh(boreGeo, boreMat)
+  bore.position.y = thickness / 2
   mainGroup.add(bore)
 
   const edges = new THREE.EdgesGeometry(bodyGeo, 20)
   const edgeLines = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x9ccfff, transparent: true, opacity: 0.35 }))
+  edgeLines.position.y = thickness / 2
   mainGroup.add(edgeLines)
 }
 
@@ -253,7 +259,17 @@ function createDimLine(THREE: any, mat: any, start: any, end: any) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function ThreeDViewer({ job }: { job: Job }) {
+export function ThreeDViewer({
+  job,
+  onDownloadStl,
+  isDownloadingStl,
+  hasStl,
+}: {
+  job: Job
+  onDownloadStl?: () => void
+  isDownloadingStl?: boolean
+  hasStl?: boolean
+}) {
   const mountRef = useRef<HTMLDivElement>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -332,16 +348,24 @@ export function ThreeDViewer({ job }: { job: Job }) {
   }, [])
 
   const handleZoomIn = useCallback(() => {
-    if (cameraRef.current) {
-      cameraRef.current.position.multiplyScalar(0.85)
-      if (controlsObjRef.current) controlsObjRef.current.update()
+    if (cameraRef.current && controlsObjRef.current) {
+      const controls = controlsObjRef.current
+      const camera = cameraRef.current
+      const offset = camera.position.clone().sub(controls.target)
+      offset.multiplyScalar(0.85)
+      camera.position.copy(controls.target).add(offset)
+      controls.update()
     }
   }, [])
 
   const handleZoomOut = useCallback(() => {
-    if (cameraRef.current) {
-      cameraRef.current.position.multiplyScalar(1.15)
-      if (controlsObjRef.current) controlsObjRef.current.update()
+    if (cameraRef.current && controlsObjRef.current) {
+      const controls = controlsObjRef.current
+      const camera = cameraRef.current
+      const offset = camera.position.clone().sub(controls.target)
+      offset.multiplyScalar(1.15)
+      camera.position.copy(controls.target).add(offset)
+      controls.update()
     }
   }, [])
 
@@ -407,12 +431,18 @@ export function ThreeDViewer({ job }: { job: Job }) {
 
         controls = new OrbitControls(camera, renderer.domElement)
         controls.enableDamping = true
-        controls.dampingFactor = 0.05
+        controls.dampingFactor = 0.08
+        controls.rotateSpeed = 0.8
+        controls.zoomSpeed = 0.9
+        controls.panSpeed = 0.8
+        controls.screenSpacePanning = true
+        controls.maxPolarAngle = Math.PI * 0.96
         controls.autoRotate = controlsState.autoRotate
         controls.autoRotateSpeed = 0.5
         controlsObjRef.current = controls
 
         const gridHelper = new THREE.GridHelper(120, 24, 0x24435f, 0x152434)
+        gridHelper.position.y = -0.01
         gridHelper.visible = controlsState.showGrid
         scene.add(gridHelper)
         gridHelperRef.current = gridHelper
@@ -444,7 +474,7 @@ export function ThreeDViewer({ job }: { job: Job }) {
 
             if (cancelled) return
 
-            // Center geometry around the origin so camera fitting works across STL generators.
+            // Center geometry horizontally and ground bottom to y = 0
             geometry.computeBoundingBox()
             const bbox = geometry.boundingBox
             if (!bbox || bbox.isEmpty()) {
@@ -452,7 +482,8 @@ export function ThreeDViewer({ job }: { job: Job }) {
             }
             const center = new THREE.Vector3()
             bbox.getCenter(center)
-            geometry.translate(-center.x, -center.y, -center.z)
+            geometry.translate(-center.x, -bbox.min.y, -center.z)
+            geometry.computeBoundingBox()
             geometry.computeVertexNormals()
 
             const material = new THREE.MeshPhongMaterial({
@@ -485,6 +516,17 @@ export function ThreeDViewer({ job }: { job: Job }) {
 
         scene.add(mainGroup)
         mainGroupRef.current = mainGroup
+
+        // Defensive group-level alignment: guarantee bottom sits at y = 0
+        mainGroup.updateMatrixWorld(true)
+        const groupBbox = new THREE.Box3().setFromObject(mainGroup)
+        if (!groupBbox.isEmpty()) {
+          const groupCenter = groupBbox.getCenter(new THREE.Vector3())
+          mainGroup.position.x -= groupCenter.x
+          mainGroup.position.y -= groupBbox.min.y
+          mainGroup.position.z -= groupCenter.z
+          mainGroup.updateMatrixWorld(true)
+        }
 
         // Add dimension overlay (bounding box + axis + dim lines)
         const dimOverlay = createDimensionOverlay(THREE, mainGroup)
@@ -530,6 +572,75 @@ export function ThreeDViewer({ job }: { job: Job }) {
         }
         animate()
 
+        let resizeRafId: number | null = null
+        const resizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const { width, height } = entry.contentRect
+            if (width <= 0 || height <= 0) continue
+
+            if (resizeRafId !== null) cancelAnimationFrame(resizeRafId)
+            resizeRafId = requestAnimationFrame(() => {
+              if (!cameraRef.current || !rendererRef.current) return
+              const cam = cameraRef.current
+              const rnd = rendererRef.current
+
+              cam.aspect = width / height
+              cam.updateProjectionMatrix()
+              rnd.setSize(width, height, false)
+              rnd.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+            })
+          }
+        })
+        resizeObserver.observe(container)
+
+        return () => {
+          cancelled = true
+          if (animFrameId !== null) cancelAnimationFrame(animFrameId)
+          if (resizeRafId !== null) cancelAnimationFrame(resizeRafId)
+          if (resizeObserver) resizeObserver.disconnect()
+
+          if (sceneRef.current) {
+            sceneRef.current.traverse((child: any) => {
+              if (child.geometry) child.geometry.dispose()
+              if (child.material) {
+                if (Array.isArray(child.material)) {
+                  child.material.forEach((m: any) => m.dispose())
+                } else {
+                  child.material.dispose()
+                }
+              }
+            })
+          }
+
+          if (renderer) {
+            renderer.dispose()
+            if (typeof renderer.forceContextLoss === 'function') {
+              renderer.forceContextLoss()
+            }
+            if (renderer.domElement && renderer.domElement.parentElement) {
+              renderer.domElement.parentElement.removeChild(renderer.domElement)
+            }
+            renderer = null
+          }
+          if (controls) {
+            controls.dispose()
+            controls = null
+          }
+          threeModuleRef.current = null
+          sceneRef.current = null
+          controlsObjRef.current = null
+          gridHelperRef.current = null
+          axisHelperRef.current = null
+          cameraRef.current = null
+          rendererRef.current = null
+          mainGroupRef.current = null
+          if (container) {
+            while (container.firstChild) {
+              container.removeChild(container.firstChild)
+            }
+          }
+        }
+
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : '3D rendering failed')
@@ -568,7 +679,7 @@ export function ThreeDViewer({ job }: { job: Job }) {
         }
       }
     }
-  }, [geometryKey, controlsState.darkBg, controlsState.showAxes, controlsState.showDimensions, controlsState.showGrid, controlsState.wireframe])
+  }, [geometryKey])
 
   if (job.state === 'NEW' || job.state === 'SCAD_GENERATED') {
     return (
@@ -609,41 +720,61 @@ export function ThreeDViewer({ job }: { job: Job }) {
   return (
     <div className="relative w-full h-full cad-viewport-shell overflow-hidden">
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3 w-3/4 max-w-xs">
-            <div className="skeleton-loading w-full h-40 rounded-lg" />
-            <div className="flex flex-col items-center gap-2">
-              <Loader2 className="w-6 h-6 animate-spin text-[var(--app-accent-text)]" />
-              <span className="text-[13px] text-[var(--app-text-muted)]">Loading 3D preview...</span>
+        <div className="absolute inset-0 flex items-center justify-center cad-viewport-glass z-10 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3 w-3/4 max-w-xs p-4 rounded-lg bg-[var(--app-surface)]/90 border border-[color:var(--app-border)] shadow-lg">
+            <Skeleton className="w-full h-28 rounded-md" />
+            <div className="flex flex-col items-center gap-1.5 w-full">
+              <Skeleton className="w-3/4 h-3.5 rounded" />
+              <span className="text-[11px] font-mono tracking-wider text-[var(--app-text-muted)]">INITIALIZING 3D VIEWPORT...</span>
             </div>
           </div>
         </div>
       )}
       <div ref={mountRef} className="w-full h-full" />
-      <div className="absolute top-2 left-2 flex items-center gap-2 z-[5]">
-        <span className="cad-chip bg-black/35 text-[var(--cad-text-secondary)]">
-          {partFamily}
-          {job.stlPath ? ' (STL)' : ' (preview)'}
-        </span>
-        <span className="hidden md:inline-flex cad-chip bg-black/35 text-[var(--cad-text-muted)]">mm units</span>
+      
+      {/* Top Left: Part Family & Source Badge */}
+      <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-[5]">
+        <div className="flex items-center gap-1.5 rounded-md border border-[color:var(--app-border-subtle)] bg-[var(--app-surface-raised)]/80 backdrop-blur-md px-2 py-1 shadow-sm">
+          <span className="text-[11px] font-medium text-[var(--cad-text)]">
+            {partFamily}
+          </span>
+          <span className="text-[10px] font-mono text-[var(--app-accent)] font-semibold">
+            {job.stlPath ? 'STL' : 'PREVIEW'}
+          </span>
+          <span className="text-[10px] font-mono text-[var(--cad-text-muted)] border-l border-[color:var(--app-border-subtle)] pl-1.5">
+            mm
+          </span>
+        </div>
       </div>
-      <div className="absolute top-2 right-3 z-[5] pointer-events-none">
-        <span className="text-[8px] font-mono text-[var(--cad-text-muted)] tracking-widest cad-viewport-glass rounded px-2 py-1">ORTHO / GRID</span>
-      </div>
+
+      {/* Top Right: Geometry Dimensions Telemetry */}
       {dimensionSummary && (
-        <div className="absolute top-9 right-3 z-[5] pointer-events-none">
-          <span className="text-[8px] font-mono text-[var(--cad-measure)] tracking-widest cad-viewport-glass rounded px-2 py-1">{dimensionSummary} mm</span>
+        <div className="absolute top-2.5 right-2.5 z-[5] pointer-events-none">
+          <div className="flex items-center gap-1.5 rounded-md border border-[color:var(--app-border-subtle)] bg-[var(--app-surface-raised)]/80 backdrop-blur-md px-2 py-1 shadow-sm">
+            <span className="text-[10px] font-mono tracking-wider text-[var(--cad-text-muted)] uppercase">BBOX</span>
+            <span className="text-[11px] font-mono tabular-nums text-[var(--cad-measure)] font-medium">
+              {dimensionSummary} mm
+            </span>
+          </div>
         </div>
       )}
+
+      {/* Bottom Center: Axis Dimensions Pill */}
       {controlsState.showDimensions && dimLabels.w && (
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-[5] pointer-events-none flex items-center gap-3">
-          <span className="text-xs font-mono text-[var(--cad-measure)] cad-viewport-glass rounded px-1.5 py-0.5">W {dimLabels.w}</span>
-          <span className="text-xs font-mono text-[var(--cad-measure)] cad-viewport-glass rounded px-1.5 py-0.5">D {dimLabels.d}</span>
-          <span className="text-xs font-mono text-[var(--cad-measure)] cad-viewport-glass rounded px-1.5 py-0.5">H {dimLabels.h}</span>
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[5] pointer-events-none flex items-center gap-1.5 rounded-full border border-[color:var(--app-border-subtle)] bg-[var(--app-surface-raised)]/90 backdrop-blur-md px-3 py-0.5 shadow-md">
+          <span className="text-[11px] font-mono tabular-nums text-[var(--cad-measure)]"><span className="text-[var(--app-text-dim)] mr-0.5">X:</span>{dimLabels.w}</span>
+          <span className="text-[var(--app-border)]">|</span>
+          <span className="text-[11px] font-mono tabular-nums text-[var(--cad-measure)]"><span className="text-[var(--app-text-dim)] mr-0.5">Y:</span>{dimLabels.d}</span>
+          <span className="text-[var(--app-border)]">|</span>
+          <span className="text-[11px] font-mono tabular-nums text-[var(--cad-measure)]"><span className="text-[var(--app-text-dim)] mr-0.5">Z:</span>{dimLabels.h}</span>
         </div>
       )}
-      <div className="absolute bottom-2 left-2 z-[5] pointer-events-none">
-        <span className="text-[8px] font-mono text-[var(--cad-text-muted)] tracking-widest cad-viewport-glass rounded px-2 py-1">AgentSCAD CAD Preview</span>
+
+      {/* Bottom Left: Status Tag */}
+      <div className="absolute bottom-2.5 left-2.5 z-[5] pointer-events-none">
+        <span className="text-[9px] font-mono uppercase tracking-widest text-[var(--cad-text-muted)] opacity-60">
+          AgentSCAD Precision Viewport
+        </span>
       </div>
       <ViewerControls
         state={controlsState}
@@ -652,6 +783,9 @@ export function ThreeDViewer({ job }: { job: Job }) {
         onScreenshot={handleScreenshotWithCanvas}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
+        onDownloadStl={onDownloadStl}
+        isDownloadingStl={isDownloadingStl}
+        hasStl={hasStl ?? Boolean(job.stlPath)}
       />
     </div>
   )

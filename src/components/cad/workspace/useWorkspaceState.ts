@@ -45,6 +45,7 @@ export function useWorkspaceState() {
   const [newJobText, setNewJobText] = useState('')
   const [newJobModelId, setNewJobModelId] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+  const activeOperationRef = useRef<string | null>(null)
   const [showComposer, setShowComposer] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showStats, setShowStats] = useState(false)
@@ -164,7 +165,7 @@ export function useWorkspaceState() {
     setActiveTab(tab)
     try {
       const { job: fullJob } = await fetchJob(job.id)
-      setSelectedJob(fullJob)
+      setSelectedJob(prev => prev?.id === job.id ? fullJob : prev)
     } catch (err) {
       console.error('Failed to fetch job details:', err)
     }
@@ -192,9 +193,9 @@ export function useWorkspaceState() {
         if (updated && (updated.state !== currentSelected.state || updated.updatedAt !== currentSelected.updatedAt)) {
           try {
             const { job: fullJob } = await fetchJob(updated.id)
-            setSelectedJob(fullJob)
+            setSelectedJob(prev => prev?.id === updated.id ? fullJob : prev)
           } catch {
-            setSelectedJob(updated)
+            setSelectedJob(prev => prev?.id === updated.id ? updated : prev)
           }
         }
       }
@@ -236,7 +237,7 @@ export function useWorkspaceState() {
     let cancelled = false
     fetchJob(selectedJob.id)
       .then(({ job }) => {
-        if (!cancelled) setSelectedJob(job)
+        if (!cancelled) setSelectedJob(prev => prev?.id === job.id ? job : prev)
       })
       .catch((err) => {
         console.error('Failed to hydrate selected job details:', err)
@@ -250,7 +251,7 @@ export function useWorkspaceState() {
   // ── Job Actions ───────────────────────────────────────────────────────────
 
   const handleCreate = async () => {
-    if (!newJobText.trim()) return
+    if (!newJobText.trim() || activeOperationRef.current) return
     setIsCreating(true)
     const request = newJobText.trim()
     try {
@@ -274,6 +275,8 @@ export function useWorkspaceState() {
   }
 
   const handleProcess = async (job: Job) => {
+    if (activeOperationRef.current) return
+    activeOperationRef.current = job.id
     setIsProcessing(true)
     setProcessingJobId(job.id)
     setPipelineEvents([{
@@ -300,19 +303,19 @@ export function useWorkspaceState() {
           })
         }
         setSelectedJob(prev => {
-          if (!prev) return prev
-          if (data.job) return data.job as Job
+          if (!prev || prev.id !== job.id) return prev
+          if (data.job) return (data.job as Job).id === job.id ? data.job as Job : prev
 
           const next = { ...prev }
           if (data.state) next.state = data.state as string
-          if (data.scadSource) next.scadSource = data.scadSource as string
+          if ('scadSource' in data) next.scadSource = data.scadSource as string | null
           if (data.parameterSchema) next.parameterSchema = typeof data.parameterSchema === 'string' ? data.parameterSchema : JSON.stringify(data.parameterSchema)
           if (data.parameters) next.parameterSchema = typeof data.parameters === 'string' ? data.parameters : JSON.stringify(data.parameters)
           if (data.parameterValues) next.parameterValues = typeof data.parameterValues === 'string' ? data.parameterValues : JSON.stringify(data.parameterValues)
           if (data.partFamily) next.partFamily = data.partFamily as string
           if (data.validationResults) next.validationResults = typeof data.validationResults === 'string' ? data.validationResults : JSON.stringify(data.validationResults)
-          if (data.stlPath) next.stlPath = data.stlPath as string
-          if (data.pngPath) next.pngPath = data.pngPath as string
+          if ('stlPath' in data) next.stlPath = data.stlPath as string | null
+          if ('pngPath' in data) next.pngPath = data.pngPath as string | null
           if (data.researchResult) next.researchResult = typeof data.researchResult === 'string' ? data.researchResult : JSON.stringify(data.researchResult)
           if (data.intentResult) next.intentResult = typeof data.intentResult === 'string' ? data.intentResult : JSON.stringify(data.intentResult)
           if (data.designResult) next.designResult = typeof data.designResult === 'string' ? data.designResult : JSON.stringify(data.designResult)
@@ -344,15 +347,17 @@ export function useWorkspaceState() {
       addNotification('job_failed', 'Processing Failed', `Job ${job.id.slice(0, 8)} - An error occurred`)
       addActivityEvent('failed', job.inputRequest.slice(0, 30), job.id.slice(0, 8), 'Processing Failed')
     } finally {
+      activeOperationRef.current = null
       setIsProcessing(false)
       setProcessingJobId(null)
     }
   }
 
   const handleResolveIntent = async (job: Job, selectedInterpretationId: string) => {
+    if (activeOperationRef.current) return
     try {
       const { job: approvedJob } = await resolveJobIntent(job.id, selectedInterpretationId)
-      setSelectedJob(approvedJob)
+      setSelectedJob(prev => prev?.id === job.id ? approvedJob : prev)
       toast.success('Interpretation confirmed', { description: 'Starting CAD generation with the approved meaning.' })
       await handleProcess(approvedJob)
     } catch (error) {
@@ -363,24 +368,27 @@ export function useWorkspaceState() {
   }
 
   const handleApplyScad = useCallback(async (job: Job, scadSource: string) => {
+    if (activeOperationRef.current) return
+    activeOperationRef.current = job.id
+    setProcessingJobId(job.id)
     setIsProcessing(true)
     setSelectedJob(job)
 
     try {
       await applyScadSource(job.id, scadSource, (data) => {
         setSelectedJob(prev => {
-          if (!prev) return prev
-          if (data.job) return data.job as Job
+          if (!prev || prev.id !== job.id) return prev
+          if (data.job) return (data.job as Job).id === job.id ? data.job as Job : prev
 
           const next = { ...prev }
           if (data.state) next.state = data.state as string
-          if (data.scadSource) next.scadSource = data.scadSource as string
+          if ('scadSource' in data) next.scadSource = data.scadSource as string | null
           if (data.parameterSchema) next.parameterSchema = typeof data.parameterSchema === 'string' ? data.parameterSchema : JSON.stringify(data.parameterSchema)
           if (data.parameterValues) next.parameterValues = typeof data.parameterValues === 'string' ? data.parameterValues : JSON.stringify(data.parameterValues)
           if (data.validationResults) next.validationResults = typeof data.validationResults === 'string' ? data.validationResults : JSON.stringify(data.validationResults)
           if (data.renderLog) next.renderLog = typeof data.renderLog === 'string' ? data.renderLog : JSON.stringify(data.renderLog)
-          if (data.stlPath) next.stlPath = data.stlPath as string
-          if (data.pngPath) next.pngPath = data.pngPath as string
+          if ('stlPath' in data) next.stlPath = data.stlPath as string | null
+          if ('pngPath' in data) next.pngPath = data.pngPath as string | null
           if (data.generationPath) next.generationPath = data.generationPath as string
           return next
         })
@@ -405,14 +413,16 @@ export function useWorkspaceState() {
     } catch (error) {
       toast.error('Apply failed', { description: error instanceof Error ? error.message : 'Failed' })
     } finally {
+      activeOperationRef.current = null
       setIsProcessing(false)
+      setProcessingJobId(null)
     }
   }, [loadJobs, toast])
 
   const handleDelete = async (id: string) => {
     try {
       await deleteJob(id)
-      if (selectedJob?.id === id) setSelectedJob(null)
+      setSelectedJob(prev => prev?.id === id ? null : prev)
       setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next })
       toast.success('Job deleted')
       await loadJobs()
@@ -446,9 +456,13 @@ export function useWorkspaceState() {
   }
 
   const handleRepair = async (job: Job) => {
+    if (activeOperationRef.current) return
+    activeOperationRef.current = job.id
+    setIsProcessing(true)
+    setProcessingJobId(job.id)
     try {
       const result = await repairJob(job.id)
-      setSelectedJob(result.job)
+      setSelectedJob(prev => prev?.id === job.id ? result.job : prev)
       if (result.repaired) {
         toast.success('Job repaired', { description: result.reason })
         addNotification('job_completed', 'Auto Repair Complete', `Job ${job.id.slice(0, 8)} restored to delivered`)
@@ -461,17 +475,23 @@ export function useWorkspaceState() {
       await loadJobs()
     } catch (error) {
       toast.error('Auto repair failed', { description: error instanceof Error ? error.message : 'Failed' })
+      await loadJobs()
+    } finally {
+      activeOperationRef.current = null
+      setIsProcessing(false)
+      setProcessingJobId(null)
     }
   }
 
   const handleVisualRepair = async (job: Job) => {
-    if (isProcessing) return
+    if (activeOperationRef.current) return
+    activeOperationRef.current = job.id
     setIsProcessing(true)
     setProcessingJobId(job.id)
     try {
       toast.info('Running visual repair...', { description: 'Analyzing preview image with VLM' })
       const result = await visualRepairJob(job.id)
-      setSelectedJob(result.job)
+      setSelectedJob(prev => prev?.id === job.id ? result.job : prev)
       if (result.repaired) {
         toast.success('Visual repair complete', {
           description: result.repairSummary || `Match: ${((result.visualReport?.overall_visual_match ?? 0) * 100).toFixed(0)}%`,
@@ -491,12 +511,18 @@ export function useWorkspaceState() {
     } catch (error) {
       toast.error('Visual repair failed', { description: error instanceof Error ? error.message : 'Failed' })
     } finally {
+      activeOperationRef.current = null
       setIsProcessing(false)
       setProcessingJobId(null)
     }
   }
 
   const handleBatchAction = async (action: 'delete' | 'cancel' | 'reprocess') => {
+    if (action === 'reprocess' && activeOperationRef.current) return
+    if (action === 'reprocess') {
+      activeOperationRef.current = 'batch'
+      setIsProcessing(true)
+    }
     try {
       const ids = Array.from(selectedIds)
       const { results } = await batchOperation(action, ids)
@@ -505,6 +531,11 @@ export function useWorkspaceState() {
       await loadJobs()
     } catch {
       toast.error(`Batch ${action} failed`)
+    } finally {
+      if (action === 'reprocess') {
+        activeOperationRef.current = null
+        setIsProcessing(false)
+      }
     }
   }
 
@@ -602,6 +633,51 @@ export function useWorkspaceState() {
   const uptime = uptimeSeconds
 
   // ── Download Helpers ──────────────────────────────────────────────────
+
+  const [downloadingStlJobId, setDownloadingStlJobId] = useState<string | null>(null)
+
+  const downloadStl = async (job: Job) => {
+    if (!job.stlPath) {
+      toast.error('STL file has not been generated for this job. Please rebuild.')
+      return
+    }
+    if (downloadingStlJobId === job.id) return
+
+    setDownloadingStlJobId(job.id)
+    const toastId = `stl-download-${job.id}`
+    toast.loading('Fetching binary STL artifact...', { id: toastId })
+
+    try {
+      const res = await fetch(`/api/jobs/${job.id}/artifacts/stl`, {
+        method: 'GET',
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        let errorMsg = 'Failed to download STL artifact'
+        try {
+          const data = await res.json()
+          if (typeof data?.error === 'string' && data.error.trim()) errorMsg = data.error
+        } catch {}
+        throw new Error(errorMsg)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const safePart = (job.partFamily || 'part').toLowerCase().replace(/[^a-z0-9_-]/g, '_')
+      const filename = `${job.id.slice(0, 8)}-${safePart}.stl`
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      toast.success('STL model downloaded', { id: toastId, description: filename })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Download failed', { id: toastId })
+    } finally {
+      setDownloadingStlJobId(null)
+    }
+  }
 
   const downloadScad = (job: Job) => {
     if (!job.scadSource) return
@@ -725,7 +801,7 @@ export function useWorkspaceState() {
     // Activity
     addActivityEvent, clearActivityEvents,
     // Downloads
-    downloadScad, exportAllData, formatUptime,
+    downloadScad, downloadStl, downloadingStlJobId, exportAllData, formatUptime,
     successRate,
     // Misc
     loadJobs, recentRequests,

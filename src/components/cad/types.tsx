@@ -96,16 +96,16 @@ export interface Job {
 
 export const STATE_COLORS: Record<string, { bg: string; text: string; dot: string; border: string; hex: string }> = {
   NEW: { bg: 'bg-[var(--app-state-neutral-bg)]', text: 'text-[var(--app-state-neutral-text)]', dot: 'bg-[var(--app-state-neutral-dot)]', border: 'border-[color:var(--app-state-neutral-border)]', hex: '#94a3b8' },
-  SCAD_GENERATED: { bg: 'bg-amber-500/20', text: 'text-amber-300', dot: 'bg-amber-400', border: 'border-amber-500/30', hex: '#fbbf24' },
-  RENDERED: { bg: 'bg-cyan-500/20', text: 'text-cyan-300', dot: 'bg-cyan-400', border: 'border-cyan-500/30', hex: '#22d3ee' },
-  VALIDATED: { bg: 'bg-emerald-500/20', text: 'text-emerald-300', dot: 'bg-emerald-400', border: 'border-emerald-500/30', hex: '#34d399' },
-  DELIVERED: { bg: 'bg-lime-500/20', text: 'text-lime-300', dot: 'bg-lime-400', border: 'border-lime-500/30', hex: '#a3e635' },
-  DEBUGGING: { bg: 'bg-orange-500/20', text: 'text-orange-300', dot: 'bg-orange-400', border: 'border-orange-500/30', hex: '#fb923c' },
-  REPAIRING: { bg: 'bg-orange-500/20', text: 'text-orange-300', dot: 'bg-orange-400', border: 'border-orange-500/30', hex: '#fb923c' },
-  VALIDATION_FAILED: { bg: 'bg-rose-500/20', text: 'text-rose-300', dot: 'bg-rose-400', border: 'border-rose-500/30', hex: '#fb7185' },
-  GEOMETRY_FAILED: { bg: 'bg-red-500/20', text: 'text-red-300', dot: 'bg-red-400', border: 'border-red-500/30', hex: '#f87171' },
-  RENDER_FAILED: { bg: 'bg-red-500/20', text: 'text-red-300', dot: 'bg-red-400', border: 'border-red-500/30', hex: '#f87171' },
-  HUMAN_REVIEW: { bg: 'bg-yellow-500/20', text: 'text-yellow-300', dot: 'bg-yellow-400', border: 'border-yellow-500/30', hex: '#facc15' },
+  SCAD_GENERATED: { bg: 'bg-amber-500/15 dark:bg-amber-500/20', text: 'text-amber-800 dark:text-amber-300', dot: 'bg-amber-600 dark:bg-amber-400', border: 'border-amber-500/30', hex: '#fbbf24' },
+  RENDERED: { bg: 'bg-cyan-500/15 dark:bg-cyan-500/20', text: 'text-cyan-800 dark:text-cyan-300', dot: 'bg-cyan-600 dark:bg-cyan-400', border: 'border-cyan-500/30', hex: '#22d3ee' },
+  VALIDATED: { bg: 'bg-emerald-500/15 dark:bg-emerald-500/20', text: 'text-emerald-800 dark:text-emerald-300', dot: 'bg-emerald-600 dark:bg-emerald-400', border: 'border-emerald-500/30', hex: '#34d399' },
+  DELIVERED: { bg: 'bg-lime-500/15 dark:bg-lime-500/20', text: 'text-lime-800 dark:text-lime-300', dot: 'bg-lime-600 dark:bg-lime-400', border: 'border-lime-500/30', hex: '#a3e635' },
+  DEBUGGING: { bg: 'bg-orange-500/15 dark:bg-orange-500/20', text: 'text-orange-800 dark:text-orange-300', dot: 'bg-orange-600 dark:bg-orange-400', border: 'border-orange-500/30', hex: '#fb923c' },
+  REPAIRING: { bg: 'bg-orange-500/15 dark:bg-orange-500/20', text: 'text-orange-800 dark:text-orange-300', dot: 'bg-orange-600 dark:bg-orange-400', border: 'border-orange-500/30', hex: '#fb923c' },
+  VALIDATION_FAILED: { bg: 'bg-rose-500/15 dark:bg-rose-500/20', text: 'text-rose-800 dark:text-rose-300', dot: 'bg-rose-600 dark:bg-rose-400', border: 'border-rose-500/30', hex: '#fb7185' },
+  GEOMETRY_FAILED: { bg: 'bg-red-500/15 dark:bg-red-500/20', text: 'text-red-800 dark:text-red-300', dot: 'bg-red-600 dark:bg-red-400', border: 'border-red-500/30', hex: '#f87171' },
+  RENDER_FAILED: { bg: 'bg-red-500/15 dark:bg-red-500/20', text: 'text-red-800 dark:text-red-300', dot: 'bg-red-600 dark:bg-red-400', border: 'border-red-500/30', hex: '#f87171' },
+  HUMAN_REVIEW: { bg: 'bg-yellow-500/15 dark:bg-yellow-500/20', text: 'text-yellow-800 dark:text-yellow-300', dot: 'bg-yellow-600 dark:bg-yellow-400', border: 'border-yellow-500/30', hex: '#facc15' },
   CANCELLED: { bg: 'bg-[var(--app-state-neutral-bg)]', text: 'text-[var(--app-state-neutral-text)]', dot: 'bg-[var(--app-state-neutral-dot)]', border: 'border-[color:var(--app-state-neutral-border)]', hex: '#71717a' },
 }
 

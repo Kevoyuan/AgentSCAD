@@ -15,6 +15,8 @@ import {
   Sun,
   Moon,
   Ruler,
+  Download,
+  Loader2,
 } from 'lucide-react'
 import { fadeInUp, fadeInUpTransition } from './motion-presets'
 
@@ -34,6 +36,9 @@ interface ViewerControlsProps {
   onScreenshot: () => void
   onZoomIn: () => void
   onZoomOut: () => void
+  onDownloadStl?: () => void
+  isDownloadingStl?: boolean
+  hasStl?: boolean
   canvasRef?: React.RefObject<HTMLCanvasElement | null>
 }
 
@@ -44,6 +49,9 @@ export function ViewerControls({
   onScreenshot,
   onZoomIn,
   onZoomOut,
+  onDownloadStl,
+  isDownloadingStl = false,
+  hasStl = true,
 }: ViewerControlsProps) {
   const toggle = useCallback(
     (key: keyof ViewerControlsState) => {
@@ -56,13 +64,24 @@ export function ViewerControls({
     onScreenshot()
   }, [onScreenshot])
 
-  const controls = [
+  const navControls = [
     {
-      icon: state.autoRotate ? RotateCcw : RotateCcw,
+      icon: RotateCcw,
       label: 'Auto-rotate',
       active: state.autoRotate,
       onClick: () => toggle('autoRotate'),
     },
+    {
+      icon: Move3D,
+      label: 'Reset camera',
+      active: false,
+      onClick: onResetCamera,
+    },
+    { icon: ZoomIn, label: 'Zoom in', active: false, onClick: onZoomIn },
+    { icon: ZoomOut, label: 'Zoom out', active: false, onClick: onZoomOut },
+  ]
+
+  const displayControls = [
     {
       icon: state.wireframe ? Eye : EyeOff,
       label: 'Wireframe',
@@ -93,21 +112,64 @@ export function ViewerControls({
       active: state.darkBg,
       onClick: () => toggle('darkBg'),
     },
-    { icon: ZoomIn, label: 'Zoom in', active: false, onClick: onZoomIn },
-    { icon: ZoomOut, label: 'Zoom out', active: false, onClick: onZoomOut },
-    {
-      icon: Move3D,
-      label: 'Reset camera',
-      active: false,
-      onClick: onResetCamera,
-    },
+  ]
+
+  const outputControls = [
     {
       icon: Camera,
       label: 'Screenshot',
       active: false,
       onClick: handleScreenshot,
     },
+    ...(onDownloadStl
+      ? [
+          {
+            icon: isDownloadingStl ? Loader2 : Download,
+            iconClassName: isDownloadingStl ? 'animate-spin' : undefined,
+            label: isDownloadingStl ? 'Downloading STL...' : 'Download STL',
+            active: false,
+            disabled: !hasStl || isDownloadingStl,
+            onClick: onDownloadStl,
+          },
+        ]
+      : []),
   ]
+
+  const renderGroup = (items: typeof navControls) => (
+    <div className="flex items-center gap-0.5">
+      {items.map((ctrl) => {
+        const Icon = ctrl.icon
+        const isDisabled = 'disabled' in ctrl && Boolean(ctrl.disabled)
+        return (
+          <button
+            key={ctrl.label}
+            onClick={isDisabled ? undefined : ctrl.onClick}
+            disabled={isDisabled}
+            title={isDisabled ? (!hasStl ? 'STL not rendered yet' : 'Downloading STL...') : `${ctrl.label}${ctrl.active ? ': ON' : ': OFF'}`}
+            className={`
+              relative flex items-center justify-center w-7 h-7 rounded-md transition-all active:scale-95
+              ${
+                isDisabled
+                  ? 'opacity-30 cursor-not-allowed text-[var(--app-text-muted)]'
+                  : ctrl.active
+                  ? 'bg-[var(--cad-accent-soft)] text-[var(--cad-accent)] shadow-sm'
+                  : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)] hover:bg-[var(--app-surface-hover)]'
+              }
+            `}
+          >
+            <Icon className={`w-3.5 h-3.5 ${'iconClassName' in ctrl && ctrl.iconClassName ? ctrl.iconClassName : ''}`} />
+            {ctrl.active && (
+              <motion.span
+                className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--cad-accent)]"
+                layoutId="viewer-control-active"
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              />
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
 
   return (
     <motion.div
@@ -118,34 +180,12 @@ export function ViewerControls({
       exit="exit"
       transition={fadeInUpTransition}
     >
-      <div className="flex items-center gap-0.5 rounded-lg cad-viewport-glass px-1.5 py-1">
-        {controls.map((ctrl) => {
-          const Icon = ctrl.icon
-          return (
-            <button
-              key={ctrl.label}
-              onClick={ctrl.onClick}
-              title={`${ctrl.label}${ctrl.active ? ': ON' : ': OFF'}`}
-              className={`
-                relative flex items-center justify-center w-7 h-7 rounded-lg linear-transition
-                ${
-                  ctrl.active
-                    ? 'bg-[var(--cad-accent-soft)] text-[var(--cad-accent)]'
-                    : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)] hover:bg-[var(--app-hover-subtle)]'
-                }
-              `}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {ctrl.active && (
-                <motion.span
-                  className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--cad-accent)]"
-                  layoutId="viewer-control-active"
-                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                />
-              )}
-            </button>
-          )
-        })}
+      <div className="flex items-center gap-1 rounded-lg border border-[color:var(--app-border)] bg-[var(--app-surface-raised)]/90 backdrop-blur-md px-1.5 py-1 shadow-lg shadow-black/25">
+        {renderGroup(navControls)}
+        <div className="h-4 w-px bg-[color:var(--app-border-subtle)] mx-0.5" />
+        {renderGroup(displayControls)}
+        <div className="h-4 w-px bg-[color:var(--app-border-subtle)] mx-0.5" />
+        {renderGroup(outputControls)}
       </div>
     </motion.div>
   )

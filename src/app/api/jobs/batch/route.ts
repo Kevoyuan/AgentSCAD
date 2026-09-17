@@ -1,7 +1,10 @@
+import { canProcessJobState, executeCadJob } from '@/lib/pipeline/execute-cad-job'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getJobAccessScope, jobAccessFilter } from '@/lib/job-session'
 import { deleteJobArtifacts } from '@/lib/tools/artifact-store'
+
+export const maxDuration = 300
 
 const CANCELABLE_STATES = ['NEW', 'SCAD_GENERATED', 'RENDERED', 'VALIDATED', 'DEBUGGING', 'REPAIRING']
 
@@ -55,40 +58,34 @@ export async function POST(request: NextRequest) {
       }
 
       case 'cancel': {
-        const jobs = await db.job.findMany({
-          where: { id: { in: jobIds }, ...accessFilter },
-        })
-        const cancelableIds = jobs
-          .filter(j => CANCELABLE_STATES.includes(j.state))
-          .map(j => j.id)
-        const nonCancelableIds = jobIds.filter(id => !cancelableIds.includes(id))
-
-        if (cancelableIds.length > 0) {
-          await db.job.updateMany({
-            where: { id: { in: cancelableIds }, ...accessFilter },
+        await Promise.all([...new Set(jobIds)].map(async id => {
+          const updated = await db.job.updateMany({
+            where: { id, ...accessFilter, state: { in: CANCELABLE_STATES } },
             data: { state: 'CANCELLED', completedAt: new Date() },
           })
-        }
-        results.success = cancelableIds
-        results.failed = nonCancelableIds
+          ;(updated.count === 1 ? results.success : results.failed).push(id)
+        }))
         break
       }
 
       case 'reprocess': {
-        const jobs = await db.job.findMany({
-          where: { id: { in: jobIds }, ...accessFilter },
-        })
-        const reprocessableIds = jobs
-          .filter(j => j.state === 'DELIVERED' || j.state === 'CANCELLED' || CANCELABLE_STATES.includes(j.state))
-          .map(j => j.id)
-
-        if (reprocessableIds.length > 0) {
-          await db.job.updateMany({
-            where: { id: { in: reprocessableIds }, ...accessFilter },
-            data: { state: 'NEW', completedAt: null },
-          })
-        }
-        results.success = reprocessableIds
+        await Promise.all([...new Set(jobIds)].map(async id => {
+          try {
+            const job = await db.job.findFirst({ where: { id, ...accessFilter } })
+            if (!job || !canProcessJobState(job.state) ||
+              (job.state === 'HUMAN_REVIEW' && job.generationPath === 'intent_clarification')) {
+              results.failed.push(id)
+              return
+            }
+            let failed = false
+            await executeCadJob(id, event => {
+              if (['error', 'render_failed', 'cancelled'].includes(String(event.step))) failed = true
+            })
+            ;(failed ? results.failed : results.success).push(id)
+          } catch {
+            results.failed.push(id)
+          }
+        }))
         break
       }
 

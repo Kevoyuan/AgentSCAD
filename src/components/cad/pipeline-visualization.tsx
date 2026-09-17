@@ -34,7 +34,7 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
   const isFailed = failedStates.includes(state)
   const progress = getPipelineProgress(state)
 
-  // Find which step failed — map failed states to their pipeline step keys
+  // Find which step failed: map failed states to their pipeline step keys
   const failedStepMap: Record<string, string> = {
     'GEOMETRY_FAILED': 'SCAD_GENERATED',
     'RENDER_FAILED': 'RENDERED',
@@ -92,6 +92,11 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
   // For failed states, fill up to (but not including) the failed step
   const effectiveCurrentIdx = isFailed ? failedStepIdx : currentIdx
 
+  // Goal gradient acceleration: animation duration progressively decreases as idx approaches DELIVERED
+  const getTransitionDuration = (idx: number) => {
+    return Math.max(0.18, 0.38 - idx * 0.05)
+  }
+
   const currentStep = PIPELINE_STEPS[Math.max(currentIdx, 0)]
   const currentLabel = isFailed
     ? `${failedStepKey?.replace(/_/g, ' ') || 'VALIDATION'} needs review`
@@ -118,7 +123,7 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
           const isClickable = onStepClick && (isCompleted || isCurrent || isFailedStep)
 
           // Determine connecting line color
-          // Completed: green, Active current: partial fill, Failed: red up to failed step
+          // Completed: blueprint indigo, Active current: partial fill, Failed: red up to failed step
           const isLineCompleted = idx < effectiveCurrentIdx
           const isLineFailed = isFailed && idx < failedStepIdx
 
@@ -128,15 +133,18 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <motion.div
-                      className={`relative flex h-6 w-6 items-center justify-center rounded transition-all duration-200 ${
+                      className={`relative flex h-6 w-6 items-center justify-center rounded-[6px] border transition-all duration-200 ${
                         isClickable ? 'cursor-pointer hover:bg-[var(--cad-surface-raised)]' : 'cursor-default'
                       } ${
-                        isFailedStep ? 'text-[var(--cad-danger)] bg-[var(--cad-danger-bg)]' :
-                        isCurrent && !isFailed ? 'text-[var(--cad-accent)] bg-[var(--cad-accent-soft)]' :
-                        isCompleted ? 'text-[var(--cad-text-muted)]' :
-                        'text-[var(--cad-border-strong)]'
+                        isFailedStep
+                          ? 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                          : isCurrent && !isFailed
+                          ? 'border-[color:var(--app-accent)] bg-[var(--cad-accent-soft)] text-[var(--app-accent)] shadow-[0_0_8px_rgba(94,106,210,0.3)]'
+                          : isCompleted
+                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                          : 'border-[color:var(--app-border)] bg-[var(--app-surface)] text-[var(--app-text-dim)]'
                       }`}
-                      whileHover={isClickable ? { scale: 1.06 } : undefined}
+                      whileHover={isClickable ? { scale: 1.08 } : undefined}
                       whileTap={isClickable ? { scale: 0.95 } : undefined}
                       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                       onClick={() => {
@@ -145,22 +153,32 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
                         }
                       }}
                     >
-                      <div className="relative">
+                      <div className="relative flex items-center justify-center">
                         {isFailedStep ? (
                           <XCircle className="h-3.5 w-3.5" />
                         ) : isCompleted ? (
-                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          <motion.div
+                            initial={{ scale: 0.8 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          </motion.div>
                         ) : (
                           <Icon className="h-3.5 w-3.5" />
                         )}
                         {isCurrent && !isFailed && !isCompleted && (
-                          <motion.div
-                            className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-[var(--cad-accent)]"
+                          <motion.span
+                            className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-[var(--app-accent)]"
                             animate={{
-                              scale: [1, 1.4, 1],
-                              opacity: [1, 0.4, 1],
+                              scale: [1, 1.45, 1],
+                              opacity: [1, 0.45, 1],
                             }}
-                            transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                            transition={{
+                              duration: Math.max(0.8, 1.3 - (currentIdx >= 0 ? currentIdx * 0.12 : 0)),
+                              repeat: Infinity,
+                              ease: 'easeInOut',
+                            }}
                           />
                         )}
                       </div>
@@ -172,13 +190,13 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
                       <div className="text-[13px] text-[var(--app-text-muted)] mt-0.5">Duration: {formatDuration(duration)}</div>
                     )}
                     {isCurrent && !isFailed && (
-                      <div className="text-[13px] text-amber-400 mt-0.5">Currently processing</div>
+                      <div className="text-[13px] text-amber-600 dark:text-amber-400 font-medium mt-0.5">Currently processing</div>
                     )}
                     {isFailedStep && (
-                      <div className="text-[13px] text-rose-400 mt-0.5">Failed at this step</div>
+                      <div className="text-[13px] text-rose-600 dark:text-rose-400 font-medium mt-0.5">Failed at this step</div>
                     )}
                     {isCompleted && (
-                      <div className="text-[13px] text-lime-400 mt-0.5">Completed</div>
+                      <div className="text-[13px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">Completed</div>
                     )}
                     {isClickable && (
                       <div className="text-[13px] text-[var(--app-text-muted)] mt-1">Click to view in inspector</div>
@@ -188,29 +206,29 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
               </TooltipProvider>
 
               {idx < PIPELINE_STEPS.length - 1 && (
-                <div className="relative mx-0.5 flex items-center">
-                  <div className="h-px w-4 rounded-full bg-[var(--app-border)]" />
+                <div className="relative mx-1 flex items-center">
+                  <div className="h-0.5 w-4 rounded-full bg-[var(--app-border)]" />
                   <AnimatePresence>
                     {isLineCompleted && (
                       <motion.div
-                        className="absolute top-1/2 h-px -translate-y-1/2 rounded-full"
+                        className="absolute top-1/2 h-0.5 -translate-y-1/2 rounded-full"
                         style={{
-                          backgroundColor: isLineFailed ? 'var(--cad-danger)' : 'var(--cad-text-muted)',
+                          backgroundColor: isLineFailed ? 'var(--cad-danger)' : 'var(--app-accent)',
                         }}
                         initial={{ width: 0 }}
                         animate={{ width: 16 }}
                         exit={{ width: 0 }}
-                        transition={{ duration: 0.4, delay: idx * 0.08 }}
+                        transition={{ duration: getTransitionDuration(idx), ease: 'easeOut', delay: idx * 0.04 }}
                       />
                     )}
                   </AnimatePresence>
                   {isFailed && idx === failedStepIdx - 1 && (
                     <motion.div
-                      className="absolute top-1/2 h-px -translate-y-1/2 rounded-full"
+                      className="absolute top-1/2 h-0.5 -translate-y-1/2 rounded-full"
                       style={{ backgroundColor: 'var(--cad-danger)' }}
                       initial={{ width: 0 }}
                       animate={{ width: 16 }}
-                      transition={{ duration: 0.4, delay: idx * 0.08 }}
+                      transition={{ duration: getTransitionDuration(idx), ease: 'easeOut', delay: idx * 0.04 }}
                     />
                   )}
                 </div>
@@ -220,7 +238,7 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
         })}
       </div>
       <span className={`hidden min-w-0 truncate text-[13px] font-medium lg:inline ${
-        isFailed ? 'text-rose-500' : 'text-[var(--app-text-muted)]'
+        isFailed ? 'text-rose-600 dark:text-rose-400' : state === 'DELIVERED' ? 'text-emerald-600 dark:text-emerald-400' : 'text-[var(--app-text-muted)]'
       }`}>
         {currentLabel}
       </span>
@@ -228,8 +246,8 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
         <div
           className={`pipeline-mini-progress-fill ${
             isFailed ? 'bg-[var(--cad-danger)]' :
-            progress === 100 ? 'bg-[var(--cad-text-muted)]' :
-            'bg-[var(--cad-accent)]'
+            progress === 100 ? 'bg-emerald-500' :
+            'bg-[var(--app-accent)]'
           }`}
           style={{ width: `${isFailed ? Math.max(progress - 20, 20) : progress}%` }}
         />

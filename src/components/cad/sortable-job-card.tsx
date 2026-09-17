@@ -76,59 +76,67 @@ export function SortableJobCard({
     <div
       ref={setNodeRef}
       style={{ ...style, '--border-color': leftBorderColor } as CSSProperties}
-      className={`group/card relative cursor-pointer overflow-hidden border-b border-[color:var(--app-border-subtle)] px-3 py-2 transition-colors ${
+      className={`group/card relative cursor-pointer overflow-hidden border-b border-[color:var(--app-border-subtle)] px-2.5 py-2 transition-all ${
         isDragging || isSortableDragging
-          ? 'shadow-xl ring-2 ring-[color:var(--app-accent-border)] scale-[1.01] z-50'
+          ? 'shadow-xl ring-1 ring-[color:var(--app-accent-border)] scale-[1.01] z-50 bg-[var(--app-surface-raised)]'
           : ''
       } ${
         isProcessing ? 'opacity-95' : ''
       } ${
         isSelected
-          ? 'bg-[var(--app-accent-bg)]'
-          : 'bg-transparent hover:bg-[var(--app-surface-hover)]'
+          ? 'bg-[var(--app-accent-bg)] border-l-2 border-l-[color:var(--app-accent)]'
+          : 'bg-transparent hover:bg-[var(--app-surface-hover)] border-l-2 border-l-transparent'
       }`}
       onClick={() => onSelect(job)}
     >
       {/* Drag Handle */}
       <div
-        className="absolute right-1 top-1.5 z-10 flex min-h-[24px] min-w-[24px] cursor-grab items-center justify-center p-1 text-[var(--app-text-dim)] opacity-0 transition-colors hover:text-[var(--app-text-muted)] active:cursor-grabbing group-hover/card:opacity-100"
+        className="absolute right-1 top-1.5 z-10 flex min-h-[22px] min-w-[22px] cursor-grab items-center justify-center rounded p-1 text-[var(--app-text-dim)] opacity-0 transition-opacity hover:text-[var(--app-text-secondary)] active:cursor-grabbing group-hover/card:opacity-100"
         {...attributes}
         {...listeners}
         onClick={(e) => e.stopPropagation()}
         aria-label="Drag to reorder"
       >
-        <GripVertical className="w-3.5 h-3.5" />
+        <GripVertical className="w-3 h-3" />
       </div>
 
       {/* Select checkbox */}
-      <div className="absolute left-1 top-1.5 z-10" onClick={e => e.stopPropagation()}>
+      <div className="absolute left-1.5 top-2.5 z-10" onClick={e => e.stopPropagation()}>
         <button
-          className={`flex h-5 w-5 items-center justify-center rounded transition-colors ${
-            isChecked ? 'bg-[var(--app-accent)] text-white' : 'text-[var(--app-text-dim)] opacity-0 hover:bg-[var(--app-surface-hover)] group-hover/card:opacity-100'
+          className={`flex h-4 w-4 items-center justify-center rounded transition-all ${
+            isChecked
+              ? 'bg-[var(--app-accent)] text-white'
+              : 'text-[var(--app-text-dim)] opacity-0 hover:bg-[var(--app-surface-hover)] group-hover/card:opacity-100'
           }`}
           onClick={() => onToggleSelect(job.id)}
           aria-label={isChecked ? 'Deselect job' : 'Select job'}
         >
-          {isChecked ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+          {isChecked ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
         </button>
       </div>
 
-      <div className="relative z-[1] pl-5 pr-5">
+      <div className="relative z-[1] pl-5 pr-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 text-[12px] leading-snug text-[var(--app-text-secondary)]">{job.inputRequest}</p>
-            <div className="mt-1 flex min-w-0 items-center gap-1.5">
+            <p className="line-clamp-2 text-[12px] font-medium leading-snug text-[var(--app-text-secondary)] group-hover/card:text-[var(--app-text-primary)] transition-colors">
+              {job.inputRequest}
+            </p>
+            <div className="mt-1 flex min-w-0 items-center gap-1.5 flex-wrap">
               <StateBadge state={job.state} />
-              <span className="text-[10px] font-mono text-[var(--cad-text-muted)]">{timeAgo(job.createdAt)}</span>
+              <span className="text-[10px] font-mono tabular-nums text-[var(--cad-text-muted)]">
+                {timeAgo(job.createdAt)}
+              </span>
             </div>
           </div>
-          <PartFamilyIcon family={job.partFamily || 'unknown'} size="xs" />
+          <div className="shrink-0 pt-0.5">
+            <PartFamilyIcon family={job.partFamily || 'unknown'} size="xs" />
+          </div>
         </div>
 
         {isSelected && job.pngPath && job.state !== 'NEW' && job.state !== 'SCAD_GENERATED' && (
-          <div className="mt-2 h-20 overflow-hidden rounded-md border border-[color:var(--app-border)] bg-[var(--app-empty-bg)]">
+          <div className="mt-2 h-16 overflow-hidden rounded-md border border-[color:var(--app-border-subtle)] bg-[var(--app-empty-bg)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)]">
             {previewFailed ? (
-              <div className="flex h-full w-full items-center justify-center gap-2 text-[11px] text-[var(--app-text-dim)]">
+              <div className="flex h-full w-full items-center justify-center gap-2 text-[10px] text-[var(--app-text-dim)]">
                 <PartFamilyIcon family={job.partFamily || 'unknown'} size="xs" />
                 <span>Preview unavailable</span>
               </div>
@@ -144,7 +152,7 @@ export function SortableJobCard({
           </div>
         )}
         {(isProcessing || FAILED_STATES.includes(job.state)) && (
-          <div className="pipeline-mini-progress mt-2">
+          <div className="pipeline-mini-progress mt-1.5">
             <div
               className="pipeline-mini-progress-fill"
               style={{
@@ -156,27 +164,62 @@ export function SortableJobCard({
         )}
 
         {isSelected && <TagBadges customerId={job.customerId} maxDisplay={2} />}
-        <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/card:opacity-100" onClick={e => e.stopPropagation()}>
+
+        {/* Action Dock on Hover */}
+        <div className="mt-1.5 flex items-center justify-end gap-1 opacity-0 transition-opacity duration-150 group-hover/card:opacity-100" onClick={e => e.stopPropagation()}>
           {job.state === 'NEW' && (
-            <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs text-emerald-500 hover:bg-emerald-500/10" onClick={() => onProcess(job)}>
-              <Play className="w-3.5 h-3.5" />Process
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 gap-1 px-1.5 text-[11px] text-emerald-500 hover:bg-emerald-500/10 rounded"
+              onClick={() => onProcess(job)}
+              title="Process"
+            >
+              <Play className="w-3 h-3" />
+              <span>Process</span>
             </Button>
           )}
           {FAILED_STATES.includes(job.state) && (
-            <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs text-sky-500 hover:bg-sky-500/10" onClick={() => onProcess(job)}>
-              <RefreshCw className="w-3.5 h-3.5" />Retry
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 gap-1 px-1.5 text-[11px] text-sky-400 hover:bg-sky-400/10 rounded"
+              onClick={() => onProcess(job)}
+              title="Retry"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Retry</span>
             </Button>
           )}
           {isCancelable && (
-            <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs text-orange-500 hover:bg-orange-500/10" onClick={() => onCancel(job)}>
-              <Ban className="w-3.5 h-3.5" />Cancel
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 gap-1 px-1.5 text-[11px] text-orange-400 hover:bg-orange-400/10 rounded"
+              onClick={() => onCancel(job)}
+              title="Cancel"
+            >
+              <Ban className="w-3 h-3" />
+              <span>Cancel</span>
             </Button>
           )}
-          <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs text-[var(--app-text-muted)] hover:bg-[var(--app-surface-hover)]" onClick={() => onDuplicate(job)}>
-            <Repeat className="w-3.5 h-3.5" />Duplicate
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-5 w-5 p-0 text-[var(--app-text-dim)] hover:text-[var(--app-text-secondary)] hover:bg-[var(--app-surface-hover)] rounded"
+            onClick={() => onDuplicate(job)}
+            title="Duplicate"
+          >
+            <Repeat className="w-3 h-3" />
           </Button>
-          <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-xs text-[var(--app-text-muted)] hover:bg-rose-500/10 hover:text-rose-500" onClick={() => onDelete(job.id)}>
-            <Trash2 className="w-3.5 h-3.5" />Delete
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-5 w-5 p-0 text-[var(--app-text-dim)] hover:text-rose-500 hover:bg-rose-500/10 rounded"
+            onClick={() => onDelete(job.id)}
+            title="Delete"
+          >
+            <Trash2 className="w-3 h-3" />
           </Button>
         </div>
       </div>

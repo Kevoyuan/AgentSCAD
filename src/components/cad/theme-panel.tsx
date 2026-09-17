@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator'
 // ─── Theme Config ────────────────────────────────────────────────────────
 
 const ACCENT_COLORS = [
-  { name: 'Violet', hue: 263, hex: '#7c3aed', color: 'bg-violet-500', ring: 'ring-violet-400' },
+  { name: 'Indigo', hue: 236, hex: '#5e6ad2', color: 'bg-[#5e6ad2]', ring: 'ring-[#5e6ad2]' },
   { name: 'Cyan', hue: 185, hex: '#06b6d4', color: 'bg-cyan-500', ring: 'ring-cyan-400' },
   { name: 'Emerald', hue: 155, hex: '#10b981', color: 'bg-emerald-500', ring: 'ring-emerald-400' },
   { name: 'Amber', hue: 38, hex: '#f59e0b', color: 'bg-amber-500', ring: 'ring-amber-400' },
@@ -44,7 +44,7 @@ interface ThemeSettings {
 }
 
 const DEFAULT_SETTINGS: ThemeSettings = {
-  accentHue: 263,
+  accentHue: 236,
   fontSize: '13px',
   density: 'normal',
   animationsEnabled: true,

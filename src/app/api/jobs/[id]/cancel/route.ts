@@ -28,14 +28,18 @@ export async function PATCH(
       )
     }
 
-    const updated = await db.job.update({
-      where: { id },
+    const cancelled = await db.job.updateMany({
+      where: { id, ...jobAccessFilter(access), state: { in: CANCELABLE_STATES } },
       data: {
         state: 'CANCELLED',
         completedAt: new Date(),
       },
     })
 
+    if (cancelled.count !== 1) {
+      return NextResponse.json({ error: 'Job state changed before cancellation' }, { status: 409 })
+    }
+    const updated = await db.job.findUniqueOrThrow({ where: { id } })
     return NextResponse.json({ job: toPublicJob(updated) })
   } catch (error) {
     console.error('Cancel job error:', error)

@@ -39,13 +39,13 @@ function Slider({
       <SliderPrimitive.Track
         data-slot="slider-track"
         className={cn(
-          "relative grow overflow-hidden rounded-none bg-[var(--app-border-subtle)] shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] data-[orientation=horizontal]:h-[3px] data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-[3px]"
+          "relative grow overflow-hidden rounded-full bg-[var(--app-border)]/70 data-[orientation=horizontal]:h-1 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-1"
         )}
       >
         <SliderPrimitive.Range
           data-slot="slider-range"
           className={cn(
-            "absolute bg-[linear-gradient(90deg,color-mix(in_srgb,var(--cad-accent)_72%,var(--app-surface)),var(--cad-accent))] data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full"
+            "absolute rounded-full bg-[var(--cad-accent)] data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full transition-all"
           )}
         />
       </SliderPrimitive.Track>
@@ -53,7 +53,7 @@ function Slider({
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}
-          className="block h-3.5 w-2.5 shrink-0 rounded-[2px] border border-[var(--cad-accent)] bg-[var(--app-surface)] shadow-[0_1px_2px_rgba(15,23,42,0.22),0_0_0_1px_color-mix(in_srgb,var(--app-surface)_80%,transparent)] ring-[var(--app-focus-ring)] transition-[box-shadow,transform] hover:scale-y-125 hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
+          className="block h-3.5 w-3.5 shrink-0 rounded-full border-2 border-[var(--cad-accent)] bg-white dark:bg-slate-200 shadow-[0_1px_3px_rgba(0,0,0,0.25)] ring-[var(--app-focus-ring)] transition-all hover:scale-125 active:scale-110 hover:shadow-[0_2px_6px_rgba(0,0,0,0.3)] focus-visible:ring-3 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50 cursor-grab active:cursor-grabbing"
         />
       ))}
     </SliderPrimitive.Root>
