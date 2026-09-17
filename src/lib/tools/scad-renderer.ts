@@ -132,8 +132,10 @@ export async function renderStlPreview(
 export async function renderScadArtifacts(
   jobId: string,
   scadSource: string,
-  definitions?: Record<string, unknown>
+  definitions?: Record<string, unknown>,
+  assertActive?: () => Promise<void>,
 ): Promise<RenderedArtifacts> {
+  await assertActive?.();
   if (isEphemeralRuntime()) {
     const job = await db.job.findUnique({
       where: { id: jobId },
@@ -152,7 +154,9 @@ export async function renderScadArtifacts(
   const startTime = Date.now();
 
   try {
+    await assertActive?.();
     await renderStl(paths.scadFilePath, paths.stlFilePath, definitions);
+    await assertActive?.();
     let triangleCount = 0;
     if (usesOpenScadWasm()) {
       triangleCount = (
@@ -161,7 +165,14 @@ export async function renderScadArtifacts(
     } else {
       await renderPng(paths.scadFilePath, paths.pngFilePath, definitions);
     }
+    await assertActive?.();
     const artifactPathnames = await persistJobArtifacts(jobId, paths);
+    try {
+      await assertActive?.();
+    } catch (error) {
+      if (artifactPathnames) await deletePersistedArtifactPathnames(artifactPathnames);
+      throw error;
+    }
     if (isEphemeralRuntime() && artifactPathnames) {
       const job = await db.job.findUnique({
         where: { id: jobId },

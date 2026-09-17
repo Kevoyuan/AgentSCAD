@@ -119,14 +119,14 @@ export function CommandPalette({
                   key={`recent-job-${job.id}`}
                   value={`recent-job-${job.id} ${job.inputRequest}`}
                   onSelect={() => handleSelectJob(job)}
-                  className="text-[var(--app-text-secondary)] data-[selected=true]:bg-[var(--app-accent-bg)] data-[selected=true]:text-violet-200 rounded-md px-2 py-1.5 cursor-pointer"
+                  className="text-[var(--app-text-secondary)] data-[selected=true]:bg-[var(--app-accent-bg)] data-[selected=true]:text-[var(--app-text-primary)] rounded-md px-2.5 py-1.5 cursor-pointer transition-colors"
                 >
                   <PartFamilyIcon family={job.partFamily || 'unknown'} size="xs" />
-                  <div className="flex-1 min-w-0 ml-1">
-                    <span className="text-sm truncate block max-w-[280px]">{job.inputRequest}</span>
+                  <div className="flex-1 min-w-0 ml-1.5">
+                    <span className="text-[13px] truncate block max-w-[280px]">{job.inputRequest}</span>
                   </div>
                   <StateBadge state={job.state} />
-                  <span className="text-[8px] font-mono text-[var(--app-text-dim)] ml-1">{job.id.slice(0, 8)}</span>
+                  <span className="text-[10px] font-mono text-[var(--app-text-dim)] ml-1">{job.id.slice(0, 8)}</span>
                 </CommandItem>
               ))}
               {recentActions.map(action => (
@@ -134,10 +134,10 @@ export function CommandPalette({
                   key={`recent-action-${action.id}`}
                   value={`recent-action-${action.id} ${action.label}`}
                   onSelect={() => handleSelectAction(action)}
-                  className="text-[var(--app-text-secondary)] data-[selected=true]:bg-[var(--app-accent-bg)] data-[selected=true]:text-violet-200 rounded-md px-2 py-1.5 cursor-pointer"
+                  className="text-[var(--app-text-secondary)] data-[selected=true]:bg-[var(--app-accent-bg)] data-[selected=true]:text-[var(--app-text-primary)] rounded-md px-2.5 py-1.5 cursor-pointer transition-colors"
                 >
                   {action.icon}
-                  <span className="text-sm ml-2">{action.label}</span>
+                  <span className="text-[13px] ml-2">{action.label}</span>
                   {action.shortcut && <CommandShortcut className="text-xs text-[var(--app-text-dim)]">{action.shortcut}</CommandShortcut>}
                 </CommandItem>
               ))}
@@ -153,12 +153,12 @@ export function CommandPalette({
               key={`job-${job.id}`}
               value={`job-${job.id} ${job.inputRequest} ${job.state}`}
               onSelect={() => handleSelectJob(job)}
-              className="text-[var(--app-text-secondary)] data-[selected=true]:bg-[var(--app-accent-bg)] data-[selected=true]:text-violet-200 rounded-md px-2 py-1.5 cursor-pointer"
+              className="text-[var(--app-text-secondary)] data-[selected=true]:bg-[var(--app-accent-bg)] data-[selected=true]:text-[var(--app-text-primary)] rounded-md px-2.5 py-1.5 cursor-pointer transition-colors"
             >
               <PartFamilyIcon family={job.partFamily || 'unknown'} size="xs" />
-              <div className="flex-1 min-w-0 ml-1">
-                <span className="text-sm truncate block max-w-[280px]">{job.inputRequest}</span>
-                <span className="text-[8px] font-mono text-[var(--app-text-dim)]">{job.id.slice(0, 8)}</span>
+              <div className="flex-1 min-w-0 ml-1.5">
+                <span className="text-[13px] truncate block max-w-[280px]">{job.inputRequest}</span>
+                <span className="text-[10px] font-mono text-[var(--app-text-dim)]">{job.id.slice(0, 8)}</span>
               </div>
               <StateBadge state={job.state} />
             </CommandItem>
@@ -173,10 +173,10 @@ export function CommandPalette({
               key={`action-${action.id}`}
               value={`action-${action.id} ${action.label}`}
               onSelect={() => handleSelectAction(action)}
-              className="text-[var(--app-text-secondary)] data-[selected=true]:bg-[var(--app-accent-bg)] data-[selected=true]:text-violet-200 rounded-md px-2 py-1.5 cursor-pointer"
+              className="text-[var(--app-text-secondary)] data-[selected=true]:bg-[var(--app-accent-bg)] data-[selected=true]:text-[var(--app-text-primary)] rounded-md px-2.5 py-1.5 cursor-pointer transition-colors"
             >
               {action.icon}
-              <span className="text-sm ml-2">{action.label}</span>
+              <span className="text-[13px] ml-2">{action.label}</span>
               {action.description && <span className="text-xs text-[var(--app-text-dim)] ml-2 hidden sm:inline">{action.description}</span>}
               {action.shortcut && <CommandShortcut className="text-xs text-[var(--app-text-dim)]">{action.shortcut}</CommandShortcut>}
             </CommandItem>

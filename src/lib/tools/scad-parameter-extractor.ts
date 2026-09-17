@@ -183,8 +183,26 @@ function defaultStepFor(kind: string, value: number): number {
 
 function inferUnit(key: string, description: string): string {
   const lower = `${key} ${description}`.toLowerCase();
-  if (lower.includes("angle") || lower.includes("degree")) return "deg";
-  if (lower.includes("count") || lower.includes("teeth") || lower.includes("segments")) return "";
+  if (lower.includes("angle") || lower.includes("degree") || lower.includes("deg")) return "°";
+  if (
+    key.startsWith("$") ||
+    lower.includes("$fn") ||
+    lower.includes("fn") ||
+    lower.includes("count") ||
+    lower.includes("teeth") ||
+    lower.includes("segments") ||
+    lower.includes("facets") ||
+    lower.includes("fragments") ||
+    lower.includes("qty") ||
+    lower.includes("num") ||
+    lower.includes("steps") ||
+    lower.includes("index") ||
+    lower.includes("ratio") ||
+    lower.includes("scale") ||
+    lower.includes("multiplier")
+  ) {
+    return "";
+  }
   return "mm";
 }
 

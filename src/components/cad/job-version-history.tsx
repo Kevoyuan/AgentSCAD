@@ -44,9 +44,9 @@ function ParameterDiff({ oldValue, newValue }: { oldValue: string | null; newVal
       {changes.map(c => (
         <div key={c.key} className="flex items-center gap-2 text-[13px] font-mono">
           <span className="text-[var(--app-text-muted)] min-w-[60px]">{c.key}</span>
-          <span className="text-rose-400 line-through">{c.old != null ? String(c.old) : '—'}</span>
+          <span className="text-rose-400 line-through">{c.old != null ? String(c.old) : '-'}</span>
           <span className="text-[var(--app-text-dim)]">→</span>
-          <span className="text-emerald-400">{c.new != null ? String(c.new) : '—'}</span>
+          <span className="text-emerald-400">{c.new != null ? String(c.new) : '-'}</span>
         </div>
       ))}
     </div>

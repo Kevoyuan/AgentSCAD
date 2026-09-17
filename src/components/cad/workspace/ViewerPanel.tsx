@@ -21,14 +21,17 @@
  *    导致层级扁平。将其升级为 13px (text-[13px]) 能够创造更清晰的字号缩放比例与导向感，强化设计视觉层级。
  */
 
+import { useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import {
-  Box, Play, Clock, CheckCircle2, Loader2,
+  Box, Play, Clock, CheckCircle2,
   Cpu, Layers, Plus, Ruler, BoxSelect, AlertTriangle, RotateCcw,
   ShieldCheck, ShieldAlert, ShieldQuestion, Settings, Hammer,
   ArrowRight, ChevronRight, Command, Sparkles, BookOpen, ChevronLeft
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { ResizablePanel } from '@/components/ui/resizable'
 
 import { Job, CANCELABLE_STATES, ValidationResult, parseJSON, timeAgo } from '@/components/cad/types'
@@ -36,9 +39,11 @@ import { StateBadge } from '@/components/cad/state-badge'
 import { PartFamilyIcon, getPartFamilyLabel, getPartFamilyColor } from '@/components/cad/part-family-icon'
 import { QuickActionsBar } from '@/components/cad/quick-actions-bar'
 import { buildDeliveryReadiness, type DeliveryReadinessReport } from '@/lib/validation/delivery-readiness'
+import { PanelErrorBoundary } from './PanelErrorBoundary'
+import { CadViewportEmptyState } from './empty-states'
 
-const ThreeDViewer = dynamic(() => import('@/components/cad/three-d-viewer').then(m => ({ default: m.ThreeDViewer })), { ssr: false, loading: () => <div className="flex items-center justify-center h-full"><Loader2 className="w-5 h-5 animate-spin text-[var(--app-text-muted)]" /></div> })
-const JobStatusPage = dynamic(() => import('@/components/cad/job-status-page').then(m => ({ default: m.JobStatusPage })), { ssr: false, loading: () => <div className="flex items-center justify-center h-96"><Loader2 className="w-5 h-5 animate-spin text-[var(--app-text-muted)]" /></div> })
+const ThreeDViewer = dynamic(() => import('@/components/cad/three-d-viewer').then(m => ({ default: m.ThreeDViewer })), { ssr: false, loading: () => <div className="flex items-center justify-center h-full p-4"><Skeleton className="h-full w-full rounded-[6px]" /></div> })
+const JobStatusPage = dynamic(() => import('@/components/cad/job-status-page').then(m => ({ default: m.JobStatusPage })), { ssr: false, loading: () => <div className="p-6"><Skeleton className="h-96 w-full rounded-[6px]" /></div> })
 
 function getReadinessTone(report: DeliveryReadinessReport) {
   switch (report.status) {
@@ -87,6 +92,7 @@ function DeliveryReadinessStrip({
   onRepair,
   onVisualRepair,
   onDownloadScad,
+  onDownloadStl,
   onSetActiveTab,
 }: {
   job: Job
@@ -95,6 +101,7 @@ function DeliveryReadinessStrip({
   onRepair: (job: Job) => void
   onVisualRepair: (job: Job) => void
   onDownloadScad: (job: Job) => void
+  onDownloadStl?: (job: Job) => void
   onSetActiveTab: (tab: string) => void
 }) {
   const validationResults = parseJSON<ValidationResult[]>(job.validationResults, [])
@@ -126,12 +133,18 @@ function DeliveryReadinessStrip({
         onSetActiveTab('VALIDATION')
         break
       case 'export':
-        onDownloadScad(job)
+        if (job.stlPath && onDownloadStl) {
+          onDownloadStl(job)
+        } else {
+          onDownloadScad(job)
+        }
         break
     }
   }
 
-  const actionLabel = report.nextAction === 'export' ? 'Download SCAD' : report.nextActionLabel
+  const actionLabel = report.nextAction === 'export'
+    ? (job.stlPath && onDownloadStl ? 'Download STL' : 'Download SCAD')
+    : report.nextActionLabel
 
   return (
     <div className={`mx-3 my-2 rounded-lg border px-3 py-2 ${tone.shell}`}>
@@ -177,6 +190,8 @@ export function ViewerPanel({
   onCancel,
   onDelete,
   onDownloadScad,
+  onDownloadStl,
+  isDownloadingStl,
   onView3D,
   onViewLog,
   onShare,
@@ -195,6 +210,8 @@ export function ViewerPanel({
   onCancel: (job: Job) => void
   onDelete: (id: string) => void
   onDownloadScad: (job: Job) => void
+  onDownloadStl?: (job: Job) => void
+  isDownloadingStl?: boolean
   onView3D: () => void
   onViewLog: (job: Job) => void
   onShare: (job: Job) => void
@@ -204,6 +221,57 @@ export function ViewerPanel({
   onShowComposer: (presetText?: string) => void
   isFirstLoadComplete: boolean
 }) {
+  const [internalDownloadingStl, setInternalDownloadingStl] = useState(false)
+
+  const handleDownloadStl = useCallback(async (job: Job) => {
+    if (onDownloadStl) {
+      onDownloadStl(job)
+      return
+    }
+    if (!job.stlPath) {
+      toast.error('STL file has not been generated for this job. Please rebuild.')
+      return
+    }
+    if (internalDownloadingStl) return
+
+    setInternalDownloadingStl(true)
+    const toastId = `stl-download-${job.id}`
+    toast.loading('Fetching binary STL artifact...', { id: toastId })
+
+    try {
+      const res = await fetch(`/api/jobs/${job.id}/artifacts/stl`, {
+        method: 'GET',
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        let errorMsg = 'Failed to download STL artifact'
+        try {
+          const data = await res.json()
+          if (typeof data?.error === 'string' && data.error.trim()) errorMsg = data.error
+        } catch {}
+        throw new Error(errorMsg)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const safePart = (job.partFamily || 'part').toLowerCase().replace(/[^a-z0-9_-]/g, '_')
+      const filename = `${job.id.slice(0, 8)}-${safePart}.stl`
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      toast.success('STL model downloaded', { id: toastId, description: filename })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Download failed', { id: toastId })
+    } finally {
+      setInternalDownloadingStl(false)
+    }
+  }, [onDownloadStl, internalDownloadingStl])
+
+  const downloading = isDownloadingStl !== undefined ? isDownloadingStl : internalDownloadingStl
+
   const getDimensionSummary = (job: Job) => {
     try {
       const values = JSON.parse(job.parameterValues || '{}') as Record<string, number>
@@ -219,9 +287,10 @@ export function ViewerPanel({
   const isSelectedProcessing = Boolean(selectedJob && isProcessing && processingJobId === selectedJob.id)
 
   return (
-    <ResizablePanel id="agentscad-viewer-panel" order={2} defaultSize={52} minSize={36} className="cad-viewer-panel">
-      <div className="flex flex-col h-full bg-[var(--app-bg)]">
-        {selectedJob ? (
+    <ResizablePanel id="agentscad-viewer-panel" order={2} defaultSize={52} minSize={36} className="cad-viewer-panel min-w-0 overflow-hidden">
+      <PanelErrorBoundary panelName="3D Viewport" resetKey={selectedJob?.id}>
+        <div className="flex flex-col h-full bg-[var(--app-bg)] min-w-0 overflow-hidden">
+          {selectedJob ? (
           <>
             <div className="px-3 py-2 border-b border-[color:var(--cad-border)] bg-[var(--cad-surface)] shrink-0 space-y-1.5">
               <div className="flex items-center justify-between gap-2">
@@ -285,6 +354,8 @@ export function ViewerPanel({
               onDelete={onDelete}
               onReprocess={onProcess}
               onDownloadScad={onDownloadScad}
+              onDownloadStl={handleDownloadStl}
+              isDownloadingStl={downloading}
               onView3D={onView3D}
               onViewLog={onViewLog}
               onShare={onShare}
@@ -299,6 +370,7 @@ export function ViewerPanel({
               onRepair={onRepair}
               onVisualRepair={onVisualRepair}
               onDownloadScad={onDownloadScad}
+              onDownloadStl={handleDownloadStl}
               onSetActiveTab={onSetActiveTab}
             />
 
@@ -396,204 +468,36 @@ export function ViewerPanel({
                         </Button>
                       </div>
                     )}
-                    <ThreeDViewer job={selectedJob} />
+                    <ThreeDViewer
+                      job={selectedJob}
+                      onDownloadStl={() => handleDownloadStl(selectedJob)}
+                      isDownloadingStl={downloading}
+                      hasStl={Boolean(selectedJob.stlPath)}
+                    />
                   </div>
                 )
               }
 
-              // NEW: Show empty/ready state with Process button
+              // NEW / SCAD_GENERATED: Show engineered empty/ready state with Process & SCAD buttons
               return (
-                <div className="flex-1 flex flex-col items-center justify-center gap-4 cad-viewport-shell m-2">
-                  <div className="w-16 h-16 rounded-lg cad-viewport-glass flex items-center justify-center">
-                    <Play className="w-8 h-7 opacity-60 text-[var(--cad-accent)]" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-[var(--cad-text)]">Ready for geometry</p>
-                    <p className="text-[13px] text-[var(--cad-text-muted)] mt-1">Run the pipeline to produce parameters, mesh, and validation.</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    className="h-7 text-xs gap-1.5 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] linear-transition"
-                    onClick={() => onProcess(selectedJob)}
-                    disabled={isProcessing}
-                  >
-                    <Play className="w-3.5 h-3.5" />
-                    Process Job
-                  </Button>
-                </div>
+                <CadViewportEmptyState
+                  selectedJob={selectedJob}
+                  isProcessing={isSelectedProcessing}
+                  onProcess={onProcess}
+                  onShowComposer={onShowComposer}
+                  onSetActiveTab={onSetActiveTab}
+                />
               )
             })()}
           </>
-        ) : !isFirstLoadComplete ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 className="w-5 h-5 animate-spin text-[var(--app-text-muted)]" />
-          </div>
         ) : (
-          <QuickStartDashboard onShowComposer={onShowComposer} />
+          <CadViewportEmptyState
+            isFirstLoadComplete={isFirstLoadComplete}
+            onShowComposer={onShowComposer}
+          />
         )}
       </div>
-    </ResizablePanel>
-  )
-}
-
-interface QuickStartDashboardProps {
-  onShowComposer: (presetText?: string) => void
-}
-
-function QuickStartDashboard({ onShowComposer }: QuickStartDashboardProps) {
-  const presets = [
-    {
-      title: 'Spur Gear',
-      description: 'Parametric involute gear. Supports custom module, tooth count, and pressure angle.',
-      prompt: 'Parametric spur gear with module 2, 24 teeth, 20-degree pressure angle, and 8mm bore.',
-      icon: Settings,
-      iconColor: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-      badge: 'BOSL2 standard'
-    },
-    {
-      title: 'Electronics Box',
-      description: 'Hinged protective enclosure. Includes screw bosses, ventilation slots, and snap-fit lid.',
-      prompt: 'Hinged electronics enclosure with 2.5mm wall thickness, M3 screw posts, ventilated grid slots, and snap-fit locking lid.',
-      icon: BoxSelect,
-      iconColor: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
-      badge: 'CNC/3D Print'
-    },
-    {
-      title: 'Device Stand',
-      description: 'Phone/tablet stand. Tune inclination angle, slot width, and routing slot.',
-      prompt: 'Universal smartphone/tablet stand with adjustable 20-degree incline angle, 12mm phone slot width, and back cable routing hole.',
-      icon: Hammer,
-      iconColor: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-      badge: 'Parametric'
-    },
-    {
-      title: 'Phone Case',
-      description: 'Precision bumper case. Includes camera lip protection, ports cutouts, and anti-slip grip.',
-      prompt: 'Minimalist phone case with camera bump lip protection, accurate cutout slots for charger and speakers, and 1.5mm wrap-around bumper walls.',
-      icon: Cpu,
-      iconColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-      badge: 'Customizable'
-    }
-  ]
-
-  return (
-    <div className="h-full overflow-y-auto stable-scrollbar px-6 py-8 flex flex-col items-center max-w-4xl mx-auto space-y-8 select-none">
-      {/* Welcome Heading */}
-      <div className="text-center space-y-3 max-w-2xl mt-4">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--app-accent-bg)] border border-[color:var(--app-accent-border)] text-xs font-mono text-[var(--app-accent-text)] pulse-soft">
-          <Sparkles className="w-3.5 h-3.5" />
-          Parametric CAD Pipeline Active
-        </div>
-        <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-[var(--app-text-bright)] to-[var(--app-text-muted)] bg-clip-text text-transparent">
-          Welcome to AgentSCAD Workspace
-        </h2>
-        <p className="text-sm text-[var(--app-text-muted)] leading-relaxed">
-          Describe your part in natural language. Our pipeline will automatically infer parameters, generate parametric OpenSCAD code, compile the 3D mesh, and validate it against manufacturing constraints.
-        </p>
-        <div className="pt-2 flex justify-center">
-          <Button
-            size="default"
-            className="h-9 px-5 gap-2 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white font-medium shadow-[0_4px_16px_var(--cad-accent-soft)] rounded-lg transition-all transform active:scale-95"
-            onClick={() => onShowComposer()}
-          >
-            <Plus className="w-4 h-4" />
-            Create New CAD Design (⌘N)
-          </Button>
-        </div>
-      </div>
-
-      {/* Guided Steps */}
-      <div className="w-full space-y-4">
-        <h3 className="text-eyebrow text-[var(--app-text-dim)] px-1">
-          How the 3D Pipeline Works
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          {[
-            { step: '01', title: 'Intake Request', desc: 'Briefly describe your hardware part, wall thickness, and mounting holes.' },
-            { step: '02', title: 'Synthesize CAD', desc: 'LLM infers parameter bounds and generates parametric OpenSCAD source code.' },
-            { step: '03', title: 'Render Mesh', desc: 'OpenSCAD compiles the STL mesh, then AgentSCAD creates its PNG preview.' },
-            { step: '04', title: 'Validate Model', desc: 'Rules engine checks wall thickness, water-tight manifold, and physical limits.' }
-          ].map((item, idx) => (
-            <div key={item.step} className="p-3.5 rounded-xl border border-[color:var(--app-border-subtle)] bg-[var(--app-surface)] relative flex flex-col space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono font-bold text-[var(--app-accent-text)] bg-[var(--app-accent-bg)] px-1.5 py-0.5 rounded">
-                  {item.step}
-                </span>
-                {idx < 3 && <ChevronRight className="w-3.5 h-3.5 text-[var(--app-text-dim)] hidden md:block" />}
-              </div>
-              <h4 className="text-xs font-semibold text-[var(--app-text-primary)]">{item.title}</h4>
-              <p className="text-[11px] leading-relaxed text-[var(--app-text-muted)]">{item.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Presets Grid */}
-      <div className="w-full space-y-4">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="text-eyebrow text-[var(--app-text-dim)]">
-            Click a Preset Template
-          </h3>
-          <span className="text-[10px] text-[var(--app-text-dim)]">Load pre-configured specifications</span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-          {presets.map((preset) => {
-            const IconComponent = preset.icon
-            return (
-              <div
-                key={preset.title}
-                onClick={() => onShowComposer(preset.prompt)}
-                className="group p-4 rounded-xl hover-glow-card cursor-pointer bg-[var(--app-surface)] hover:bg-[var(--app-surface-hover)] border-[color:var(--app-border-subtle)] hover:border-[color:var(--app-accent-border)] flex gap-3.5 items-start text-left"
-              >
-                <div className={`p-2.5 rounded-lg border ${preset.iconColor} shrink-0`}>
-                  <IconComponent className="w-4.5 h-4.5" />
-                </div>
-                <div className="space-y-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-[13px] font-semibold text-[var(--app-text-primary)] group-hover:text-[var(--app-accent-text)] transition-colors">
-                      {preset.title}
-                    </h4>
-                    <span className="text-[9px] font-mono text-[var(--app-text-dim)] px-1 bg-[var(--app-surface-raised)] border border-[color:var(--app-border-subtle)] rounded">
-                      {preset.badge}
-                    </span>
-                  </div>
-                  <p className="text-[12px] leading-relaxed text-[var(--app-text-muted)]">
-                    {preset.description}
-                  </p>
-                  <div className="pt-1.5 flex items-center gap-1 text-[11px] font-mono text-[var(--app-accent-text)] opacity-0 group-hover:opacity-100 transition-opacity">
-                    Use this template
-                    <ArrowRight className="w-3 h-3 animate-pulse" />
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Shortcuts Quick-Lookup */}
-      <div className="w-full max-w-[800px] mx-auto border-t border-[color:var(--app-border-subtle)] pt-6 space-y-3">
-        <h3 className="text-eyebrow text-[var(--app-text-dim)] px-1">
-          Keyboard Shortcuts Guide
-        </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 px-1">
-          {[
-            { key: ['⌘', 'N'], desc: 'New CAD Job' },
-            { key: ['⌘', 'B'], desc: 'Toggle Left Sidebar' },
-            { key: ['⌘', 'I'], desc: 'Toggle Right Inspector' },
-            { key: ['⌘', '⇧', 'F'], desc: 'Focus 3D Viewport' }
-          ].map((shortcut) => (
-            <div key={shortcut.desc} className="flex items-center justify-between gap-2 border-b border-[color:var(--app-border-subtle)] pb-1.5">
-              <span className="text-xs text-[var(--app-text-muted)]">{shortcut.desc}</span>
-              <div className="flex gap-0.5 shrink-0">
-                {shortcut.key.map((k) => (
-                  <kbd key={k} className="kbd-key-premium" style={{ userSelect: 'none' }}>{k}</kbd>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
+    </PanelErrorBoundary>
+  </ResizablePanel>
+)
 }

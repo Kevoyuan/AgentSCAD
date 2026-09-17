@@ -4,7 +4,7 @@ import { useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Play, Trash2, Ban, RotateCcw, Download, Eye,
-  Share2, FileText, Wrench,
+  Share2, FileText, Wrench, Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -24,6 +24,7 @@ interface QuickAction {
   shortcut?: string
   onClick: () => void
   variant?: 'default' | 'danger' | 'success' | 'warning'
+  disabled?: boolean
 }
 
 interface QuickActionsBarProps {
@@ -33,6 +34,8 @@ interface QuickActionsBarProps {
   onDelete: (id: string) => void
   onReprocess: (job: Job) => void
   onDownloadScad: (job: Job) => void
+  onDownloadStl?: (job: Job) => void
+  isDownloadingStl?: boolean
   onView3D: () => void
   onViewLog: (job: Job) => void
   onShare: (job: Job) => void
@@ -96,6 +99,23 @@ function getActionsForState(
           onClick: () => props.onReprocess(job),
           variant: 'success',
         },
+        ...(props.onDownloadStl && job.stlPath
+          ? [
+              {
+                id: 'download-stl',
+                label: props.isDownloadingStl ? 'Downloading STL...' : 'Download STL',
+                icon: props.isDownloadingStl ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                ),
+                shortcut: '',
+                onClick: () => props.onDownloadStl?.(job),
+                variant: 'success' as const,
+                disabled: props.isDownloadingStl,
+              },
+            ]
+          : []),
         {
           id: 'download-scad',
           label: 'Download SCAD',
@@ -121,6 +141,23 @@ function getActionsForState(
           shortcut: '',
           onClick: () => props.onReprocess(job),
         },
+        ...(props.onDownloadStl
+          ? [
+              {
+                id: 'download-stl',
+                label: props.isDownloadingStl ? 'Downloading STL...' : 'Download STL',
+                icon: props.isDownloadingStl ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                ),
+                shortcut: '',
+                onClick: () => props.onDownloadStl?.(job),
+                variant: 'success' as const,
+                disabled: !job.stlPath || props.isDownloadingStl,
+              },
+            ]
+          : []),
         {
           id: 'download-scad',
           label: 'Download SCAD',
@@ -258,7 +295,7 @@ export function QuickActionsBar(props: QuickActionsBarProps) {
                       size="sm"
                       className={`h-6 px-2 text-xs gap-1.5 ${classes.button} ${classes.hover} transition-colors`}
                       onClick={action.onClick}
-                      disabled={action.id === 'process' && props.isProcessing}
+                      disabled={(action.id === 'process' && props.isProcessing) || Boolean(action.disabled)}
                     >
                       {action.icon}
                       <span className="hidden sm:inline">{action.label}</span>

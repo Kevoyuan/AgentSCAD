@@ -13,7 +13,6 @@ import { useState, useRef } from 'react'
 import { ImperativePanelHandle } from 'react-resizable-panels'
 import {
   Box, Play, Settings,
-  Loader2,
   Plus, ArrowUpDown, Keyboard,
   BarChart3, GitCompare, Palette,
   Sun, Moon, Zap,
@@ -22,6 +21,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   ResizableHandle, ResizablePanelGroup,
 } from '@/components/ui/resizable'
@@ -48,13 +48,15 @@ const CommandPalette = dynamic(() => import('@/components/cad/command-palette').
 const ThemePanel = dynamic(() => import('@/components/cad/theme-panel').then(m => ({ default: m.ThemePanel })), { ssr: false })
 const ProviderSettingsPanel = dynamic(() => import('@/components/cad/provider-settings-panel').then(m => ({ default: m.ProviderSettingsPanel })), { ssr: false })
 
-const StatsDashboard = dynamic(() => import('@/components/cad/stats-dashboard').then(m => ({ default: m.StatsDashboard })), { ssr: false, loading: () => <div className="flex items-center justify-center h-96"><Loader2 className="w-5 h-5 animate-spin text-[var(--app-text-muted)]" /></div> })
-const JobCompare = dynamic(() => import('@/components/cad/job-compare').then(m => ({ default: m.JobCompare })), { ssr: false, loading: () => <div className="flex items-center justify-center h-96"><Loader2 className="w-5 h-5 animate-spin text-[var(--app-text-muted)]" /></div> })
+const StatsDashboard = dynamic(() => import('@/components/cad/stats-dashboard').then(m => ({ default: m.StatsDashboard })), { ssr: false, loading: () => <div className="p-6"><Skeleton className="h-96 w-full rounded-[8px]" /></div> })
+const JobCompare = dynamic(() => import('@/components/cad/job-compare').then(m => ({ default: m.JobCompare })), { ssr: false, loading: () => <div className="p-6"><Skeleton className="h-96 w-full rounded-[8px]" /></div> })
 
 import { useWorkspaceState } from './useWorkspaceState'
 import { JobListPanel } from './JobListPanel'
 import { ViewerPanel } from './ViewerPanel'
 import { InspectorPanel } from './InspectorPanel'
+import { WorkspaceToolsMenu } from './WorkspaceToolsMenu'
+import { DEFAULT_FILTER_STATE } from '@/components/cad/search-filter-panel'
 const JobComposer = dynamic(() => import('./JobComposer').then(m => ({ default: m.JobComposer })), { ssr: false })
 import { KeyboardShortcuts } from './KeyboardShortcuts'
 
@@ -198,81 +200,109 @@ export function MainWorkspace() {
       />
 
       {/* Header */}
-      <header className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)] bg-[var(--app-surface)] shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+      <header className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)] bg-[var(--app-surface)] shrink-0 min-w-0 max-w-full overflow-hidden gap-2">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
+          <div className="flex items-center gap-2 shrink-0">
             <img 
               src="/logo.png" 
               alt="AgentSCAD Logo" 
-              className="w-5 h-5 rounded object-cover shadow-[0_0_8px_rgba(94,106,210,0.4)]"
+              className="w-5 h-5 rounded object-cover"
             />
             <h1 className="text-sm font-semibold tracking-tight text-[var(--app-text-primary)]">
               AgentSCAD
             </h1>
           </div>
-          <Separator orientation="vertical" className="h-4 bg-[var(--app-border)]" />
-          <PipelineVisualization
-            state={state.selectedJob?.state || 'NEW'}
-            job={state.selectedJob || undefined}
-            onStepClick={(stepKey, tabName) => {
-              if (state.selectedJob) state.setActiveTab(tabName)
-            }}
-          />
+          <Separator orientation="vertical" className="h-4 bg-[var(--app-border)] shrink-0" />
+          <div className="min-w-0 overflow-hidden flex-1">
+            <PipelineVisualization
+              state={state.selectedJob?.state || 'NEW'}
+              job={state.selectedJob || undefined}
+              onStepClick={(stepKey, tabName) => {
+                if (state.selectedJob) state.setActiveTab(tabName)
+              }}
+            />
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          {/* Layout Controls */}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className={`h-7 text-xs gap-1 transition-all ${isSidebarCollapsed ? 'text-[var(--app-accent-text)] bg-[var(--app-accent-bg)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`} onClick={toggleSidebar} aria-label="Toggle Left Sidebar">
-                  <PanelLeft className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p className="text-xs">Toggle Left Sidebar (⌘B)</p></TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className={`h-7 text-xs gap-1 transition-all ${isSidebarCollapsed && isInspectorCollapsed ? 'text-[var(--app-accent-text)] bg-[var(--app-accent-bg)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`} onClick={toggleFocusMode} aria-label="Toggle Focus Mode">
-                  <Maximize2 className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p className="text-xs">Toggle Focus Mode (⌘⇧F)</p></TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className={`h-7 text-xs gap-1 transition-all ${isInspectorCollapsed ? 'text-[var(--app-accent-text)] bg-[var(--app-accent-bg)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`} onClick={toggleInspector} aria-label="Toggle Right Inspector">
-                  <PanelRight className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p className="text-xs">Toggle Right Inspector (⌘I)</p></TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <Separator orientation="vertical" className="h-4 bg-[var(--app-border)] mx-1" />
 
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Group 1: Window / Layout Controls */}
+          <div className="flex items-center gap-0.5">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-7 w-7 p-0 rounded-[6px] transition-colors ${isSidebarCollapsed ? 'text-[var(--app-accent-text)] bg-[var(--app-accent-bg)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`}
+                    onClick={toggleSidebar}
+                    aria-label="Toggle Left Sidebar"
+                  >
+                    <PanelLeft className="w-3.5 h-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">Toggle Left Sidebar (⌘B)</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-7 w-7 p-0 rounded-[6px] transition-colors ${isSidebarCollapsed && isInspectorCollapsed ? 'text-[var(--app-accent-text)] bg-[var(--app-accent-bg)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`}
+                    onClick={toggleFocusMode}
+                    aria-label="Toggle Focus Mode"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">Toggle Focus Mode (⌘⇧F)</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-7 w-7 p-0 rounded-[6px] transition-colors ${isInspectorCollapsed ? 'text-[var(--app-accent-text)] bg-[var(--app-accent-bg)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`}
+                    onClick={toggleInspector}
+                    aria-label="Toggle Right Inspector"
+                  >
+                    <PanelRight className="w-3.5 h-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent><p className="text-xs">Toggle Right Inspector (⌘I)</p></TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+
+          <Separator orientation="vertical" className="h-4 bg-[var(--app-border)] mx-0.5 shrink-0" />
+
+          {/* Group 2: Quick Theme Switch (Direct Touchpoint) */}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]" onClick={() => state.setShowStats(true)} aria-label="Stats Dashboard">
-                  <BarChart3 className="w-3.5 h-3.5" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 rounded-[6px] text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]"
+                  onClick={() => {
+                    const next = (state.mounted && state.resolvedTheme === 'dark') ? 'light' : 'dark'
+                    state.setTheme(next)
+                  }}
+                  aria-label="Toggle theme"
+                >
+                  {!state.mounted ? <div className="w-3.5 h-3.5" aria-hidden="true" /> : state.resolvedTheme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent><p className="text-xs">Stats Dashboard (S)</p></TooltipContent>
+              <TooltipContent><p className="text-xs">Toggle {!state.mounted ? 'Theme' : state.resolvedTheme === 'dark' ? 'Light' : 'Dark'} Mode</p></TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]" onClick={() => state.setShowCompare(true)} aria-label="Compare Jobs">
-                  <GitCompare className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p className="text-xs">Compare Jobs</p></TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+
+          {/* Group 3: Notifications */}
           <NotificationCenter
             notifications={state.notifications}
             activityEvents={state.activityEvents}
@@ -288,50 +318,36 @@ export function MainWorkspace() {
               }
             }}
           />
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]" onClick={() => {
-                  const next = (state.mounted && state.resolvedTheme === 'dark') ? 'light' : 'dark'
-                  state.setTheme(next)
-                }} aria-label="Toggle theme">
-                  {!state.mounted ? <div className="w-3.5 h-3.5" aria-hidden="true" /> : state.resolvedTheme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p className="text-xs">Toggle {!state.mounted ? 'Theme' : state.resolvedTheme === 'dark' ? 'Light' : 'Dark'} Mode</p></TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]" onClick={() => {
-                  setSettingsTab('theme')
-                  state.setShowSettings(true)
-                }} aria-label="Theme & Settings">
-                  <Settings className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p className="text-xs">Theme & Settings</p></TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]" onClick={() => state.setShowShortcuts(true)} aria-label="Keyboard Shortcuts">
-                  <Keyboard className="w-3.5 h-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent><p className="text-xs">Shortcuts (?)</p></TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <Button size="sm" className="h-7 text-[13px] gap-1 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] linear-transition px-3" onClick={() => state.setShowComposer(true)}>
-            <Plus className="w-3.5 h-3.5" />New Job
+
+          {/* Group 4: Workspace Tools Menu (Dropdown) */}
+          <WorkspaceToolsMenu
+            onOpenStats={() => state.setShowStats(true)}
+            onOpenCompare={() => state.setShowCompare(true)}
+            onOpenSettings={(tab) => {
+              setSettingsTab(tab)
+              state.setShowSettings(true)
+            }}
+            onOpenShortcuts={() => state.setShowShortcuts(true)}
+            onOpenCommandPalette={() => state.setShowCommandPalette(true)}
+            onExportAllData={state.exportAllData}
+          />
+
+          <Separator orientation="vertical" className="h-4 bg-[var(--app-border)] mx-0.5 shrink-0" />
+
+          {/* Group 5: Primary Action CTA */}
+          <Button
+            size="sm"
+            className="h-7 text-xs font-medium gap-1 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white px-2.5 rounded-[6px] active:scale-[0.98] shrink-0"
+            onClick={() => state.setShowComposer(true)}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">New Job</span>
           </Button>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden relative">
+      <main className="flex-1 min-h-0 w-full max-w-full overflow-hidden relative">
         {isSidebarCollapsed && (
           <button
             onClick={toggleSidebar}
@@ -350,7 +366,7 @@ export function MainWorkspace() {
             <ChevronLeft className="w-3 h-3" />
           </button>
         )}
-        <ResizablePanelGroup id="agentscad-workspace-panels" direction="horizontal">
+        <ResizablePanelGroup id="agentscad-workspace-panels" direction="horizontal" className="h-full w-full min-w-0 max-w-full overflow-hidden">
           <JobListPanel
             panelRef={sidebarRef}
             onCollapseChange={setIsSidebarCollapsed}
@@ -378,6 +394,13 @@ export function MainWorkspace() {
             onClearSelection={() => state.setSelectedIds(new Set())}
             onFilterChange={state.handleFilterChange}
             onSetActiveTab={state.setActiveTab}
+            onShowComposer={(presetText) => {
+              if (presetText) {
+                state.setNewJobText(presetText)
+              }
+              state.setShowComposer(true)
+            }}
+            onResetFilters={() => state.handleFilterChange({ ...DEFAULT_FILTER_STATE })}
           />
 
           <ResizableHandle id="agentscad-left-viewer-resize" withHandle />
@@ -433,6 +456,11 @@ export function MainWorkspace() {
             onNavigateToJob={handleNavigateToJob}
             onClearSelectedJob={() => state.setSelectedJob(null)}
             onShowComposer={() => state.setShowComposer(true)}
+            onOpenSettings={(tab) => {
+              setSettingsTab(tab)
+              state.setShowSettings(true)
+            }}
+            onOpenShortcuts={() => state.setShowShortcuts(true)}
             isFirstLoadComplete={state.isFirstLoadComplete}
           />
         </ResizablePanelGroup>

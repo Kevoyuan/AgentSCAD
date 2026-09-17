@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { JOB_EXECUTION_FIELD } from '@/lib/pipeline/job-execution'
 import { db } from '@/lib/db'
 import { getJobAccessScope, jobAccessFilter } from '@/lib/job-session'
 
@@ -21,7 +22,7 @@ export async function GET(
     }
 
     const versions = await db.jobVersion.findMany({
-      where: { jobId: id },
+      where: { jobId: id, field: { not: JOB_EXECUTION_FIELD } },
       orderBy: { createdAt: 'desc' },
       take: 50,
     })

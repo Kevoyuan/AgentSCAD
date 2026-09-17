@@ -1,3 +1,6 @@
+import { executeCadJob } from "@/lib/pipeline/execute-cad-job";
+import { claimJobExecution, JobExecutionConflict } from "@/lib/pipeline/job-execution";
+import { appendLog } from "@/lib/stores/job-store";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { analyzeUserEdits, writeLearnedPatterns } from "@/lib/improvement-analyzer";
@@ -19,6 +22,8 @@ function authenticate(request: NextRequest): boolean {
 // Helpers
 // ---------------------------------------------------------------------------
 
+export const maxDuration = 300;
+
 const FAILED_STATES = ["RENDER_FAILED", "GEOMETRY_FAILED", "VALIDATION_FAILED"];
 const MAX_RETRIES_PER_RUN = 5;
 
@@ -34,7 +39,6 @@ async function retryFailed(): Promise<{
   const failedJobs = await db.job.findMany({
     where: {
       state: { in: FAILED_STATES },
-      retryCount: { lt: db.job.fields.maxRetries },
     },
     orderBy: [{ createdAt: "asc" }],
     take: MAX_RETRIES_PER_RUN,
@@ -44,71 +48,41 @@ async function retryFailed(): Promise<{
   let skipped = 0;
   const errors: string[] = [];
 
-  for (const job of failedJobs) {
-    try {
-      // Use a transaction to atomically increment retryCount and reset state
-      // This ensures idempotency — if two cron runs overlap, only one will
-      // successfully update each job due to the state check.
-      const updated = await db.$transaction(async (tx) => {
-        // Re-check state inside transaction to avoid race conditions
-        const current = await tx.job.findUnique({ where: { id: job.id } });
-        if (!current || !FAILED_STATES.includes(current.state)) {
-          return null; // Already retried by another process
-        }
-        if (current.retryCount >= current.maxRetries) {
-          return null; // Max retries reached
-        }
-
-        return tx.job.update({
-          where: { id: job.id },
-          data: {
-            retryCount: current.retryCount + 1,
-            state: "NEW",
-            stlPath: null,
-            pngPath: null,
-            renderLog: null,
-            validationResults: null,
-            executionLogs: JSON.stringify([
-              {
-                timestamp: new Date().toISOString(),
-                event: "CRON_RETRY",
-                message: `Auto-retry attempt ${current.retryCount + 1}/${current.maxRetries} (previous state: ${current.state})`,
-              },
-            ]),
-          },
-        });
-      });
-
-      if (!updated) {
-        skipped++;
-        continue;
-      }
-
-      retried++;
-
-      // Kick off processing asynchronously — fire and forget.
-      // We use fetch to our own endpoint so the cron route stays lightweight.
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      fetch(`${baseUrl}/api/jobs/${job.id}/process`, { method: "POST" }).catch(
-        (err) => {
-          console.error(
-            `Cron: failed to kick off processing for job ${job.id}:`,
-            err
-          );
-        }
-      );
-    } catch (err) {
-      const msg = `Job ${job.id}: ${err instanceof Error ? err.message : "unknown error"}`;
-      errors.push(msg);
-      console.error("Cron retry-failed error:", msg);
+  await Promise.all(failedJobs.map(async (job) => {
+    if (job.retryCount >= job.maxRetries) {
+      skipped++;
+      return;
     }
-  }
-
-  // Count remaining jobs that were skipped due to the limit
+    try {
+      // The authenticated cron invokes the same pipeline directly. Claiming and
+      // incrementing the retry budget happen atomically before any external work.
+      const execution = await claimJobExecution(job, "DEBUGGING", {
+        retryCount: { increment: 1 },
+        executionLogs: appendLog(job.executionLogs, "CRON_RETRY", `Auto-retry attempt ${job.retryCount + 1}/${job.maxRetries}`),
+      });
+      let failure: string | undefined;
+      try {
+        await executeCadJob(job.id, event => {
+          if (["error", "render_failed", "cancelled"].includes(String(event.step))) {
+            failure = String(event.message ?? event.step);
+          }
+        }, execution);
+      } finally {
+        await execution.release();
+      }
+      if (failure) errors.push(`Job ${job.id}: ${failure}`);
+      else retried++;
+    } catch (error) {
+      if (error instanceof JobExecutionConflict) {
+        skipped++;
+      } else {
+        errors.push(`Job ${job.id}: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
+    }
+  }));
   const remaining = await db.job.count({
     where: {
       state: { in: FAILED_STATES },
-      retryCount: { lt: db.job.fields.maxRetries },
     },
   });
   skipped += Math.max(0, remaining - (failedJobs.length - retried - errors.length));

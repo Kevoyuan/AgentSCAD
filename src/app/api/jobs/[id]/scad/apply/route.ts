@@ -1,3 +1,4 @@
+import { claimJobExecution, canProcessJobState, JobExecutionConflict, JobExecutionStopped } from '@/lib/pipeline/job-execution'
 import { NextRequest, NextResponse } from 'next/server'
 import { sanitizeRenderLogForClient, toPublicJob } from '@/lib/public-job'
 import { db } from '@/lib/db'
@@ -85,11 +86,22 @@ export async function POST(
       return NextResponse.json({ error: 'scadSource must be a string' }, { status: 400 })
     }
 
+    if (!canProcessJobState(job.state)) {
+      return NextResponse.json({ error: 'Job is already running' }, { status: 409 })
+    }
+    const execution = await claimJobExecution(job, 'DEBUGGING')
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
       async start(controller) {
+        let streamClosed = false
         function sendEvent(data: Record<string, unknown>) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
+          if (streamClosed) return
+          try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)) } catch { streamClosed = true }
+        }
+        function closeStream() {
+          if (streamClosed) return
+          streamClosed = true
+          try { controller.close() } catch { /* Client disconnected. */ }
         }
 
         try {
@@ -98,7 +110,7 @@ export async function POST(
 
           await trackVersion(id, 'scadSource', job.scadSource, scadSource, 'ai_apply')
 
-          const scadUpdatedJob = await db.job.update({
+          const scadUpdatedJob = await execution.update({
             where: { id },
             data: {
               state: 'SCAD_GENERATED',
@@ -106,6 +118,8 @@ export async function POST(
               stlPath: null,
               pngPath: null,
               renderLog: null,
+              validationResults: null, validationReportJson: null, qualityScore: null,
+              visualRepairReportJson: null, reportPath: null,
               parameterSchema: parameterState.parameterSchema,
               parameterValues: parameterState.parameterValues,
               generationPath: 'manual_scad_apply',
@@ -134,9 +148,10 @@ export async function POST(
           try {
             sendEvent({ state: 'SCAD_GENERATED', step: 'rendering', message: 'Generating STL...' })
             sendEvent({ state: 'SCAD_GENERATED', step: 'rendering', message: 'Generating PNG preview...' })
-            renderedArtifacts = await renderScadArtifacts(id, scadSource)
+            renderedArtifacts = await renderScadArtifacts(id, scadSource, undefined, execution.assertActive)
             clearValidationCache()
           } catch (error) {
+            if (error instanceof JobExecutionStopped) throw error
             const renderError = error instanceof Error ? error.message : 'Unknown OpenSCAD render error'
             const quality = buildJobQuality({
               state: 'GEOMETRY_FAILED',
@@ -145,7 +160,7 @@ export async function POST(
               pngPath: null,
               validationResults: [],
             })
-            const failedJob = await db.job.update({
+            const failedJob = await execution.update({
               where: { id },
               data: {
                 state: 'GEOMETRY_FAILED',
@@ -166,7 +181,7 @@ export async function POST(
               qualityReport: quality.readiness,
               job: toPublicJob(failedJob),
             })
-            controller.close()
+            closeStream()
             return
           }
 
@@ -174,7 +189,7 @@ export async function POST(
             throw new Error('OpenSCAD render did not return artifact paths')
           }
 
-          const renderedJob = await db.job.update({
+          const renderedJob = await execution.update({
             where: { id },
             data: {
               state: 'RENDERED',
@@ -203,6 +218,7 @@ export async function POST(
             step: 'validating',
             message: 'Running mesh and visual design-intent validation...',
           })
+          await execution.assertActive()
           const validationResults = await validateRenderedArtifacts({
             inputRequest: job.inputRequest ?? 'generic part',
             partFamily: job.partFamily,
@@ -221,7 +237,7 @@ export async function POST(
           })
 
           if (criticalFailures.length > 0) {
-            const reviewJob = await db.job.update({
+            const reviewJob = await execution.update({
               where: { id },
               data: {
                 state: 'HUMAN_REVIEW',
@@ -244,11 +260,11 @@ export async function POST(
               qualityReport: quality.readiness,
               job: toPublicJob(reviewJob),
             })
-            controller.close()
+            closeStream()
             return
           }
 
-          const validatedJob = await db.job.update({
+          const validatedJob = await execution.update({
             where: { id },
             data: {
               state: 'VALIDATED',
@@ -276,7 +292,7 @@ export async function POST(
             qualityReport: quality.readiness,
           })
 
-          const finalJob = await db.job.update({
+          const finalJob = await execution.update({
             where: { id },
             data: {
               state: 'DELIVERED',
@@ -291,12 +307,24 @@ export async function POST(
             message: 'Applied SCAD saved, rendered, and delivered.',
             job: toPublicJob(finalJob),
           })
-          controller.close()
+          closeStream()
         } catch (error) {
+          if (error instanceof JobExecutionStopped) {
+            sendEvent({ step: 'cancelled', state: 'CANCELLED', message: error.message })
+            return
+          }
+          try {
+            await execution.update({ data: { state: 'HUMAN_REVIEW', completedAt: null } })
+          } catch (recoveryError) {
+            if (!(recoveryError instanceof JobExecutionStopped)) console.error('Apply recovery failed:', recoveryError)
+          }
           console.error('Apply SCAD error:', error)
           const message = error instanceof Error ? error.message : 'Failed to apply SCAD source'
           sendEvent({ type: 'error', message })
-          controller.close()
+          closeStream()
+        } finally {
+          await execution.release()
+          closeStream()
         }
       },
     })
@@ -309,6 +337,7 @@ export async function POST(
       },
     })
   } catch (error) {
+    if (error instanceof JobExecutionConflict) return NextResponse.json({ error: error.message }, { status: 409 })
     console.error('Apply SCAD route error:', error)
     return NextResponse.json({ error: 'Failed to apply SCAD source' }, { status: 500 })
   }

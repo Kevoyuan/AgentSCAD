@@ -1,3 +1,4 @@
+import { claimJobExecution, JobExecutionConflict, JobExecutionStopped } from "@/lib/pipeline/job-execution";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
@@ -84,6 +85,7 @@ export async function POST(
       );
     }
 
+    const execution = await claimJobExecution(job, "DEBUGGING");
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
@@ -111,15 +113,16 @@ export async function POST(
         }
 
         try {
-          await executeCadJob(id, sendEvent);
+          await executeCadJob(id, sendEvent, execution);
         } catch (error) {
           console.error("Error starting job processing:", error);
           sendEvent({
-            state: "GEOMETRY_FAILED",
-            step: "error",
+            state: error instanceof JobExecutionStopped ? "CANCELLED" : "GEOMETRY_FAILED",
+            step: error instanceof JobExecutionStopped ? "cancelled" : "error",
             message: `Processing failed: ${error instanceof Error ? error.message : "Unknown error"}`,
           });
         } finally {
+          await execution.release();
           closeStream();
         }
       },
@@ -133,6 +136,7 @@ export async function POST(
       },
     });
   } catch (error) {
+    if (error instanceof JobExecutionConflict) return NextResponse.json({ error: error.message }, { status: 409 });
     console.error("Error starting job processing:", error);
     return NextResponse.json(
       { error: "Failed to start job processing" },

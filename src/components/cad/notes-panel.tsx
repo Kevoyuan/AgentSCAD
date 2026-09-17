@@ -65,7 +65,7 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
       .replace(/'/g, '&#039;')
   }
 
-  // Simple markdown-like preview — applied after HTML escaping
+  // Simple markdown-like preview: applied after HTML escaping
   const renderPreview = (text: string) => {
     return escapeHtml(text)
       .replace(/^### (.+)$/gm, '<h3 class="text-sm font-semibold text-[var(--app-text-secondary)] mt-2 mb-1">$1</h3>')

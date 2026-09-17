@@ -1,7 +1,8 @@
+import { claimJobExecution, JobExecutionConflict, JobExecutionStopped, type JobExecution } from "@/lib/pipeline/job-execution";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
-import { appendLog, incrementRetryCount } from "@/lib/stores/job-store";
+import { appendLog } from "@/lib/stores/job-store";
 import { runRepair } from "@/lib/repair/repair-controller";
 import {
   buildRenderFailureLog,
@@ -34,6 +35,7 @@ export async function POST(
   request: Request,
   { params }: RouteParams
 ) {
+  let execution: JobExecution | undefined;
   try {
     const access = await getJobAccessScope(request);
     if (!access) {
@@ -90,8 +92,9 @@ export async function POST(
       // continue without intent
     }
 
-    // Set job to REPAIRING state
-    await db.job.update({
+    // Claim before any model calls; all later writes must still own the run.
+    execution = await claimJobExecution(job, "REPAIRING");
+    await execution.update({
       where: { id },
       data: {
         state: "REPAIRING",
@@ -100,7 +103,8 @@ export async function POST(
     });
 
     // Run repair
-    const retryRound = await incrementRetryCount(id);
+    const retryRound = (await execution.update({ data: { retryCount: { increment: 1 } } })).retryCount;
+    await execution.assertActive();
     const { generationResult: repaired, repairMeta } = await runRepair({
       originalRequest: job.inputRequest,
       partFamily: job.partFamily || "unknown",
@@ -121,7 +125,7 @@ export async function POST(
     let pngFilePath: string | null = null;
 
     try {
-      const artifacts = await renderScadArtifacts(id, sanitized);
+      const artifacts = await renderScadArtifacts(id, sanitized, undefined, execution.assertActive);
       clearValidationCache();
       stlPath = artifacts.stlPath;
       pngPath = artifacts.pngPath;
@@ -130,6 +134,7 @@ export async function POST(
       renderLog = artifacts.renderLog;
       renderSucceeded = true;
     } catch (renderError) {
+      if (renderError instanceof JobExecutionStopped) throw renderError;
       const errMsg = renderError instanceof Error ? renderError.message : "Unknown render error";
       const quality = buildJobQuality({
         state: "GEOMETRY_FAILED",
@@ -138,7 +143,7 @@ export async function POST(
         pngPath: null,
         validationResults: [],
       });
-      await db.job.update({
+      await execution.update({
         where: { id },
         data: {
           state: "GEOMETRY_FAILED",
@@ -167,6 +172,7 @@ export async function POST(
     // Re-validate using artifacts from the render above
     let revalidationResults: import("@/lib/mesh-validator").ValidationResult[] = [];
     if (renderSucceeded && stlFilePath) {
+      await execution.assertActive();
       revalidationResults = await validateRenderedArtifacts({
         inputRequest: job.inputRequest,
         partFamily: job.partFamily,
@@ -207,7 +213,7 @@ export async function POST(
     repairHistory.push(repairEntry);
 
     if (criticalFailures.length > 0) {
-      await db.job.update({
+      await execution.update({
         where: { id },
         data: {
           state: "HUMAN_REVIEW",
@@ -252,7 +258,7 @@ export async function POST(
     }
 
     // Repair succeeded — complete the same end-to-end delivery path as the pipeline.
-    await db.job.update({
+    await execution.update({
       where: { id },
       data: {
         state: "DELIVERED",
@@ -297,8 +303,24 @@ export async function POST(
       reason: repairMeta.repair_summary,
     });
   } catch (error) {
+    if (error instanceof JobExecutionConflict || error instanceof JobExecutionStopped) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    if (execution) {
+      try {
+        await execution.update({ data: {
+          state: "HUMAN_REVIEW", completedAt: null,
+          validationResults: null, validationReportJson: null, qualityScore: null,
+          visualRepairReportJson: null,
+        } });
+      } catch (recoveryError) {
+        if (!(recoveryError instanceof JobExecutionStopped)) console.error("Repair recovery failed", recoveryError);
+      }
+    }
     console.error("Repair error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: `Failed to repair job: ${message}` }, { status: 500 });
+  } finally {
+    await execution?.release();
   }
 }

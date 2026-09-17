@@ -98,7 +98,7 @@ function AnimatedCounter({
   }, [value, duration])
 
   return (
-    <span className={`tabular-nums ${className}`} aria-live="polite" aria-atomic="true">
+    <span className={`font-mono tabular-nums ${className}`} aria-live="polite" aria-atomic="true">
       {prefix}
       {decimals > 0 ? display.toFixed(decimals) : Math.round(display)}
       {suffix}
@@ -112,7 +112,7 @@ function ProgressRing({
   value,
   size = 80,
   strokeWidth = 5,
-  color = '#8b5cf6',
+  color = '#5e6ad2',
   label,
   sublabel,
 }: {
@@ -155,26 +155,9 @@ function ProgressRing({
           animate={{ strokeDashoffset: offset }}
           transition={{ duration: 1.5, ease: [0.25, 0.46, 0.45, 0.94] }}
         />
-        {/* Glow effect */}
-        <motion.circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth={strokeWidth + 4}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          opacity={0.15}
-          filter="blur(3px)"
-          initial={{ strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 1.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-        />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-lg font-semibold text-[var(--app-text-primary)] tabular-nums">
+        <span className="text-lg font-semibold font-mono text-[var(--app-text-primary)] tabular-nums">
           <AnimatedCounter value={value} decimals={0} />
           <span className="text-xs text-[var(--app-text-muted)]">%</span>
         </span>
@@ -360,7 +343,7 @@ function StateDistributionBar({ jobsByState }: { jobsByState: Record<string, num
               <span className="text-xs font-mono text-[var(--app-text-muted)] tracking-wider uppercase">
                 {seg.state.replace(/_/g, ' ')}
               </span>
-              <span className="text-[13px] text-[var(--app-text-muted)] tabular-nums">{seg.count}</span>
+              <span className="text-[13px] font-mono text-[var(--app-text-muted)] tabular-nums">{seg.count}</span>
             </div>
           )
         })}
@@ -710,13 +693,13 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
           <div className="text-2xl font-mono font-bold tracking-tighter text-[var(--app-text-primary)] tabular-nums">
             <AnimatedCounter value={stats.totalJobs} />
           </div>
-          <div className="text-[13px] text-[var(--app-text-dim)] mt-0.5 tabular-nums">
+          <div className="text-[13px] font-mono text-[var(--app-text-dim)] mt-0.5 tabular-nums">
             <AnimatedCounter value={stats.jobsCreatedToday} /> today
           </div>
         </StatCard>
 
         <StatCard icon={Clock} label="Avg Time">
-          <div className="text-xl font-mono font-bold tracking-tighter text-cyan-400 tabular-nums">
+          <div className="text-xl font-mono font-bold tracking-tighter text-cyan-700 dark:text-cyan-400 tabular-nums">
             {formatDuration(stats.avgProcessingTimeMs)}
           </div>
           <div className="text-[13px] text-[var(--app-text-dim)] mt-0.5">
@@ -769,7 +752,7 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
               Activity (24h)
             </span>
           </div>
-          <span className="text-[13px] text-[var(--app-text-muted)] tabular-nums">
+          <span className="text-[13px] font-mono text-[var(--app-text-muted)] tabular-nums">
             {stats.recentActivity.reduce((a, b) => a + b.count, 0)} jobs
           </span>
         </div>

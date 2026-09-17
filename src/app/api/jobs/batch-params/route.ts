@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getJobAccessScope, jobAccessFilter } from '@/lib/job-session'
-import { trackVersion } from '@/lib/version-tracker'
+import { updateJobParameters } from '@/lib/pipeline/update-job-parameters'
+
+export const maxDuration = 300
 
 /**
  * PATCH /api/jobs/batch-params
@@ -37,46 +39,21 @@ export async function PATCH(request: NextRequest) {
     const success: string[] = []
     const failed: string[] = []
 
-    for (const jobId of jobIds) {
+    await Promise.all([...new Set(jobIds)].map(async (jobId) => {
       try {
         const job = await db.job.findFirst({ where: { id: jobId, ...accessFilter } })
         if (!job) {
           failed.push(jobId)
-          continue
+          return
         }
 
-        // Parse existing parameter values
-        let currentValues: Record<string, unknown> = {}
-        if (job.parameterValues) {
-          try {
-            currentValues = JSON.parse(job.parameterValues)
-          } catch {
-            currentValues = {}
-          }
-        }
-
-        // Apply new values
-        const oldValues = { ...currentValues }
-        for (const [key, value] of Object.entries(parameterValues)) {
-          currentValues[key] = value
-        }
-
-        // Track version history
-        await trackVersion(jobId, 'parameters', JSON.stringify(oldValues), JSON.stringify(currentValues))
-
-        // Update the job
-        await db.job.update({
-          where: { id: jobId },
-          data: {
-            parameterValues: JSON.stringify(currentValues),
-          },
-        })
+        await updateJobParameters(job, parameterValues)
 
         success.push(jobId)
       } catch {
         failed.push(jobId)
       }
-    }
+    }))
 
     return NextResponse.json({ results: { success, failed } })
   } catch (error) {
