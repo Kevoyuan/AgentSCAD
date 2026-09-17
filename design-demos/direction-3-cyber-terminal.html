@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentSCAD · Direction 3: Linear × Blender Cyber Terminal</title>
+<style>
+  :root {
+    --bg-base: #06080b;
+    --bg-surface: #0c1015;
+    --bg-surface-raised: #121820;
+    --border-subtle: #1c2430;
+    --border-accent: #2c384a;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-tertiary: #475569;
+    --accent-linear: #5e6ad2;
+    --accent-cyan: #00f2fe;
+    --accent-amber: #f59e0b;
+    --accent-emerald: #10b981;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Geist", "Inter", sans-serif;
+    font-size: 12px;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+  .mono { font-family: "Geist Mono", "SF Mono", Menlo, Consolas, monospace; }
+
+  /* 顶部命令行与拓扑管道条 */
+  header.terminal-header {
+    height: 40px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    gap: 16px;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .terminal-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: -0.01em;
+  }
+  .logo-icon {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--accent-cyan);
+    border-radius: 3px;
+  }
+  .crumb-slash {
+    color: var(--text-tertiary);
+  }
+  .crumb-item {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* 居中搜索 / 命令输入框 (Raycast Style) */
+  .cmd-bar-container {
+    flex: 1;
+    max-width: 540px;
+    position: relative;
+  }
+  .cmd-bar {
+    width: 100%;
+    height: 28px;
+    background: #080b0f;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+  .cmd-bar input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #fff;
+    width: 100%;
+    font-size: 12px;
+  }
+  .cmd-kbd {
+    font-size: 10px;
+    background: var(--bg-surface-raised);
+    border: 1px solid var(--border-subtle);
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: var(--text-tertiary);
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .terminal-btn {
+    height: 26px;
+    background: var(--bg-surface-raised);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 0 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.1s;
+  }
+  .terminal-btn:hover {
+    background: #1a222c;
+    border-color: var(--border-accent);
+  }
+  .terminal-btn.accent {
+    background: #18223c;
+    border-color: #3b579d;
+    color: #8bb2ff;
+  }
+
+  /* 工作区主体 */
+  .terminal-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 240px 1fr 340px;
+    background: var(--bg-base);
+    overflow: hidden;
+  }
+
+  /* 左侧：CSG 几何结构树与对象大纲 */
+  .left-tree-panel {
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-title-bar {
+    height: 32px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-tertiary);
+    letter-spacing: 0.08em;
+  }
+  .tree-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 4px;
+    font-size: 11px;
+  }
+  .tree-node {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-secondary);
+  }
+  .tree-node:hover {
+    background: var(--bg-surface-raised);
+    color: #fff;
+  }
+  .tree-node.active {
+    background: rgba(0, 242, 254, 0.08);
+    color: var(--accent-cyan);
+    font-weight: 600;
+  }
+  .tree-indent {
+    width: 14px;
+  }
+  .node-type {
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 2px;
+    background: #16202c;
+    color: var(--text-secondary);
+  }
+
+  /* 中央：分屏视口 (3D View + Live SCAD Code) */
+  .center-split {
+    display: grid;
+    grid-template-rows: 1fr 200px;
+    position: relative;
+    border-right: 1px solid var(--border-subtle);
+  }
+  .canvas-stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, #111722 0%, #06080b 100%);
+    overflow: hidden;
+  }
+  #terminal-three-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .stage-tag-strip {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    display: flex;
+    gap: 6px;
+    z-index: 10;
+  }
+  .stage-tag {
+    background: rgba(12, 16, 21, 0.85);
+    border: 1px solid var(--border-subtle);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+  .code-drawer {
+    background: #080a0e;
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+  }
+  .code-header {
+    height: 28px;
+    background: #0d1218;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    font-size: 10px;
+    color: var(--text-tertiary);
+  }
+  .code-content {
+    flex: 1;
+    padding: 10px 14px;
+    overflow-y: auto;
+    font-size: 11px;
+    line-height: 1.6;
+    color: #cbd5e1;
+  }
+
+  /* 右侧：检查器与遥测矩阵 */
+  .right-inspector {
+    background: var(--bg-surface);
+    display: flex;
+    flex-direction: column;
+  }
+  .inspector-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .param-tile {
+    background: #080b0f;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 10px;
+  }
+  .param-tile-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .param-tile-val {
+    color: var(--accent-cyan);
+    font-weight: 600;
+  }
+  .cyber-slider {
+    width: 100%;
+    height: 4px;
+    background: #1e2836;
+    border-radius: 2px;
+    position: relative;
+    cursor: pointer;
+  }
+  .cyber-slider-bar {
+    height: 100%;
+    background: var(--accent-cyan);
+    width: 65%;
+  }
+
+  /* 底部状态条 */
+  footer.terminal-footer {
+    height: 24px;
+    background: #080a0e;
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+</style>
+</head>
+<body>
+
+  <!-- 顶部控制台 -->
+  <header class="terminal-header">
+    <div class="header-left">
+      <div class="terminal-logo">
+        <div class="logo-icon"></div>
+        <span>AgentSCAD</span>
+      </div>
+      <span class="crumb-slash">/</span>
+      <span class="crumb-item mono">Electronics-Enclosure</span>
+    </div>
+
+    <!-- 命令行输入 -->
+    <div class="cmd-bar-container">
+      <div class="cmd-bar mono">
+        <span style="color:var(--accent-cyan);">❯</span>
+        <input type="text" value="Add ventilation slots on top surface with 2mm pitch..." />
+        <span class="cmd-kbd">↵ Enter</span>
+      </div>
+    </div>
+
+    <div class="header-right mono">
+      <button class="terminal-btn">Diff</button>
+      <button class="terminal-btn accent">Rebuild (⌘R)</button>
+      <button class="terminal-btn">Export STL</button>
+    </div>
+  </header>
+
+  <!-- 工作区 -->
+  <main class="terminal-body">
+    
+    <!-- 左：CSG 拓扑大纲 -->
+    <aside class="left-tree-panel">
+      <div class="panel-title-bar mono">
+        <span>GEOMETRY HIERARCHY</span>
+        <span>CSG</span>
+      </div>
+      <div class="tree-list mono">
+        <div class="tree-node active">
+          <span>▼</span>
+          <span class="node-type">DIFF</span>
+          <span>main_enclosure()</span>
+        </div>
+        <div class="tree-node" style="padding-left: 22px;">
+          <span>▼</span>
+          <span class="node-type">UNION</span>
+          <span>outer_body()</span>
+        </div>
+        <div class="tree-node" style="padding-left: 36px;">
+          <span>•</span>
+          <span class="node-type">CUBE</span>
+          <span>base_hull</span>
+        </div>
+        <div class="tree-node" style="padding-left: 36px;">
+          <span>•</span>
+          <span class="node-type">CYL</span>
+          <span>corner_fillets</span>
+        </div>
+        <div class="tree-node" style="padding-left: 22px;">
+          <span>▼</span>
+          <span class="node-type">SUB</span>
+          <span>inner_cavity()</span>
+        </div>
+        <div class="tree-node" style="padding-left: 36px;">
+          <span>•</span>
+          <span class="node-type">HOLE</span>
+          <span>m3_posts × 4</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 中：3D 渲染与实时代码分屏 -->
+    <section class="center-split">
+      <div class="canvas-stage" id="canvas-wrapper">
+
+        <!-- 赛博终端 3D 拓扑结构线框与实体 -->
+        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:4;">
+          <svg width="560" height="300" viewBox="0 0 560 300" style="overflow:visible;">
+            <!-- 地面透视网格 -->
+            <g stroke="#141c26" stroke-width="1">
+              <line x1="80" y1="200" x2="280" y2="280" />
+              <line x1="140" y1="170" x2="340" y2="250" />
+              <line x1="200" y1="140" x2="400" y2="220" />
+              <line x1="480" y1="200" x2="280" y2="280" />
+              <line x1="420" y1="170" x2="220" y2="250" />
+            </g>
+            <!-- 几何实体 -->
+            <polygon points="280,80 410,140 280,200 150,140" fill="#1b2430" stroke="#00f2fe" stroke-width="1.5" />
+            <polygon points="150,140 280,200 280,250 150,190" fill="#131922" stroke="#2a384a" stroke-width="1.5" />
+            <polygon points="280,200 410,140 410,190 280,250" fill="#0d1117" stroke="#222d3b" stroke-width="1.5" />
+            <!-- 内部差集腔体 -->
+            <polygon points="280,100 380,145 280,190 180,145" fill="#090d12" stroke="#38495f" stroke-dasharray="2,2" stroke-width="1" />
+            
+            <!-- 坐标轴指示 -->
+            <line x1="280" y1="200" x2="340" y2="225" stroke="#ef4444" stroke-width="2" />
+            <text x="345" y="230" fill="#ef4444" font-family="'Geist Mono', monospace" font-size="10">X</text>
+            <line x1="280" y1="200" x2="220" y2="225" stroke="#10b981" stroke-width="2" />
+            <text x="210" y="230" fill="#10b981" font-family="'Geist Mono', monospace" font-size="10">Y</text>
+            <line x1="280" y1="200" x2="280" y2="140" stroke="#3b82f6" stroke-width="2" />
+            <text x="285" y="135" fill="#3b82f6" font-family="'Geist Mono', monospace" font-size="10">Z</text>
+          </svg>
+        </div>
+
+        <div class="stage-tag-strip mono">
+          <span class="stage-tag">BBOX: 120 × 80 × 32 mm</span>
+          <span class="stage-tag" style="color:var(--accent-emerald);">MANIFOLD: OK</span>
+        </div>
+        <canvas id="terminal-three-canvas"></canvas>
+      </div>
+
+      <!-- 下方实时代码抽屉 -->
+      <div class="code-drawer mono">
+        <div class="code-header">
+          <span>SOURCE: model.scad</span>
+          <span>OPENSCAD 2026 WASM</span>
+        </div>
+        <div class="code-content">
+<pre>// Auto-generated Parametric Specification
+width = 120.0;     // [50:1:200]
+depth = 80.0;      // [40:1:150]
+height = 32.0;     // [10:1:80]
+wall = 2.5;        // [1.2:0.1:5.0]
+
+difference() {
+    rounded_box([width, depth, height], r=6);
+    translate([wall, wall, wall])
+        rounded_box([width-2*wall, depth-2*wall, height], r=4);
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右：制造检验与参数 -->
+    <aside class="right-inspector">
+      <div class="panel-title-bar mono">
+        <span>PARAMETERS &amp; QUALITY</span>
+        <span style="color:var(--accent-emerald);">READY</span>
+      </div>
+
+      <div class="inspector-body">
+        
+        <div class="param-tile mono">
+          <div class="param-tile-head">
+            <span style="color:var(--text-secondary);">WIDTH</span>
+            <span class="param-tile-val">120.0 mm</span>
+          </div>
+          <div class="cyber-slider">
+            <div class="cyber-slider-bar" style="width: 60%;"></div>
+          </div>
+        </div>
+
+        <div class="param-tile mono">
+          <div class="param-tile-head">
+            <span style="color:var(--text-secondary);">DEPTH</span>
+            <span class="param-tile-val">80.0 mm</span>
+          </div>
+          <div class="cyber-slider">
+            <div class="cyber-slider-bar" style="width: 50%;"></div>
+          </div>
+        </div>
+
+        <div class="param-tile mono">
+          <div class="param-tile-head">
+            <span style="color:var(--text-secondary);">WALL THICKNESS</span>
+            <span class="param-tile-val">2.5 mm</span>
+          </div>
+          <div class="cyber-slider">
+            <div class="cyber-slider-bar" style="width: 45%;"></div>
+          </div>
+        </div>
+
+        <!-- 制造质检清单 -->
+        <div style="background:#080b0f; border:1px solid var(--border-subtle); border-radius:6px; padding:12px;" class="mono">
+          <div style="color:var(--text-tertiary); font-size:10px; margin-bottom:8px;">MANUFACTURING HARNESS</div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <span style="color:var(--text-secondary);">C001 Syntax Compile</span>
+            <span style="color:var(--accent-emerald);">PASS</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <span style="color:var(--text-secondary);">R003 Watertight Mesh</span>
+            <span style="color:var(--accent-emerald);">PASS</span>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <span style="color:var(--text-secondary);">B001 Dimension Target</span>
+            <span style="color:var(--accent-emerald);">±0.1mm</span>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- 底部状态条 -->
+  <footer class="terminal-footer mono">
+    <div>AGENTSCAD_PRO // CLUSTER: LOCAL // MEM: 38MB</div>
+    <div>SAVED · REV 04 · OPENSCAD COMPILED (142ms)</div>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    const container = document.getElementById('canvas-wrapper');
+    const canvas = document.getElementById('terminal-three-canvas');
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(150, 110, 160);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    const amb = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(amb);
+
+    const light1 = new THREE.DirectionalLight(0xffffff, 0.9);
+    light1.position.set(100, 150, 80);
+    scene.add(light1);
+
+    const light2 = new THREE.DirectionalLight(0x00f2fe, 0.4);
+    light2.position.set(-100, -80, -100);
+    scene.add(light2);
+
+    const grid = new THREE.GridHelper(260, 26, 0x2c384a, 0x141a22);
+    grid.position.y = -20;
+    scene.add(grid);
+
+    // 模型
+    const geom = new THREE.BoxGeometry(120, 32, 80);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x1e2733,
+      metalness: 0.4,
+      roughness: 0.3
+    });
+    const mesh = new THREE.Mesh(geom, mat);
+    scene.add(mesh);
+
+    const wireGeom = new THREE.WireframeGeometry(geom);
+    const wire = new THREE.LineSegments(wireGeom, new THREE.LineBasicMaterial({ color: 0x00f2fe, transparent: true, opacity: 0.4 }));
+    mesh.add(wire);
+
+    camera.lookAt(0, 0, 0);
+
+    let isDragging = false;
+    let prevMouse = { x: 0, y: 0 };
+    let rotY = 0.5;
+
+    container.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      prevMouse = { x: e.clientX, y: e.clientY };
+    });
+    window.addEventListener('mouseup', () => isDragging = false);
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      rotY += (e.clientX - prevMouse.x) * 0.007;
+      prevMouse = { x: e.clientX, y: e.clientY };
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!isDragging) rotY += 0.002;
+      mesh.rotation.y = rotY;
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+  </script>
+</body>
+</html>

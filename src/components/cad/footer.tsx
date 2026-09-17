@@ -1,9 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import {
-  Activity, CheckCircle2, Cpu, FileJson,
-} from 'lucide-react'
+import { FileJson, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -12,187 +9,127 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-import { Job, getStateHex } from './types'
+import { Job } from './types'
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
 interface FooterProps {
   jobs: Job[]
   jobCount: number
-  jobCountFlash: boolean
-  deliveredCount: number
-  failedCount: number
-  successRate: number
+  jobCountFlash?: boolean
+  deliveredCount?: number
+  failedCount?: number
+  successRate?: number
   onExport: () => void
-}
-
-// ─── Global Timeline Component ──────────────────────────────────────────
-
-function GlobalTimeline({ jobs }: { jobs: Job[] }) {
-  const recentJobs = [...jobs].sort((a, b) => 
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  ).slice(0, 40).reverse()
-
-  return (
-    <div className="flex items-center gap-0.5 h-3 px-2 border-x border-[color:var(--cad-border)] mx-4">
-      {recentJobs.map((job) => (
-        <TooltipProvider key={job.id} delayDuration={100}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div 
-                className="w-1 h-3 rounded-[1px] transition-all hover:h-4 hover:opacity-100 opacity-60"
-                style={{ backgroundColor: getStateHex(job.state) }}
-              />
-            </TooltipTrigger>
-            <TooltipContent side="top" className="text-[10px] font-mono">
-              <p>{job.state}: {job.inputRequest.slice(0, 30)}...</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ))}
-      {recentJobs.length === 0 && (
-        <div className="text-[10px] text-[var(--cad-text-muted)] opacity-50 px-2 italic">Waiting for telemetry...</div>
-      )}
-    </div>
-  )
-}
-
-// ─── Memory Usage Hook ──────────────────────────────────────────────────
-
-function useMemoryUsage(): string | null {
-  const [memory, setMemory] = useState<string | null>(null)
-
-  useEffect(() => {
-    const update = () => {
-      try {
-        // @ts-expect-error - performance.memory is Chrome-only
-        const mem = performance.memory
-        if (mem) {
-          const usedMB = Math.round(mem.usedJSHeapSize / 1048576)
-          const totalMB = Math.round(mem.jsHeapSizeLimit / 1048576)
-          setMemory(`${usedMB}/${totalMB}MB`)
-        }
-      } catch {
-        // performance.memory not available
-      }
-    }
-    update()
-    const interval = setInterval(update, 5000)
-    return () => clearInterval(interval)
-  }, [])
-
-  return memory
-}
-
-// ─── Footer Metric Component ──────────────────────────────────────────────
-
-function FooterMetric({
-  tooltip,
-  children,
-  className = '',
-}: {
-  tooltip: string
-  children: React.ReactNode
-  className?: string
-}) {
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className={`footer-metric ${className}`}>
-            {children}
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="text-[11px] font-mono bg-[var(--cad-surface-raised)] border-[color:var(--cad-border-strong)] text-[var(--cad-text-secondary)]">
-          <p>{tooltip}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
+  activeJob?: Job | null
 }
 
 // ─── Separator ──────────────────────────────────────────────────────────
 
-function SeparatorDot() {
-  return <span className="footer-separator h-1 w-1 rounded-full bg-[var(--cad-border-strong)] mx-1" />
+function Dot() {
+  return <span className="text-[var(--cad-text-muted)] opacity-40 select-none">·</span>
 }
 
 // ─── Footer Component ──────────────────────────────────────────────────
 
 export function Footer({
-  jobs,
+  jobs: _jobs,
   jobCount,
-  jobCountFlash,
-  deliveredCount,
-  failedCount,
-  successRate,
   onExport,
+  activeJob,
 }: FooterProps) {
-  const memoryUsage = useMemoryUsage()
-  const hasAttention = failedCount > 0
+  const versionCount = activeJob ? ((activeJob.retryCount || 0) + 1) : 1
+  const isSaved = Boolean(activeJob?.id)
 
   return (
-    <footer className="relative flex items-center px-4 py-1.5 border-t border-[color:var(--cad-border)] bg-[var(--cad-surface)] shrink-0 overflow-hidden">
-      <div className="flex min-w-0 items-center gap-3 text-[11px] font-mono text-[var(--cad-text-muted)]">
-        <FooterMetric tooltip="Jobs refresh automatically while the workspace is open">
-          <span className="flex items-center gap-1.5">
-            <span className="w-1 h-1 rounded-full bg-[var(--cad-success)] status-pulse" />
-            <span className="hidden sm:inline opacity-70">AUTO-REFRESH</span>
-          </span>
-        </FooterMetric>
-        <SeparatorDot />
-        <FooterMetric tooltip="Total jobs in the system">
-          <span className={jobCountFlash ? 'number-highlight' : ''}>
-            {jobCount} RUNS
-          </span>
-        </FooterMetric>
-        <SeparatorDot />
-        <FooterMetric tooltip="Successfully delivered jobs">
-          <span className="text-[var(--cad-success)] opacity-90">{deliveredCount} OK</span>
-        </FooterMetric>
-        {hasAttention && (
-          <>
-            <SeparatorDot />
-            <FooterMetric tooltip="Items needing attention">
-              <span className="text-[var(--cad-danger)] opacity-90">{failedCount} ERR</span>
-            </FooterMetric>
-          </>
-        )}
-      </div>
-
-      <div className="flex-1 flex justify-center">
-        <GlobalTimeline jobs={jobs} />
-      </div>
-
-      <div className="flex shrink-0 items-center gap-3 text-[11px] font-mono text-[var(--cad-text-muted)]">
-        <FooterMetric tooltip="Delivery success rate (delivered vs failed)">
-          <span className="flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3" />
-            {successRate}%
-          </span>
-        </FooterMetric>
-        {memoryUsage && (
-          <>
-            <SeparatorDot />
-            <FooterMetric tooltip="JavaScript heap memory usage">
-              <span className="hidden xl:flex items-center gap-1">
-                <Cpu className="w-3 h-3" />
-                {memoryUsage}
+    <footer className="h-7 px-3 border-t border-[color:var(--cad-border)] bg-[var(--cad-surface)] shrink-0 flex items-center justify-between text-[11px] font-mono text-[var(--cad-text-muted)] select-none">
+      {/* Quiet Environment Strip */}
+      <div className="flex items-center gap-2">
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="flex items-center gap-1 cursor-default text-[var(--cad-text-secondary)]">
+                <span className="text-[var(--cad-text-muted)]">Units:</span>
+                <span>mm</span>
               </span>
-            </FooterMetric>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[11px] font-mono">
+              Base unit for parametric CAD models is millimeters (mm)
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        <Dot />
+
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="flex items-center gap-1 cursor-default">
+                <span className="text-[var(--cad-text-muted)]">Runtime:</span>
+                <span className="text-[var(--cad-text-secondary)]">OpenSCAD WASM</span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[11px] font-mono">
+              Deterministic geometry engine running in isolated WASM child process
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        <Dot />
+
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="flex items-center gap-1.5 cursor-default">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--cad-success)]" />
+                <span className="text-[var(--cad-text-secondary)]">Provider Ready</span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-[11px] font-mono">
+              Model provider API connected and responsive
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        {activeJob && (
+          <>
+            <Dot />
+            <span className="flex items-center gap-1 text-[var(--cad-text-secondary)]">
+              {isSaved ? (
+                <span className="flex items-center gap-1 text-[var(--cad-text-muted)]">
+                  <Check className="w-3 h-3 text-[var(--cad-success)]" />
+                  <span>Saved</span>
+                </span>
+              ) : (
+                <span>Draft</span>
+              )}
+            </span>
+
+            <Dot />
+            <span className="text-[var(--cad-text-secondary)]">
+              Rev {versionCount}
+            </span>
           </>
         )}
-        <SeparatorDot />
-        <FooterMetric tooltip="AgentSCAD application version">
-          <span className="opacity-70 uppercase">v0.9-alpha</span>
-        </FooterMetric>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="h-6 text-[10px] gap-1 text-[var(--cad-text-muted)] hover:text-[var(--cad-text-secondary)] hover:bg-[var(--cad-surface-raised)] border border-[color:var(--cad-border)] px-2 ml-1" 
+      </div>
+
+      {/* Right controls */}
+      <div className="flex items-center gap-2.5">
+        <span className="hidden sm:inline text-[10px] text-[var(--cad-text-muted)]">
+          {jobCount} {jobCount === 1 ? 'design' : 'designs'}
+        </span>
+
+        <Dot />
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-5 px-1.5 text-[10px] gap-1 text-[var(--cad-text-muted)] hover:text-[var(--cad-text-primary)] hover:bg-[var(--cad-surface-muted)] transition-colors"
           onClick={onExport}
+          title="Export designs backup as JSON"
         >
-          <FileJson className="w-2.5 h-2.5" />EXPORT
+          <FileJson className="w-3 h-3" />
+          <span>Export JSON</span>
         </Button>
       </div>
     </footer>

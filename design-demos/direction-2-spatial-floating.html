@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentSCAD · Direction 2: Shapr3D × Spatial Floating Canvas (Neutral Titanium & Amber Edition)</title>
+<style>
+  :root {
+    --canvas-bg: #0A0D10;
+    --glass-bg: rgba(18, 22, 28, 0.76);
+    --glass-border: rgba(255, 255, 255, 0.09);
+    --glass-glow: rgba(0, 0, 0, 0.6);
+    --accent-amber: #F59E0B;
+    --accent-amber-hover: #FBBF24;
+    --accent-emerald: #10B981;
+    --accent-titanium: #E2E8F0;
+    --text-pure: #F8FAFC;
+    --text-sub: #94A3B8;
+    --text-faint: #525D6E;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--canvas-bg);
+    color: var(--text-pure);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    position: relative;
+    user-select: none;
+  }
+  .mono { font-family: "SF Mono", "Geist Mono", Menlo, Consolas, monospace; }
+
+  /* 100% 全屏无界 3D 画布容器 (消除一切蓝紫色调，采用中性黑曜石与深碳石墨) */
+  #viewport-canvas-container {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    background: radial-gradient(circle at 50% 45%, #15181F 0%, #080A0D 100%);
+  }
+  canvas#three-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* 悬浮磨砂玻璃通用样式 (极细腻毛玻璃与高微光微边框) */
+  .glass-island {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    position: absolute;
+    z-index: 20;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* 1. 左上角：设计切换胶囊 (Design Switcher Island) */
+  .island-brand {
+    top: 20px;
+    left: 20px;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .brand-logo-gem {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 13px;
+    color: #0A0D10;
+  }
+  .brand-meta {
+    display: flex;
+    flex-direction: column;
+  }
+  .brand-name {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .brand-desc {
+    font-size: 10px;
+    color: var(--text-sub);
+  }
+  .island-pill-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .island-pill-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  /* 2. 顶部正中：流动阶段指示药丸 (Flow Step Capsule) */
+  .island-pipeline {
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .step-node {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-faint);
+  }
+  .step-node.completed {
+    color: var(--text-sub);
+  }
+  .step-node.active {
+    color: #fff;
+  }
+  .step-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-faint);
+  }
+  .step-node.active .step-dot {
+    background: var(--accent-amber);
+    box-shadow: 0 0 8px var(--accent-amber);
+  }
+  .step-arrow {
+    color: rgba(255, 255, 255, 0.15);
+    font-size: 9px;
+  }
+
+  /* 3. 右侧：参数微调浮动岛 (Parametric Floater) */
+  .island-inspector {
+    top: 20px;
+    right: 20px;
+    width: 320px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .island-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 10px;
+  }
+  .head-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .head-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: rgba(16, 185, 129, 0.12);
+    color: #10B981;
+    border: 1px solid rgba(16, 185, 129, 0.28);
+    font-weight: 600;
+  }
+
+  /* 流畅轻奢滑块 (温暖琥珀与钛合金微光) */
+  .param-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .param-label-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+  }
+  .param-title {
+    color: var(--text-sub);
+    font-weight: 500;
+  }
+  .param-value-box {
+    font-family: "SF Mono", monospace;
+    color: #fff;
+    font-weight: 600;
+    font-size: 12px;
+  }
+  .soft-slider-track {
+    height: 7px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    position: relative;
+    cursor: pointer;
+  }
+  .soft-slider-fill {
+    height: 100%;
+    background: var(--accent-amber);
+    border-radius: 4px;
+    width: 60%;
+  }
+  .soft-slider-handle {
+    position: absolute;
+    left: 60%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 15px;
+    height: 15px;
+    background: #FFFFFF;
+    border: 2px solid #D97706;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    cursor: grab;
+  }
+
+  /* 4. 底部正中：Dynamic Island 灵动操作岛 (Hero Command Bar) */
+  .island-command-bar {
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 640px;
+    padding: 8px 10px 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 22px;
+  }
+  .command-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .command-input::placeholder {
+    color: var(--text-faint);
+  }
+  .command-btn {
+    background: #F8FAFC;
+    color: #0A0D10;
+    border: none;
+    outline: none;
+    padding: 8px 18px;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(255, 255, 255, 0.15);
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .command-btn:hover {
+    background: #FFFFFF;
+    transform: scale(1.02);
+    box-shadow: 0 4px 18px rgba(255, 255, 255, 0.25);
+  }
+  .command-btn:active {
+    transform: scale(0.98);
+  }
+
+  /* 5. 右下角：悬浮罗盘与视口工具 */
+  .island-view-compass {
+    bottom: 24px;
+    right: 20px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 12px;
+  }
+  .compass-chip {
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-sub);
+    font-size: 11px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .compass-chip.active, .compass-chip:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+
+  <!-- 全屏 3D 渲染舞台 -->
+  <div id="viewport-canvas-container">
+
+  <!-- 空间悬浮手机支架 3D 实体模型 (纯净暖钛与琥珀测绘光影) -->
+  <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:5;">
+    <svg width="600" height="500" viewBox="0 0 600 500" style="overflow:visible;">
+      <defs>
+        <radialGradient id="stageGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.06" />
+          <stop offset="100%" stop-color="#000" stop-opacity="0" />
+        </radialGradient>
+        <linearGradient id="metalTop" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#3A3F48" />
+          <stop offset="100%" stop-color="#20242A" />
+        </linearGradient>
+        <linearGradient id="metalSide" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#282C34" />
+          <stop offset="100%" stop-color="#181B20" />
+        </linearGradient>
+      </defs>
+
+      <!-- 柔光底盘 -->
+      <ellipse cx="300" cy="380" rx="180" ry="60" fill="url(#stageGlow)" />
+      
+      <!-- 支架底座 -->
+      <polygon points="300,320 440,370 300,420 160,370" fill="url(#metalTop)" stroke="#4A515E" stroke-width="1.5" />
+      <polygon points="160,370 300,420 300,436 160,386" fill="url(#metalSide)" stroke="#323842" stroke-width="1.5" />
+      <polygon points="300,420 440,370 440,386 300,436" fill="#14171C" stroke="#262B33" stroke-width="1.5" />
+
+      <!-- 倾斜靠背立板 (带有 20 度人体工学倾角) -->
+      <polygon points="260,140 370,180 340,360 230,320" fill="url(#metalTop)" stroke="#525B6A" stroke-width="1.5" />
+      <polygon points="230,320 340,360 340,375 230,335" fill="url(#metalSide)" stroke="#383F4A" stroke-width="1.5" />
+      
+      <!-- 托爪 (前倾承托部分) -->
+      <polygon points="230,320 290,340 280,310 220,290" fill="#2E333C" stroke="#F59E0B" stroke-width="1.2" />
+      <polygon points="340,360 400,380 390,350 330,330" fill="#252930" stroke="#F59E0B" stroke-width="1.2" />
+
+      <!-- 优雅的暖色激光测绘线框 (BBox) -->
+      <polygon points="140,120 460,120 460,430 140,430" fill="none" stroke="#F59E0B" stroke-width="1" stroke-dasharray="4,4" opacity="0.4" />
+      <circle cx="140" cy="120" r="3" fill="#F59E0B" />
+      <circle cx="460" cy="120" r="3" fill="#F59E0B" />
+      <circle cx="460" cy="430" r="3" fill="#F59E0B" />
+      <circle cx="140" cy="430" r="3" fill="#F59E0B" />
+
+      <!-- 悬浮尺寸指示胶囊 -->
+      <g transform="translate(470, 260)">
+        <rect width="80" height="22" rx="11" fill="rgba(18,22,28,0.9)" stroke="#F59E0B" stroke-width="1" />
+        <text x="40" y="15" fill="#F8FAFC" font-family="'SF Mono', monospace" font-size="10" font-weight="600" text-anchor="middle">120 mm</text>
+      </g>
+    </svg>
+  </div>
+
+    <canvas id="three-canvas"></canvas>
+  </div>
+
+  <!-- 1. 左上角：空间设计切换舱 -->
+  <div class="glass-island island-brand">
+    <div class="brand-logo-gem">A</div>
+    <div class="brand-meta">
+      <span class="brand-name">Wall Mount Phone Holder</span>
+      <span class="brand-desc mono">Rev 2 · 120 × 80 × 32 mm</span>
+    </div>
+    <button class="island-pill-btn">Designs ▾</button>
+  </div>
+
+  <!-- 2. 顶部正中：流动阶段指示药丸 -->
+  <div class="glass-island island-pipeline mono">
+    <div class="step-node completed">
+      <div class="step-dot" style="background:#10B981;"></div>
+      <span>INTAKE</span>
+    </div>
+    <span class="step-arrow">▸</span>
+    <div class="step-node completed">
+      <div class="step-dot" style="background:#10B981;"></div>
+      <span>SYNTHESIS</span>
+    </div>
+    <span class="step-arrow">▸</span>
+    <div class="step-node active">
+      <div class="step-dot"></div>
+      <span>GEOMETRY LIVE</span>
+    </div>
+    <span class="step-arrow">▸</span>
+    <div class="step-node">
+      <div class="step-dot"></div>
+      <span>EXPORT</span>
+    </div>
+  </div>
+
+  <!-- 3. 右侧：参数微调浮动岛 -->
+  <div class="glass-island island-inspector">
+    <div class="island-head">
+      <span class="head-title">Parameters & Fit</span>
+      <span class="head-badge mono">WATERTIGHT 100%</span>
+    </div>
+
+    <div class="param-group">
+      <div class="param-label-row">
+        <span class="param-title">Wall Thickness</span>
+        <span class="param-value-box">2.5 mm</span>
+      </div>
+      <div class="soft-slider-track">
+        <div class="soft-slider-fill" style="width: 50%;"></div>
+        <div class="soft-slider-handle" style="left: 50%;"></div>
+      </div>
+    </div>
+
+    <div class="param-group">
+      <div class="param-label-row">
+        <span class="param-title">Corner Fillet Radius</span>
+        <span class="param-value-box">6.0 mm</span>
+      </div>
+      <div class="soft-slider-track">
+        <div class="soft-slider-fill" style="width: 65%;"></div>
+        <div class="soft-slider-handle" style="left: 65%;"></div>
+      </div>
+    </div>
+
+    <div class="param-group">
+      <div class="param-label-row">
+        <span class="param-title">Screw Boss Clearance</span>
+        <span class="param-value-box">M3 (3.4 mm)</span>
+      </div>
+      <div class="soft-slider-track">
+        <div class="soft-slider-fill" style="width: 40%;"></div>
+        <div class="soft-slider-handle" style="left: 40%;"></div>
+      </div>
+    </div>
+
+    <div style="background: rgba(255,255,255,0.04); border-radius: 8px; padding: 10px; margin-top: 4px; border: 1px solid rgba(255,255,255,0.04);">
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-sub); margin-bottom:4px;" class="mono">
+        <span>MANUFACTURING CHECK</span>
+        <span style="color:#10B981;">READY</span>
+      </div>
+      <p style="font-size:11px; color:var(--text-sub); line-height:1.4;">
+        Watertight 2-manifold confirmed. Zero non-manifold edges detected. Supports unnecessary for 45° overhangs.
+      </p>
+    </div>
+  </div>
+
+  <!-- 4. 底部正中：Dynamic Command Island -->
+  <div class="glass-island island-command-bar">
+    <div style="width: 22px; height: 22px; border-radius: 50%; background: var(--accent-amber); color:#0A0D10; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800;">✦</div>
+    <input type="text" class="command-input" value="Add two countersunk mounting holes on the back flange with 60mm pitch..." />
+    <button class="command-btn">
+      <span>Rebuild</span>
+      <span class="mono" style="font-size:10px; opacity:0.7;">⌘↵</span>
+    </button>
+  </div>
+
+  <!-- 5. 右下角：悬浮罗盘与视口工具 -->
+  <div class="glass-island island-view-compass mono">
+    <button class="compass-chip active">PERSPECTIVE</button>
+    <button class="compass-chip">ISOMETRIC</button>
+    <button class="compass-chip" style="color:var(--accent-amber);">📐 MEASURE</button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    const container = document.getElementById('viewport-canvas-container');
+    const canvas = document.getElementById('three-canvas');
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(140, 100, 150);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    // 高端工业微距中性光影 (纯净无色差柔光)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+    scene.add(ambientLight);
+
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    mainLight.position.set(80, 160, 100);
+    scene.add(mainLight);
+
+    const fillLight = new THREE.DirectionalLight(0xE2E8F0, 0.4);
+    fillLight.position.set(-100, -50, -80);
+    scene.add(fillLight);
+
+    // 优雅隐形中性地面阴影网格
+    const grid = new THREE.GridHelper(260, 26, 0x525D6E, 0x181B20);
+    grid.position.y = -24;
+    scene.add(grid);
+
+    // 手机支架几何结构 (深钛金属质感)
+    const group = new THREE.Group();
+
+    // 底座
+    const baseGeo = new THREE.BoxGeometry(90, 10, 80);
+    const baseMat = new THREE.MeshPhysicalMaterial({
+      color: 0x242830,
+      metalness: 0.15,
+      roughness: 0.25,
+      clearcoat: 0.7,
+      clearcoatRoughness: 0.15
+    });
+    const base = new THREE.Mesh(baseGeo, baseMat);
+    base.position.y = -19;
+    group.add(base);
+
+    // 靠背板 (倾角)
+    const backGeo = new THREE.BoxGeometry(80, 110, 8);
+    const back = new THREE.Mesh(backGeo, baseMat);
+    back.position.set(0, 30, -20);
+    back.rotation.x = -0.25;
+    group.add(back);
+
+    // 托脚
+    const hookGeo = new THREE.BoxGeometry(80, 16, 20);
+    const hook = new THREE.Mesh(hookGeo, baseMat);
+    hook.position.set(0, -6, 25);
+    group.add(hook);
+
+    // 激光测绘黄色线框
+    const boxHelper = new THREE.BoxHelper(group, 0xF59E0B);
+    scene.add(boxHelper);
+
+    scene.add(group);
+    camera.lookAt(0, 10, 0);
+
+    let isDragging = false;
+    let prevMouse = { x: 0, y: 0 };
+    let rotY = 0.5;
+
+    container.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      prevMouse = { x: e.clientX, y: e.clientY };
+    });
+    window.addEventListener('mouseup', () => isDragging = false);
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      rotY += (e.clientX - prevMouse.x) * 0.006;
+      prevMouse = { x: e.clientX, y: e.clientY };
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (!isDragging) rotY += 0.002;
+      group.rotation.y = rotY;
+      boxHelper.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+  </script>
+</body>
+</html>

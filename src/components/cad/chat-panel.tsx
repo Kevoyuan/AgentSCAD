@@ -256,9 +256,9 @@ function ScadApplyButton({
 // Category badge colors
 const CATEGORY_STYLES: Record<string, { icon: React.ReactNode; color: string }> = {
   flagship: { icon: <Star className="w-2.5 h-2.5" />, color: 'text-amber-400' },
-  balanced: { icon: <Brain className="w-2.5 h-2.5" />, color: 'text-blue-400' },
-  fast: { icon: <Zap className="w-2.5 h-2.5" />, color: 'text-cyan-400' },
-  reasoning: { icon: <Brain className="w-2.5 h-2.5" />, color: 'text-violet-400' },
+  balanced: { icon: <Brain className="w-2.5 h-2.5" />, color: 'text-stone-300' },
+  fast: { icon: <Zap className="w-2.5 h-2.5" />, color: 'text-teal-400' },
+  reasoning: { icon: <Brain className="w-2.5 h-2.5" />, color: 'text-amber-400' },
   vision: { icon: <Eye className="w-2.5 h-2.5" />, color: 'text-emerald-400' },
   code: { icon: <Code2 className="w-2.5 h-2.5" />, color: 'text-orange-400' },
 }

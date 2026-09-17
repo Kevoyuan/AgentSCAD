@@ -344,8 +344,8 @@ describe('JobListEmptyState — Boundary Conditions', () => {
     )
 
     expect(html).toContain('WORKSPACE INITIALIZED')
-    expect(html).toContain('No CAD Jobs Yet')
-    expect(html).toContain('Create CAD Job (⌘N)')
+    expect(html).toContain('No CAD Designs Yet')
+    expect(html).toContain('New Design (⌘N)')
 
     // 3 Engineering presets
     expect(html).toContain('Spur Gear (模数 2)')
@@ -368,8 +368,8 @@ describe('JobListEmptyState — Boundary Conditions', () => {
     )
 
     expect(html).toContain('FILTER CRITERIA ACTIVE')
-    expect(html).toContain('No Matching CAD Jobs')
-    expect(html).toContain('No jobs match your current search query or state filters.')
+    expect(html).toContain('No Matching CAD Designs')
+    expect(html).toContain('No designs match your current search query or state filters.')
     expect(html).toContain('重置筛选 (Reset)')
 
     // Presets should NOT clutter filter mismatch state
@@ -507,7 +507,7 @@ describe('InspectorEmptyState — Boundary Conditions', () => {
 
     expect(html).toContain('INSPECTOR ARCHITECTURE')
     expect(html).toContain('STANDBY')
-    expect(html).toContain('No CAD Job Selected')
+    expect(html).toContain('No Design Selected')
 
     // 6 Grayscale Capability Cards
     const expectedCards = [
@@ -525,7 +525,7 @@ describe('InspectorEmptyState — Boundary Conditions', () => {
     }
 
     // Quick Actions
-    expect(html).toContain('Create New CAD Job (⌘N)')
+    expect(html).toContain('New Design (⌘N)')
     expect(html).toContain('Providers')
     expect(html).toContain('Shortcuts (?)')
   })

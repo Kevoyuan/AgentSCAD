@@ -38,7 +38,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import { PipelineVisualization } from '@/components/cad/pipeline-visualization'
+import { PipelineVisualization, RunProgress } from '@/components/cad/pipeline-visualization'
 import dynamic from 'next/dynamic'
 import { Footer } from '@/components/cad/footer'
 import type { CommandAction } from '@/components/cad/command-palette'
@@ -64,11 +64,22 @@ export function MainWorkspace() {
   const state = useWorkspaceState()
   const [settingsTab, setSettingsTab] = useState<'providers' | 'theme'>('providers')
   const [providerRevision, setProviderRevision] = useState(0)
+  const [floatingPrompt, setFloatingPrompt] = useState('')
 
   const sidebarRef = useRef<ImperativePanelHandle>(null)
   const inspectorRef = useRef<ImperativePanelHandle>(null)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false)
+
+  const handleFloatingSubmit = () => {
+    if (floatingPrompt.trim()) {
+      state.setNewJobText(floatingPrompt.trim())
+      state.setShowComposer(true)
+      setFloatingPrompt('')
+    } else if (state.selectedJob) {
+      state.handleProcess(state.selectedJob)
+    }
+  }
 
   const toggleSidebar = () => {
     const panel = sidebarRef.current
@@ -119,7 +130,7 @@ export function MainWorkspace() {
   const commandPaletteActions: CommandAction[] = [
     {
       id: 'create-job',
-      label: 'Create New Job',
+      label: 'New Design',
       icon: <Plus className="w-4 h-4 text-emerald-400" />,
       shortcut: '⌘N',
       onSelect: () => state.setShowComposer(true),
@@ -146,9 +157,9 @@ export function MainWorkspace() {
     },
     {
       id: 'show-compare',
-      label: 'Compare Jobs',
+      label: 'Compare Designs',
       icon: <GitCompare className="w-4 h-4 text-amber-400" />,
-      shortcut: '',
+      shortcut: 'C',
       onSelect: () => state.setShowCompare(true),
       category: 'action' as const,
     },
@@ -199,31 +210,64 @@ export function MainWorkspace() {
         onToggleFocusMode={toggleFocusMode}
       />
 
-      {/* Header */}
-      <header className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)] bg-[var(--app-surface)] shrink-0 min-w-0 max-w-full overflow-hidden gap-2">
+      {/* App Bar: Direction 2 VisionOS Frosted Metrology Header */}
+      <header className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--app-border)] bg-[var(--app-header-bg)] backdrop-blur-xl shrink-0 min-w-0 max-w-full overflow-hidden gap-2 h-10 z-20">
+        {/* Left: Product & Design Title */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
-          <div className="flex items-center gap-2 shrink-0">
-            <img 
-              src="/logo.png" 
-              alt="AgentSCAD Logo" 
-              className="w-5 h-5 rounded object-cover"
-            />
-            <h1 className="text-sm font-semibold tracking-tight text-[var(--app-text-primary)]">
-              AgentSCAD
-            </h1>
-          </div>
-          <Separator orientation="vertical" className="h-4 bg-[var(--app-border)] shrink-0" />
-          <div className="min-w-0 overflow-hidden flex-1">
-            <PipelineVisualization
-              state={state.selectedJob?.state || 'NEW'}
-              job={state.selectedJob || undefined}
-              onStepClick={(stepKey, tabName) => {
-                if (state.selectedJob) state.setActiveTab(tabName)
-              }}
-            />
-          </div>
+          <img
+            src="/logo.png"
+            alt="AgentSCAD"
+            className="w-5 h-5 rounded-[4px] object-contain shrink-0 ring-1 ring-white/15 shadow-sm select-none"
+          />
+          <span className="text-xs font-bold tracking-tight text-[var(--app-text-primary)] select-none">
+            AgentSCAD
+          </span>
+          <span className="text-xs text-[var(--app-text-dim)] font-mono select-none">/</span>
+          <span 
+            className="text-xs font-medium text-[var(--app-text-secondary)] truncate max-w-[140px] sm:max-w-[220px] md:max-w-[320px]"
+            title={state.selectedJob?.inputRequest || 'Workspace'}
+          >
+            {state.selectedJob ? (state.selectedJob.inputRequest?.slice(0, 48) || 'Untitled Design') : 'Workspace'}
+          </span>
         </div>
 
+        {/* Center: Direction 2 Flow Step Capsule & Status */}
+        <div className="flex items-center justify-center min-w-0 shrink-0 px-2">
+          {state.selectedJob ? (
+            <div className="flex items-center gap-2">
+              <div className="hidden lg:flex items-center gap-2 px-3 py-0.5 rounded-full glass-island font-mono text-[10px] select-none">
+                <div className={`flex items-center gap-1 ${state.selectedJob.state !== 'NEW' ? 'text-[var(--app-success)]' : 'text-[var(--app-text-muted)]'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${state.selectedJob.state !== 'NEW' ? 'bg-[var(--app-success)]' : 'bg-[var(--app-text-dim)]'}`} />
+                  <span>INTAKE</span>
+                </div>
+                <span className="text-[var(--app-text-dim)]/40">▸</span>
+                <div className={`flex items-center gap-1 ${['SCAD_GENERATED', 'RENDERED', 'VALIDATED', 'DELIVERED'].includes(state.selectedJob.state) ? 'text-[var(--app-success)]' : state.selectedJob.state === 'NEW' && state.isProcessing ? 'text-[var(--app-accent)] font-semibold' : 'text-[var(--app-text-dim)]'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${['SCAD_GENERATED', 'RENDERED', 'VALIDATED', 'DELIVERED'].includes(state.selectedJob.state) ? 'bg-[var(--app-success)]' : state.selectedJob.state === 'NEW' && state.isProcessing ? 'bg-[var(--app-accent)] animate-pulse' : 'bg-[var(--app-text-dim)]'}`} />
+                  <span>SYNTHESIS</span>
+                </div>
+                <span className="text-[var(--app-text-dim)]/40">▸</span>
+                <div className={`flex items-center gap-1 ${state.selectedJob.state === 'DELIVERED' ? 'text-[var(--app-success)]' : ['RENDERED', 'VALIDATED'].includes(state.selectedJob.state) ? 'text-[var(--app-accent)] font-semibold' : 'text-[var(--app-text-dim)]'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${state.selectedJob.state === 'DELIVERED' ? 'bg-[var(--app-success)]' : ['RENDERED', 'VALIDATED'].includes(state.selectedJob.state) ? 'bg-[var(--app-accent)] animate-pulse' : 'bg-[var(--app-text-dim)]'}`} />
+                  <span>GEOMETRY LIVE</span>
+                </div>
+                <span className="text-[var(--app-text-dim)]/40">▸</span>
+                <div className={`flex items-center gap-1 ${state.selectedJob.state === 'DELIVERED' ? 'text-[var(--app-success)] font-semibold' : 'text-[var(--app-text-dim)]'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${state.selectedJob.state === 'DELIVERED' ? 'bg-[var(--app-success)]' : 'bg-[var(--app-text-dim)]'}`} />
+                  <span>EXPORT</span>
+                </div>
+              </div>
+              <RunProgress
+                state={state.selectedJob.state || 'NEW'}
+                isProcessing={state.isProcessing && state.processingJobId === state.selectedJob.id}
+                onClick={() => {
+                  state.setActiveTab('HISTORY')
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
+
+        {/* Right: Tools & New Design Action */}
         <div className="flex items-center gap-1 shrink-0">
           {/* Group 1: Window / Layout Controls */}
           <div className="flex items-center gap-0.5">
@@ -235,12 +279,12 @@ export function MainWorkspace() {
                     size="sm"
                     className={`h-7 w-7 p-0 rounded-[6px] transition-colors ${isSidebarCollapsed ? 'text-[var(--app-accent-text)] bg-[var(--app-accent-bg)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`}
                     onClick={toggleSidebar}
-                    aria-label="Toggle Left Sidebar"
+                    aria-label="Toggle Design Browser"
                   >
                     <PanelLeft className="w-3.5 h-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent><p className="text-xs">Toggle Left Sidebar (⌘B)</p></TooltipContent>
+                <TooltipContent><p className="text-xs">Toggle Design Browser (⌘B)</p></TooltipContent>
               </Tooltip>
             </TooltipProvider>
 
@@ -269,19 +313,19 @@ export function MainWorkspace() {
                     size="sm"
                     className={`h-7 w-7 p-0 rounded-[6px] transition-colors ${isInspectorCollapsed ? 'text-[var(--app-accent-text)] bg-[var(--app-accent-bg)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`}
                     onClick={toggleInspector}
-                    aria-label="Toggle Right Inspector"
+                    aria-label="Toggle Inspector"
                   >
                     <PanelRight className="w-3.5 h-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent><p className="text-xs">Toggle Right Inspector (⌘I)</p></TooltipContent>
+                <TooltipContent><p className="text-xs">Toggle Inspector (⌘I)</p></TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
 
           <Separator orientation="vertical" className="h-4 bg-[var(--app-border)] mx-0.5 shrink-0" />
 
-          {/* Group 2: Quick Theme Switch (Direct Touchpoint) */}
+          {/* Group 2: Quick Theme Switch */}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -319,7 +363,7 @@ export function MainWorkspace() {
             }}
           />
 
-          {/* Group 4: Workspace Tools Menu (Dropdown) */}
+          {/* Group 4: Workspace Tools Menu */}
           <WorkspaceToolsMenu
             onOpenStats={() => state.setShowStats(true)}
             onOpenCompare={() => state.setShowCompare(true)}
@@ -337,17 +381,17 @@ export function MainWorkspace() {
           {/* Group 5: Primary Action CTA */}
           <Button
             size="sm"
-            className="h-7 text-xs font-medium gap-1 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white px-2.5 rounded-[6px] active:scale-[0.98] shrink-0"
+            className="h-7 text-xs font-semibold gap-1.5 bg-white hover:bg-slate-100 text-[#0A0D10] dark:bg-[#F8FAFC] dark:text-[#0A0D10] dark:hover:bg-white px-3 rounded-[7px] shadow-[0_2px_8px_rgba(0,0,0,0.25)] active:scale-[0.98] transition-all shrink-0"
             onClick={() => state.setShowComposer(true)}
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">New Job</span>
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span className="hidden sm:inline">New Design</span>
           </Button>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 min-h-0 w-full max-w-full overflow-hidden relative">
+      {/* 3-Panel Resizable Workspace with Zero Horizontal Overflow Guard */}
+      <main className="flex-1 min-h-0 w-full max-w-full overflow-hidden relative bg-[#0A0D10] bg-[radial-gradient(ellipse_at_50%_40%,#151922_0%,#080A0D_100%)]">
         {isSidebarCollapsed && (
           <button
             onClick={toggleSidebar}
@@ -464,6 +508,37 @@ export function MainWorkspace() {
             isFirstLoadComplete={state.isFirstLoadComplete}
           />
         </ResizablePanelGroup>
+
+        {/* Direction 2: Hero Floating Dynamic Command Bar */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto transition-all duration-200">
+          <div className="glass-island flex items-center gap-3 px-3.5 sm:px-5 py-2 sm:py-2.5 w-[340px] sm:w-[480px] md:w-[620px] max-w-[94vw] rounded-full border border-white/15 shadow-[0_20px_50px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.15)] bg-[#12161F]/90 backdrop-blur-3xl">
+            <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-[#F59E0B] to-[#FBBF24] text-[#0A0D10] flex items-center justify-center font-bold text-xs shrink-0 select-none shadow-[0_0_10px_rgba(245,158,11,0.4)]">
+              ✦
+            </div>
+            <input
+              type="text"
+              placeholder={state.selectedJob?.inputRequest ? `Refine: "${state.selectedJob.inputRequest.slice(0, 32)}..."` : "Describe parametric part to synthesize or modify..."}
+              value={floatingPrompt}
+              onChange={(e) => setFloatingPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleFloatingSubmit()
+                }
+              }}
+              className="flex-1 bg-transparent border-none outline-none text-xs sm:text-sm font-medium text-[var(--app-text-primary)] placeholder:text-[var(--app-text-muted)] min-w-0"
+            />
+            <Button
+              size="sm"
+              disabled={state.isProcessing}
+              onClick={handleFloatingSubmit}
+              className="h-7 text-xs px-3.5 rounded-full bg-white text-[#0A0D10] hover:bg-slate-100 font-bold shadow-md shrink-0 active:scale-[0.98] transition-all"
+            >
+              <span>{state.isProcessing ? 'Synthesizing...' : state.selectedJob ? 'Rebuild' : 'Synthesize'}</span>
+              <span className="font-mono text-[10px] opacity-60 ml-1">⌘↵</span>
+            </Button>
+          </div>
+        </div>
       </main>
 
       {/* Footer */}
@@ -475,9 +550,10 @@ export function MainWorkspace() {
         failedCount={(state.stateCounts['VALIDATION_FAILED'] || 0) + (state.stateCounts['GEOMETRY_FAILED'] || 0) + (state.stateCounts['RENDER_FAILED'] || 0)}
         successRate={state.successRate}
         onExport={state.exportAllData}
+        activeJob={state.selectedJob}
       />
 
-      {/* ── Dialogs ──────────────────────────────────────────────────────── */}
+      {/* Dialogs */}
 
       <JobComposer
         showComposer={state.showComposer}
@@ -643,10 +719,10 @@ export function MainWorkspace() {
         <DialogContent className="bg-[var(--app-dialog-bg)] border border-[color:var(--app-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_48px_-12px_rgba(0,0,0,0.4)] rounded-xl max-w-4xl max-h-[80vh] overflow-y-auto overflow-x-hidden dialog-enter" aria-describedby="compare-description">
           <DialogHeader>
             <DialogTitle className="text-sm flex items-center gap-2">
-              <GitCompare className="w-4 h-4 text-[var(--app-accent-text)]" />Compare Jobs
+              <GitCompare className="w-4 h-4 text-[var(--app-accent-text)]" />Compare Designs
             </DialogTitle>
             <DialogDescription id="compare-description" className="sr-only">
-              Side-by-side comparison of selected CAD jobs
+              Side-by-side comparison of selected CAD designs
             </DialogDescription>
           </DialogHeader>
           <JobCompare jobs={state.allJobs} />

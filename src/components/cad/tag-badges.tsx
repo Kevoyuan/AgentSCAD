@@ -5,8 +5,8 @@ import { useMemo } from 'react'
 // ─── Tag Badge Colors ──────────────────────────────────────────────────────
 
 const TAG_COLORS = [
-  { bg: 'bg-violet-500/15', text: 'text-violet-400', border: 'border-violet-500/20' },
-  { bg: 'bg-cyan-500/15', text: 'text-cyan-400', border: 'border-cyan-500/20' },
+  { bg: 'bg-zinc-500/15', text: 'text-zinc-300', border: 'border-zinc-500/20' },
+  { bg: 'bg-teal-500/15', text: 'text-teal-400', border: 'border-teal-500/20' },
   { bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/20' },
   { bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/20' },
   { bg: 'bg-rose-500/15', text: 'text-rose-400', border: 'border-rose-500/20' },

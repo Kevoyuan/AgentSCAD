@@ -77,10 +77,10 @@ export function JobListEmptyState({
           FILTER CRITERIA ACTIVE
         </span>
         <h4 className="text-[13px] font-semibold text-[var(--app-text-primary)] mb-1">
-          No Matching CAD Jobs
+          No Matching CAD Designs
         </h4>
         <p className="text-[11px] leading-relaxed text-[var(--app-text-dim)] max-w-[200px] mb-4">
-          No jobs match your current search query or state filters.
+          No designs match your current search query or state filters.
         </p>
         <Button
           variant="outline"
@@ -105,7 +105,7 @@ export function JobListEmptyState({
         WORKSPACE INITIALIZED
       </span>
       <h4 className="text-[13px] font-semibold text-[var(--app-text-primary)] mb-1">
-        No CAD Jobs Yet
+        No CAD Designs Yet
       </h4>
       <p className="text-[11px] leading-relaxed text-[var(--app-text-dim)] max-w-[220px] mb-4">
         Describe a physical part or choose an engineering preset below to synthesize OpenSCAD code.
@@ -115,10 +115,10 @@ export function JobListEmptyState({
       <Button
         size="sm"
         onClick={() => onShowComposer()}
-        className="h-7 text-xs font-medium gap-1.5 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white px-3 rounded-[6px] mb-4 active:scale-[0.98] w-full max-w-[200px]"
+        className="h-7 text-xs font-medium gap-1.5 bg-white/10 hover:bg-white/15 text-[var(--app-text-primary)] border border-white/15 px-3 rounded-[6px] mb-4 active:scale-[0.98] w-full max-w-[200px] transition-all"
       >
-        <Plus className="w-3.5 h-3.5" />
-        Create CAD Job (⌘N)
+        <Plus className="w-3.5 h-3.5 text-[var(--app-accent-text)]" />
+        New Design (⌘N)
       </Button>
 
       {/* Engineering Presets */}
@@ -248,7 +248,7 @@ export function CadViewportEmptyState({
               <path d="M15 35 L85 75" />
               <path d="M85 35 L15 75" />
               {/* Center Crosshair */}
-              <circle cx="50" cy="55" r="3" fill="#5e6ad2" fillOpacity="0.8" stroke="none" />
+              <circle cx="50" cy="55" r="3" fill="#F59E0B" fillOpacity="0.8" stroke="none" />
             </svg>
           </div>
 
@@ -342,10 +342,10 @@ export function CadViewportEmptyState({
             <path d="M80 87 L30 115" stroke="currentColor" strokeWidth="1.2" opacity="0.6" />
 
             {/* Triad Coordinate Axis Arrows from Origin */}
-            {/* Z-Axis (Up, Blueprint Indigo) */}
-            <line x1="80" y1="87" x2="80" y2="45" stroke="#5e6ad2" strokeWidth="2" />
-            <polygon points="80,41 77,47 83,47" fill="#5e6ad2" />
-            <text x="85" y="47" fill="#5e6ad2" fontSize="9" fontFamily="monospace" fontWeight="bold">
+            {/* Z-Axis (Up, Warm Amber Precision) */}
+            <line x1="80" y1="87" x2="80" y2="45" stroke="#F59E0B" strokeWidth="2" />
+            <polygon points="80,41 77,47 83,47" fill="#F59E0B" />
+            <text x="85" y="47" fill="#F59E0B" fontSize="9" fontFamily="monospace" fontWeight="bold">
               Z
             </text>
 
@@ -364,7 +364,7 @@ export function CadViewportEmptyState({
             </text>
 
             {/* Origin Dot */}
-            <circle cx="80" cy="87" r="2.5" fill="#ffffff" stroke="#5e6ad2" strokeWidth="1.5" />
+            <circle cx="80" cy="87" r="2.5" fill="#ffffff" stroke="#F59E0B" strokeWidth="1.5" />
             <text x="60" y="80" fill="currentColor" opacity="0.6" fontSize="7" fontFamily="monospace">
               [0,0,0]
             </text>
@@ -392,9 +392,9 @@ export function CadViewportEmptyState({
           <Button
             size="sm"
             onClick={() => onShowComposer()}
-            className="h-8 text-xs font-medium gap-1.5 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white px-4 rounded-[6px] active:scale-[0.98] shadow-sm"
+            className="h-8 text-xs font-semibold gap-1.5 bg-white hover:bg-slate-100 text-[#0A0D10] dark:bg-[#F8FAFC] dark:text-[#0A0D10] dark:hover:bg-white px-4 rounded-[8px] active:scale-[0.98] shadow-[0_4px_20px_rgba(0,0,0,0.4)] transition-all"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             Create New CAD Design (⌘N)
           </Button>
         </div>
@@ -559,10 +559,10 @@ export function InspectorEmptyState({
             </span>
           </div>
           <h3 className="text-sm font-semibold tracking-tight text-[var(--app-text-primary)]">
-            No CAD Job Selected
+            No Design Selected
           </h3>
           <p className="text-xs text-[var(--app-text-muted)] leading-relaxed mt-1">
-            Select an active job from the workspace to unlock parameter tuning, manufacturing rule checks, and code editing.
+            Select an active design from the workspace to unlock parameter tuning, manufacturing rule checks, and code editing.
           </p>
         </div>
 
@@ -604,10 +604,10 @@ export function InspectorEmptyState({
           <Button
             size="sm"
             onClick={onShowComposer}
-            className="h-7 text-xs font-medium gap-1.5 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white px-3 rounded-[6px] active:scale-[0.98] w-full justify-start"
+            className="h-7 text-xs font-medium gap-1.5 bg-white/10 hover:bg-white/15 text-[var(--app-text-primary)] border border-white/15 px-3 rounded-[6px] active:scale-[0.98] w-full justify-start transition-all"
           >
-            <Plus className="w-3.5 h-3.5" />
-            Create New CAD Job (⌘N)
+            <Plus className="w-3.5 h-3.5 text-[var(--app-accent-text)]" />
+            New Design (⌘N)
           </Button>
           <div className="grid grid-cols-2 gap-1.5">
             <Button

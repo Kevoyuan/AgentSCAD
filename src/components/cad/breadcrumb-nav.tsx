@@ -14,18 +14,18 @@ interface BreadcrumbNavProps {
 const TAB_LABELS: Record<string, string> = {
   PARAMS: 'Parameters',
   PARAMETERS: 'Parameters',
-  SPEC: 'Spec',
+  SPEC: 'Brief',
   MODEL: 'Model',
-  CODE: 'Code',
-  VALIDATION: 'Validation',
+  CODE: 'OpenSCAD',
+  VALIDATION: 'Checks',
   RESEARCH: 'Research',
-  VALIDATE: 'Validation',
-  SCAD: 'SCAD Code',
-  LOG: 'Timeline Log',
+  VALIDATE: 'Checks',
+  SCAD: 'OpenSCAD',
+  LOG: 'Activity',
   NOTES: 'Notes',
   DEPS: 'Dependencies',
-  HISTORY: 'Version History',
-  AI: 'AI Chat',
+  HISTORY: 'History',
+  AI: 'Agent',
 }
 
 export function BreadcrumbNav({ jobId, activeTab, onNavigateHome, onNavigateJobs }: BreadcrumbNavProps) {
@@ -54,9 +54,9 @@ export function BreadcrumbNav({ jobId, activeTab, onNavigateHome, onNavigateJobs
       <button
         className="text-[var(--app-text-muted)] hover:text-[var(--app-text-primary)] transition-colors"
         onClick={onNavigateJobs}
-        aria-label="Navigate to jobs list"
+        aria-label="Navigate to designs list"
       >
-        Jobs
+        Designs
       </button>
       <ChevronRight className="w-2.5 h-2.5 text-[var(--app-text-dim)]/70" />
       <button

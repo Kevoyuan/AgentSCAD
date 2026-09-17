@@ -11,11 +11,18 @@ import { getStateInfo } from './types'
 const ACTIVE_STATES = ['NEW', 'SCAD_GENERATED', 'RENDERED', 'VALIDATED', 'DEBUGGING', 'REPAIRING']
 const FAILED_STATES = ['VALIDATION_FAILED', 'GEOMETRY_FAILED', 'RENDER_FAILED']
 const SHORT_LABELS: Record<string, string> = {
+  NEW: 'Draft',
   SCAD_GENERATED: 'Generated',
-  VALIDATION_FAILED: 'Blocked',
-  GEOMETRY_FAILED: 'Blocked',
-  RENDER_FAILED: 'Blocked',
-  HUMAN_REVIEW: 'Review',
+  RENDERED: 'Rendered',
+  VALIDATED: 'Validated',
+  DELIVERED: 'Artifacts ready',
+  VALIDATION_FAILED: 'Validation blocked',
+  GEOMETRY_FAILED: 'Validation blocked',
+  RENDER_FAILED: 'Validation blocked',
+  HUMAN_REVIEW: 'Needs review',
+  DEBUGGING: 'Repairing',
+  REPAIRING: 'Repairing',
+  CANCELLED: 'Cancelled',
 }
 
 export function StateBadge({ state, size = 'sm', timestamp }: { state: string; size?: 'xs' | 'sm' | 'md'; timestamp?: string }) {

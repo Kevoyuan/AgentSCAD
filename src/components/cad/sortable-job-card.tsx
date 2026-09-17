@@ -36,6 +36,46 @@ const FAILED_STATES = ['VALIDATION_FAILED', 'GEOMETRY_FAILED', 'RENDER_FAILED']
 
 // ─── Sortable Job Card ──────────────────────────────────────────────────────
 
+// ─── Helper: Extract key dimensions for metrology row ───────────────────────
+
+export function extractKeyDimensions(job: Job): string | null {
+  if (job.validationReportJson) {
+    try {
+      const report = JSON.parse(job.validationReportJson)
+      if (Array.isArray(report.checks)) {
+        for (const chk of report.checks) {
+          if (chk.rule_id === 'B001' && chk.details) {
+            const actual = chk.details.actual_bbox as { length?: number; width?: number; height?: number } | undefined
+            if (actual && typeof actual.length === 'number' && typeof actual.width === 'number' && typeof actual.height === 'number') {
+              return `${Math.round(actual.length)} × ${Math.round(actual.width)} × ${Math.round(actual.height)} mm`
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignore JSON error
+    }
+  }
+
+  if (job.parameterValues) {
+    try {
+      const vals = JSON.parse(job.parameterValues)
+      const l = vals.length ?? vals.l ?? vals.box_length ?? vals.outer_length ?? vals.base_length
+      const w = vals.width ?? vals.w ?? vals.box_width ?? vals.outer_width ?? vals.base_width
+      const h = vals.height ?? vals.h ?? vals.box_height ?? vals.outer_height ?? vals.base_height ?? vals.thickness
+      if (typeof l === 'number' && typeof w === 'number' && typeof h === 'number') {
+        return `${Math.round(l)} × ${Math.round(w)} × ${Math.round(h)} mm`
+      }
+    } catch {
+      // Ignore JSON error
+    }
+  }
+
+  return null
+}
+
+// ─── Sortable Job Card ──────────────────────────────────────────────────────
+
 export function SortableJobCard({
   job,
   isSelected,
@@ -63,28 +103,26 @@ export function SortableJobCard({
     opacity: isSortableDragging ? 0.4 : 1,
   }
 
-  const stateHex = getStateHex(job.state)
-  const leftBorderColor = stateHex
   const isCancelable = CANCELABLE_STATES.includes(job.state)
   const isProcessing = PROCESSING_STATES.includes(job.state)
   const progressPercent = getPipelineProgress(job.state)
-  const progressColor = stateHex
   const [failedPreviewPath, setFailedPreviewPath] = useState<string | null>(null)
   const previewFailed = Boolean(job.pngPath && failedPreviewPath === job.pngPath)
+  const keyDimensions = extractKeyDimensions(job)
 
   return (
     <div
       ref={setNodeRef}
-      style={{ ...style, '--border-color': leftBorderColor } as CSSProperties}
-      className={`group/card relative cursor-pointer overflow-hidden border-b border-[color:var(--app-border-subtle)] px-2.5 py-2 transition-all ${
+      style={style}
+      className={`group/card relative cursor-pointer overflow-hidden border-b border-[var(--app-border-subtle)] px-2.5 py-2 transition-all ${
         isDragging || isSortableDragging
-          ? 'shadow-xl ring-1 ring-[color:var(--app-accent-border)] scale-[1.01] z-50 bg-[var(--app-surface-raised)]'
+          ? 'shadow-lg ring-1 ring-[var(--app-accent-border)] scale-[1.01] z-50 bg-[var(--app-surface-raised)]'
           : ''
       } ${
         isProcessing ? 'opacity-95' : ''
       } ${
         isSelected
-          ? 'bg-[var(--app-accent-bg)] border-l-2 border-l-[color:var(--app-accent)]'
+          ? 'bg-[var(--app-selected-bg)] border-l-2 border-l-[var(--app-accent)]'
           : 'bg-transparent hover:bg-[var(--app-surface-hover)] border-l-2 border-l-transparent'
       }`}
       onClick={() => onSelect(job)}
@@ -109,7 +147,7 @@ export function SortableJobCard({
               : 'text-[var(--app-text-dim)] opacity-0 hover:bg-[var(--app-surface-hover)] group-hover/card:opacity-100'
           }`}
           onClick={() => onToggleSelect(job.id)}
-          aria-label={isChecked ? 'Deselect job' : 'Select job'}
+          aria-label={isChecked ? 'Deselect design' : 'Select design'}
         >
           {isChecked ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
         </button>
@@ -118,12 +156,22 @@ export function SortableJobCard({
       <div className="relative z-[1] pl-5 pr-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 text-[12px] font-medium leading-snug text-[var(--app-text-secondary)] group-hover/card:text-[var(--app-text-primary)] transition-colors">
+            {/* Design brief / title */}
+            <p className="line-clamp-2 text-xs font-medium leading-snug text-[var(--app-text-secondary)] group-hover/card:text-[var(--app-text-primary)] transition-colors">
               {job.inputRequest}
             </p>
+
+            {/* Metrology dimensions overlay */}
+            {keyDimensions && (
+              <div className="mt-0.5 text-[11px] font-mono text-[var(--cad-measure)] tracking-tight">
+                {keyDimensions}
+              </div>
+            )}
+
+            {/* Status & time ago */}
             <div className="mt-1 flex min-w-0 items-center gap-1.5 flex-wrap">
-              <StateBadge state={job.state} />
-              <span className="text-[10px] font-mono tabular-nums text-[var(--cad-text-muted)]">
+              <StateBadge state={job.state} size="xs" />
+              <span className="text-[10px] font-mono tabular-nums text-[var(--app-text-muted)]">
                 {timeAgo(job.createdAt)}
               </span>
             </div>
@@ -133,8 +181,9 @@ export function SortableJobCard({
           </div>
         </div>
 
+        {/* Selected compact thumbnail */}
         {isSelected && job.pngPath && job.state !== 'NEW' && job.state !== 'SCAD_GENERATED' && (
-          <div className="mt-2 h-16 overflow-hidden rounded-md border border-[color:var(--app-border-subtle)] bg-[var(--app-empty-bg)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)]">
+          <div className="mt-2 h-14 overflow-hidden rounded-[5px] border border-[var(--app-border)] bg-[var(--app-surface-raised)] shadow-inner">
             {previewFailed ? (
               <div className="flex h-full w-full items-center justify-center gap-2 text-[10px] text-[var(--app-text-dim)]">
                 <PartFamilyIcon family={job.partFamily || 'unknown'} size="xs" />
@@ -143,7 +192,7 @@ export function SortableJobCard({
             ) : (
               <img
                 src={job.pngPath}
-                alt="Preview"
+                alt="Design preview"
                 className="w-full h-full object-cover"
                 loading="lazy"
                 onError={() => setFailedPreviewPath(job.pngPath)}
@@ -151,51 +200,51 @@ export function SortableJobCard({
             )}
           </div>
         )}
+
+        {/* Progress bar when running or failed */}
         {(isProcessing || FAILED_STATES.includes(job.state)) && (
           <div className="pipeline-mini-progress mt-1.5">
             <div
               className="pipeline-mini-progress-fill"
               style={{
                 width: `${job.state === 'DELIVERED' ? 100 : progressPercent}%`,
-                backgroundColor: job.state === 'DELIVERED' ? 'var(--cad-text-muted)' : (job.state === 'VALIDATION_FAILED' || job.state === 'GEOMETRY_FAILED' || job.state === 'RENDER_FAILED') ? 'var(--cad-danger)' : progressColor
+                backgroundColor: FAILED_STATES.includes(job.state) ? 'var(--app-danger)' : 'var(--app-accent)'
               }}
             />
           </div>
         )}
 
-        {isSelected && <TagBadges customerId={job.customerId} maxDisplay={2} />}
-
-        {/* Action Dock on Hover */}
+        {/* Contextual Action Dock on Hover */}
         <div className="mt-1.5 flex items-center justify-end gap-1 opacity-0 transition-opacity duration-150 group-hover/card:opacity-100" onClick={e => e.stopPropagation()}>
           {job.state === 'NEW' && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-5 gap-1 px-1.5 text-[11px] text-emerald-500 hover:bg-emerald-500/10 rounded"
+              className="h-5 gap-1 px-1.5 text-[11px] text-[var(--app-accent-text)] hover:bg-[var(--app-accent-bg)] rounded"
               onClick={() => onProcess(job)}
-              title="Process"
+              title="Generate"
             >
               <Play className="w-3 h-3" />
-              <span>Process</span>
+              <span>Generate</span>
             </Button>
           )}
           {FAILED_STATES.includes(job.state) && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-5 gap-1 px-1.5 text-[11px] text-sky-400 hover:bg-sky-400/10 rounded"
+              className="h-5 gap-1 px-1.5 text-[11px] text-[var(--app-accent-text)] hover:bg-[var(--app-accent-bg)] rounded"
               onClick={() => onProcess(job)}
-              title="Retry"
+              title="Rebuild"
             >
               <RefreshCw className="w-3 h-3" />
-              <span>Retry</span>
+              <span>Rebuild</span>
             </Button>
           )}
           {isCancelable && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-5 gap-1 px-1.5 text-[11px] text-orange-400 hover:bg-orange-400/10 rounded"
+              className="h-5 gap-1 px-1.5 text-[11px] text-[var(--app-warning)] hover:bg-[var(--app-warning-bg)] rounded"
               onClick={() => onCancel(job)}
               title="Cancel"
             >
@@ -215,7 +264,7 @@ export function SortableJobCard({
           <Button
             variant="ghost"
             size="sm"
-            className="h-5 w-5 p-0 text-[var(--app-text-dim)] hover:text-rose-500 hover:bg-rose-500/10 rounded"
+            className="h-5 w-5 p-0 text-[var(--app-text-dim)] hover:text-[var(--app-danger)] hover:bg-[var(--app-danger-bg)] rounded"
             onClick={() => onDelete(job.id)}
             title="Delete"
           >
@@ -230,22 +279,27 @@ export function SortableJobCard({
 // ─── Drag Overlay Card (rendered while dragging) ────────────────────────────
 
 export function DragOverlayCard({ job }: { job: Job }) {
+  const keyDimensions = extractKeyDimensions(job)
   return (
     <div
-      className="rounded-md border border-[color:var(--app-accent-border)] bg-[var(--app-surface)] p-2.5 shadow-xl ring-2 ring-[color:var(--app-accent-border)]/40 scale-[1.02]"
+      className="rounded-md border border-[var(--app-accent-border)] bg-[var(--app-surface)] p-2.5 shadow-xl ring-2 ring-[var(--app-accent-border)]/40 scale-[1.02]"
     >
       <div className="pl-4 pr-5">
         <div className="flex items-start justify-between gap-1.5">
-          <p className="text-[12px] text-[var(--app-text-secondary)] leading-tight line-clamp-2 flex-1">{job.inputRequest}</p>
+          <p className="text-xs text-[var(--app-text-secondary)] leading-tight line-clamp-2 flex-1">{job.inputRequest}</p>
           <div className="flex items-center gap-1 shrink-0">
             <PartFamilyIcon family={job.partFamily || 'unknown'} size="xs" />
           </div>
         </div>
+        {keyDimensions && (
+          <div className="mt-0.5 text-[11px] font-mono text-[var(--cad-measure)]">
+            {keyDimensions}
+          </div>
+        )}
         <div className="flex items-center gap-1.5 mt-1.5">
-          <StateBadge state={job.state} />
-          <span className="text-[8px] text-[var(--app-text-dim)] font-mono">{timeAgo(job.createdAt)}</span>
+          <StateBadge state={job.state} size="xs" />
+          <span className="text-[10px] text-[var(--app-text-dim)] font-mono">{timeAgo(job.createdAt)}</span>
         </div>
-        <TagBadges customerId={job.customerId} maxDisplay={3} />
       </div>
     </div>
   )

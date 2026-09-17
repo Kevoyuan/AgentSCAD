@@ -136,7 +136,7 @@ export function InspectorPanel({
       className="cad-inspector-panel min-w-0 overflow-hidden"
     >
       <PanelErrorBoundary panelName="Inspector" resetKey={`${selectedJob?.id || 'none'}_${normalizedActiveTab}`}>
-        <div className="flex h-full min-h-0 min-w-0 flex-col bg-[var(--app-surface)] overflow-hidden">
+        <div className="flex h-[calc(100%-16px)] m-2 min-h-0 min-w-0 flex-col rounded-2xl border border-white/[0.08] shadow-[0_16px_40px_-8px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl bg-[var(--app-surface)]/90 overflow-hidden">
           {selectedJob ? (
             <Tabs value={normalizedActiveTab} onValueChange={(v) => {
               const tabOrder = ['SPEC', 'PARAMETERS', 'ASSIST', 'VALIDATION', 'HISTORY', 'CODE']
@@ -155,19 +155,18 @@ export function InspectorPanel({
                   onNavigateJobs={onClearSelectedJob}
                 />
               </div>
-              <TabsList className="w-full justify-start gap-1 overflow-x-auto overflow-y-hidden px-2 py-0 bg-[var(--app-surface)] border-b border-[color:var(--app-border)] h-8 rounded-none shrink-0 shadow-none">
+              <TabsList className="w-full justify-start gap-0.5 overflow-x-auto overflow-y-hidden px-2 py-0 bg-[var(--app-surface)] border-b border-[var(--app-border)] h-8 rounded-none shrink-0 shadow-none">
                 {[
-                  { key: 'SPEC', label: 'SPEC', icon: BoxSelect },
-                  { key: 'PARAMETERS', label: 'PARAMS', icon: Settings },
-                  { key: 'ASSIST', label: 'ASSIST', icon: Sparkles },
-                  { key: 'VALIDATION', label: 'VALID', icon: Shield },
-                  { key: 'HISTORY', label: 'HISTORY', icon: History },
-                  { key: 'CODE', label: 'CODE', icon: FileCode },
+                  { key: 'SPEC', label: 'Brief', icon: BoxSelect },
+                  { key: 'PARAMETERS', label: 'Parameters', icon: Settings },
+                  { key: 'VALIDATION', label: 'Checks', icon: Shield },
+                  { key: 'CODE', label: 'OpenSCAD', icon: FileCode },
+                  { key: 'HISTORY', label: 'History', icon: History },
                 ].map(tab => (
                   <TabsTrigger
                     key={tab.key}
                     value={tab.key}
-                    className="relative shrink-0 h-8 px-2.5 py-0 text-[11px] font-mono tracking-wider rounded-none border-b-2 border-transparent bg-transparent text-[var(--app-text-muted)] shadow-none transition-colors hover:text-[var(--app-text-primary)] data-[state=active]:border-[var(--cad-accent)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--app-text-primary)] data-[state=active]:font-semibold data-[state=active]:shadow-none select-none cursor-pointer"
+                    className="relative shrink-0 h-8 px-2.5 py-0 text-xs font-mono tracking-normal rounded-none border-b-2 border-transparent bg-transparent text-[var(--app-text-muted)] shadow-none transition-colors hover:text-[var(--app-text-primary)] data-[state=active]:border-[var(--app-accent)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--app-text-primary)] data-[state=active]:font-semibold data-[state=active]:shadow-none select-none cursor-pointer"
                   >
                     {tab.label}
                   </TabsTrigger>

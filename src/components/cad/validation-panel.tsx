@@ -92,25 +92,24 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
 
   return (
     <div className="flex flex-col h-full bg-[var(--app-surface)]">
-      {/* 质检综合看板与状态指示 */}
+      {/* 质检综合看板与工程结论指示 */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-[color:var(--app-border)] bg-[var(--app-surface-raised)]/30 shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-eyebrow text-[var(--app-text-muted)]">MANUFACTURING AUDIT</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-eyebrow text-[var(--app-text-muted)] font-mono text-[10px] uppercase tracking-wider">MANUFACTURING AUDIT</span>
+          {blockers.length === 0 ? (
+            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Ready to export</span>
+            </span>
+          ) : (
+            <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>Validation blocked</span>
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">
-            <div className="w-8 h-1.5 rounded-full bg-[var(--app-surface-raised)] overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${
-                  evidenceComplete && score === 100
-                    ? 'bg-emerald-500'
-                    : score >= 60
-                    ? 'bg-amber-500'
-                    : 'bg-rose-500'
-                }`}
-                style={{ width: `${score}%` }}
-              />
-            </div>
             <span
               className="text-xs font-mono tabular-nums text-[var(--app-text-muted)]"
               title="Score across checks that produced actionable evidence"

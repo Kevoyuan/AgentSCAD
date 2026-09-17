@@ -261,8 +261,8 @@ export function SearchFilterPanel({
           <Input
             value={filters.search}
             onChange={e => updateFilter('search', e.target.value)}
-            placeholder="Search runs"
-            className="h-8 min-w-0 rounded-[7px] border-[color:var(--app-border-subtle)] bg-[var(--app-input-bg)] pl-8 pr-7 text-[13px] shadow-[0_1px_0_rgba(15,23,42,0.03)] placeholder:text-[var(--app-text-dim)] focus:border-[color:var(--app-accent)]"
+            placeholder="Search designs..."
+            className="h-8 min-w-0 rounded-[7px] border-[var(--app-border-subtle)] bg-[var(--app-input-bg)] pl-8 pr-7 text-xs shadow-none placeholder:text-[var(--app-text-dim)] focus:border-[var(--app-accent)]"
             suppressHydrationWarning
           />
           {filters.search && (

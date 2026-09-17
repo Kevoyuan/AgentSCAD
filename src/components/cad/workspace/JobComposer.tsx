@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import {
-  Play, Loader2, Sparkles, Tag, Ruler, Hammer, BoxSelect, Gauge, LockKeyhole, Cpu, Clock, CornerDownLeft, X, Wand2,
+  Play, Loader2, Sparkles, Tag, Ruler, Hammer, BoxSelect, Gauge, Cpu, Clock, CornerDownLeft, X, Wand2, LayoutTemplate, SlidersHorizontal,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,7 +17,7 @@ import { CaseMemory } from '@/components/cad/case-memory'
 import { TagBadges, buildCustomerId } from '@/components/cad/tag-badges'
 import { fetchModels, type ModelInfo } from '@/components/cad/api'
 
-// Junior Designer Assumption: keep in sync with "## Try This Sample Job" in README.md
+// Sample prompt for immediate first-time exploration
 const EXAMPLE_PROMPT = 'Create a wall-mountable phone holder with rounded corners and two screw holes.' as const
 
 export function JobComposer({
@@ -55,6 +55,7 @@ export function JobComposer({
 }) {
   const [generationModels, setGenerationModels] = useState<Array<Pick<ModelInfo, 'id' | 'name' | 'providerName' | 'description'>>>([])
   const [isLoadingModels, setIsLoadingModels] = useState(true)
+  const [activeAssistantTab, setActiveAssistantTab] = useState<'modifiers' | 'templates' | 'recent'>('modifiers')
 
   useEffect(() => {
     if (!showComposer) return
@@ -128,235 +129,265 @@ export function JobComposer({
     <Dialog open={showComposer} onOpenChange={onShowComposerChange}>
       <DialogContent
         showCloseButton={false}
-        className="max-w-[860px] w-[calc(100vw-24px)] p-0 gap-0 overflow-hidden border border-[color:var(--cad-border)] bg-[var(--cad-surface)] text-[var(--cad-text)] font-sans shadow-[0_24px_60px_-16px_rgba(15,23,42,0.24)] outline-none focus:outline-none sm:rounded-[12px]"
+        className="max-w-[780px] w-[calc(100vw-24px)] p-0 gap-0 overflow-hidden border border-[color:var(--cad-border)] bg-[var(--cad-surface)] text-[var(--cad-text)] font-sans shadow-2xl outline-none focus:outline-none sm:rounded-[10px]"
         aria-describedby="composer-description"
       >
         <DialogHeader className="sr-only">
-          <DialogTitle>New Specification</DialogTitle>
-          <DialogDescription id="composer-description">Create a new CAD specification</DialogDescription>
+          <DialogTitle>New Design</DialogTitle>
+          <DialogDescription id="composer-description">Create a new parametric CAD design</DialogDescription>
         </DialogHeader>
 
-        <div className="flex max-h-[calc(100dvh-24px)] min-h-[560px] flex-col bg-[var(--app-bg)]">
-          <div className="shrink-0 border-b border-[color:var(--cad-border)] bg-[var(--cad-surface)] px-5 py-3.5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] border border-[color:var(--cad-border)] bg-[var(--cad-surface-raised)] shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-                  <BoxSelect className="h-3.5 w-3.5 text-[var(--cad-text-secondary)]" />
-                </div>
-                <div className="min-w-0">
-                  <div className="truncate text-[13px] font-semibold text-[var(--cad-text)]">Create CAD Job</div>
-                  <div className="truncate text-[11px] text-[var(--cad-text-muted)]">Describe the part first, then refine constraints.</div>
-                </div>
+        <div className="flex max-h-[calc(100dvh-32px)] flex-col bg-[var(--cad-background)]">
+          {/* Header */}
+          <div className="shrink-0 border-b border-[color:var(--cad-border)] bg-[var(--cad-surface)] px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[4px] border border-[color:var(--cad-border)] bg-[var(--cad-surface-muted)] text-[var(--cad-accent)]">
+                <BoxSelect className="h-3.5 w-3.5" />
               </div>
-              <button
-                type="button"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] text-[var(--cad-text-muted)] transition-colors hover:bg-[var(--cad-surface-raised)] hover:text-[var(--cad-text)]"
-                onClick={() => onShowComposerChange(false)}
-                aria-label="Close composer"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+              <div>
+                <h2 className="text-[13px] font-semibold text-[var(--cad-text-primary)]">New Design</h2>
+                <p className="text-[11px] text-[var(--cad-text-muted)]">Describe geometry and parametric constraints in natural language.</p>
+              </div>
             </div>
+            <button
+              type="button"
+              className="flex h-6 w-6 items-center justify-center rounded-[4px] text-[var(--cad-text-muted)] hover:text-[var(--cad-text-primary)] hover:bg-[var(--cad-surface-muted)] transition-colors"
+              onClick={() => onShowComposerChange(false)}
+              aria-label="Close dialog"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
 
-          <div className="stable-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
-            <div className="space-y-4">
-              <div className="rounded-[10px] border border-[color:var(--cad-border)] bg-[var(--cad-surface)] shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-                <div className="flex items-center justify-between gap-2 border-b border-[color:var(--cad-border)] px-3.5 py-2.5">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-[var(--cad-accent)]" />
-                    <span className="truncate text-[12px] font-medium text-[var(--cad-text-secondary)]">Part brief</span>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    {/* Junior Designer Assumption: show "Try Example" only when textarea is empty
-                        so new users instantly understand what to type. Prompt matches README sample job. */}
-                    {!newJobText.trim() && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 shrink-0 rounded-[6px] px-2.5 text-[11px] font-medium text-[var(--cad-text-muted)] transition-colors hover:bg-[var(--cad-surface-raised)] hover:text-[var(--cad-text)] active:scale-[0.98]"
-                        onClick={() => onNewJobTextChange(EXAMPLE_PROMPT)}
-                      >
-                        <Wand2 className="mr-1.5 h-3 w-3 shrink-0" aria-hidden="true" />
-                        <span className="truncate">Try Example</span>
-                      </Button>
-                    )}
+          {/* Body */}
+          <div className="stable-scrollbar min-h-0 flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Primary Prompt Input */}
+            <div className="rounded-[8px] border border-[color:var(--cad-border)] bg-[var(--cad-surface)] overflow-hidden shadow-sm">
+              <div className="flex items-center justify-between border-b border-[color:var(--cad-border)] px-3 py-1.5 bg-[var(--cad-surface-muted)]/50">
+                <span className="text-[11px] font-mono text-[var(--cad-text-muted)] uppercase tracking-wider">
+                  Design Brief
+                </span>
+                <div className="flex items-center gap-1">
+                  {!newJobText.trim() && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 max-w-[136px] shrink-0 rounded-[6px] px-2.5 text-[11px] font-medium text-[var(--cad-accent)] transition-colors hover:bg-[var(--cad-accent-soft)] active:scale-[0.98]"
-                      onClick={onAiEnhance}
-                      disabled={!newJobText.trim() || isAiEnhancing}
+                      className="h-6 px-2 text-[11px] font-mono text-[var(--cad-text-muted)] hover:text-[var(--cad-text-primary)] hover:bg-[var(--cad-surface-muted)]"
+                      onClick={() => onNewJobTextChange(EXAMPLE_PROMPT)}
                     >
-                      {isAiEnhancing ? <Loader2 className="mr-1.5 h-3 w-3 shrink-0 animate-spin" /> : <Sparkles className="mr-1.5 h-3 w-3 shrink-0" />}
-                      <span className="truncate">{isAiEnhancing ? 'Synthesizing' : 'AI Enhance'}</span>
+                      <Wand2 className="mr-1 h-3 w-3" />
+                      Try Example
                     </Button>
-                  </div>
-                </div>
-                <div className="relative">
-                  <Textarea
-                    value={newJobText}
-                    onChange={e => onNewJobTextChange(e.target.value)}
-                    placeholder="Hinged electronics enclosure with 2.5mm walls, M3 screw posts, snap-fit lid..."
-                    className="h-[150px] min-h-[150px] w-full resize-none overflow-y-auto rounded-none border-0 bg-transparent px-4 py-4 pb-10 text-[15px] leading-7 text-[var(--cad-text)] placeholder:text-[var(--cad-text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0"
-                    maxLength={5000}
-                    autoFocus
-                  />
-                  <div className="pointer-events-none absolute bottom-3 right-4 text-[10px] font-mono tabular-nums text-[var(--cad-text-muted)]">
-                    {newJobText.length}/5000
-                  </div>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[11px] font-mono text-[var(--cad-accent)] hover:bg-[var(--cad-accent)]/10"
+                    onClick={onAiEnhance}
+                    disabled={!newJobText.trim() || isAiEnhancing}
+                  >
+                    {isAiEnhancing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+                    {isAiEnhancing ? 'Refining...' : 'AI Enhance'}
+                  </Button>
                 </div>
               </div>
-
-              <section className="rounded-[9px] border border-[color:var(--cad-border)] bg-[var(--cad-surface)] p-3.5">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <label className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold uppercase text-[var(--cad-text-secondary)]">
-                        <Cpu className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">Engine</span>
-                      </label>
-                      <button onClick={onAddProvider} className="shrink-0 text-[11px] text-[var(--cad-text-muted)] transition-colors hover:text-[var(--cad-text)]">
-                        Manage
-                      </button>
-                    </div>
-                    <div className="relative">
-                      {isLoadingModels ? (
-                        <div className="flex h-9 w-full items-center rounded-[7px] border border-[color:var(--cad-border)] bg-[var(--cad-surface)] px-2.5 text-[12px] text-[var(--cad-text-muted)]">
-                          <Loader2 className="mr-2 h-3 w-3 shrink-0 animate-spin" /> Loading...
-                        </div>
-                      ) : (
-                        <select
-                          value={newJobModelId}
-                          onChange={(e) => onNewJobModelIdChange(e.target.value)}
-                          className="h-9 w-full cursor-pointer appearance-none truncate rounded-[7px] border border-[color:var(--cad-border)] bg-[var(--cad-surface)] pl-3 pr-8 text-[12px] text-[var(--cad-text)] shadow-[0_1px_2px_rgba(15,23,42,0.03)] outline-none transition-colors hover:bg-[var(--cad-surface-raised)] focus:border-[color:var(--cad-accent)] focus:ring-1 focus:ring-[var(--cad-accent)]"
-                          style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2375808b%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px top 50%', backgroundSize: '8px auto' }}
-                        >
-                          {generationModels.length === 0 && <option value="">No engines available</option>}
-                          {generationModels.map(model => (
-                            <option key={model.id} value={model.id}>
-                              {model.name}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase text-[var(--cad-text-secondary)]">
-                      <Tag className="h-3.5 w-3.5 shrink-0" /> Labels
-                    </label>
-                    <Input
-                      value={newJobTags}
-                      onChange={e => onNewJobTagsChange(e.target.value)}
-                      placeholder="prototype, abs"
-                      className="h-9 rounded-[7px] border-[color:var(--cad-border)] bg-[var(--cad-surface)] text-[12px] shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-colors placeholder:text-[var(--cad-text-muted)] hover:bg-[var(--cad-surface-raised)] focus:border-[color:var(--cad-accent)]"
-                    />
-                    {newJobTags.trim() && (
-                      <div className="pt-1">
-                        <TagBadges customerId={buildCustomerId(newJobTags.split(',').map(t => t.trim()).filter(t => t))} maxDisplay={4} />
-                      </div>
-                    )}
-                  </div>
+              <div className="relative">
+                <Textarea
+                  value={newJobText}
+                  onChange={e => onNewJobTextChange(e.target.value)}
+                  placeholder="e.g. A snap-fit electronics enclosure with 2.5mm walls, M3 screw bosses, and USB-C port cutout..."
+                  className="h-[130px] min-h-[130px] w-full resize-none border-0 bg-transparent p-3 text-[13px] leading-relaxed text-[var(--cad-text-primary)] placeholder:text-[var(--cad-text-muted)]/60 focus-visible:ring-0"
+                  maxLength={5000}
+                  autoFocus
+                />
+                <div className="pointer-events-none absolute bottom-2 right-3 text-[10px] font-mono text-[var(--cad-text-muted)] opacity-60">
+                  {newJobText.length}/5000
                 </div>
-              </section>
-
-              <section className="rounded-[9px] border border-[color:var(--cad-border)] bg-[var(--cad-surface)] p-3.5">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <label className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold uppercase text-[var(--cad-text-secondary)]">
-                    <LockKeyhole className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">Quick modifiers</span>
-                  </label>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  {specGroups.map(group => {
-                    const Icon = group.icon
-                    return (
-                      <div key={group.label} className="space-y-1.5">
-                        <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--cad-text-muted)]">
-                          <Icon className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{group.label}</span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {group.values.map(value => (
-                            <button
-                              key={value}
-                              type="button"
-                              className="max-w-full rounded-[6px] border border-[color:var(--cad-border)] bg-[var(--cad-surface-raised)] px-2 py-1 text-left text-[11px] leading-4 text-[var(--cad-text-secondary)] shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-all hover:border-[color:var(--cad-accent)] hover:bg-[var(--cad-accent-soft)] hover:text-[var(--cad-text)] active:scale-[0.98]"
-                              onClick={() => appendSpec(value)}
-                            >
-                              {value}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
-
-              <section className="rounded-[9px] border border-[color:var(--cad-border)] bg-[var(--cad-surface)] p-3.5">
-                <JobTemplateCards onSelect={(template) => onNewJobTextChange(template)} />
-              </section>
-
-              {(newJobText.trim().length >= 3 || recentRequests.length > 0) && (
-                <section className="min-h-[104px] rounded-[9px] border border-[color:var(--cad-border)] bg-[var(--cad-surface)] p-3.5">
-                  <CaseMemory
-                    searchQuery={newJobText}
-                    onSuggestionClick={(job) => {
-                      toast.info('Similar job found', { description: job.inputRequest.slice(0, 60) })
-                    }}
-                  />
-                  {recentRequests.length > 0 && (
-                    <div className="space-y-2.5">
-                      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase text-[var(--cad-text-secondary)]">
-                        <Clock className="h-3 w-3" /> Recent
-                      </div>
-                      <div className="grid gap-1.5 sm:grid-cols-3">
-                        {recentRequests.slice(0, 3).map((req, i) => (
-                          <button
-                            key={i}
-                            className="line-clamp-2 rounded-[6px] border border-[color:var(--cad-border)] bg-[var(--cad-surface)] px-2.5 py-2 text-left text-[12px] leading-4 text-[var(--cad-text-secondary)] transition-all hover:bg-[var(--cad-surface-raised)] hover:text-[var(--cad-text)] active:scale-[0.98]"
-                            onClick={() => onNewJobTextChange(req)}
-                            title={req}
-                          >
-                            {req}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </section>
-              )}
+              </div>
             </div>
+
+            {/* Engine & Labels Bar */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[6px] border border-[color:var(--cad-border)] bg-[var(--cad-surface)] p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-mono text-[var(--cad-text-muted)]">
+                  <span className="flex items-center gap-1 text-[var(--cad-text-secondary)]">
+                    <Cpu className="h-3 w-3" /> Model Engine
+                  </span>
+                  <button
+                    onClick={onAddProvider}
+                    className="text-[10px] text-[var(--cad-accent)] hover:underline"
+                  >
+                    Settings
+                  </button>
+                </div>
+                {isLoadingModels ? (
+                  <div className="h-8 flex items-center px-2 text-[11px] font-mono text-[var(--cad-text-muted)]">
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Loading models...
+                  </div>
+                ) : (
+                  <select
+                    value={newJobModelId}
+                    onChange={(e) => onNewJobModelIdChange(e.target.value)}
+                    className="h-8 w-full cursor-pointer rounded-[4px] border border-[color:var(--cad-border)] bg-[var(--cad-surface-muted)] px-2 text-[12px] font-mono text-[var(--cad-text-primary)] outline-none transition-colors hover:border-[color:var(--cad-border-strong)] focus:border-[color:var(--cad-accent)]"
+                  >
+                    {generationModels.length === 0 && <option value="">No models configured</option>}
+                    {generationModels.map(model => (
+                      <option key={model.id} value={model.id}>
+                        {model.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="rounded-[6px] border border-[color:var(--cad-border)] bg-[var(--cad-surface)] p-2.5 space-y-1.5">
+                <div className="text-[11px] font-mono text-[var(--cad-text-secondary)] flex items-center gap-1">
+                  <Tag className="h-3 w-3 text-[var(--cad-text-muted)]" /> Tags (Optional)
+                </div>
+                <Input
+                  value={newJobTags}
+                  onChange={e => onNewJobTagsChange(e.target.value)}
+                  placeholder="e.g. bracket, prototype, abs"
+                  className="h-8 rounded-[4px] border-[color:var(--cad-border)] bg-[var(--cad-surface-muted)] text-[12px] font-mono placeholder:text-[var(--cad-text-muted)]/50 focus:border-[color:var(--cad-accent)]"
+                />
+              </div>
+            </div>
+
+            {/* Progressive Assistance Tabs: Modifiers | Templates | Recent */}
+            <div className="rounded-[8px] border border-[color:var(--cad-border)] bg-[var(--cad-surface)] overflow-hidden">
+              <div className="flex items-center gap-1 border-b border-[color:var(--cad-border)] bg-[var(--cad-surface-muted)]/40 px-2 py-1">
+                <button
+                  type="button"
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-[4px] text-[11px] font-mono transition-colors ${
+                    activeAssistantTab === 'modifiers'
+                      ? 'bg-[var(--cad-surface)] text-[var(--cad-text-primary)] shadow-xs border border-[color:var(--cad-border)]'
+                      : 'text-[var(--cad-text-muted)] hover:text-[var(--cad-text-primary)]'
+                  }`}
+                  onClick={() => setActiveAssistantTab('modifiers')}
+                >
+                  <SlidersHorizontal className="w-3 h-3" />
+                  <span>Modifiers</span>
+                </button>
+                <button
+                  type="button"
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-[4px] text-[11px] font-mono transition-colors ${
+                    activeAssistantTab === 'templates'
+                      ? 'bg-[var(--cad-surface)] text-[var(--cad-text-primary)] shadow-xs border border-[color:var(--cad-border)]'
+                      : 'text-[var(--cad-text-muted)] hover:text-[var(--cad-text-primary)]'
+                  }`}
+                  onClick={() => setActiveAssistantTab('templates')}
+                >
+                  <LayoutTemplate className="w-3 h-3" />
+                  <span>Templates</span>
+                </button>
+                {recentRequests.length > 0 && (
+                  <button
+                    type="button"
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-[4px] text-[11px] font-mono transition-colors ${
+                      activeAssistantTab === 'recent'
+                        ? 'bg-[var(--cad-surface)] text-[var(--cad-text-primary)] shadow-xs border border-[color:var(--cad-border)]'
+                        : 'text-[var(--cad-text-muted)] hover:text-[var(--cad-text-primary)]'
+                    }`}
+                    onClick={() => setActiveAssistantTab('recent')}
+                  >
+                    <Clock className="w-3 h-3" />
+                    <span>Recent</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="p-3">
+                {activeAssistantTab === 'modifiers' && (
+                  <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                    {specGroups.map(group => {
+                      const Icon = group.icon
+                      return (
+                        <div key={group.label} className="space-y-1">
+                          <div className="flex items-center gap-1 text-[10px] font-mono uppercase text-[var(--cad-text-muted)]">
+                            <Icon className="h-3 w-3" />
+                            <span>{group.label}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {group.values.map(value => (
+                              <button
+                                key={value}
+                                type="button"
+                                className="rounded-[4px] border border-[color:var(--cad-border)] bg-[var(--cad-surface-muted)] px-1.5 py-0.5 text-left text-[11px] font-mono text-[var(--cad-text-secondary)] transition-colors hover:border-[color:var(--cad-accent)] hover:text-[var(--cad-text-primary)]"
+                                onClick={() => appendSpec(value)}
+                              >
+                                + {value}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {activeAssistantTab === 'templates' && (
+                  <JobTemplateCards onSelect={(template) => onNewJobTextChange(template)} />
+                )}
+
+                {activeAssistantTab === 'recent' && recentRequests.length > 0 && (
+                  <div className="grid gap-1.5 sm:grid-cols-2">
+                    {recentRequests.slice(0, 4).map((req, i) => (
+                      <button
+                        key={i}
+                        className="rounded-[4px] border border-[color:var(--cad-border)] bg-[var(--cad-surface-muted)] p-2 text-left text-[11px] text-[var(--cad-text-secondary)] transition-colors hover:border-[color:var(--cad-accent)] hover:text-[var(--cad-text-primary)]"
+                        onClick={() => onNewJobTextChange(req)}
+                        title={req}
+                      >
+                        <p className="line-clamp-2">{req}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Case Memory / Similar Design Recommendation */}
+            {newJobText.trim().length >= 5 && (
+              <div className="rounded-[8px] border border-[color:var(--cad-border)] bg-[var(--cad-surface)] p-3">
+                <CaseMemory
+                  searchQuery={newJobText}
+                  onSuggestionClick={(job) => {
+                    toast.info('Similar design found', { description: job.inputRequest.slice(0, 60) })
+                  }}
+                />
+              </div>
+            )}
           </div>
 
-          <div className="shrink-0 border-t border-[color:var(--cad-border)] bg-[var(--cad-surface)] px-4 py-3">
-            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
+          {/* Footer Bar */}
+          <div className="shrink-0 border-t border-[color:var(--cad-border)] bg-[var(--cad-surface)] px-4 py-2.5 flex items-center justify-between">
+            <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-mono text-[var(--cad-text-muted)]">
+              <kbd className="rounded border border-[color:var(--cad-border)] bg-[var(--cad-surface-muted)] px-1.5 py-0.5 text-[10px]">⌘</kbd>
+              <span>+</span>
+              <kbd className="rounded border border-[color:var(--cad-border)] bg-[var(--cad-surface-muted)] px-1.5 py-0.5 text-[10px] flex items-center gap-0.5">
+                Enter <CornerDownLeft className="h-2.5 w-2.5" />
+              </kbd>
+              <span className="opacity-70">to generate</span>
+            </div>
+
+            <div className="flex items-center gap-2 ml-auto">
               <Button
                 variant="ghost"
-                className="h-8 rounded-[6px] px-2.5 text-[12px] font-medium text-[var(--cad-text-secondary)] transition-colors hover:bg-[var(--cad-surface-raised)] hover:text-[var(--cad-text)] active:scale-[0.98]"
+                size="sm"
+                className="h-7 px-3 text-[12px] font-mono text-[var(--cad-text-secondary)] hover:text-[var(--cad-text-primary)]"
                 onClick={() => onShowComposerChange(false)}
               >
                 Cancel
               </Button>
               <Button
-                className="flex h-8 min-w-0 items-center justify-center gap-2 rounded-[6px] bg-[var(--cad-accent)] px-3 text-[12px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_1px_2px_rgba(15,23,42,0.12)] transition-all hover:bg-opacity-90 disabled:opacity-50 active:scale-[0.98]"
+                size="sm"
+                className="h-7 px-4 text-[12px] font-mono font-medium bg-[var(--cad-accent)] hover:bg-[var(--cad-accent-hover)] text-white shadow-xs"
                 onClick={onCreate}
                 disabled={!newJobText.trim() || !newJobModelId || isCreating}
               >
-                {isCreating ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <Play className="h-3.5 w-3.5 shrink-0" />}
-                <span className="truncate">Create Job</span>
+                {isCreating ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : <Play className="mr-1.5 h-3 w-3" />}
+                <span>Generate</span>
               </Button>
-            </div>
-            <div className="mt-2 hidden items-center justify-center gap-1.5 text-[10px] text-[var(--cad-text-muted)] md:flex">
-              <kbd className="rounded border border-[color:var(--cad-border)] bg-[var(--cad-surface-raised)] px-1.5 py-0.5 font-sans">⌘</kbd>
-              <span>+</span>
-              <kbd className="flex items-center gap-1 rounded border border-[color:var(--cad-border)] bg-[var(--cad-surface-raised)] px-1.5 py-0.5 font-sans">
-                Enter <CornerDownLeft className="h-2.5 w-2.5" />
-              </kbd>
-              <span className="ml-1">to create</span>
             </div>
           </div>
         </div>

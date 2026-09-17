@@ -140,6 +140,7 @@ export function ViewerControls({
       {items.map((ctrl) => {
         const Icon = ctrl.icon
         const isDisabled = 'disabled' in ctrl && Boolean(ctrl.disabled)
+        const isMeasure = ctrl.label === 'Dimensions'
         return (
           <button
             key={ctrl.label}
@@ -152,7 +153,9 @@ export function ViewerControls({
                 isDisabled
                   ? 'opacity-30 cursor-not-allowed text-[var(--app-text-muted)]'
                   : ctrl.active
-                  ? 'bg-[var(--cad-accent-soft)] text-[var(--cad-accent)] shadow-sm'
+                  ? isMeasure
+                    ? 'bg-[var(--cad-measure)]/15 text-[var(--cad-measure)] shadow-sm'
+                    : 'bg-[var(--app-accent-bg)] text-[var(--app-accent)] shadow-sm'
                   : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)] hover:bg-[var(--app-surface-hover)]'
               }
             `}
@@ -160,7 +163,7 @@ export function ViewerControls({
             <Icon className={`w-3.5 h-3.5 ${'iconClassName' in ctrl && ctrl.iconClassName ? ctrl.iconClassName : ''}`} />
             {ctrl.active && (
               <motion.span
-                className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--cad-accent)]"
+                className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${isMeasure ? 'bg-[var(--cad-measure)]' : 'bg-[var(--app-accent)]'}`}
                 layoutId="viewer-control-active"
                 transition={{ type: 'spring', stiffness: 500, damping: 30 }}
               />
@@ -180,7 +183,7 @@ export function ViewerControls({
       exit="exit"
       transition={fadeInUpTransition}
     >
-      <div className="flex items-center gap-1 rounded-lg border border-[color:var(--app-border)] bg-[var(--app-surface-raised)]/90 backdrop-blur-md px-1.5 py-1 shadow-lg shadow-black/25">
+      <div className="flex items-center gap-1 rounded-full border border-white/10 bg-[#12161F]/85 backdrop-blur-2xl px-2 py-1 shadow-2xl">
         {renderGroup(navControls)}
         <div className="h-4 w-px bg-[color:var(--app-border-subtle)] mx-0.5" />
         {renderGroup(displayControls)}

@@ -71,9 +71,9 @@ function getReadinessTone(report: DeliveryReadinessReport) {
     case 'unverified':
       return {
         icon: ShieldQuestion,
-        shell: 'border-sky-500/20 bg-sky-500/[0.07]',
-        text: 'text-sky-400',
-        progress: 'bg-sky-500',
+        shell: 'border-slate-400/20 bg-slate-400/[0.07]',
+        text: 'text-slate-300',
+        progress: 'bg-slate-400',
       }
     default:
       return {
@@ -289,90 +289,65 @@ export function ViewerPanel({
   return (
     <ResizablePanel id="agentscad-viewer-panel" order={2} defaultSize={52} minSize={36} className="cad-viewer-panel min-w-0 overflow-hidden">
       <PanelErrorBoundary panelName="3D Viewport" resetKey={selectedJob?.id}>
-        <div className="flex flex-col h-full bg-[var(--app-bg)] min-w-0 overflow-hidden">
+        <div className="flex flex-col h-[calc(100%-16px)] my-2 rounded-2xl border border-white/[0.06] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.8)] min-w-0 overflow-hidden relative bg-[#0A0D10]/95 backdrop-blur-xl">
           {selectedJob ? (
           <>
-            <div className="px-3 py-2 border-b border-[color:var(--cad-border)] bg-[var(--cad-surface)] shrink-0 space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <PartFamilyIcon family={selectedJob.partFamily || 'unknown'} size={18} className={getPartFamilyColor(selectedJob.partFamily)} />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-[var(--cad-text)] truncate max-w-[180px]">{getPartFamilyLabel(selectedJob.partFamily)}</span>
-                      {getDimensionSummary(selectedJob) && (
-                        <span className="hidden xl:inline-flex items-center gap-1 text-xs font-mono text-[var(--cad-text-muted)]">
-                          <Ruler className="w-3.5 h-3.5" />
-                          {getDimensionSummary(selectedJob)}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-[var(--cad-text-secondary)] leading-snug truncate max-w-[520px]">{selectedJob.inputRequest}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <StateBadge state={selectedJob.state} size="md" />
-                </div>
+            {/* Precision Viewport Header: Model-first, clean, essential state only */}
+            <div className="h-9 px-3 border-b border-[var(--cad-border)] bg-[var(--cad-surface)] flex items-center justify-between shrink-0 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <PartFamilyIcon family={selectedJob.partFamily || 'unknown'} size={14} className={getPartFamilyColor(selectedJob.partFamily)} />
+                <span className="text-xs font-semibold text-[var(--cad-text)] truncate max-w-[260px] md:max-w-[420px]" title={selectedJob.inputRequest}>
+                  {selectedJob.inputRequest}
+                </span>
+                {getDimensionSummary(selectedJob) && (
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono text-[var(--cad-measure)]">
+                    <Ruler className="w-3 h-3" />
+                    {getDimensionSummary(selectedJob)}
+                  </span>
+                )}
               </div>
-              <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
-                <span className="flex items-center gap-1 text-[var(--app-text-muted)]">
-                  <Clock className="w-3.5 h-3.5" />
-                  Created: {timeAgo(selectedJob.createdAt)}
-                </span>
-                {selectedJob.completedAt && (
-                  <span className="flex items-center gap-1 text-[var(--app-success)]">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Completed: {timeAgo(selectedJob.completedAt)}
-                  </span>
+
+              {/* Essential State & Viewport Action Cluster */}
+              <div className="flex items-center gap-2 shrink-0">
+                <StateBadge state={selectedJob.state} size="xs" />
+                {selectedJob.state === 'NEW' && (
+                  <Button
+                    size="sm"
+                    className="h-6 text-xs gap-1 px-2 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white rounded-[5px] active:scale-[0.98]"
+                    onClick={() => onProcess(selectedJob)}
+                    disabled={isProcessing}
+                  >
+                    <Play className="w-3 h-3" />
+                    <span>Generate</span>
+                  </Button>
                 )}
-                {selectedJob.builderName && (
-                  <span className="flex items-center gap-1 text-[var(--app-text-dim)]">
-                    <Cpu className="w-3.5 h-3.5" />
-                    {selectedJob.builderName}
-                  </span>
+                {['DELIVERED', 'HUMAN_REVIEW', 'VALIDATION_FAILED', 'GEOMETRY_FAILED', 'RENDER_FAILED'].includes(selectedJob.state) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-xs gap-1 px-2 border-[var(--app-border)] hover:bg-[var(--app-surface-hover)] rounded-[5px] active:scale-[0.98]"
+                    onClick={() => onProcess(selectedJob)}
+                    disabled={isProcessing}
+                    title="Rebuild model"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Rebuild</span>
+                  </Button>
                 )}
-                {selectedJob.generationPath && (
-                  <span className="flex items-center gap-1 text-[var(--app-text-dim)]">
-                    <Layers className="w-3.5 h-3.5" />
-                    {selectedJob.generationPath}
-                  </span>
+                {selectedJob.stlPath && (
+                  <Button
+                    size="sm"
+                    className="h-6 text-xs gap-1 px-2 bg-[var(--app-surface-raised)] border border-[var(--app-border)] hover:bg-[var(--app-surface-hover)] text-[var(--app-text-primary)] rounded-[5px] active:scale-[0.98]"
+                    onClick={() => handleDownloadStl(selectedJob)}
+                    disabled={downloading}
+                    title="Export binary STL"
+                  >
+                    <Box className="w-3 h-3 text-[var(--cad-measure)]" />
+                    <span>Export STL</span>
+                  </Button>
                 )}
-                <span className="hidden 2xl:flex items-center gap-1 text-[var(--cad-text-muted)]">
-                  <BoxSelect className="w-3.5 h-3.5" />
-                  {selectedJob.stlPath ? 'STL loaded' : 'procedural preview'}
-                </span>
               </div>
             </div>
-
-            {/* Gradient Divider */}
-            <div className="gradient-separator" />
-
-            {/* Quick Actions Bar */}
-            <QuickActionsBar
-              job={selectedJob}
-              onProcess={onProcess}
-              onCancel={onCancel}
-              onDelete={onDelete}
-              onReprocess={onProcess}
-              onDownloadScad={onDownloadScad}
-              onDownloadStl={handleDownloadStl}
-              isDownloadingStl={downloading}
-              onView3D={onView3D}
-              onViewLog={onViewLog}
-              onShare={onShare}
-              onRepair={onRepair}
-              isProcessing={isProcessing}
-            />
-
-            <DeliveryReadinessStrip
-              job={selectedJob}
-              isProcessing={isProcessing}
-              onProcess={onProcess}
-              onRepair={onRepair}
-              onVisualRepair={onVisualRepair}
-              onDownloadScad={onDownloadScad}
-              onDownloadStl={handleDownloadStl}
-              onSetActiveTab={onSetActiveTab}
-            />
 
             {/* Center Content: Conditional based on job state */}
             {(() => {

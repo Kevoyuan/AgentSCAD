@@ -33,39 +33,39 @@ export function SpecPanel({
 
   return (
     <div className="h-full overflow-y-auto p-3 space-y-3">
-      {/* Design Intent & Prompt */}
-      <div className="rounded-lg border border-[color:var(--app-border-subtle)] bg-[var(--app-surface)] p-3">
-        <div className="flex items-center justify-between pb-2 mb-2 border-b border-[color:var(--app-border-subtle)]">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--cad-text-muted)]">Design Intent</span>
-          <span className="text-[10px] font-mono text-[var(--app-accent)]">ID: {job.id.slice(0, 8)}</span>
+      {/* Design Brief & Prompt */}
+      <div className="rounded-[6px] border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
+        <div className="flex items-center justify-between pb-2 mb-2 border-b border-[var(--app-border-subtle)]">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--app-text-muted)]">Design Brief</span>
+          <span className="text-[10px] font-mono text-[var(--app-text-dim)]">ID: {job.id.slice(0, 8)}</span>
         </div>
-        <p className="text-[13px] leading-relaxed text-[var(--cad-text)] font-normal select-text">
+        <p className="text-xs leading-relaxed text-[var(--app-text-primary)] font-normal select-text">
           {job.inputRequest}
         </p>
       </div>
 
       {/* Engineering Attributes Grid */}
-      <div className="rounded-lg border border-[color:var(--app-border-subtle)] bg-[var(--app-surface)] overflow-hidden">
-        <div className="px-3 py-2 border-b border-[color:var(--app-border-subtle)] bg-[var(--app-surface-raised)]/40 flex items-center justify-between">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--cad-text-muted)]">Fabrication Specs</span>
-          <span className="text-[10px] font-mono text-[var(--cad-text-dim)]">{job.partFamily || 'Custom'}</span>
+      <div className="rounded-[6px] border border-[var(--app-border)] bg-[var(--app-surface)] overflow-hidden">
+        <div className="px-3 py-2 border-b border-[var(--app-border)] bg-[var(--app-surface-raised)]/50 flex items-center justify-between">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--app-text-muted)]">Fabrication Specs</span>
+          <span className="text-[10px] font-mono text-[var(--app-text-dim)]">{job.partFamily || 'Custom'}</span>
         </div>
-        <div className="divide-y divide-[color:var(--app-border-subtle)]">
-          <div className="flex items-center justify-between px-3 py-2 text-[12px]">
-            <span className="text-[var(--cad-text-muted)]">Part Family</span>
-            <span className="font-medium text-[var(--cad-text)]">{job.partFamily ? getPartFamilyLabel(job.partFamily) : 'Custom / Unclassified'}</span>
+        <div className="divide-y divide-[var(--app-border-subtle)]">
+          <div className="flex items-center justify-between px-3 py-2 text-xs">
+            <span className="text-[var(--app-text-muted)]">Part Family</span>
+            <span className="font-medium text-[var(--app-text-primary)]">{job.partFamily ? getPartFamilyLabel(job.partFamily) : 'Custom / Unclassified'}</span>
           </div>
-          <div className="flex items-center justify-between px-3 py-2 text-[12px]">
-            <span className="text-[var(--cad-text-muted)]">Bounding Box</span>
+          <div className="flex items-center justify-between px-3 py-2 text-xs">
+            <span className="text-[var(--app-text-muted)]">Bounding Box</span>
             <span className="font-mono tabular-nums text-[var(--cad-measure)]">{dimensions.length ? `${dimensions.join(' × ')} mm` : 'Pending render'}</span>
           </div>
-          <div className="flex items-center justify-between px-3 py-2 text-[12px]">
-            <span className="text-[var(--cad-text-muted)]">Engine / Path</span>
-            <span className="font-mono text-[var(--cad-text-secondary)]">{job.generationPath?.replace(/_/g, ' ') || 'Direct synthesis'}</span>
+          <div className="flex items-center justify-between px-3 py-2 text-xs">
+            <span className="text-[var(--app-text-muted)]">Engine / Path</span>
+            <span className="font-mono text-[var(--app-text-secondary)]">{job.generationPath?.replace(/_/g, ' ') || 'Direct synthesis'}</span>
           </div>
-          <div className="flex items-center justify-between px-3 py-2 text-[12px]">
-            <span className="text-[var(--cad-text-muted)]">Builder</span>
-            <span className="font-mono text-[var(--cad-text-secondary)]">{job.builderName || 'OpenSCAD v2.0'}</span>
+          <div className="flex items-center justify-between px-3 py-2 text-xs">
+            <span className="text-[var(--app-text-muted)]">Builder</span>
+            <span className="font-mono text-[var(--app-text-secondary)]">{job.builderName || 'OpenSCAD WASM'}</span>
           </div>
         </div>
       </div>
