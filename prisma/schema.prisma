@@ -49,11 +49,28 @@ model Job {
   parent          Job?     @relation("JobHierarchy", fields: [parentId], references: [id])
   children        Job[]    @relation("JobHierarchy")
   versions        JobVersion[]
+  outcomes        JobOutcome[]
 
   @@index([createdAt])
   @@index([browserSessionId, createdAt])
   @@index([state, createdAt])
   @@index([parentId])
+}
+
+/// Append-only record of what actually happened to a job, kept strictly separate from
+/// pipeline state. `DELIVERED` means artifacts became available; it never meant the user
+/// accepted the part. Acceptance, rejection, edits, and exports are events, not states.
+model JobOutcome {
+  id        String   @id @default(cuid())
+  jobId     String
+  kind      String   // "accepted" | "rejected" | "user_edited" | "exported"
+  source    String   @default("user") // "user" | "system"
+  detail    String?  // bounded free text or JSON describing the event
+  createdAt DateTime @default(now())
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, createdAt])
+  @@index([kind, createdAt])
 }
 
 model JobVersion {

@@ -1,0 +1,288 @@
+{
+  "schema_version": 1,
+  "notes": [
+    "Deterministic retrieval contract for generation-prompt context. Data, not route logic.",
+    "Aliases are matched against a normalized request (NFKC, lowercased, punctuation stripped).",
+    "strong_aliases name the part itself and score 3; supporting_aliases name a feature or",
+    "synonym and score 1. Longer aliases score higher because they are more specific.",
+    "exclude_aliases are hard negatives: when one is present the entry is not matched at all.",
+    "An entry that matches nothing is simply not returned. Unmatched requests return no",
+    "examples or patterns rather than filesystem-order fallback."
+  ],
+  "examples": [
+    {
+      "id": "mounting_plate_four_holes",
+      "family": "unknown",
+      "strong_aliases": [
+        "mounting plate",
+        "mount plate",
+        "base plate",
+        "bolt plate",
+        "安装板",
+        "固定板",
+        "底板",
+        "底座板",
+        "法兰板"
+      ],
+      "supporting_aliases": ["plate", "板", "flange", "法兰"]
+    },
+    {
+      "id": "l_bracket_ribs",
+      "family": "unknown",
+      "strong_aliases": [
+        "l bracket",
+        "angle bracket",
+        "wall bracket",
+        "shelf bracket",
+        "corner bracket",
+        "l型支架",
+        "角支架",
+        "角码",
+        "直角支架",
+        "墙上支架"
+      ],
+      "supporting_aliases": ["bracket", "角铁", "rib", "加强筋"]
+    },
+    {
+      "id": "ribbed_mount",
+      "family": "unknown",
+      "strong_aliases": [
+        "ribbed mount",
+        "reinforced mount",
+        "heavy duty bracket",
+        "gusseted mount",
+        "加强支架",
+        "加强筋支架",
+        "重型支架",
+        "承重支架"
+      ],
+      "supporting_aliases": ["reinforced", "ribbed", "heavy duty", "加强", "加固", "承重", "重型"]
+    },
+    {
+      "id": "pipe_clamp",
+      "family": "unknown",
+      "strong_aliases": [
+        "pipe clamp",
+        "tube clamp",
+        "hose clamp",
+        "管夹",
+        "水管夹",
+        "管卡",
+        "抱箍"
+      ],
+      "supporting_aliases": ["clamp", "夹具", "卡箍"]
+    },
+    {
+      "id": "electronics_enclosure",
+      "family": "electronics_enclosure",
+      "strong_aliases": [
+        "electronics enclosure",
+        "project box",
+        "junction box",
+        "electronics box",
+        "control box",
+        "电子外壳",
+        "接线盒",
+        "电子盒",
+        "电控盒",
+        "配电盒"
+      ],
+      "supporting_aliases": ["enclosure", "外壳", "壳体", "机箱", "盒子", "box"]
+    },
+    {
+      "id": "washer",
+      "family": "unknown",
+      "strong_aliases": ["washer", "shim", "flat washer", "垫圈", "垫片", "平垫"]
+    },
+    {
+      "id": "spacer",
+      "family": "unknown",
+      "strong_aliases": ["spacer", "standoff", "spacer sleeve", "隔离柱", "支撑柱", "垫高柱", "铜柱"]
+    },
+    {
+      "id": "hinge_bracket",
+      "family": "unknown",
+      "strong_aliases": [
+        "hinge bracket",
+        "pivot bracket",
+        "hinge mount",
+        "铰链支架",
+        "合页支架",
+        "转轴支架",
+        "枢轴支架"
+      ],
+      "supporting_aliases": ["hinge", "pivot", "铰链", "合页", "转轴", "枢轴"]
+    },
+    {
+      "id": "gear_like_knob",
+      "family": "unknown",
+      "strong_aliases": [
+        "knurled knob",
+        "gear knob",
+        "thumb wheel",
+        "control dial",
+        "滚花旋钮",
+        "齿轮旋钮",
+        "拇指轮",
+        "调节旋钮"
+      ],
+      "supporting_aliases": ["knob", "dial", "旋钮", "手轮", "滚花"]
+    }
+  ],
+  "patterns": [
+    {
+      "id": "hole_patterns",
+      "strong_aliases": [
+        "hole pattern",
+        "bolt pattern",
+        "bolt circle",
+        "mounting holes",
+        "clearance holes",
+        "孔位",
+        "孔阵列",
+        "螺栓孔",
+        "安装孔",
+        "沉头孔"
+      ],
+      "supporting_aliases": ["hole", "holes", "mounting", "孔", "螺纹孔", "过孔"]
+    },
+    {
+      "id": "bracket_patterns",
+      "strong_aliases": [
+        "bracket pattern",
+        "bracket design",
+        "支架设计",
+        "支架结构",
+        "角撑设计"
+      ],
+      "supporting_aliases": ["bracket", "mount", "gusset", "安装", "固定"]
+    },
+    {
+      "id": "enclosure_patterns",
+      "strong_aliases": [
+        "enclosure design",
+        "enclosure lid",
+        "case design",
+        "外壳设计",
+        "盒体设计",
+        "上下盖"
+      ],
+      "supporting_aliases": ["enclosure", "box", "case", "外壳", "盒子", "壳体", "盖"]
+    },
+    {
+      "id": "printable_rules",
+      "strong_aliases": [
+        "3d print",
+        "3d printing",
+        "printable",
+        "fdm print",
+        "3d打印",
+        "可打印",
+        "增材制造"
+      ],
+      "supporting_aliases": [
+        "print",
+        "wall",
+        "thickness",
+        "overhang",
+        "bridge",
+        "manifold",
+        "打印",
+        "壁厚",
+        "悬垂",
+        "桥接"
+      ]
+    }
+  ],
+  "families": [
+    {
+      "id": "spur_gear",
+      "strong_aliases": [
+        "spur gear",
+        "involute gear",
+        "external gear",
+        "正齿轮",
+        "渐开线齿轮",
+        "直齿轮"
+      ],
+      "supporting_aliases": ["gear", "齿轮"],
+      "exclude_aliases": [
+        "行星齿轮",
+        "行星轮",
+        "齿圈",
+        "太阳轮",
+        "齿条",
+        "齿轮箱",
+        "齿轮减速",
+        "减速",
+        "变速",
+        "减速器",
+        "减速机",
+        "减速电机",
+        "planetary gear",
+        "planetary gearbox",
+        "gearbox",
+        "gear motor",
+        "reducer",
+        "ring gear",
+        "sun gear",
+        "worm gear",
+        "蜗轮",
+        "蜗杆"
+      ]
+    },
+    {
+      "id": "device_stand",
+      "strong_aliases": [
+        "device stand",
+        "phone stand",
+        "tablet stand",
+        "monitor stand",
+        "laptop stand",
+        "desk stand",
+        "手机支架",
+        "平板支架",
+        "显示器支架",
+        "笔记本支架",
+        "桌面支架",
+        "手机架",
+        "平板架",
+        "显示器底座"
+      ],
+      "supporting_aliases": ["stand", "holder", "dock", "cradle", "立架", "支架座", "托架"]
+    },
+    {
+      "id": "electronics_enclosure",
+      "strong_aliases": [
+        "electronics enclosure",
+        "project box",
+        "junction box",
+        "electronics box",
+        "电子外壳",
+        "接线盒",
+        "电子盒",
+        "电控盒",
+        "配电盒",
+        "控制盒"
+      ],
+      "supporting_aliases": ["enclosure", "外壳", "壳体", "机箱"]
+    },
+    {
+      "id": "phone_case",
+      "strong_aliases": [
+        "phone case",
+        "phone cover",
+        "phone sleeve",
+        "smartphone case",
+        "iphone case",
+        "手机壳",
+        "手机套",
+        "手机保护壳",
+        "手机保护套",
+        "保护壳",
+        "保护套"
+      ],
+      "supporting_aliases": ["保护后壳", "手机保护"]
+    }
+  ]
+}

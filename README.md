@@ -85,7 +85,7 @@ Create a wall-mountable phone holder with rounded corners and two screw holes.
 
 Press `⌘ Enter` (or click the orange circle button `↑`). AgentSCAD automatically:
 1. **Understands Intent**: Extracts dimensions, tolerances, and mechanical constraints;
-2. **Generates OpenSCAD Code**: Writes clean, parametric OpenSCAD source code;
+2. **Generates OpenSCAD Code**: Matches your request against a local alias index — Chinese and English alike — then injects ranked reference examples, design patterns, and known failure modes before writing parametric OpenSCAD source;
 3. **Renders Real Geometry**: Invokes OpenSCAD (Native CLI or pinned WebAssembly) to generate mesh & STL;
 4. **Performs Deterministic Checks**: Validates manifoldness, minimum wall thickness, and outer bounds.
 
@@ -139,7 +139,9 @@ AgentSCAD strictly follows: **"LLMs write code; deterministic tools govern geome
 
 - **OpenSCAD Geometry Authority**: Native OpenSCAD CLI for local development; pinned official OpenSCAD WebAssembly (WASM) runtime for zero-install serverless setups.
 - **Measurable Physical Checks**: Python / Trimesh inspects actual STL geometry for manifold topology, bounding boxes, wall thickness, and hole connectivity.
-- **Local-First Persistence**: SQLite stores revisions and parameter history locally; artifacts are saved directly on disk with complete export capabilities.
+- **Deterministic Retrieval**: `cad_knowledge/retrieval-index.json` is the source of truth for what retrieval can match. Requests and aliases are normalized (case, full-width forms, punctuation), scored by strong/supporting alias weight and specificity, ranked deterministically, and cut to a per-group budget. Hard negatives keep near-miss families apart — a planetary gearbox never matches the spur-gear entry. Unmatched requests receive no examples rather than order-by-filename noise. It is lexical, not semantic: there is no embedding index, and none is claimed.
+- **Separate Evidence Levels**: `DELIVERED` proves the artifacts exist, not that you accepted the part. An append-only `JobOutcome` ledger records `accepted`, `rejected`, `user_edited`, and `exported` events, and the summary only reports `taskSucceeded` when the most recent decision is `accepted`. Edits and exports are process signals, never success. Read it at `GET /api/jobs/{id}/outcome`.
+- **Local-First Persistence**: SQLite stores `Job` records, `JobVersion` history, and the append-only `JobOutcome` ledger locally; artifacts are saved directly on disk with complete export capabilities.
 
 ---
 
@@ -161,6 +163,8 @@ AgentSCAD strictly follows: **"LLMs write code; deterministic tools govern geome
 ## 📚 Deeper Documentation
 
 - [Architecture](./docs/ARCHITECTURE.md)
+- [Skills and Routing](./docs/SKILLS.md)
+- [Memory and Outcomes](./docs/MEMORY.md)
 - [Development and CI](./docs/DEVELOPMENT.md)
 - [Benchmarking](./docs/BENCHMARK.md)
 - [OpenSCAD Runtime & Libraries](./docs/OPENSCAD_LIBRARIES.md)

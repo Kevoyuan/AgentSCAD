@@ -90,7 +90,7 @@ Key client files:
 
 ### Persistence and Realtime
 
-- Prisma ORM uses SQLite locally (`DATABASE_URL`, default `db/dev.db`). The current canonical schema has `Job` and `JobVersion` models.
+- Prisma ORM uses SQLite locally (`DATABASE_URL`, default `db/dev.db`). The current canonical schema has `Job`, `JobVersion`, and the append-only `JobOutcome` ledger. `JobOutcome` records what the user did (accepted, rejected, edited, exported) and stays separate from pipeline state; `DELIVERED` still never implies acceptance.
 - Rendered artifacts use local files in normal local development and Vercel Blob in serverless deployments.
 - Browser requests receive an opaque HttpOnly job-session cookie for isolation. This is not an account or user-management system.
 - Active process progress uses SSE; workspace list refresh uses polling. No standalone WebSocket or mini-service runtime exists in the current tree.
@@ -115,14 +115,16 @@ Key client files:
 ### v2.0 Module Structure
 
 **Content directories** (repo root, not source code):
-- `cad_knowledge/examples/` — reference SCAD files injected into generation prompts via keyword retrieval
+- `cad_knowledge/examples/` — reference SCAD files injected into generation prompts via ranked alias retrieval
+- `cad_knowledge/retrieval-index.json` — alias table with strong/supporting weights, hard negatives, and family hints; the source of truth for what retrieval can match
 - `cad_knowledge/patterns/` — design pattern docs (hole patterns, brackets, enclosures, printable rules)
 - `cad_knowledge/failures/` — common failure mode docs for repair guidance
 - `openscad_lib/agentscad_std.scad` — standard library (11 modules), pure OpenSCAD with optional BOSL2
 - `openscad_lib/README.md` — module reference, doubles as LLM prompt injection content
 
 **Source directories** (`src/lib/`, compiled TypeScript):
-- `src/lib/retrieval/example-retriever.ts` — keyword-based local example retrieval (zero-token)
+- `src/lib/retrieval/example-retriever.ts` — ranked local example/pattern retrieval (zero-token)
+- `src/lib/retrieval/retrieval-index.ts` — alias table, normalization, weighted scoring, and hard negatives for retrieval and family hints; data lives in `cad_knowledge/retrieval-index.json`
 - `src/lib/validation/validation-types.ts` — `ValidationCheck`, `ValidationReport`, `RawMeshData` interfaces
 - `src/lib/validation/report.ts` — `computeReport()` factory for structured validation reports
 - `src/lib/validation/compile-check.ts` — C001: OpenSCAD compile success/error detection

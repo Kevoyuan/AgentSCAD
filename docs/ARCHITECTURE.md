@@ -31,7 +31,7 @@ Provider API calls are the only remote AI dependency in the default local workfl
 | Tools | Deterministic render, validation, SCAD sanitization, parameter extraction, artifact IO | `src/lib/tools/`, `scripts/validate_stl.py` |
 | Repair | Validation-driven LLM repair, user-triggered VLM visual repair | `src/lib/repair/`, `src/app/api/jobs/[id]/repair/route.ts`, `src/app/api/jobs/[id]/visual-repair/route.ts` |
 | Validation | Compile, bbox, component, hole count, mesh checks | `src/lib/validation/`, `src/lib/mesh-validator.ts`, `src/lib/visual-validator.ts` |
-| Retrieval | Local keyword-based example retrieval for generation prompts | `src/lib/retrieval/`, `cad_knowledge/` |
+| Retrieval | Ranked local example/pattern retrieval for generation prompts, driven by the `cad_knowledge/retrieval-index.json` alias table | `src/lib/retrieval/`, `cad_knowledge/` |
 | Std Library | Reusable OpenSCAD modules (plates, brackets, enclosures, fasteners) | `openscad_lib/agentscad_std.scad`, `openscad_lib/README.md` |
 | Memory | Job state, version history, artifacts, learned patterns | `prisma/schema.prisma`, `src/lib/version-tracker.ts`, `src/lib/improvement-analyzer.ts` |
 | Workspace UI | CAD viewport, job queue, parameter editing, visual repair button | `src/components/cad/`, `src/app/` |
@@ -103,6 +103,14 @@ When validation fails, AgentSCAD attempts one automatic LLM repair with validati
 
 ## Persistence and Isolation
 
+`JobOutcome` is a separate append-only ledger of what the user did with a result —
+`accepted`, `rejected`, `user_edited`, `exported` — plus a strict summary where
+`taskSucceeded` is true only when the most recent decision is `accepted`. Edits and
+exports are process signals and are never counted as success. The ledger never feeds
+prompts, so a noisy or wrong event cannot contaminate generation. Read it at
+`GET /api/jobs/{id}/outcome`; record an explicit decision at
+`POST /api/jobs/{id}/outcome`.
+
 | Deployment | Jobs/history | Artifacts | Provider settings |
 |---|---|---|---|
 | Local/default | Prisma SQLite | Local filesystem | `.agentscad/providers.json` in the checkout; contains API keys and should not be shared or committed |
@@ -114,7 +122,7 @@ There is no account/organization model. Without `API_SECRET`, production browser
 
 - The offline evaluator records tagged `PASS|FAIL|SKIP|ERROR|NOT_RUN` evidence and never promotes unexecuted geometry checks. It directly exercises the shared deterministic intake analyzer but does not call an LLM or OpenSCAD. The separate real-render benchmark proves only its named compile/STL/bbox/PNG facts; neither mode implies model or semantic quality. See [Benchmarking](./BENCHMARK.md).
 - Static skills/examples are reviewed knowledge. Unmatched retrieval returns honest empty design context. The append-only learned-observation path is experimental and global to a checkout; prompt injection is off by default and cannot run in production. See [Memory](./MEMORY.md).
-- `DELIVERED`, deterministic validation, optional visual judgment, and explicit user acceptance are separate evidence levels and should remain separate in future schemas and reports.
+- `DELIVERED`, deterministic validation, optional visual judgment, and explicit user acceptance are separate evidence levels and should remain separate in future schemas and reports. `JobOutcome` now carries the acceptance level as events rather than inferring it from a pipeline state.
 
 ## Related Docs
 

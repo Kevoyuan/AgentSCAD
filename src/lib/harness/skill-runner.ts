@@ -1,5 +1,5 @@
 import { buildScadCodingPrompt, buildScadPrompt, loadFamilySchema, loadSkill, applyParameterOverrides } from "@/lib/skill-resolver";
-import { createChatCompletionWithFallback } from "@/lib/tools/model-router";
+import { createChatCompletionDetailed } from "@/lib/tools/model-router";
 import { sanitizeGeneratedScadSource } from "@/lib/tools/scad-sanitizer";
 import { validateGeneratedScadSource } from "@/lib/tools/scad-renderer";
 import { isRepairableScadCompileError } from "@/lib/tools/scad-compile-error";
@@ -7,8 +7,10 @@ import {
   extractParameterDefsFromScad,
   mergeExtractedParameters,
 } from "@/lib/tools/scad-parameter-extractor";
-import { normalizeGenerationResult } from "@/lib/harness/structured-output";
+import { CadGenerationFormatError, normalizeGenerationResult } from "@/lib/harness/structured-output";
 import { GeneratedScadCompileError } from "@/lib/harness/generation-errors";
+import { ModelRequestError, type ModelErrorEvidence } from "@/lib/model-runtime";
+import { matchFamilyAlias } from "@/lib/retrieval/retrieval-index";
 import type { CadGenerationPlan, ParameterDef, PartFamily, StructuredGenerationResult } from "@/lib/harness/types";
 
 export { buildScadPrompt, loadFamilySchema, loadSkill, applyParameterOverrides };
@@ -108,7 +110,10 @@ export function detectPartFamily(request: string): PartFamily {
     return "phone_case";
   }
 
-  return "unknown";
+  // The English keyword list above is the first pass; the alias index behind
+  // matchFamilyAlias covers Chinese requests and library vocabulary the keyword list
+  // never had. Both are advisory: this only selects a parameter schema.
+  return matchFamilyAlias(request) ?? "unknown";
 }
 
 export async function getParameterSchema(
@@ -420,18 +425,19 @@ export async function runScadGenerationSkill(
   familyOverride?: PartFamily,
   generationPlan?: CadGenerationPlan,
   signal?: AbortSignal,
+  researchEvidence?: string,
 ): Promise<StructuredGenerationResult> {
   const partFamily = familyOverride ?? detectPartFamily(inputRequest);
   const paramSchema = await getParameterSchema(partFamily, parameterValues);
   const prompt = generationPlan
-    ? await buildScadCodingPrompt(inputRequest, partFamily, parameterValues, generationPlan)
-    : await buildScadPrompt(inputRequest, partFamily, parameterValues);
+    ? await buildScadCodingPrompt(inputRequest, partFamily, parameterValues, generationPlan, researchEvidence)
+    : await buildScadPrompt(inputRequest, partFamily, parameterValues, researchEvidence);
 
   if (!prompt) {
     throw new Error(`${generationPlan ? "scad-coding" : "scad-generation"} skill is missing`);
   }
 
-  const rawContent = await createChatCompletionWithFallback({
+  const completion = await createChatCompletionDetailed({
     messages: [
       { role: "system", content: prompt.systemPrompt },
       { role: "user", content: prompt.userPrompt },
@@ -441,11 +447,102 @@ export async function runScadGenerationSkill(
     signal,
   });
 
-  const generationResult = normalizeGenerationResult(
-    rawContent,
-    paramSchema,
-    `Generated ${partFamily} part`
-  );
+  let generationResult: StructuredGenerationResult;
+  let lastEvidence: ModelErrorEvidence = {
+    model: completion.model,
+    provider: completion.provider,
+    finishReason: completion.finishReason,
+    responseLength: completion.responseLength,
+    rawSnippet: completion.rawSnippet,
+    usage: completion.usage,
+  };
+
+  try {
+    generationResult = normalizeGenerationResult(
+      completion.content,
+      paramSchema,
+      `Generated ${partFamily} part`
+    );
+  } catch (parseError) {
+    const isFormatError =
+      parseError instanceof CadGenerationFormatError ||
+      (parseError instanceof Error &&
+        (parseError.message.includes("neither valid structured JSON nor recognizable OpenSCAD") ||
+          parseError.message.includes("missing scad_source")));
+
+    const isTruncated = completion.finishReason === "length";
+
+    if ((isFormatError || isTruncated) && !signal?.aborted) {
+      console.warn(
+        `Generation response issue (truncated: ${isTruncated}, format: ${isFormatError}); attempting bounded format correction retry...`
+      );
+      try {
+        const correctionMessage = generationPlan
+          ? isTruncated
+            ? "Your previous OpenSCAD code was truncated before completion. Please output a concise, complete, and unbroken OpenSCAD script inside a single ```scad ... ``` block. Ensure it ends with generated_part(); and closing braces. Do not include markdown commentary or JSON."
+            : "Your previous output could not be parsed as valid OpenSCAD. Return ONLY one single ```scad ... ``` code block containing the complete OpenSCAD source. Do not return prose or JSON."
+          : isTruncated
+            ? "Your previous output was truncated. Please output a concise CAD Intent JSON followed by a complete, unbroken ```scad ... ``` code block. Ensure the OpenSCAD code is properly closed."
+            : "FORMAT CORRECTION: Output Part 1 as CAD Intent JSON, followed by a ```scad ... ``` code fence containing complete OpenSCAD source code. Do not output extraneous commentary.";
+
+        const retryCompletion = await createChatCompletionDetailed({
+          messages: [
+            { role: "system", content: prompt.systemPrompt },
+            { role: "user", content: prompt.userPrompt },
+            { role: "assistant", content: completion.content },
+            { role: "user", content: correctionMessage },
+          ],
+          model: requestedModel?.trim() || undefined,
+          stream: false,
+          signal,
+        });
+
+        lastEvidence = {
+          model: retryCompletion.model,
+          provider: retryCompletion.provider,
+          finishReason: retryCompletion.finishReason,
+          responseLength: retryCompletion.responseLength,
+          rawSnippet: retryCompletion.rawSnippet,
+          usage: retryCompletion.usage,
+        };
+
+        generationResult = normalizeGenerationResult(
+          retryCompletion.content,
+          paramSchema,
+          `Generated ${partFamily} part`
+        );
+      } catch (retryError) {
+        const finalCode =
+          lastEvidence.finishReason === "length"
+            ? "LLM_OUTPUT_TRUNCATED"
+            : "LLM_FORMAT_INVALID";
+        const finalMsg =
+          finalCode === "LLM_OUTPUT_TRUNCATED"
+            ? `LLM output was truncated before completion (length: ${lastEvidence.responseLength || 0} chars). Choose a larger model or simplify the prompt.`
+            : `LLM response was neither valid structured JSON nor recognizable OpenSCAD (length: ${lastEvidence.responseLength || 0} chars).`;
+
+        throw new ModelRequestError(finalCode, finalMsg, true, {
+          evidence: lastEvidence,
+          cause: retryError instanceof Error ? retryError : undefined,
+        });
+      }
+    } else {
+      const finalCode =
+        lastEvidence.finishReason === "length"
+          ? "LLM_OUTPUT_TRUNCATED"
+          : "LLM_FORMAT_INVALID";
+      const finalMsg =
+        finalCode === "LLM_OUTPUT_TRUNCATED"
+          ? `LLM output was truncated before completion (length: ${lastEvidence.responseLength || 0} chars). Choose a larger model or simplify the prompt.`
+          : `LLM response was neither valid structured JSON nor recognizable OpenSCAD (length: ${lastEvidence.responseLength || 0} chars).`;
+
+      throw new ModelRequestError(finalCode, finalMsg, true, {
+        evidence: lastEvidence,
+        cause: parseError instanceof Error ? parseError : undefined,
+      });
+    }
+  }
+
   const plannedResult = applyGenerationPlan(generationResult, generationPlan);
   const sanitizedScadSource = sanitizeGeneratedScadSource(plannedResult.scad_source);
   const extractedParameters = mergeExtractedParameters(

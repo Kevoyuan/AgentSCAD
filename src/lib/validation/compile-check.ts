@@ -45,6 +45,26 @@ export function checkCompile(renderLog: {
     };
   }
 
+  // OpenSCAD exits 0 when a library include cannot be resolved: it warns, drops
+  // every module from that library, and renders whatever primitives remain. The
+  // result looks "rendered" while large parts of the requested model are missing,
+  // so treat it as a hard failure instead of a benign warning.
+  const unresolvedLibraryWarnings = renderLog.warnings.filter((warning) =>
+    /can't open include file|ignoring unknown module|unknown module/i.test(warning)
+  );
+  if (unresolvedLibraryWarnings.length > 0) {
+    return {
+      rule_id: "C001",
+      rule_name: "OpenSCAD Compile",
+      level: "ENGINEERING",
+      passed: false,
+      status: "FAIL",
+      is_critical: true,
+      message: `OpenSCAD ignored unresolved library code: ${unresolvedLibraryWarnings.join("; ")}`,
+      details: { renderLog },
+    };
+  }
+
   if (hasWarnings) {
     return {
       rule_id: "C001",

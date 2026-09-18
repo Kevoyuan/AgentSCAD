@@ -62,7 +62,11 @@ export async function downloadArtifact(job: Job, type: 'stl' | 'scad') {
   const toastId = `${type}-download-${job.id}`
   toast.loading(type === 'stl' ? 'Fetching STL…' : 'Fetching OpenSCAD…', { id: toastId })
   try {
-    const res = await fetch(`/api/jobs/${job.id}/artifacts/${type}`, { credentials: 'include' })
+    // `download=1` marks this as a real user export rather than a viewer or size fetch,
+    // so the outcome ledger only sees deliberate downloads.
+    const res = await fetch(`/api/jobs/${job.id}/artifacts/${type}?download=1`, {
+      credentials: 'include',
+    })
     if (!res.ok) {
       const data = await res.json().catch(() => null)
       throw new Error(data?.error || `Artifact unavailable`)

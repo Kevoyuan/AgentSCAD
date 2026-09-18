@@ -61,6 +61,26 @@ export function checkBoundingBox(
     };
   }
 
+  // Researched dimensions arrive as a size set, not as a fixed axis order: a phone
+  // can be modeled portrait or landscape. Accept an order-insensitive match and say so.
+  const sortedActual = [...actual].sort((a, b) => b - a);
+  const sortedExpected = [...expected].sort((a, b) => b - a);
+  const sortedWithinTolerance = sortedActual.every(
+    (value, index) => Math.abs(value - sortedExpected[index]) <= BBOX_TOLERANCE_MM,
+  );
+  if (sortedWithinTolerance) {
+    return {
+      rule_id: "B001",
+      rule_name: "Bounding Box Match",
+      level: "ENGINEERING",
+      passed: true,
+      status: "PASS",
+      is_critical: false,
+      message: `Bbox matches expected size (axis order differs): actual [${actual.join(", ")}] vs expected [${expected.join(", ")}] (±${BBOX_TOLERANCE_MM}mm tolerance)`,
+      details: { actual, expected, deviations, tolerance: BBOX_TOLERANCE_MM, matchedBySizeOnly: true },
+    };
+  }
+
   const axisLabels = ["X", "Y", "Z"];
   const failingAxes = deviations
     .map((d, i) => (d > BBOX_TOLERANCE_MM ? `${axisLabels[i]}: ${d.toFixed(1)}mm off` : null))

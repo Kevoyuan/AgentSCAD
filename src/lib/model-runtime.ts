@@ -5,22 +5,52 @@ export type ModelErrorCode =
   | "LLM_TIMEOUT"
   | "LLM_AUTH_ERROR"
   | "LLM_RATE_LIMITED"
-  | "LLM_UNAVAILABLE";
+  | "LLM_UNAVAILABLE"
+  | "LLM_OUTPUT_TRUNCATED"
+  | "LLM_FORMAT_INVALID"
+  | "LLM_EMPTY_RESPONSE";
+
+export interface ModelErrorEvidence {
+  model?: string;
+  provider?: string;
+  finishReason?: string;
+  responseLength?: number;
+  rawSnippet?: string;
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    reasoningTokens?: number;
+  };
+}
+
+export function createControlledSnippet(content: string | undefined | null, maxLength = 800): string {
+  if (!content) return "";
+  const cleaned = content.trim();
+  if (cleaned.length <= maxLength) return cleaned;
+  const half = Math.floor((maxLength - 50) / 2);
+  const head = cleaned.slice(0, half);
+  const tail = cleaned.slice(-half);
+  const omitted = cleaned.length - head.length - tail.length;
+  return `${head}\n... [truncated ${omitted} chars] ...\n${tail}`;
+}
 
 export class ModelRequestError extends Error {
   readonly code: ModelErrorCode;
   readonly retryable: boolean;
+  readonly evidence?: ModelErrorEvidence;
 
   constructor(
     code: ModelErrorCode,
     message: string,
     retryable: boolean,
-    options?: ErrorOptions,
+    options?: ErrorOptions & { evidence?: ModelErrorEvidence },
   ) {
     super(message, options);
     this.name = "ModelRequestError";
     this.code = code;
     this.retryable = retryable;
+    this.evidence = options?.evidence;
   }
 }
 

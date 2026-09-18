@@ -35,18 +35,6 @@ const skillCache = new Map<string, string>();
 const familyCache = new Map<string, FamilySchemaFile>();
 let stdLibDocCache: string | null = null;
 
-export const PROMPT_SECTION_CHAR_BUDGETS = {
-  generationSkill: 24_000,
-  standardLibrary: 12_000,
-  externalLibraries: 12_000,
-  retrieval: 16_000,
-  experimentalMemory: 4_000,
-  codingSkill: 8_000,
-  codingStandardLibrary: 8_000,
-  codingExternalLibraries: 6_000,
-  codingRetrieval: 8_000,
-} as const;
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -70,12 +58,6 @@ async function readJsonFile<T>(filePath: string): Promise<T | null> {
   } catch {
     return null;
   }
-}
-
-export function boundPromptSection(content: string, maxChars: number, label: string): string {
-  if (content.length <= maxChars) return content;
-  const omitted = content.length - maxChars;
-  return `${content.slice(0, maxChars)}\n\n[${label} truncated: ${omitted} characters omitted]`;
 }
 
 export function isExperimentalMemoryPromptEnabled(
@@ -154,7 +136,8 @@ export async function loadFamilySchema(
 export async function buildScadPrompt(
   inputRequest: string,
   partFamily: string,
-  parameterValues: Record<string, unknown>
+  parameterValues: Record<string, unknown>,
+  researchEvidence?: string,
 ): Promise<{ systemPrompt: string; userPrompt: string } | null> {
   const [skillContent, familySchema, libraryPromptRaw, retrievalCtx, stdLibDocRaw] = await Promise.all([
     loadSkill("scad-generation"),
@@ -165,26 +148,13 @@ export async function buildScadPrompt(
   ]);
   if (!skillContent) return null;
 
-  const boundedSkill = boundPromptSection(
-    skillContent,
-    PROMPT_SECTION_CHAR_BUDGETS.generationSkill,
-    "generation skill",
-  );
-  const libraryPrompt = boundPromptSection(
-    libraryPromptRaw,
-    PROMPT_SECTION_CHAR_BUDGETS.externalLibraries,
-    "OpenSCAD library guidance",
-  );
-  const retrievalText = boundPromptSection(
-    formatRetrievalContext(retrievalCtx),
-    PROMPT_SECTION_CHAR_BUDGETS.retrieval,
-    "retrieval context",
-  );
-  const stdLibDoc = boundPromptSection(
-    stdLibDocRaw,
-    PROMPT_SECTION_CHAR_BUDGETS.standardLibrary,
-    "AgentSCAD standard library",
-  );
+  // Prompt sections are no longer silently cut off. Truncating the skill, the
+  // standard library reference or the library guidance mid-sentence produced
+  // prompts that asked for APIs the model could no longer see.
+  const boundedSkill = skillContent;
+  const libraryPrompt = libraryPromptRaw;
+  const retrievalText = formatRetrievalContext(retrievalCtx);
+  const stdLibDoc = stdLibDocRaw;
 
   // Apply parameter overrides to the schema defaults
   const params = (familySchema?.parameters ?? []).map((p) => {
@@ -262,6 +232,12 @@ export async function buildScadPrompt(
     }
   }
 
+  // Optional web-research evidence. It is advisory: the generator may use it to
+  // constrain dimensions, but it must not present the model as an official product.
+  if (researchEvidence && researchEvidence.trim()) {
+    userPrompt = `${userPrompt.trimEnd()}\n\n${researchEvidence.trim()}`;
+  }
+
   // Experimental learned observations are off by default and cannot run in
   // production. They do not yet have artifact-linked acceptance provenance.
   if (
@@ -284,11 +260,7 @@ export async function buildScadPrompt(
             "\n\n## Learned patterns from user edits (optional context)\n" +
             "The following patterns have been observed from how users edit generated code for this part family. " +
             "Use these insights to improve your generation, but treat them as guidance, not strict requirements.\n\n" +
-            boundPromptSection(
-              learnedContext,
-              PROMPT_SECTION_CHAR_BUDGETS.experimentalMemory,
-              "experimental memory",
-            ) +
+            learnedContext +
             "\n\n" +
             afterMarker;
         }
@@ -307,6 +279,7 @@ export async function buildScadCodingPrompt(
   partFamily: string,
   parameterValues: Record<string, unknown>,
   generationPlan: unknown,
+  researchEvidence?: string,
 ): Promise<{ systemPrompt: string; userPrompt: string } | null> {
   const [skillContent, familySchema, libraryPromptRaw, retrievalCtx, stdLibDocRaw] = await Promise.all([
     loadSkill("scad-coding"),
@@ -323,10 +296,10 @@ export async function buildScadCodingPrompt(
   }));
   return {
     systemPrompt: [
-      boundPromptSection(skillContent, PROMPT_SECTION_CHAR_BUDGETS.codingSkill, "coding skill"),
-      boundPromptSection(stdLibDocRaw, PROMPT_SECTION_CHAR_BUDGETS.codingStandardLibrary, "AgentSCAD standard library"),
-      boundPromptSection(libraryPromptRaw, PROMPT_SECTION_CHAR_BUDGETS.codingExternalLibraries, "OpenSCAD library guidance"),
-      boundPromptSection(formatRetrievalContext(retrievalCtx), PROMPT_SECTION_CHAR_BUDGETS.codingRetrieval, "retrieval context"),
+      skillContent,
+      stdLibDocRaw,
+      libraryPromptRaw,
+      formatRetrievalContext(retrievalCtx),
     ].filter(Boolean).join("\n\n"),
     userPrompt: [
       "Implement this approved CAD generation plan as complete OpenSCAD.",
@@ -334,6 +307,9 @@ export async function buildScadCodingPrompt(
       `<generation_plan>\n${JSON.stringify(generationPlan, null, 2)}\n</generation_plan>`,
       `<editable_parameters>\n${JSON.stringify(params, null, 2)}\n</editable_parameters>`,
       `<current_values>\n${JSON.stringify(parameterValues, null, 2)}\n</current_values>`,
+      ...(researchEvidence && researchEvidence.trim()
+        ? [`<external_research>\n${researchEvidence.trim()}\n</external_research>`]
+        : []),
       "Return only one ```scad fenced block. Do not repeat the plan or add commentary.",
     ].join("\n\n"),
   };
