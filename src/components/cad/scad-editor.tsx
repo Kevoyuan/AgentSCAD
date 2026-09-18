@@ -167,7 +167,7 @@ export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
             <motion.span
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-amber-400 text-[8px] ml-1"
+              className="text-[var(--shell-warn)] text-[8px] ml-1"
             >
               EDITING
             </motion.span>
@@ -180,7 +180,7 @@ export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
           {!isEditing ? (
             <>
               <Button variant="ghost" size="sm" className="h-5 gap-1 px-1.5 text-xs text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]" onClick={handleCopy}>
-                {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-[var(--shell-ok)]" /> : <Copy className="w-3.5 h-3.5" />}
                 {copied ? 'Copied!' : 'Copy'}
               </Button>
               <Button
@@ -206,11 +206,11 @@ export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                className={`h-5 gap-1 px-1.5 text-xs ${hasChanges ? 'text-emerald-400 hover:text-emerald-300' : 'text-[var(--app-text-dim)]'}`}
+                className={`h-5 gap-1 px-1.5 text-xs ${hasChanges ? 'text-[var(--shell-ok)] hover:text-[var(--shell-ok)]' : 'text-[var(--app-text-dim)]'}`}
                 onClick={handleSave}
                 disabled={!hasChanges || isSaving}
               >
-                {isSaving ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity }} className="w-3.5 h-3.5 border border-emerald-400 border-t-transparent rounded-full" /> : <Save className="w-3.5 h-3.5" />}
+                {isSaving ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity }} className="w-3.5 h-3.5 border border-[color:var(--shell-ok)] border-t-transparent rounded-full" /> : <Save className="w-3.5 h-3.5" />}
                 {isSaving ? (onApply ? 'Applying...' : 'Saving...') : (onApply ? 'Apply' : 'Save')}
               </Button>
             </>
@@ -228,7 +228,7 @@ export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
                 <span
                   key={idx}
                   className={`text-[13px] font-mono leading-[20px] ${
-                    changedLines.has(idx + 1) ? 'text-amber-400/60' : 'text-[var(--app-text-dim)]'
+                    changedLines.has(idx + 1) ? 'text-[var(--shell-warn)]' : 'text-[var(--app-text-dim)]'
                   }`}
                 >
                   {idx + 1}
@@ -251,7 +251,7 @@ export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
                 <div
                   key={idx}
                   className={`w-1 h-[20px] rounded-l ${
-                    changedLines.has(idx + 1) ? 'bg-amber-500/40' : 'bg-transparent'
+                    changedLines.has(idx + 1) ? 'bg-transparent' : 'bg-transparent'
                   }`}
                 />
               ))}
@@ -286,7 +286,7 @@ export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
             <motion.span
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-amber-400"
+              className="text-[var(--shell-warn)]"
             >
               {changedLines.size} changed
             </motion.span>

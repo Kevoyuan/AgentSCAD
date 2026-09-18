@@ -47,12 +47,13 @@ const onServer = () => false
 // ─── Notification Icon & Color Mapping ─────────────────────────────────────
 
 const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof CheckCircle2; color: string; bgColor: string }> = {
-  job_completed: { icon: CheckCircle2, color: 'text-lime-400', bgColor: 'bg-lime-500/10' },
-  job_review: { icon: AlertTriangle, color: 'text-yellow-300', bgColor: 'bg-yellow-500/10' },
-  job_failed: { icon: XCircle, color: 'text-rose-400', bgColor: 'bg-rose-500/10' },
-  job_cancelled: { icon: Ban, color: 'text-[var(--app-state-neutral-text)]', bgColor: 'bg-[var(--app-state-neutral-bg)]' },
-  parameter_updated: { icon: Settings, color: 'text-[var(--app-accent-text)]', bgColor: 'bg-[var(--app-accent-bg)]' },
-  scad_updated: { icon: Code2, color: 'text-amber-400', bgColor: 'bg-amber-500/10' },
+  /* Semantic colours from the palette, never Tailwind steps (DESIGN.md section 11). */
+  job_completed: { icon: CheckCircle2, color: 'text-[var(--shell-ok)]', bgColor: 'bg-transparent' },
+  job_review: { icon: AlertTriangle, color: 'text-[var(--shell-warn)]', bgColor: 'bg-transparent' },
+  job_failed: { icon: XCircle, color: 'text-[var(--shell-fail)]', bgColor: 'bg-transparent' },
+  job_cancelled: { icon: Ban, color: 'text-[var(--shell-text-label)]', bgColor: 'bg-transparent' },
+  parameter_updated: { icon: Settings, color: 'text-[var(--shell-signal-soft)]', bgColor: 'bg-transparent' },
+  scad_updated: { icon: Code2, color: 'text-[var(--shell-signal-soft)]', bgColor: 'bg-transparent' },
 }
 
 // ─── Time ago helper ───────────────────────────────────────────────────────

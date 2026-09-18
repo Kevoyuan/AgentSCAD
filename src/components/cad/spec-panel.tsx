@@ -65,11 +65,11 @@ export function SpecPanel({
 
       {/* Diagnostics & Remediation Bar if Failed or Stale */}
       {(failed || stale) && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2.5">
+        <div className="rounded-lg border border-transparent bg-transparent p-3 space-y-2.5">
           <div className="flex items-start gap-2">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--shell-warn)]" />
             <div className="space-y-0.5">
-              <h4 className="text-[12px] font-medium text-amber-500">
+              <h4 className="text-[12px] font-medium text-[var(--shell-warn)]">
                 {failed ? 'Diagnostic Required' : 'Stale Render'}
               </h4>
               <p className="text-[12px] leading-relaxed text-[var(--cad-text-secondary)]">

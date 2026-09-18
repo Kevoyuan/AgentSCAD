@@ -5,12 +5,12 @@ import { useMemo } from 'react'
 // ─── Tag Badge Colors ──────────────────────────────────────────────────────
 
 const TAG_COLORS = [
-  { bg: 'bg-zinc-500/15', text: 'text-zinc-300', border: 'border-zinc-500/20' },
-  { bg: 'bg-teal-500/15', text: 'text-teal-400', border: 'border-teal-500/20' },
-  { bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/20' },
-  { bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/20' },
-  { bg: 'bg-rose-500/15', text: 'text-rose-400', border: 'border-rose-500/20' },
-  { bg: 'bg-orange-500/15', text: 'text-orange-400', border: 'border-orange-500/20' },
+  { bg: 'bg-transparent', text: 'text-[var(--shell-text-muted)]', border: 'border-[color:var(--shell-border)]' },
+  { bg: 'bg-transparent', text: 'text-[var(--shell-signal-soft)]', border: 'border-transparent' },
+  { bg: 'bg-transparent', text: 'text-[var(--shell-ok)]', border: 'border-transparent' },
+  { bg: 'bg-transparent', text: 'text-[var(--shell-warn)]', border: 'border-transparent' },
+  { bg: 'bg-transparent', text: 'text-[var(--shell-fail)]', border: 'border-transparent' },
+  { bg: 'bg-transparent', text: 'text-[var(--shell-warn)]', border: 'border-transparent' },
 ]
 
 // Simple hash function for consistent color assignment

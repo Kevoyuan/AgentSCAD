@@ -205,7 +205,7 @@ export function ProviderSettingsPanel({
         {activeEnvProviders.length > 0 && (
           <div className="rounded-lg border border-[color:var(--app-border)] bg-[var(--app-bg)] px-3 py-2">
             <div className="flex items-center gap-2 text-[13px] text-[var(--app-text-secondary)]">
-              <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+              <Wifi className="w-3.5 h-3.5 text-[var(--shell-ok)]" />
               Environment keys detected
             </div>
             <div className="mt-1 flex flex-wrap gap-1.5">
@@ -219,15 +219,15 @@ export function ProviderSettingsPanel({
         )}
 
         {persistenceUi.showEnvironmentNotice && (
-          <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-[var(--app-text-secondary)]">
-            Vercel stores providers through environment variables. Add <span className="font-mono text-amber-300">{selectedEnvKey}</span> in
+          <div className="rounded-lg border border-transparent bg-transparent px-3 py-2 text-xs leading-5 text-[var(--app-text-secondary)]">
+            Vercel stores providers through environment variables. Add <span className="font-mono text-[var(--shell-warn)]">{selectedEnvKey}</span> in
             Vercel Project Settings, then redeploy. You can test a key here, but it will not be saved.
           </div>
         )}
 
         {persistenceUi.showSessionNotice && (
-          <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs leading-5 text-[var(--app-text-secondary)]">
-            <span className="inline-flex items-center gap-1.5 font-medium text-emerald-300">
+          <div className="rounded-lg border border-transparent bg-transparent px-3 py-2 text-xs leading-5 text-[var(--app-text-secondary)]">
+            <span className="inline-flex items-center gap-1.5 font-medium text-[var(--shell-ok)]">
               <ShieldCheck className="h-3.5 w-3.5" />Encrypted session storage
             </span>
             <div className="mt-1">
@@ -251,7 +251,7 @@ export function ProviderSettingsPanel({
                 <button type="button" className="min-w-0 text-left" onClick={() => handleEdit(provider)}>
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium text-[var(--app-text-primary)]">{provider.name}</span>
-                    {provider.isDefault && <Star className="w-3 h-3 fill-amber-400 text-amber-400" />}
+                    {provider.isDefault && <Star className="w-3 h-3 fill-[var(--shell-warn)] text-[var(--shell-warn)]" />}
                     {!provider.enabled && <span className="text-[10px] uppercase text-[var(--app-text-muted)]">Off</span>}
                   </div>
                   <div className="mt-0.5 truncate text-xs text-[var(--app-text-muted)]">
@@ -262,7 +262,7 @@ export function ProviderSettingsPanel({
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleSetDefault(provider)} aria-label="Set default provider">
                     <Star className="w-3.5 h-3.5" />
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-300" onClick={() => handleDelete(provider)} aria-label="Delete provider">
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-[var(--shell-fail)] hover:text-[var(--shell-fail)]" onClick={() => handleDelete(provider)} aria-label="Delete provider">
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>
@@ -353,7 +353,7 @@ export function ProviderSettingsPanel({
         </label>
         <div className="ml-auto flex items-center gap-2">
           {persistence.mode === 'encrypted-cookie' && providers.length > 0 && (
-            <Button variant="ghost" size="sm" className="h-8 gap-1 text-red-400 hover:text-red-300" onClick={handleClearProviders}>
+            <Button variant="ghost" size="sm" className="h-8 gap-1 text-[var(--shell-fail)] hover:text-[var(--shell-fail)]" onClick={handleClearProviders}>
               <Trash2 className="w-3.5 h-3.5" />
               Clear keys
             </Button>

@@ -113,12 +113,12 @@ export function CaseMemory({ searchQuery, onSuggestionClick }: CaseMemoryProps) 
   return (
     <div className="mt-0">
       <div className="mb-2 flex h-4 items-center gap-1.5">
-        <Brain className="w-3.5 h-3.5 text-[var(--app-accent-text)]" />
-        <span className="text-xs font-mono text-[var(--app-text-muted)] tracking-widest uppercase">
-          Case Memory
+        <Brain className="w-3.5 h-3.5 text-[var(--shell-text-label)]" />
+        <span className="font-mono text-[9px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)]">
+          案例记忆
         </span>
-        <span className={`text-[8px] text-[var(--app-accent-text)] transition-opacity ${(isSearching || isWaitingForDebounce) ? 'animate-pulse opacity-100' : 'opacity-0'}`}>
-          searching...
+        <span className={`font-mono text-[9px] text-[var(--shell-signal-soft)] transition-opacity ${(isSearching || isWaitingForDebounce) ? 'opacity-100' : 'opacity-0'}`}>
+          检索中…
         </span>
       </div>
 
@@ -135,43 +135,43 @@ export function CaseMemory({ searchQuery, onSuggestionClick }: CaseMemoryProps) 
               <motion.div
                 key={job.id}
                 variants={staggerChild}
-                className="group/suggestion relative rounded-lg linear-surface linear-border p-2.5 cursor-pointer hover:border-[color:var(--cad-accent)] hover:bg-[var(--cad-accent-soft)] linear-transition"
+                className="group/suggestion relative rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-module-solid)] p-2.5 cursor-pointer transition-colors hover:border-[color:var(--shell-border-strong)] hover:bg-[var(--shell-hover)]"
                 onClick={() => onSuggestionClick?.(job)}
               >
                 <div className="flex items-start gap-2">
                   <PartFamilyIcon family={job.partFamily || 'unknown'} size={16} animate={false} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] text-[var(--app-text-secondary)] leading-tight line-clamp-2">
+                    <p className="text-[12.5px] text-[var(--shell-text)] leading-tight line-clamp-2">
                       {job.inputRequest}
                     </p>
                     <div className="flex items-center gap-1.5 mt-1">
                       <StateBadge state={job.state} />
                       {job.partFamily && (
-                        <span className="text-[8px] font-mono text-[var(--app-text-dim)]">
+                        <span className="font-mono text-[9px] text-[var(--shell-text-dim)]">
                           {getPartFamilyLabel(job.partFamily)}
                         </span>
                       )}
-                      <span className="text-[8px] text-[var(--app-text-dim)] font-mono">
+                      <span className="font-mono text-[9px] text-[var(--shell-text-dim)]">
                         {timeAgo(job.createdAt)}
                       </span>
                     </div>
                   </div>
                   <button
-                    className="shrink-0 flex items-center gap-0.5 text-[8px] text-[var(--app-accent-text)] opacity-0 group-hover/suggestion:opacity-100 transition-opacity duration-200 hover:text-[var(--app-accent-text)] bg-[var(--app-accent-bg)] px-1.5 py-1 rounded border border-[color:var(--cad-border)]"
+                    className="shrink-0 flex items-center gap-0.5 font-mono text-[9px] text-[var(--shell-signal-soft)] opacity-0 group-hover/suggestion:opacity-100 focus-visible:opacity-100 transition-opacity duration-200 hover:text-[var(--shell-signal)] border border-[color:var(--shell-border)] px-1.5 py-1 rounded-[4px]"
                     onClick={(e) => {
                       e.stopPropagation()
                       onSuggestionClick?.(job)
                     }}
                   >
-                    Use <ArrowRight className="w-2 h-2" />
+                    使用 <ArrowRight className="w-2 h-2" />
                   </button>
                 </div>
               </motion.div>
             ))}
           </motion.div>
         ) : (
-          <div className="flex min-h-10 items-center justify-center text-[13px] text-[var(--app-text-dim)]">
-            {isSearching || isWaitingForDebounce ? 'Searching past jobs...' : 'No similar past jobs found'}
+          <div className="flex min-h-10 items-center justify-center text-[12.5px] text-[var(--shell-text-dim)]">
+            {isSearching || isWaitingForDebounce ? '正在检索历史零件…' : '没有相似的历史零件'}
           </div>
         )}
       </div>
