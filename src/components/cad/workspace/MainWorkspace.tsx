@@ -834,24 +834,6 @@ export function MainWorkspace() {
               id="slots"
               title="零件槽位"
               badge={`${state.jobs.length}`}
-              /* The rail's create action. It used to exist only in the empty state, so a
-                 workspace with designs in it had no visible way to start another one;
-                 ⌘N worked but an invisible shortcut is not an affordance. Sits in the
-                 header because the rail's body scrolls and a scrolling action is the
-                 same defect. */
-              headerAction={(
-                <button
-                  type="button"
-                  onClick={() => state.setShowComposer(true)}
-                  aria-label="新零件"
-                  title="新零件（⌘N）"
-                  /* A word, not a plus glyph: the collapse control right beside it is a
-                     +/− pair, and two plus signs in one header read as one stepper. */
-                  className="shrink-0 px-1 h-4 rounded-[4px] font-mono text-[9.5px] text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] transition-colors cursor-pointer"
-                >
-                  新零件
-                </button>
-              )}
               isFree={slotsState.isFree}
               isCollapsed={slotsState.isCollapsed}
               onCollapseChange={(col) => handleCollapseChange('slots', col)}

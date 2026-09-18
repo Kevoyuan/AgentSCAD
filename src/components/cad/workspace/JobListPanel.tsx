@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/sortable'
 import {
   Trash2, RotateCcw, X,
-  Ban,
+  Ban, Plus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ResizablePanel } from '@/components/ui/resizable'
@@ -203,6 +203,28 @@ export function JobListPanel({
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/*
+           * The rail's create action, as a real button under the search row.
+           * It used to exist only in the empty state, so a workspace with designs in it
+           * had no visible way to start another one. A 9.5px dim word in the header was
+           * not enough either (the user's words: 太不起眼). It sits here rather than at
+           * the foot of the rail because the body scrolls, and it stays unlit: the
+           * composer owns the one lit action per state (DESIGN.md section 5).
+           */}
+          <button
+            type="button"
+            onClick={() => onShowComposer?.()}
+            aria-label="新零件"
+            title="新零件（⌘N）"
+            className="shrink-0 mx-2.5 mb-2 h-[28px] px-2.5 rounded-[5px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] flex items-center justify-between gap-2 font-mono text-[10.5px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] hover:border-[color:var(--shell-border-strong)] transition-colors"
+          >
+            <span className="flex items-center gap-1.5">
+              <Plus className="w-3 h-3" />
+              新零件
+            </span>
+            <span className="text-[var(--shell-text-dim)]">⌘N</span>
+          </button>
 
           {/* Jobs List with Drag & Drop */}
           <DndContext
