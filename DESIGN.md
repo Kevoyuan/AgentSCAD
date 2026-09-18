@@ -45,15 +45,15 @@ colors:
   model-face-shaded: "#77828E"
 typography:
   ui:
-    fontFamily: "Inter, system-ui, -apple-system, sans-serif"
+    fontFamily: "Geist, Geist Fallback, system-ui, -apple-system, sans-serif"
     fontSize: "12.5px"
     lineHeight: "1.5"
   mono:
-    fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace"
+    fontFamily: "'Geist Mono', Geist Mono Fallback, ui-monospace, Menlo, monospace"
     fontSize: "11px"
     lineHeight: "1.45"
   engraved:
-    fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace"
+    fontFamily: "'Geist Mono', Geist Mono Fallback, ui-monospace, Menlo, monospace"
     fontSize: "9px"
     letterSpacing: "0.16em"
 rounded:
@@ -782,7 +782,7 @@ they are one object. Three is not.
 ### UI
 
 ```css
-Inter, system-ui, -apple-system, sans-serif
+Geist, Geist Fallback, system-ui, -apple-system, sans-serif
 ```
 
 ### Mono
@@ -801,10 +801,10 @@ It is never used to make ordinary navigation look technical.
 Module titles and grouped field labels use a small engraved style:
 
 ```css
-font-family: 'JetBrains Mono', monospace;
+font-family: 'Geist Mono', monospace;
 font-size: 9px;
 letter-spacing: 0.16em;
-color: #948C82;
+color: #A79E92;
 ```
 
 This is a **deliberate exception** to the old "no text below 11px" rule. The exception is
