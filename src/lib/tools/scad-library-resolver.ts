@@ -41,6 +41,11 @@ function defaultOpenScadLibraryPaths(): string[] {
   if (usesOpenScadWasm()) return [];
   const home = process.env.HOME;
   return [
+    // The repo ships its own standard library. The WASM runtime inlines
+    // `include <agentscad_std.scad>`; the native renderer has to resolve the same
+    // include from disk, otherwise OpenSCAD warns, ignores every library module,
+    // and still exits 0 with an empty or partial model.
+    path.join(process.cwd(), "openscad_lib"),
     ...(process.env.AGENTSCAD_OPENSCAD_LIBRARY_DIR ? [process.env.AGENTSCAD_OPENSCAD_LIBRARY_DIR] : []),
     ...(process.env.CADCAD_OPENSCAD_LIBRARY_DIR ? [process.env.CADCAD_OPENSCAD_LIBRARY_DIR] : []),
     ...(home ? [path.join(home, ".agentscad", "openscad-libraries")] : []),

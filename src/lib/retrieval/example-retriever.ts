@@ -1,5 +1,12 @@
 import fs from "fs/promises";
 import path from "path";
+import {
+  EXAMPLE_ENTRIES,
+  PATTERN_ENTRIES,
+  RETRIEVAL_BUDGET,
+  normalizeRetrievalText,
+  rankIndexEntries,
+} from "./retrieval-index";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -8,12 +15,19 @@ import path from "path";
 export interface RetrievedExample {
   name: string;
   scad_code: string;
-  relevance: number; // 0–1
+  /** Score normalized to 0–1 against the best hit in this result set. */
+  relevance: number;
+  /** Raw weighted alias score, kept for retrieval evidence and debugging. */
+  score: number;
+  matchedAliases: string[];
 }
 
 export interface RetrievedPattern {
   name: string;
   content: string;
+  relevance: number;
+  score: number;
+  matchedAliases: string[];
 }
 
 export interface RetrievedFailure {
@@ -25,68 +39,9 @@ export interface RetrievalContext {
   examples: RetrievedExample[];
   patterns: RetrievedPattern[];
   failures: RetrievedFailure[];
+  /** Alias strings that matched, sorted for stable evidence between runs. */
   matchedKeywords: string[];
 }
-
-// ---------------------------------------------------------------------------
-// Keyword-to-example mapping
-// ---------------------------------------------------------------------------
-
-const KEYWORD_EXAMPLE_MAP: Record<string, string[]> = {
-  plate: ["mounting_plate_four_holes"],
-  "mounting plate": ["mounting_plate_four_holes"],
-  "base plate": ["mounting_plate_four_holes"],
-  bracket: ["l_bracket_ribs", "ribbed_mount"],
-  "l bracket": ["l_bracket_ribs"],
-  "wall bracket": ["l_bracket_ribs"],
-  "shelf bracket": ["l_bracket_ribs"],
-  clamp: ["pipe_clamp"],
-  "pipe clamp": ["pipe_clamp"],
-  "tube clamp": ["pipe_clamp"],
-  "hose clamp": ["pipe_clamp"],
-  enclosure: ["electronics_enclosure"],
-  "project box": ["electronics_enclosure"],
-  "junction box": ["electronics_enclosure"],
-  "electronics box": ["electronics_enclosure"],
-  washer: ["washer"],
-  spacer: ["spacer"],
-  standoff: ["spacer"],
-  shim: ["washer"],
-  hinge: ["hinge_bracket"],
-  "hinge bracket": ["hinge_bracket"],
-  "pivot bracket": ["hinge_bracket"],
-  rib: ["l_bracket_ribs", "ribbed_mount"],
-  ribbed: ["ribbed_mount"],
-  "heavy duty": ["ribbed_mount"],
-  "reinforced": ["ribbed_mount"],
-  knob: ["gear_like_knob"],
-  "thumb wheel": ["gear_like_knob"],
-  dial: ["gear_like_knob"],
-  gear: ["gear_like_knob"],
-};
-
-const KEYWORD_PATTERN_MAP: Record<string, string[]> = {
-  hole: ["hole_patterns"],
-  holes: ["hole_patterns"],
-  "hole pattern": ["hole_patterns"],
-  mounting: ["hole_patterns"],
-  "bolt pattern": ["hole_patterns"],
-  bracket: ["bracket_patterns"],
-  mount: ["bracket_patterns"],
-  enclosure: ["enclosure_patterns", "printable_rules"],
-  box: ["enclosure_patterns"],
-  case: ["enclosure_patterns"],
-  printable: ["printable_rules"],
-  "3d print": ["printable_rules"],
-  print: ["printable_rules"],
-  wall: ["printable_rules"],
-  thickness: ["printable_rules"],
-  overhang: ["printable_rules"],
-  bridge: ["printable_rules"],
-  manifold: ["printable_rules"],
-};
-
-const FAILURE_ALWAYS_INCLUDE = ["missing_holes", "non_manifold_boolean", "floating_parts"];
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -107,6 +62,8 @@ function patternsDir(): string {
 function failuresDir(): string {
   return path.join(knowledgeRoot(), "failures");
 }
+
+const FAILURE_ALWAYS_INCLUDE = ["missing_holes", "non_manifold_boolean", "floating_parts"];
 
 // ---------------------------------------------------------------------------
 // Retrieval
@@ -139,76 +96,91 @@ async function listMdFiles(dir: string): Promise<string[]> {
 }
 
 /**
- * Match keywords from the input request against known example/pattern mappings.
- * Returns deduplicated example and pattern names.
+ * Score every index entry against the request, keep the ones whose document actually
+ * exists on disk, and cut to the retrieval budget.
+ *
+ * Availability is checked before the budget is applied so an entry with a missing file
+ * cannot consume a slot a real document should have had.
  */
-function matchKeywords(input: string): {
-  exampleNames: Set<string>;
-  patternNames: Set<string>;
-  matchedKeywords: Set<string>;
-} {
-  const lower = input.toLowerCase();
-  const exampleNames = new Set<string>();
-  const patternNames = new Set<string>();
-  const matchedKeywords = new Set<string>();
+function selectWithinBudget(
+  entries: typeof EXAMPLE_ENTRIES,
+  normalizedRequest: string,
+  availableNames: string[],
+  limit: number,
+) {
+  if (!normalizedRequest) return [];
+  return rankIndexEntries(entries, normalizedRequest)
+    .filter((candidate) => availableNames.includes(candidate.entry.id))
+    .slice(0, limit);
+}
 
-  for (const [keyword, examples] of Object.entries(KEYWORD_EXAMPLE_MAP)) {
-    if (lower.includes(keyword)) {
-      matchedKeywords.add(keyword);
-      for (const e of examples) exampleNames.add(e);
-    }
-  }
-
-  for (const [keyword, patterns] of Object.entries(KEYWORD_PATTERN_MAP)) {
-    if (lower.includes(keyword)) {
-      matchedKeywords.add(keyword);
-      for (const p of patterns) patternNames.add(p);
-    }
-  }
-
-  return { exampleNames, patternNames, matchedKeywords };
+function normalizeRelevance(score: number, topScore: number): number {
+  if (!(topScore > 0)) return 0;
+  return Math.round((score / topScore) * 100) / 100;
 }
 
 /**
  * Retrieve relevant examples, patterns, and failure docs for an input request.
  *
- * - Examples: keyword-matched from cad_knowledge/examples/. Full SCAD source returned.
- * - Patterns: keyword-matched from cad_knowledge/patterns/. Markdown content returned.
- * - Failures: all failure docs always included (small, high-value for avoiding errors).
+ * - Examples and patterns come from the alias index, ranked by weighted alias match.
+ * - Failures: the high-value failure docs are always included (small, and they prevent
+ *   errors that cost a render and a repair round).
  *
- * Unknown input returns no examples or design patterns. Injecting files chosen
- * by directory order creates false context and is worse than honest emptiness.
- * Generic failure-mode guidance remains available independently.
+ * Unknown input returns no examples or design patterns. Injecting files chosen by
+ * directory order creates false context and is worse than honest emptiness.
  */
 export async function retrieveContext(input: string): Promise<RetrievalContext> {
-  const { exampleNames, patternNames, matchedKeywords } = matchKeywords(input);
+  const normalizedRequest = normalizeRetrievalText(input);
   const [availableExamples, availablePatterns, availableFailures] = await Promise.all([
     listScadFiles(examplesDir()),
     listMdFiles(patternsDir()),
     listMdFiles(failuresDir()),
   ]);
 
-  const resolvedExamples = [...exampleNames].filter((n) => availableExamples.includes(n));
-
-  const resolvedPatterns = [...patternNames].filter((n) => availablePatterns.includes(n));
-
-  // Always include all failure docs
-  const resolvedFailures = availableFailures.filter((n) =>
-    FAILURE_ALWAYS_INCLUDE.includes(n)
+  const exampleHits = selectWithinBudget(
+    EXAMPLE_ENTRIES,
+    normalizedRequest,
+    availableExamples,
+    RETRIEVAL_BUDGET.maxExamples,
+  );
+  const patternHits = selectWithinBudget(
+    PATTERN_ENTRIES,
+    normalizedRequest,
+    availablePatterns,
+    RETRIEVAL_BUDGET.maxPatterns,
   );
 
-  // Read files in parallel
+  // Failure-mode guidance is curated as always-relevant, so it stays unconditional.
+  const resolvedFailures = availableFailures.filter((name) =>
+    FAILURE_ALWAYS_INCLUDE.includes(name)
+  );
+
+  const topExampleScore = exampleHits[0]?.score ?? 0;
+  const topPatternScore = patternHits[0]?.score ?? 0;
+
   const [examples, patterns, failures] = await Promise.all([
     Promise.all(
-      resolvedExamples.map(async (name) => {
-        const scad_code = await readFileIfExists(path.join(examplesDir(), `${name}.scad`));
-        return { name, scad_code: scad_code ?? "", relevance: 1.0 };
+      exampleHits.map(async ({ entry, score, matchedAliases }) => {
+        const scad_code = await readFileIfExists(path.join(examplesDir(), `${entry.id}.scad`));
+        return {
+          name: entry.id,
+          scad_code: scad_code ?? "",
+          relevance: normalizeRelevance(score, topExampleScore),
+          score,
+          matchedAliases,
+        };
       })
     ),
     Promise.all(
-      resolvedPatterns.map(async (name) => {
-        const content = await readFileIfExists(path.join(patternsDir(), `${name}.md`));
-        return { name, content: content ?? "" };
+      patternHits.map(async ({ entry, score, matchedAliases }) => {
+        const content = await readFileIfExists(path.join(patternsDir(), `${entry.id}.md`));
+        return {
+          name: entry.id,
+          content: content ?? "",
+          relevance: normalizeRelevance(score, topPatternScore),
+          score,
+          matchedAliases,
+        };
       })
     ),
     Promise.all(
@@ -219,11 +191,18 @@ export async function retrieveContext(input: string): Promise<RetrievalContext> 
     ),
   ]);
 
+  const matchedKeywords = [
+    ...new Set([
+      ...exampleHits.flatMap((hit) => hit.matchedAliases),
+      ...patternHits.flatMap((hit) => hit.matchedAliases),
+    ]),
+  ].sort();
+
   return {
     examples: examples.filter((e) => e.scad_code.length > 0),
     patterns: patterns.filter((p) => p.content.length > 0),
     failures: failures.filter((f) => f.content.length > 0),
-    matchedKeywords: [...matchedKeywords].sort(),
+    matchedKeywords,
   };
 }
 

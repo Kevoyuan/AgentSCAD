@@ -24,11 +24,17 @@ import {
   validateRenderedArtifacts,
 } from "@/lib/tools/validation-tool";
 import { runRepair } from "@/lib/repair/repair-controller";
+import { deriveExpectedBBox, formatResearchEvidence, runRequestResearch } from "@/lib/research/request-research";
+import type { ResearchResultV1 } from "@/lib/research/request-research";
 import { buildJobQuality } from "@/lib/validation/job-quality";
 import { isValidationActionable } from "@/lib/validation/evidence-status";
 import { toPublicJobOrNull } from "@/lib/public-job";
 import { analyzeCadRequest } from "@/lib/intake/request-intelligence";
 import { runModelCadIntake } from "@/lib/intake/model-intake";
+import {
+  applyResearchDisambiguation,
+  resolveAmbiguityFromResearch,
+} from "@/lib/intake/research-disambiguation";
 import {
   buildApprovedGenerationRequest,
   restoreApprovedRequestIntelligence,
@@ -39,7 +45,6 @@ import type {
   StructuredGenerationResult,
 } from "@/lib/harness/types";
 import { ModelRequestError } from "@/lib/model-runtime";
-import { isEphemeralRuntime } from "@/lib/runtime-environment";
 import { randomUUID } from "crypto";
 import type { JobExecution } from "./job-execution";
 import {
@@ -51,12 +56,6 @@ import {
 export type ProcessSseEvent = Record<string, unknown>;
 export type ProcessEventSink = (data: ProcessSseEvent) => void;
 
-const PROCESS_REQUEST_BUDGET_MS = 300_000;
-const GENERATION_TAIL_RESERVE_MS = 60_000;
-const COMPILE_REPAIR_MODEL_BUDGET_MS = 45_000;
-// Leave room for the worst-case WASM queue/render, mesh validation, preview,
-// artifact persistence, and final database writes after the repair model returns.
-const COMPILE_REPAIR_TAIL_RESERVE_MS = 220_000;
 export const STALE_REPAIR_LEASE_MS = 6 * 60_000;
 
 interface CompileRepairLeaseEntry {
@@ -129,34 +128,6 @@ export function removeCompileRepairLease(
   return restored.length > 0 ? JSON.stringify(restored) : null;
 }
 
-export function getCompileRepairModelBudgetMs(
-  elapsedMs: number,
-  ephemeral = isEphemeralRuntime(),
-): number | undefined | null {
-  if (!ephemeral) return undefined;
-  const remainingMs = PROCESS_REQUEST_BUDGET_MS - Math.max(0, elapsedMs);
-  const modelBudgetMs = Math.min(
-    COMPILE_REPAIR_MODEL_BUDGET_MS,
-    remainingMs - COMPILE_REPAIR_TAIL_RESERVE_MS,
-  );
-  return modelBudgetMs >= 5_000 ? modelBudgetMs : null;
-}
-
-export function getGenerationModelBudgetMs(
-  elapsedMs: number,
-  ephemeral = isEphemeralRuntime(),
-): number | undefined | null {
-  if (!ephemeral) return undefined;
-  const remainingMs = PROCESS_REQUEST_BUDGET_MS - Math.max(0, elapsedMs);
-  const modelBudgetMs = remainingMs - GENERATION_TAIL_RESERVE_MS;
-  return modelBudgetMs >= 5_000 ? modelBudgetMs : null;
-}
-
-function compileRepairSignal(startedAt: number): AbortSignal | undefined | null {
-  const budgetMs = getCompileRepairModelBudgetMs(Date.now() - startedAt);
-  return typeof budgetMs === "number" ? AbortSignal.timeout(budgetMs) : budgetMs;
-}
-
 export function getDemoDelayMs(env: Readonly<Record<string, string | undefined>> = process.env): number {
   const parsed = Number(env.AGENTSCAD_DEMO_DELAY_MS ?? 0);
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
@@ -196,7 +167,6 @@ export async function executeCadJob(
   sendEvent: ProcessEventSink,
   _claimedExecution?: JobExecution
 ) {
-  const startedAt = Date.now();
   const job = await db.job.findUnique({ where: { id: jobId } });
   if (!job) {
     throw new Error(`Job not found with id: ${jobId}`);
@@ -215,6 +185,47 @@ export async function executeCadJob(
 
     const wallThickness = (paramValues.wall_thickness as number) ?? 2.0;
     const inputRequest = job.inputRequest ?? "generic part";
+
+    // Research runs before intake on purpose: a product page often settles what the
+    // request means ("iPhone Duo" is a foldable), so the intake model should not have
+    // to ask the user about something the web already answers. It stays advisory and
+    // non-blocking: no backend or a dead network just records why.
+    let requestResearch: ResearchResultV1 | null = null;
+    currentStage = "research";
+    try {
+      requestResearch = await runRequestResearch({ request: inputRequest, model: job.modelId });
+      const researched = requestResearch.status === "OK" || requestResearch.status === "PARTIAL";
+      await db.job.update({
+        where: { id: jobId },
+        data: {
+          researchResult: JSON.stringify(requestResearch),
+          executionLogs: appendLog(
+            job.executionLogs,
+            "RESEARCHED",
+            researched
+              ? `Web research via ${requestResearch.backend}: ${requestResearch.sources.length} source(s), ${requestResearch.dimensions.length} dimension(s)`
+              : `Web research unavailable (${requestResearch.status}): ${requestResearch.notes}`,
+          ),
+        },
+      });
+      sendEvent({
+        state: "NEW",
+        step: "researched",
+        message: researched
+          ? `Web research found ${requestResearch.sources.length} source(s) for real-world dimensions.`
+          : `Web research unavailable: ${requestResearch.notes}`,
+        researchResult: requestResearch,
+      });
+    } catch (researchError) {
+      const message = researchError instanceof Error ? researchError.message : "Unknown research error";
+      console.warn(`CAD research stage failed; continuing without web evidence: ${message}`);
+      sendEvent({
+        state: "NEW",
+        step: "research_degraded",
+        message: "Web research failed; generation will use the request and stated assumptions only.",
+      });
+    }
+
     const restoredRequestIntelligence = restoreApprovedRequestIntelligence(inputRequest, job.intentResult);
     const restoredPersistedIntelligence = restoredRequestIntelligence
       ?? restorePersistedRequestIntelligence(inputRequest, job.intentResult);
@@ -230,7 +241,11 @@ export async function executeCadJob(
         message: "Building a structured CAD brief before geometry generation...",
       });
       try {
-        const modelIntelligence = await runModelCadIntake(inputRequest, job.modelId);
+        const modelIntelligence = await runModelCadIntake(
+          inputRequest,
+          job.modelId,
+          formatResearchEvidence(requestResearch),
+        );
         if (modelIntelligence.status !== "UNKNOWN") {
           requestIntelligence = modelIntelligence;
         } else {
@@ -249,6 +264,23 @@ export async function executeCadJob(
           message: "Structured intake was unavailable; generation will use only the original request.",
         });
       }
+    }
+
+    // Deterministic backstop: if the intake model still asks for clarification but the
+    // researched evidence names exactly one option, take that option instead of asking.
+    const researchResolution = resolveAmbiguityFromResearch(requestIntelligence, requestResearch);
+    if (researchResolution) {
+      requestIntelligence = applyResearchDisambiguation(requestIntelligence, researchResolution);
+      sendEvent({
+        state: "NEW",
+        step: "intent_resolved_by_research",
+        message: `Clarification answered by web research: ${researchResolution.interpretation.label}`,
+        researchResolution: {
+          interpretation_id: researchResolution.interpretation.id,
+          matched: researchResolution.decisiveTokens,
+          evidence: researchResolution.evidenceQuote,
+        },
+      });
     }
 
     sendEvent({
@@ -374,14 +406,6 @@ export async function executeCadJob(
 
     try {
       currentStage = "generate";
-      const generationBudgetMs = getGenerationModelBudgetMs(Date.now() - startedAt);
-      if (generationBudgetMs === null) {
-        throw new ModelRequestError(
-          "LLM_TIMEOUT",
-          "Not enough serverless request time remains for CAD generation. Retry to resume from the saved plan.",
-          true,
-        );
-      }
       sendEvent({
         state: "NEW",
         step: "generating_llm",
@@ -393,9 +417,8 @@ export async function executeCadJob(
         job.modelId,
         partFamily,
         generationPlanCheckpoint.plan,
-        typeof generationBudgetMs === "number"
-          ? AbortSignal.timeout(generationBudgetMs)
-          : undefined,
+        undefined,
+        formatResearchEvidence(requestResearch),
       );
       usedLLM = true;
     } catch (llmError) {
@@ -407,7 +430,6 @@ export async function executeCadJob(
           extractParameterDefsFromScad(failedScad),
           llmError.generationResult.parameters,
         );
-        const repairSignal = compileRepairSignal(startedAt);
         const generatedCadIntent = JSON.stringify({
           request_intelligence: requestIntelligence,
           generation_plan: generationPlanCheckpoint,
@@ -418,56 +440,6 @@ export async function executeCadJob(
           constraints: llmError.generationResult.constraints,
           design_rationale: llmError.generationResult.design_rationale,
         });
-
-        if (repairSignal === null) {
-          const quality = buildJobQuality({
-            state: "HUMAN_REVIEW",
-            scadSource: failedScad,
-            stlPath: null,
-            pngPath: null,
-            validationResults: [compileFailure],
-          });
-          const committed = await db.job.updateMany({
-            where: { id: jobId, state: job.state },
-            data: {
-              state: "HUMAN_REVIEW",
-              partFamily,
-              builderName: "AgentSCAD-LLM-compile-review",
-              generationPath: "llm_compile_repair_deferred",
-              scadSource: failedScad,
-              parameterSchema: JSON.stringify(failedParameters),
-              parameterValues: JSON.stringify(parameterDefsToValues(failedParameters)),
-              cadIntentJson: generatedCadIntent,
-              modelingPlanJson: JSON.stringify(llmError.generationResult.modeling_plan),
-              validationTargetsJson: JSON.stringify(llmError.generationResult.validation_targets),
-              stlPath: null,
-              pngPath: null,
-              renderLog: JSON.stringify(buildRenderFailureLog(0, [llmError.compileLog])),
-              reportPath: null,
-              validationResults: JSON.stringify([compileFailure]),
-              visualRepairReportJson: null,
-              validationReportJson: quality.validationReportJson,
-              qualityScore: quality.qualityScore,
-              completedAt: null,
-              executionLogs: appendLog(
-                generationExecutionLogs,
-                "OPENSCAD_COMPILE_FAILED",
-                "Compile repair deferred because the serverless request budget was nearly exhausted",
-              ),
-            },
-          });
-          if (committed.count !== 1) return;
-          sendEvent({
-            state: "HUMAN_REVIEW",
-            step: "repair_error",
-            message: "Generated SCAD failed compilation. Automatic repair was deferred to preserve the source before the serverless request deadline.",
-            errorCode: "OPENSCAD_COMPILE_FAILED",
-            failureStage: "generate",
-            retryable: true,
-            validationResults: [compileFailure],
-          });
-          return;
-        }
 
         generationExecutionLogs = appendLog(
           generationExecutionLogs,
@@ -493,7 +465,7 @@ export async function executeCadJob(
             cadIntentJson: generatedCadIntent,
             modelingPlanJson: JSON.stringify(llmError.generationResult.modeling_plan),
             validationTargetsJson: JSON.stringify(llmError.generationResult.validation_targets),
-            researchResult: null,
+            researchResult: requestResearch ? JSON.stringify(requestResearch) : null,
             designResult: null,
             repairHistory: repairLease,
             stlPath: null,
@@ -541,7 +513,6 @@ export async function executeCadJob(
               validation_targets: llmError.generationResult.validation_targets,
             },
             requestedModel: job.modelId,
-            signal: repairSignal,
           });
           failedScad = repairResult.generationResult.scad_source;
           await validateGeneratedScadSource(failedScad);
@@ -656,6 +627,22 @@ export async function executeCadJob(
     }
 
     let scadCode = generationResult.scad_source;
+
+    // Research gives us the real envelope; use it as the bbox target so B001 checks
+    // the model against a sourced size instead of skipping every time.
+    const researchedBBox = deriveExpectedBBox(requestResearch);
+    if (researchedBBox && (generationResult.validation_targets?.expected_bbox ?? []).length < 3) {
+      generationResult.validation_targets = {
+        ...generationResult.validation_targets,
+        expected_bbox: researchedBBox,
+      };
+      sendEvent({
+        state: "NEW",
+        step: "research_bbox_target",
+        message: `Bounding-box target set from research: [${researchedBBox.join(", ")}] mm`,
+      });
+    }
+
     const generationPath = usedLLM
       ? partFamily === "unknown"
         ? "llm_freeform_parametric"
@@ -694,7 +681,12 @@ export async function executeCadJob(
           part_family: partFamily,
           generation_method: usedLLM ? "llm" : "template",
           summary: generationResult.summary,
-          references_found: usedLLM ? 0 : 3,
+          research_status: requestResearch?.status ?? "DISABLED",
+          research_backend: requestResearch?.backend ?? null,
+          references_found: requestResearch?.sources.length ?? 0,
+          research_sources: requestResearch?.sources ?? [],
+          research_evidence: requestResearch?.evidence ?? [],
+          research_notes: requestResearch?.notes ?? "",
           similar_designs: usedLLM ? [] : ["standard_box_enclosure_v1", "parametric_case_v2"],
           best_practices: ["Minimum wall thickness 1.2mm for FDM", "Add fillets for strength"],
         }),
@@ -910,6 +902,10 @@ export async function executeCadJob(
           let repairedArtifacts: RenderedArtifacts | null = null;
           try {
             clearValidationCache();
+            // Compile first: a repaired source that does not even parse used to be
+            // persisted and only failed later inside the renderer, which parked the
+            // job in HUMAN_REVIEW with a syntax-error artifact.
+            await validateGeneratedScadSource(repairedScad);
             repairedArtifacts = await renderScadArtifacts(jobId, repairedScad);
           } catch (reRenderError) {
             const msg = reRenderError instanceof Error ? reRenderError.message : "Unknown";
@@ -924,14 +920,14 @@ export async function executeCadJob(
                 executionLogs: appendLog(
                   (await db.job.findUnique({ where: { id: jobId } }))?.executionLogs,
                   "HUMAN_REVIEW",
-                  `Repair generated valid SCAD but re-render failed: ${msg}`
+                  `Repair SCAD failed OpenSCAD compile or render: ${msg}`
                 ),
               },
             });
             sendEvent({
               state: "HUMAN_REVIEW",
               step: "repair_render_failed",
-              message: `Repair SCAD was generated but OpenSCAD render failed: ${msg}`,
+              message: `Repair SCAD failed OpenSCAD compile or render: ${msg}`,
             });
             return;
           }
@@ -1153,6 +1149,18 @@ export async function executeCadJob(
         : "CAD_GENERATION_FAILED");
     const retryable = modelError?.retryable ?? currentStage !== "validate";
 
+    let detailedLog = `Processing failed during ${currentStage} [${errorCode}]: ${message}`;
+    if (modelError?.evidence) {
+      const parts: string[] = [];
+      if (modelError.evidence.model) parts.push(`model: ${modelError.evidence.model}`);
+      if (modelError.evidence.finishReason) parts.push(`finish_reason: ${modelError.evidence.finishReason}`);
+      if (typeof modelError.evidence.responseLength === "number") parts.push(`length: ${modelError.evidence.responseLength}`);
+      if (parts.length > 0) detailedLog += ` (${parts.join(", ")})`;
+      if (modelError.evidence.rawSnippet) {
+        detailedLog += `\nRaw response preview:\n${modelError.evidence.rawSnippet}`;
+      }
+    }
+
     await db.job.update({
       where: { id: jobId },
       data: {
@@ -1160,7 +1168,7 @@ export async function executeCadJob(
         executionLogs: appendLog(
           (await db.job.findUnique({ where: { id: jobId } }))?.executionLogs,
           errorCode,
-          `Processing failed during ${currentStage} [${errorCode}]: ${message}`
+          detailedLog
         ),
       },
     });
@@ -1172,6 +1180,7 @@ export async function executeCadJob(
       errorCode,
       failureStage: currentStage,
       retryable,
+      ...(modelError?.evidence ? { evidence: modelError.evidence } : {}),
     });
   }
 }

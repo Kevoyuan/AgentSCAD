@@ -40,7 +40,7 @@ This split keeps CAD behavior editable while making runtime side effects explici
 ## Current Gaps
 
 - Intake has a deterministic index plus a bounded LLM fallback for previously unknown requests. Both deterministic and validated model-derived ambiguity use the same persisted user-approval gate. It does not yet expose a complete editable design-brief/constraint editor.
-- Retrieval is keyword-based and has no benchmarked relevance score or trace in the normal UI. Unmatched requests now return no example/pattern instead of filesystem-order fallback.
+- Retrieval matches aliases from `cad_knowledge/retrieval-index.json` and returns weighted, ranked scores with a per-group budget, so Chinese requests and feature wording reach the same knowledge as English ones. It is still lexical: there is no embedding or semantic retriever, and no benchmarked Recall@K set. Unmatched requests return no example/pattern instead of filesystem-order fallback.
 - Learned observations are disabled by default and in production. The local opt-in still lacks an author-facing inspection or rollback control; see [Memory](./MEMORY.md).
 - The visual reviewer is not an independent guarantee of semantic correctness. It now receives only the request and rendered pixels, not SCAD or generation rationale, and a repaired preview is evaluated again. Model judgment still remains explicitly separate from deterministic geometry evidence and user acceptance.
 - Adding a directory under `skills/` does not activate it. Tests should assert every intended load site and fallback.

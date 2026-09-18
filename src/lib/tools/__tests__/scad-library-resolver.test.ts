@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { existsSync } from "fs";
 import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
 import {
+  buildOpenScadExecEnv,
   buildScadLibraryPrompt,
   getAvailableScadLibraries,
+  resolveOpenScadLibraryPaths,
 } from "@/lib/tools/scad-library-resolver";
 
 const originalOpenScadLibraryPaths = process.env.OPENSCAD_LIBRARY_PATHS;
@@ -79,6 +82,40 @@ describe("scad-library-resolver", () => {
     expect(prompt).toContain("BOSL2: include <BOSL2/std.scad> (BSD-2-Clause)");
     expect(prompt).toContain("SCAD Library BOSL2 Skill");
     expect(prompt).toContain("cuboid()");
+  });
+
+  test("puts the repo standard library on the native OpenSCAD search path", async () => {
+    // Regression: the native renderer used to search only the managed library dirs,
+    // so `include <agentscad_std.scad>` (which the generation and repair prompts ask
+    // for) warned, dropped every library module, and still exited 0 with an empty or
+    // partial model. The WASM runtime inlines that library; native has to find it.
+    delete process.env.VERCEL;
+    delete process.env.AGENTSCAD_OPENSCAD_BACKEND;
+    process.env.OPENSCAD_LIBRARY_PATHS = "";
+    process.env.OPENSCADPATH = "";
+    process.env.AGENTSCAD_OPENSCAD_LIBRARY_DIR = "";
+    process.env.CADCAD_OPENSCAD_LIBRARY_DIR = "";
+
+    const repoLibraryDir = path.join(process.cwd(), "openscad_lib");
+    expect(await resolveOpenScadLibraryPaths()).toContain(repoLibraryDir);
+    expect(existsSync(path.join(repoLibraryDir, "agentscad_std.scad"))).toBe(true);
+
+    const execEnv = await buildOpenScadExecEnv();
+    const searchPath = (execEnv.OPENSCADPATH ?? "").split(path.delimiter);
+    expect(searchPath).toContain(repoLibraryDir);
+  });
+
+  test("keeps the WASM backend free of native library paths", async () => {
+    process.env.AGENTSCAD_OPENSCAD_BACKEND = "wasm";
+    delete process.env.VERCEL;
+    process.env.OPENSCADPATH = "";
+    process.env.OPENSCAD_LIBRARY_PATHS = "";
+    process.env.AGENTSCAD_OPENSCAD_LIBRARY_DIR = "";
+    process.env.CADCAD_OPENSCAD_LIBRARY_DIR = "";
+
+    expect(await resolveOpenScadLibraryPaths()).not.toContain(
+      path.join(process.cwd(), "openscad_lib")
+    );
   });
 
   test("advertises only serverless-safe library capabilities on Vercel", async () => {

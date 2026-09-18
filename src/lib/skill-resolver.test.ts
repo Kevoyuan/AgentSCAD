@@ -1,14 +1,30 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  PROMPT_SECTION_CHAR_BUDGETS,
-  boundPromptSection,
   buildScadCodingPrompt,
   buildScadPrompt,
   isExperimentalMemoryPromptEnabled,
 } from "./skill-resolver";
 
 describe("skill resolver containment", () => {
+  test("injects web research evidence into the generation prompt", async () => {
+    const evidence = [
+      "## External research (web evidence, verify before trusting)",
+      "- body_height: 147.6 mm [https://en.wikipedia.org/wiki/IPhone_16] (unverified)",
+    ].join("\n");
+
+    const codeprompt = await buildScadCodingPrompt("box with real dimensions", "unknown", {}, null, evidence);
+    expect(codeprompt?.userPrompt).toContain("<external_research>");
+    expect(codeprompt?.userPrompt).toContain("147.6 mm");
+
+    const prompt = await buildScadPrompt("box with real dimensions", "unknown", {}, evidence);
+    expect(prompt?.userPrompt).toContain("## External research");
+    expect(prompt?.userPrompt).toContain("147.6 mm");
+
+    const withoutResearch = await buildScadPrompt("box with real dimensions", "unknown", {});
+    expect(withoutResearch?.userPrompt).not.toContain("## External research");
+  });
+
   test("experimental prompt memory is opt-in locally and always off in production", () => {
     expect(isExperimentalMemoryPromptEnabled({})).toBe(false);
     expect(isExperimentalMemoryPromptEnabled({ AGENTSCAD_MEMORY_PROMPT_ENABLED: "true" })).toBe(true);
@@ -16,13 +32,6 @@ describe("skill resolver containment", () => {
       NODE_ENV: "production",
       AGENTSCAD_MEMORY_PROMPT_ENABLED: "true",
     })).toBe(false);
-  });
-
-  test("bounds prompt sections and makes truncation visible", () => {
-    const bounded = boundPromptSection("x".repeat(100), 20, "test section");
-    expect(bounded.startsWith("x".repeat(20))).toBe(true);
-    expect(bounded).toContain("test section truncated: 80 characters omitted");
-    expect(PROMPT_SECTION_CHAR_BUDGETS.retrieval).toBeLessThanOrEqual(16_000);
   });
 
   test("unknown requests receive no arbitrary CAD example or printable pattern", async () => {

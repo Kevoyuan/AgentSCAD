@@ -56,6 +56,46 @@ function quoteShellArg(value: string): string {
   return `"${value.replace(/(["\\$`])/g, "\\$1")}"`;
 }
 
+/**
+ * Count triangles in an STL file buffer. OpenSCAD writes ASCII STL by default and
+ * binary STL on request, so both layouts have to be understood: the previous
+ * implementation only read the binary header and reported 0 triangles for every
+ * native render, which made the C001 compile check fail on healthy geometry.
+ */
+export function countStlTriangles(buffer: Buffer): number {
+  if (buffer.length >= 84) {
+    const binaryTriangles = buffer.readUInt32LE(80);
+    if (binaryTriangles > 0 && buffer.length >= 84 + binaryTriangles * 50) {
+      return binaryTriangles;
+    }
+  }
+  const asciiFacets = buffer.toString("utf8").match(/^\s*facet\s+normal\s/gim);
+  return asciiFacets ? asciiFacets.length : 0;
+}
+
+const OPENSCAD_WARNING_PATTERN =
+  /^(?:WARNING|ERROR|DEPRECATED|Ignoring unknown module|Can.t open include file)\b/i;
+
+/**
+ * Keep the OpenSCAD diagnostics that explain a silently degraded render
+ * ("Can't open include file", "Ignoring unknown module") instead of dropping them.
+ */
+export function collectOpenScadWarnings(...outputs: Array<string | undefined>): string[] {
+  const seen = new Set<string>();
+  const warnings: string[] = [];
+  for (const output of outputs) {
+    if (!output) continue;
+    for (const rawLine of output.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || seen.has(line)) continue;
+      if (!OPENSCAD_WARNING_PATTERN.test(line)) continue;
+      seen.add(line);
+      warnings.push(line);
+    }
+  }
+  return warnings;
+}
+
 export function buildOpenScadDefineArgs(definitions?: Record<string, unknown>): string {
   return getOpenScadDefinitionEntries(definitions)
     .map(([key, value]) => `-D ${quoteShellArg(`${key}=${value}`)}`)
@@ -93,7 +133,7 @@ export async function renderStl(
   scadFilePath: string,
   stlFilePath: string,
   definitions?: Record<string, unknown>
-): Promise<void> {
+): Promise<string> {
   if (usesOpenScadWasm()) {
     const source = await fs.readFile(scadFilePath, "utf8");
     const hasDefinitions = getOpenScadDefinitionEntries(definitions).length > 0;
@@ -101,25 +141,33 @@ export async function renderStl(
       (hasDefinitions ? null : takeValidatedWasmStl(source)) ??
       (await renderScadToStlWasm(source, definitions));
     await fs.writeFile(stlFilePath, stl);
-    return;
+    return "";
   }
   const defineArgs = buildOpenScadDefineArgs(definitions);
-  await execAsync(`${OPENSCAD_BIN} ${defineArgs} -o ${quoteShellArg(stlFilePath)} ${quoteShellArg(scadFilePath)}`, {
-    env: await buildOpenScadExecEnv(),
-    timeout: RENDER_TIMEOUT_MS,
-  });
+  const { stdout, stderr } = await execAsync(
+    `${OPENSCAD_BIN} ${defineArgs} -o ${quoteShellArg(stlFilePath)} ${quoteShellArg(scadFilePath)}`,
+    {
+      env: await buildOpenScadExecEnv(),
+      timeout: RENDER_TIMEOUT_MS,
+    },
+  );
+  return `${stdout}\n${stderr}`;
 }
 
 export async function renderPng(
   scadFilePath: string,
   pngFilePath: string,
   definitions?: Record<string, unknown>
-): Promise<void> {
+): Promise<string> {
   const defineArgs = buildOpenScadDefineArgs(definitions);
-  await execAsync(`${OPENSCAD_BIN} ${defineArgs} -o ${quoteShellArg(pngFilePath)} --colorscheme=Tomorrow ${quoteShellArg(scadFilePath)}`, {
-    env: await buildOpenScadExecEnv(),
-    timeout: RENDER_TIMEOUT_MS,
-  });
+  const { stdout, stderr } = await execAsync(
+    `${OPENSCAD_BIN} ${defineArgs} -o ${quoteShellArg(pngFilePath)} --colorscheme=Tomorrow ${quoteShellArg(scadFilePath)}`,
+    {
+      env: await buildOpenScadExecEnv(),
+      timeout: RENDER_TIMEOUT_MS,
+    },
+  );
+  return `${stdout}\n${stderr}`;
 }
 
 export async function renderStlPreview(
@@ -155,16 +203,19 @@ export async function renderScadArtifacts(
 
   try {
     await assertActive?.();
-    await renderStl(paths.scadFilePath, paths.stlFilePath, definitions);
+    const stlOutput = await renderStl(paths.scadFilePath, paths.stlFilePath, definitions);
     await assertActive?.();
     let triangleCount = 0;
+    let pngOutput = "";
     if (usesOpenScadWasm()) {
       triangleCount = (
         await renderStlPreview(paths.stlFilePath, paths.pngFilePath)
       ).triangleCount;
     } else {
-      await renderPng(paths.scadFilePath, paths.pngFilePath, definitions);
+      pngOutput = await renderPng(paths.scadFilePath, paths.pngFilePath, definitions);
+      triangleCount = countStlTriangles(await fs.readFile(paths.stlFilePath));
     }
+    const warnings = collectOpenScadWarnings(stlOutput, pngOutput);
     await assertActive?.();
     const artifactPathnames = await persistJobArtifacts(jobId, paths);
     try {
@@ -192,7 +243,7 @@ export async function renderScadArtifacts(
       stl_triangles: triangleCount,
       stl_vertices: 0,
       png_resolution: "800x600",
-      warnings: [],
+      warnings,
       ...(artifactPathnames
         ? { artifact_pathnames: artifactPathnames }
         : {}),

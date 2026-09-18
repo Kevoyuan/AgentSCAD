@@ -3,6 +3,7 @@ import type { CadValidationTargets } from "@/lib/harness/types";
 import { claimJobExecution, JobExecutionConflict, JobExecutionStopped } from "./job-execution";
 import { appendLog } from "@/lib/stores/job-store";
 import { trackVersion } from "@/lib/version-tracker";
+import { recordJobOutcomeSafe } from "@/lib/outcome/job-outcome";
 import { writeScadParameters } from "@/lib/tools/scad-parameter-writer";
 import { renderScadArtifacts, buildRenderFailureLog } from "@/lib/tools/scad-renderer";
 import { clearValidationCache, validateRenderedArtifacts, getCriticalValidationFailures } from "@/lib/tools/validation-tool";
@@ -75,6 +76,14 @@ export async function updateJobParameters(job: Job, parameters: Record<string, u
     } });
     await trackVersion(job.id, "parameters", job.parameterValues, JSON.stringify(values));
     await trackVersion(job.id, "scadSource", job.scadSource, source);
+    // A user-authored parameter change is an outcome event: the first result was not
+    // final. It is not a decision, so it never counts as success or failure.
+    await recordJobOutcomeSafe({
+      jobId: job.id,
+      kind: "user_edited",
+      source: "user",
+      detail: { field: "parameters", keys: Object.keys(parameters) },
+    });
     if (!source || job.state === "NEW" || job.state === "CANCELLED") {
       const updated = await execution.update({ data: { state: job.state } });
       return { job: updated, rendered: false, parameterValues: values };

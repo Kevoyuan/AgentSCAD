@@ -85,7 +85,7 @@ bun run dev
 
 按下 `⌘ Enter`（或点击右侧橙色圆形按钮 `↑`），AgentSCAD 将全自动完成：
 1. **意图解析**：提取尺寸、公差与制造特征；
-2. **源码生成**：编写规范的参数化 OpenSCAD 代码；
+2. **源码生成**：先用本地别名索引匹配你的描述（中英文一致），把关联的参考范例、设计模式与常见失败模式按相关度排序注入提示词，再编写规范的参数化 OpenSCAD 代码；
 3. **真实渲染**：调用 OpenSCAD 引擎编译生成 STL 与 3D 网格；
 4. **确定性物理检验**：严格检查流形闭合度、最小壁厚、最大外形等制造规则。
 
@@ -139,7 +139,9 @@ AgentSCAD 坚持**“几何事实由确定性工具说话，代码生成由大�
 
 - **OpenSCAD 几何引擎**：本地开发支持原生 OpenSCAD CLI；云端或无安装环境下支持官方固定的 OpenSCAD WebAssembly (WASM) 运行环境，开箱即用。
 - **物理事实检验**：通过 Python / Trimesh 确定性分析 STL 网格数据，测量流形拓扑、外包围盒、壁厚及孔洞特征，绝不让 LLM 伪造通过状态。
-- **本地优先持久化**：采用 SQLite 数据库存储设计版本历史与参数，产物持久化在本地文件系统，支持任意历史版本回溯与源码导出。
+- **确定性检索**：`cad_knowledge/retrieval-index.json` 是检索能力的唯一事实来源。请求与别名先做归一化（大小写、全角、标点），再按 strong / supporting 别名权重与特异度打分、确定性排序，并按分组预算截断。硬负例把易混家族分开——行星齿轮减速机构永远不会命中正齿轮条目。未命中的请求返回空上下文，而不是按文件名顺序凑数。这是词法检索，不是语义检索：没有向量索引，也不宣称有。
+- **证据分层**：`DELIVERED` 只证明产物已经产出，不代表你接受了这个零件。追加写的 `JobOutcome` 账本记录 `accepted`、`rejected`、`user_edited`、`exported` 四类事件，只有当最近一次决策是 `accepted` 时，汇总结果才会给出 `taskSucceeded = true`；编辑与导出属于过程信号，永远不算成功。读取接口：`GET /api/jobs/{id}/outcome`。
+- **本地优先持久化**：采用 SQLite 存储 `Job` 记录、`JobVersion` 历史与追加写的 `JobOutcome` 账本，产物持久化在本地文件系统，支持任意历史版本回溯与源码导出。
 
 ---
 
@@ -161,6 +163,8 @@ AgentSCAD 坚持**“几何事实由确定性工具说话，代码生成由大�
 ## 📚 进阶文档
 
 - [系统架构 (Architecture)](./docs/ARCHITECTURE.md)
+- [技能与路由 (Skills & Routing)](./docs/SKILLS.md)
+- [记忆与结果账本 (Memory & Outcomes)](./docs/MEMORY.md)
 - [开发与 CI 指南 (Development & CI)](./docs/DEVELOPMENT.md)
 - [CAD 评估与基准测试 (Benchmarking)](./docs/BENCHMARK.md)
 - [OpenSCAD 库与环境策略 (Libraries)](./docs/OPENSCAD_LIBRARIES.md)

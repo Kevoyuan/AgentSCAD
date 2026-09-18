@@ -336,8 +336,6 @@ beforeEach(() => {
 describe("executeCadJob", () => {
   test("recognizes only expired repair leases as stale", async () => {
     const {
-      getCompileRepairModelBudgetMs,
-      getGenerationModelBudgetMs,
       getCompileRepairLeaseEntry,
       isStaleRepairLease,
       removeCompileRepairLease,
@@ -355,12 +353,6 @@ describe("executeCadJob", () => {
     expect(isStaleRepairLease("REPAIRING", new Date(now - 7 * 60_000), priorHistory, now)).toBe(false);
     expect(getCompileRepairLeaseEntry(compileLeaseHistory)?.token).toBe("lease-1");
     expect(removeCompileRepairLease(compileLeaseHistory)).toBe(priorHistory);
-    expect(getCompileRepairModelBudgetMs(0, false)).toBeUndefined();
-    expect(getCompileRepairModelBudgetMs(10_000, true)).toBe(45_000);
-    expect(getCompileRepairModelBudgetMs(138_000, true)).toBeNull();
-    expect(getGenerationModelBudgetMs(0, false)).toBeUndefined();
-    expect(getGenerationModelBudgetMs(0, true)).toBe(240_000);
-    expect(getGenerationModelBudgetMs(296_000, true)).toBeNull();
   });
   test("demo delays default to zero and are bounded when explicitly enabled", async () => {
     const { getDemoDelayMs, isTemplateFallbackEnabled } = await import("@/lib/pipeline/execute-cad-job");
@@ -403,8 +395,14 @@ describe("executeCadJob", () => {
     expect(generationCalls).toBe(0);
     expect(renderCalls).toBe(0);
     expect(intakeCalls).toBe(0);
-    expect(updates).toHaveLength(1);
-    expect(updates[0]?.data).toMatchObject({
+    // Research runs before clarification and records its own status on the job (here:
+    // DISABLED, because the test environment has no search backend configured).
+    expect(updates).toHaveLength(2);
+    expect(updates[0]?.data).toHaveProperty("researchResult");
+    expect(JSON.parse(updates[0]?.data.researchResult as string)).toMatchObject({
+      status: "DISABLED",
+    });
+    expect(updates[1]?.data).toMatchObject({
       state: "HUMAN_REVIEW",
       generationPath: "intent_clarification",
       scadSource: null,
@@ -413,7 +411,7 @@ describe("executeCadJob", () => {
       validationResults: null,
       completedAt: null,
     });
-    expect(JSON.parse(updates[0]?.data.intentResult as string)).toMatchObject({
+    expect(JSON.parse(updates[1]?.data.intentResult as string)).toMatchObject({
       status: "AMBIGUOUS",
       requiresClarification: true,
       assumptions: [],
@@ -767,6 +765,44 @@ describe("executeCadJob", () => {
     });
     expect(updates.at(-1)?.data.executionLogs).toContain("LLM_TIMEOUT");
     expect(updates.at(-1)?.data.executionLogs).not.toContain("no safe template");
+  });
+
+  test("surfaces LLM truncation and format errors with detailed evidence in executionLogs and events", async () => {
+    generationError = new ModelRequestError(
+      "LLM_OUTPUT_TRUNCATED",
+      "LLM output was truncated before completion (length: 4096 chars).",
+      true,
+      {
+        evidence: {
+          model: "deepseek-flash",
+          finishReason: "length",
+          responseLength: 4096,
+          rawSnippet: "module generated_part() { ... [truncated 3000 chars] ... cube([10, 10, 10]);",
+        },
+      },
+    );
+    spyOn(console, "warn").mockImplementation(() => undefined);
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+
+    await executeCadJob("job-pipeline", (event) => events.push(event));
+
+    expect(events.at(-1)).toMatchObject({
+      state: "GEOMETRY_FAILED",
+      errorCode: "LLM_OUTPUT_TRUNCATED",
+      failureStage: "generate",
+      retryable: true,
+      evidence: {
+        model: "deepseek-flash",
+        finishReason: "length",
+        responseLength: 4096,
+      },
+    });
+    const logs = updates.at(-1)?.data.executionLogs;
+    expect(logs).toContain("LLM_OUTPUT_TRUNCATED");
+    expect(logs).toContain("model: deepseek-flash");
+    expect(logs).toContain("finish_reason: length");
+    expect(logs).toContain("Raw response preview:");
   });
 
   test("reuses a persisted model-derived match without another intake call", async () => {

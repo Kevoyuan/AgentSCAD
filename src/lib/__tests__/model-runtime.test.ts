@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  createControlledSnippet,
   createModelRequestSignal,
   getModelRequestTimeoutMs,
+  ModelRequestError,
   normalizeModelRequestError,
 } from "@/lib/model-runtime";
 
@@ -45,4 +47,36 @@ describe("model runtime", () => {
       retryable: true,
     });
   });
+
+  test("creates controlled snippet without unbounded string explosion", () => {
+    expect(createControlledSnippet("")).toBe("");
+    expect(createControlledSnippet(null)).toBe("");
+    const shortText = "```scad\ncube([10, 10, 10]);\n```";
+    expect(createControlledSnippet(shortText, 100)).toBe(shortText);
+
+    const longText = "A".repeat(500) + "MIDDLE" + "B".repeat(500);
+    const snippet = createControlledSnippet(longText, 200);
+    expect(snippet.length).toBeLessThan(longText.length);
+    expect(snippet).toContain("[truncated");
+    expect(snippet.startsWith("AAAA")).toBe(true);
+    expect(snippet.endsWith("BBBB")).toBe(true);
+
+    const errorWithEvidence = new ModelRequestError(
+      "LLM_OUTPUT_TRUNCATED",
+      "Output truncated",
+      true,
+      {
+        evidence: {
+          model: "deepseek-flash",
+          finishReason: "length",
+          responseLength: 1006,
+          rawSnippet: snippet,
+        },
+      },
+    );
+    expect(errorWithEvidence.code).toBe("LLM_OUTPUT_TRUNCATED");
+    expect(errorWithEvidence.evidence?.finishReason).toBe("length");
+    expect(errorWithEvidence.evidence?.model).toBe("deepseek-flash");
+  });
 });
+

@@ -7,9 +7,13 @@
 // ---------------------------------------------------------------------------
 
 import { loadSkill } from "@/lib/skill-resolver";
-import { createChatCompletionWithFallback } from "@/lib/tools/model-router";
+import {
+  createChatCompletionDetailed,
+  type ModelCompletionResponse,
+} from "@/lib/tools/model-router";
 import { sanitizeGeneratedScadSource } from "@/lib/tools/scad-sanitizer";
 import { normalizeGenerationResult } from "@/lib/harness/structured-output";
+import { ModelRequestError, type ModelErrorEvidence } from "@/lib/model-runtime";
 import type { StructuredGenerationResult, CadValidationTargets } from "@/lib/harness/types";
 import type { ValidationResult } from "@/lib/mesh-validator";
 import { getValidationEvidenceStatus } from "@/lib/validation/evidence-status";
@@ -116,6 +120,49 @@ function buildRepairPrompt(input: RepairInput): string {
   ].join("\n");
 }
 
+function repairCompletionEvidence(completion: ModelCompletionResponse): ModelErrorEvidence {
+  return {
+    model: completion.model,
+    provider: completion.provider,
+    finishReason: completion.finishReason,
+    responseLength: completion.responseLength,
+    rawSnippet: completion.rawSnippet,
+    usage: completion.usage,
+  };
+}
+
+/**
+ * Reject repair replies that cannot be trusted as OpenSCAD.
+ *
+ * A reply that ran out of output budget mid-file used to be persisted as if it were
+ * valid source: the cut-off SCAD then failed to compile and the job was parked in
+ * HUMAN_REVIEW with a syntax-error artifact instead of a clear, retryable error.
+ */
+export function assertRepairCompletionUsable(completion: ModelCompletionResponse): void {
+  const evidence = repairCompletionEvidence(completion);
+
+  if (!completion.content.trim()) {
+    const truncated = completion.finishReason === "length";
+    throw new ModelRequestError(
+      truncated ? "LLM_OUTPUT_TRUNCATED" : "LLM_EMPTY_RESPONSE",
+      truncated
+        ? `The repair model exhausted its output budget before writing any SCAD (length: ${completion.responseLength} chars). Retry, or choose a model that does not spend the budget on hidden reasoning.`
+        : `The repair model returned no content (length: ${completion.responseLength} chars).`,
+      true,
+      { evidence },
+    );
+  }
+
+  if (completion.finishReason === "length") {
+    throw new ModelRequestError(
+      "LLM_OUTPUT_TRUNCATED",
+      `The repair model response was cut off before it finished (length: ${completion.responseLength} chars). The truncated SCAD was discarded instead of being rendered.`,
+      true,
+      { evidence },
+    );
+  }
+}
+
 /**
  * Run a single LLM-driven repair attempt.
  *
@@ -135,7 +182,7 @@ export async function runRepair(input: RepairInput): Promise<{
 
   const userPrompt = buildRepairPrompt(input);
 
-  const rawContent = await createChatCompletionWithFallback({
+  const completion = await createChatCompletionDetailed({
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
@@ -145,11 +192,25 @@ export async function runRepair(input: RepairInput): Promise<{
     signal: input.signal,
   });
 
-  const generationResult = normalizeGenerationResult(
-    rawContent,
-    [],
-    `Repaired ${input.partFamily} part`
-  );
+  const rawContent = completion.content;
+  assertRepairCompletionUsable(completion);
+  const evidence = repairCompletionEvidence(completion);
+
+  let generationResult: StructuredGenerationResult;
+  try {
+    generationResult = normalizeGenerationResult(
+      rawContent,
+      [],
+      `Repaired ${input.partFamily} part`
+    );
+  } catch (parseError) {
+    throw new ModelRequestError(
+      "LLM_FORMAT_INVALID",
+      `The repair model returned neither valid structured JSON nor recognizable OpenSCAD (length: ${completion.responseLength} chars).`,
+      true,
+      { evidence, cause: parseError instanceof Error ? parseError : undefined },
+    );
+  }
 
   const sanitizedScadSource = sanitizeGeneratedScadSource(generationResult.scad_source);
 

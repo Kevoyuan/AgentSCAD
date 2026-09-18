@@ -10,12 +10,31 @@ import {
   resolveStoredArtifact,
   type ArtifactType,
 } from "@/lib/tools/artifact-store";
+import { recordJobOutcomeSafe } from "@/lib/outcome/job-outcome";
 
 interface RouteParams {
   params: Promise<{ id: string; type: string }>;
 }
 
 const VALID_ARTIFACT_TYPES = Object.keys(ARTIFACT_FILENAMES) as ArtifactType[];
+
+/**
+ * Export signal for the outcome ledger.
+ *
+ * The viewer and the size probe also fetch these routes, so only an explicit
+ * `?download=1` request counts as a user export. Failing to record one must never break
+ * the download itself, hence the best-effort write.
+ */
+async function recordArtifactExport(request: NextRequest, jobId: string, type: string) {
+  if (type !== "scad" && type !== "stl") return;
+  if (new URL(request.url).searchParams.get("download") !== "1") return;
+  await recordJobOutcomeSafe({
+    jobId,
+    kind: "exported",
+    source: "user",
+    detail: { artifact: type },
+  });
+}
 
 export async function GET(
   request: NextRequest,
@@ -48,6 +67,7 @@ export async function GET(
         return NextResponse.json({ error: "SCAD source not available for this job" }, { status: 404 });
       }
 
+      await recordArtifactExport(request, id, type);
       return new Response(job.scadSource, {
         headers: {
           "Content-Type": ARTIFACT_CONTENT_TYPES.scad,
@@ -97,6 +117,7 @@ export async function GET(
         throw new Error("Blob fetch returned no artifact body");
       }
 
+      await recordArtifactExport(request, id, type);
       return new Response(blobResponse.stream, {
         headers: {
           "Content-Type": ARTIFACT_CONTENT_TYPES[type],
@@ -110,6 +131,7 @@ export async function GET(
     }
 
     const artifactBuffer = await fs.readFile(location.filePath);
+    await recordArtifactExport(request, id, type);
     return new Response(artifactBuffer, {
       headers: {
         "Content-Type": ARTIFACT_CONTENT_TYPES[type],

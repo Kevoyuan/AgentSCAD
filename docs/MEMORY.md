@@ -9,6 +9,7 @@ AgentSCAD has several persisted data layers, but only some of them should curren
 | Job/working state | Prisma `Job` records | Current request, state, parameters, SCAD, artifact paths, validation results, and logs. |
 | Edit history | Prisma `JobVersion` records | Field-level history for parameter, source, and note edits. This is history, not automatically a quality label. |
 | Artifact history | Local `public/artifacts/{jobId}/` or durable Blob storage | SCAD/STL/PNG availability. Artifact existence does not prove semantic correctness or user acceptance. |
+| Outcome events | Prisma `JobOutcome` records | Append-only `accepted`, `rejected`, `user_edited`, `exported` events with a strict summary. This is the first layer that separates user acceptance from pipeline state. |
 | Static skill knowledge | `skills/`, `cad_knowledge/`, `openscad_lib/` | Reviewed prompt contracts, examples, patterns, library policy, and deterministic library documentation. |
 | Learned observations | `skills/scad-generation/learned-observations.jsonl` | Experimental local prompt context; see the warnings below. |
 
@@ -34,9 +35,10 @@ The corrective design is outcome-first:
 
 1. Keep learned prompt memory disabled by default; do not enable the local experimental switch for quality claims until inspection/quarantine/rollback exists.
 2. Store immutable run context: request/brief revision, model/provider, prompt/skill/retrieval versions, artifacts, and validation evidence.
-3. Record explicit outcome events such as user acceptance, rejection, or a user-authored edit separately from pipeline states.
+3. Record explicit outcome events such as user acceptance, rejection, or a user-authored edit separately from pipeline states. **Partially done:** `JobOutcome` stores `accepted`, `rejected`, `user_edited`, and `exported` events, and `GET /api/jobs/{id}/outcome` returns a summary whose `taskSucceeded` is true only for a latest `accepted` decision. Item 2 is still open, so an accepted event cannot yet be joined to the exact model, prompt, retrieval, and library versions that produced the artifact.
 4. Scope observations to the relevant project/intent/family and retain provenance.
 5. Promote a pattern only after enough independent, accepted examples; support quarantine and rollback.
 6. Never allow memory to override OpenSCAD compilation or deterministic validation results.
+7. Keep the outcome ledger read-only with respect to prompts. Nothing in `src/lib/outcome/` is imported by the generation path, so acceptance data cannot bias generation until a reviewed write pipeline exists.
 
 Pipeline validation and delivery no longer write learned observations. Until the outcome contract is implemented, use job history and artifacts for debugging, static skills for reviewed knowledge, and the existing JSONL path only as quarantined experimental local data.

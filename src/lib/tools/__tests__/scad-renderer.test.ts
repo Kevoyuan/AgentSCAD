@@ -1,10 +1,55 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildOpenScadDefineArgs,
+  collectOpenScadWarnings,
+  countStlTriangles,
 } from "@/lib/tools/scad-renderer";
 import { usesOpenScadWasm } from "@/lib/tools/openscad-backend";
 
 describe("scad-renderer", () => {
+  test("counts ASCII and binary STL triangles", () => {
+    // OpenSCAD writes ASCII STL by default; the binary-only reader reported 0
+    // triangles for every native render and failed C001 on healthy geometry.
+    const asciiStl = Buffer.from(
+      [
+        "solid model",
+        " facet normal 0 0 1",
+        "  outer loop",
+        "   vertex 0 0 0",
+        "   vertex 1 0 0",
+        "   vertex 0 1 0",
+        "  endloop",
+        " endfacet",
+        " facet normal 0 1 0",
+        " endfacet",
+        "endsolid model",
+      ].join("\n"),
+      "utf8"
+    );
+    expect(countStlTriangles(asciiStl)).toBe(2);
+
+    const binaryStl = Buffer.alloc(84 + 3 * 50);
+    binaryStl.writeUInt32LE(3, 80);
+    expect(countStlTriangles(binaryStl)).toBe(3);
+
+    expect(countStlTriangles(Buffer.alloc(0))).toBe(0);
+  });
+
+  test("keeps OpenSCAD diagnostics that explain a degraded render", () => {
+    const output = [
+      "WARNING: Can't open include file 'agentscad_std.scad'.",
+      "WARNING: Ignoring unknown module 'mounting_plate' in file model.scad , line 4",
+      "Geometries in cache: 1",
+      "WARNING: Can't open include file 'agentscad_std.scad'.",
+    ].join("\n");
+
+    const warnings = collectOpenScadWarnings(output, undefined);
+    expect(warnings).toEqual([
+      "WARNING: Can't open include file 'agentscad_std.scad'.",
+      "WARNING: Ignoring unknown module 'mounting_plate' in file model.scad , line 4",
+    ]);
+  });
+
   test("builds shell-safe OpenSCAD define args for primitive parameter values", () => {
     const args = buildOpenScadDefineArgs({
       width: 42,

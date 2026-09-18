@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { getJobAccessScope, jobAccessFilter } from '@/lib/job-session'
 import { trackVersion } from '@/lib/version-tracker'
 import { appendLog, parameterDefsToValues } from '@/lib/stores/job-store'
+import { recordJobOutcomeSafe } from '@/lib/outcome/job-outcome'
 import { sanitizeGeneratedScadSource } from '@/lib/tools/scad-sanitizer'
 import {
   extractParameterDefsFromScad,
@@ -109,6 +110,14 @@ export async function POST(
           const parameterState = inferParameterState(scadSource, job.parameterSchema, job.parameterValues)
 
           await trackVersion(id, 'scadSource', job.scadSource, scadSource, 'ai_apply')
+          // Applying a new SCAD source is a user-authored edit, recorded as an outcome
+          // event rather than folded into the pipeline state.
+          await recordJobOutcomeSafe({
+            jobId: id,
+            kind: 'user_edited',
+            source: 'user',
+            detail: { field: 'scad_source', changedBy: 'ai_apply' },
+          })
 
           const scadUpdatedJob = await execution.update({
             where: { id },
