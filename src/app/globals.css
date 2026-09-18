@@ -73,6 +73,9 @@
      grid helper takes flat colours and cannot read an rgba token. */
   --shell-field-grid: #E0DCD5;
   --shell-field-grid-strong: #D5D2CB;
+  /* Scrollbars are a browser surface the shell owns (DESIGN.md section 22). */
+  --shell-scroll-thumb: #C7C0B4;
+  --shell-scroll-thumb-hover: #AAA294;
   --shell-module: rgba(255, 255, 255, 0.92);
   --shell-module-solid: #FFFFFF;
   --shell-inner: #EDF1F5;
@@ -261,6 +264,8 @@
   --shell-canvas-deep: #0E0D0C;
   --shell-field-grid: #191817;
   --shell-field-grid-strong: #242322;
+  --shell-scroll-thumb: #3A362F;
+  --shell-scroll-thumb-hover: #565049;
   --shell-module: rgba(34, 31, 28, 0.90);
   --shell-module-solid: #26231F;
   --shell-inner: #211F1C;
@@ -474,11 +479,21 @@
 
 /* ─── AgentSCAD CAD Design System ────────────────────── */
 
-/* Scrollbar */
+/* Scrollbar - one owner (this file), one palette (the shell tokens). An injected
+   duplicate used to paint a zinc thumb with a violet hover on every scrollable
+   surface through `<body>`, which is not a colour this product uses. */
+:root { scrollbar-color: var(--shell-scroll-thumb) transparent; }
 ::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: var(--app-scrollbar-track); }
-::-webkit-scrollbar-thumb { background: var(--app-scrollbar-thumb); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: var(--app-scrollbar-thumb-hover); }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--shell-scroll-thumb); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--shell-scroll-thumb-hover); }
+
+/* Selection - the shell's own accent, not a legacy near-white that disappears on
+   the light canvas. */
+::selection {
+  background: color-mix(in srgb, var(--shell-signal) 30%, transparent);
+  color: var(--shell-text);
+}
 
 /* Slider */
 [data-radix-slider-root] {
