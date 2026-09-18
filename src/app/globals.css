@@ -570,6 +570,28 @@ input:focus, textarea:focus, select:focus {
   box-shadow: none;
 }
 
+/*
+ * The rail's create action: the signal hue in its soft form. DESIGN.md section 11
+ * allows one *solid* orange group per screen (the composer's action and its status
+ * line), and forbids a third competing orange - so this control carries the accent as
+ * a tint and the softer text, and only reaches full signal on hover.
+ */
+.rail-create {
+  color: var(--shell-signal-soft);
+  border-color: color-mix(in srgb, var(--shell-signal) 40%, transparent);
+  background: color-mix(in srgb, var(--shell-signal) 10%, transparent);
+}
+
+.rail-create:hover {
+  color: var(--shell-signal);
+  border-color: color-mix(in srgb, var(--shell-signal) 62%, transparent);
+  background: color-mix(in srgb, var(--shell-signal) 18%, transparent);
+}
+
+.rail-create .rail-create-key {
+  color: color-mix(in srgb, var(--shell-signal-soft) 72%, transparent);
+}
+
 /* ─── Animations ─────────────────────────────────────────── */
 
 @keyframes status-pulse {

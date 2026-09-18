@@ -217,13 +217,13 @@ export function JobListPanel({
             onClick={() => onShowComposer?.()}
             aria-label="新零件"
             title="新零件（⌘N）"
-            className="shrink-0 mx-2.5 mb-2 h-[28px] px-2.5 rounded-[5px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] flex items-center justify-between gap-2 font-mono text-[10.5px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] hover:border-[color:var(--shell-border-strong)] transition-colors"
+            className="rail-create shrink-0 mx-2.5 mb-2 h-[28px] px-2.5 rounded-[5px] border flex items-center justify-between gap-2 font-mono text-[10.5px] transition-colors"
           >
             <span className="flex items-center gap-1.5">
               <Plus className="w-3 h-3" />
               新零件
             </span>
-            <span className="text-[var(--shell-text-dim)]">⌘N</span>
+            <span className="rail-create-key">⌘N</span>
           </button>
 
           {/* Jobs List with Drag & Drop */}
