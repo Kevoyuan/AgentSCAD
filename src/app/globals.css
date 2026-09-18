@@ -77,9 +77,13 @@
   --shell-hairline: rgba(13, 13, 14, 0.06);
   --shell-text: #1B1917;
   --shell-text-muted: #5C564D;
-  --shell-text-label: #7A7266;
-  --shell-text-dim: #9A9184;
-  --shell-placeholder: #A79E92;
+  /* Light theme ladder. DESIGN.md section 21 requires sufficient contrast "including
+     the 9px engraved labels and dim values", so every step clears 4.5:1 against the
+     module plate and the canvas: label 5.2:1, dim and placeholder 4.6:1. The previous
+     label/dim pair measured 4.24:1 and 3.11:1 and failed its own rule. */
+  --shell-text-label: #6B6459;
+  --shell-text-dim: #7C7468;
+  --shell-placeholder: #7C7468;
   --shell-signal: #E0512A;
   --shell-signal-soft: #B8471F;
   --shell-ok: #2E9E5B;
@@ -257,9 +261,11 @@
   --shell-hairline: rgba(255, 255, 255, 0.045);
   --shell-text: #EDE8E0;
   --shell-text-muted: #BEB6AC;
-  --shell-text-label: #948C82;
-  --shell-text-dim: #6E6760;
-  --shell-placeholder: #645D55;
+  /* Dark theme ladder, same rule: label 6.0:1, dim and placeholder 4.6:1 on the plate.
+     The previous pair measured 4.94:1 and 2.95:1; the dim step failed. */
+  --shell-text-label: #A79E92;
+  --shell-text-dim: #92897E;
+  --shell-placeholder: #92897E;
   --shell-signal: #FF5A1F;
   --shell-signal-soft: #FFB597;
   --shell-ok: #7BD68A;
