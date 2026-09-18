@@ -66,58 +66,51 @@ export function ViewerControls({
 
   const navControls = [
     {
-      icon: RotateCcw,
-      label: 'Auto-rotate',
-      active: state.autoRotate,
-      onClick: () => toggle('autoRotate'),
-    },
-    {
       icon: Move3D,
-      label: 'Reset camera',
+      label: '重置视角',
       active: false,
       onClick: onResetCamera,
     },
-    { icon: ZoomIn, label: 'Zoom in', active: false, onClick: onZoomIn },
-    { icon: ZoomOut, label: 'Zoom out', active: false, onClick: onZoomOut },
+    { icon: ZoomIn, label: '放大', active: false, onClick: onZoomIn },
+    { icon: ZoomOut, label: '缩小', active: false, onClick: onZoomOut },
   ]
 
+  /*
+   * DESIGN.md section 4 keeps the viewport calm by default and section 6 gives the
+   * measurements their own module. Grid and axes ride with the part; a rendered
+   * bounding box duplicates the 读数 module and is therefore opt-in, not default.
+   */
   const displayControls = [
     {
       icon: state.wireframe ? Eye : EyeOff,
-      label: 'Wireframe',
+      label: '线框',
       active: state.wireframe,
       onClick: () => toggle('wireframe'),
     },
     {
       icon: Grid3x3,
-      label: 'Grid',
+      label: '网格',
       active: state.showGrid,
       onClick: () => toggle('showGrid'),
     },
     {
       icon: Axis3D,
-      label: 'Axes',
+      label: '坐标轴',
       active: state.showAxes,
       onClick: () => toggle('showAxes'),
     },
     {
       icon: Ruler,
-      label: 'Dimensions',
+      label: '标注尺寸',
       active: state.showDimensions,
       onClick: () => toggle('showDimensions'),
-    },
-    {
-      icon: state.darkBg ? Moon : Sun,
-      label: 'Background',
-      active: state.darkBg,
-      onClick: () => toggle('darkBg'),
     },
   ]
 
   const outputControls = [
     {
       icon: Camera,
-      label: 'Screenshot',
+      label: '截图',
       active: false,
       onClick: handleScreenshot,
     },
@@ -126,7 +119,7 @@ export function ViewerControls({
           {
             icon: isDownloadingStl ? Loader2 : Download,
             iconClassName: isDownloadingStl ? 'animate-spin' : undefined,
-            label: isDownloadingStl ? 'Downloading STL...' : 'Download STL',
+            label: isDownloadingStl ? '正在下载 STL…' : '导出 STL',
             active: false,
             disabled: !hasStl || isDownloadingStl,
             onClick: onDownloadStl,
@@ -135,35 +128,41 @@ export function ViewerControls({
       : []),
   ]
 
+  /*
+   * Active display toggles are neutral, not signal orange. Grid and axes are ON by
+   * default, so lighting them with the signal colour would put two permanent orange
+   * elements on screen competing with the composer's action — the accent budget in
+   * DESIGN.md section 11 allows exactly one. DESIGN.md also removed the separate
+   * measurement colour, so dimension values read as ordinary text.
+   */
   const renderGroup = (items: typeof navControls) => (
     <div className="flex items-center gap-0.5">
       {items.map((ctrl) => {
         const Icon = ctrl.icon
         const isDisabled = 'disabled' in ctrl && Boolean(ctrl.disabled)
-        const isMeasure = ctrl.label === 'Dimensions'
         return (
           <button
             key={ctrl.label}
             onClick={isDisabled ? undefined : ctrl.onClick}
             disabled={isDisabled}
-            title={isDisabled ? (!hasStl ? 'STL not rendered yet' : 'Downloading STL...') : `${ctrl.label}${ctrl.active ? ': ON' : ': OFF'}`}
+            aria-label={ctrl.label}
+            aria-pressed={ctrl.active}
+            title={isDisabled ? (!hasStl ? '还没有可导出的 STL' : '正在下载…') : `${ctrl.label}${ctrl.active ? ' · 开' : ' · 关'}`}
             className={`
               relative flex items-center justify-center w-7 h-7 rounded-md transition-all active:scale-95
               ${
                 isDisabled
-                  ? 'opacity-30 cursor-not-allowed text-[var(--app-text-muted)]'
+                  ? 'opacity-30 cursor-not-allowed text-[var(--shell-text-muted)]'
                   : ctrl.active
-                  ? isMeasure
-                    ? 'bg-[var(--cad-measure)]/15 text-[var(--cad-measure)] shadow-sm'
-                    : 'bg-[var(--app-accent-bg)] text-[var(--app-accent)] shadow-sm'
-                  : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)] hover:bg-[var(--app-surface-hover)]'
+                  ? 'bg-[var(--shell-raise)] text-[var(--shell-text)] shadow-sm'
+                  : 'text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)]'
               }
             `}
           >
             <Icon className={`w-3.5 h-3.5 ${'iconClassName' in ctrl && ctrl.iconClassName ? ctrl.iconClassName : ''}`} />
             {ctrl.active && (
               <motion.span
-                className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${isMeasure ? 'bg-[var(--cad-measure)]' : 'bg-[var(--app-accent)]'}`}
+                className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--shell-text-label)]"
                 layoutId="viewer-control-active"
                 transition={{ type: 'spring', stiffness: 500, damping: 30 }}
               />
@@ -183,11 +182,14 @@ export function ViewerControls({
       exit="exit"
       transition={fadeInUpTransition}
     >
-      <div className="flex items-center gap-1 rounded-full border border-white/10 bg-[#12161F]/85 backdrop-blur-2xl px-2 py-1 shadow-2xl">
+      <div
+        className="flex items-center gap-1 rounded-full border border-[var(--shell-border)] px-2 py-1 backdrop-blur-2xl"
+        style={{ background: 'var(--shell-module)', boxShadow: 'var(--shell-shadow)' }}
+      >
         {renderGroup(navControls)}
-        <div className="h-4 w-px bg-[color:var(--app-border-subtle)] mx-0.5" />
+        <div className="h-4 w-px bg-[color:var(--shell-border)] mx-0.5" />
         {renderGroup(displayControls)}
-        <div className="h-4 w-px bg-[color:var(--app-border-subtle)] mx-0.5" />
+        <div className="h-4 w-px bg-[color:var(--shell-border)] mx-0.5" />
         {renderGroup(outputControls)}
       </div>
     </motion.div>
@@ -200,12 +202,14 @@ export function ViewerControls({
  */
 export function useViewerControls(defaultState?: Partial<ViewerControlsState>) {
   const [state, setState] = useState<ViewerControlsState>({
-    autoRotate: true,
+    // DESIGN.md section 4: the part is inspected, not performed at. Auto-rotate
+    // also makes the ViewCube's meaning drift, so it defaults off.
+    autoRotate: false,
     wireframe: false,
     showGrid: true,
     showAxes: true,
     darkBg: true,
-    showDimensions: true,
+    showDimensions: false,
     ...defaultState,
   })
 

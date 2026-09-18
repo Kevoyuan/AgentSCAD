@@ -343,17 +343,15 @@ describe('JobListEmptyState — Boundary Conditions', () => {
       })
     )
 
-    expect(html).toContain('WORKSPACE INITIALIZED')
-    expect(html).toContain('No CAD Designs Yet')
-    expect(html).toContain('New Design (⌘N)')
-
-    // 3 Engineering presets
-    expect(html).toContain('Spur Gear (模数 2)')
-    expect(html).toContain('Electronics Enclosure')
-    expect(html).toContain('Device Stand')
-
-    // Presets have +USE tag
-    expect(html).toContain('+USE')
+    // DESIGN.md section 6: the slots rail states what will appear, in one line.
+    // No preset grid and no onboarding copy - the composer owns creation.
+    expect(html).toContain('data-testid="job-list-cold-start"')
+    expect(html).toContain('还没有零件')
+    expect(html).toContain('新零件')
+    expect(html).not.toContain('WORKSPACE INITIALIZED')
+    expect(html).not.toContain('ENGINEERING PRESETS')
+    expect(html).not.toContain('Spur Gear')
+    expect(html).not.toContain('+USE')
   })
 
   test('Search / Filter Mismatch (jobs exist, but 0 match active filter): renders filter badge and reset button', () => {
@@ -367,13 +365,12 @@ describe('JobListEmptyState — Boundary Conditions', () => {
       })
     )
 
-    expect(html).toContain('FILTER CRITERIA ACTIVE')
-    expect(html).toContain('No Matching CAD Designs')
-    expect(html).toContain('No designs match your current search query or state filters.')
-    expect(html).toContain('重置筛选 (Reset)')
+    expect(html).toContain('data-testid="job-list-filter-empty"')
+    expect(html).toContain('没有符合条件的零件')
+    expect(html).toContain('清除筛选')
 
-    // Presets should NOT clutter filter mismatch state
-    expect(html).not.toContain('Spur Gear (模数 2)')
+    // the cold-start copy must not leak into the filter mismatch state
+    expect(html).not.toContain('还没有零件。')
     expect(html).not.toContain('WORKSPACE INITIALIZED')
   })
 
@@ -396,7 +393,7 @@ describe('JobListEmptyState — Boundary Conditions', () => {
 })
 
 describe('CadViewportEmptyState — Boundary Conditions', () => {
-  test('Cold Start / No Job Selected: renders isometric grid, 3D coordinate triad, and template chips', () => {
+  test('Cold Start / No Job Selected: one sentence and three real examples, no engine internals', () => {
     const html = renderToStaticMarkup(
       React.createElement(CadViewportEmptyState, {
         selectedJob: null,
@@ -405,34 +402,23 @@ describe('CadViewportEmptyState — Boundary Conditions', () => {
       })
     )
 
-    // Telemetry strip
-    expect(html).toContain('SYS: STANDBY')
-    expect(html).toContain('VIEW: 30° ISOMETRIC')
-    expect(html).toContain('GRID: 10.0mm')
-    expect(html).toContain('KERNEL: CSG PARAMETRIC')
+    // DESIGN.md section 9: answer four questions, nothing else
+    expect(html).toContain('data-testid="viewport-cold-start"')
+    expect(html).toContain('写一句话，描述你要的零件。')
+    expect(html).toContain('装在 35 mm 导轨上的相机支架，M4 螺孔')
 
-    // SVG coordinate axes (Z, X, Y) and origin
-    expect(html).toContain('[0,0,0]')
-    expect(html).toContain('>Z<')
-    expect(html).toContain('>X<')
-    expect(html).toContain('>Y<')
+    // DESIGN.md section 18: no engine internals reach the user
+    expect(html).not.toContain('SYS: STANDBY')
+    expect(html).not.toContain('GRID: 10.0mm')
+    expect(html).not.toContain('KERNEL: CSG PARAMETRIC')
 
-    // Solid typography (BAP-04 compliance: no bg-clip-text)
-    expect(html).toContain('CAD Viewport Ready')
-    expect(html).not.toContain('bg-clip-text')
-
-    // 4 Fast-load template chips
-    expect(html).toContain('Spur Gear')
-    expect(html).toContain('Electronics Box')
-    expect(html).toContain('Device Stand')
-    expect(html).toContain('Phone Case')
-
-    // Bottom runtime telemetry
-    expect(html).toContain('OPENSCAD RUNTIME ACTIVE')
-    expect(html).toContain('STL / PNG EXPORT READY')
+    // 2026-09-17 finding #1: exactly one create action (the composer), not two
+    expect(html).not.toContain('Create New CAD Design')
+    expect(html).not.toContain('PRECISION WORKBENCH')
+    expect(html).not.toContain('OPENSCAD RUNTIME ACTIVE')
+    expect(html).not.toContain('STL / PNG EXPORT READY')
   })
-
-  test('Pending Geometry (job selected, state NEW/SCAD_GENERATED, no STL): renders Compile Ready state with prompt and actions', () => {
+  test('Pending Geometry (job selected, no STL): one sentence and one action', () => {
     const mockJob: Job = {
       id: 'job-99998888-1111',
       state: 'NEW',
@@ -443,7 +429,6 @@ describe('CadViewportEmptyState — Boundary Conditions', () => {
     } as unknown as Job
 
     let processedJob: Job | null = null
-    let activeTabSet: string | null = null
 
     const html = renderToStaticMarkup(
       React.createElement(CadViewportEmptyState, {
@@ -454,31 +439,22 @@ describe('CadViewportEmptyState — Boundary Conditions', () => {
           processedJob = job
         },
         onShowComposer: () => {},
-        onSetActiveTab: (tab) => {
-          activeTabSet = tab
-        },
+        onSetActiveTab: () => {},
       })
     )
 
-    // Top Telemetry
-    expect(html).toContain('JOB: job-9999')
-    expect(html).toContain('FAMILY: electronics_enclosure')
-    expect(html).toContain('NEW')
+    expect(html).toContain('data-testid="viewport-pending-geometry"')
+    expect(html).toContain('这个零件还没有几何。')
+    expect(html).toContain('生成几何')
 
-    // Geometry synthesis standby
-    expect(html).toContain('GEOMETRY SYNTHESIS STANDBY')
-    expect(html).toContain('Ready for OpenSCAD Compile')
-    expect(html).toContain('Design a hollow cylindrical battery tube with M12 threads')
-
-    // Actions
-    expect(html).toContain('Process CAD Pipeline')
-    expect(html).toContain('Inspect SCAD Source')
-
-    // Bottom Telemetry
-    expect(html).toContain('PIPELINE ENGINE: DETERMINISTIC CSG')
-    expect(html).toContain('COMPILER: OPENSCAD CLI')
+    // job id, family and pipeline vocabulary are internals, not user content
+    expect(html).not.toContain('JOB: job-9999')
+    expect(html).not.toContain('FAMILY: electronics_enclosure')
+    expect(html).not.toContain('GEOMETRY SYNTHESIS STANDBY')
+    expect(html).not.toContain('Process CAD Pipeline')
+    expect(html).toBeDefined()
+    expect(processedJob).toBeNull()
   })
-
   test('Loading State: renders viewport skeleton without spinning spinner', () => {
     const html = renderToStaticMarkup(
       React.createElement(CadViewportEmptyState, {
@@ -488,14 +464,13 @@ describe('CadViewportEmptyState — Boundary Conditions', () => {
       })
     )
 
-    expect(html).toContain('cad-viewport-shell')
     expect(html).toContain('skeleton-shimmer')
     expect(html).not.toContain('animate-spin')
   })
 })
 
 describe('InspectorEmptyState — Boundary Conditions', () => {
-  test('No Job Selected: renders architectural blueprint with 6 capability cards and quick actions', () => {
+  test('No Job Selected: one quiet line, no architecture diagram', () => {
     const html = renderToStaticMarkup(
       React.createElement(InspectorEmptyState, {
         isFirstLoadComplete: true,
@@ -505,31 +480,13 @@ describe('InspectorEmptyState — Boundary Conditions', () => {
       })
     )
 
-    expect(html).toContain('INSPECTOR ARCHITECTURE')
-    expect(html).toContain('STANDBY')
-    expect(html).toContain('No Design Selected')
-
-    // 6 Grayscale Capability Cards
-    const expectedCards = [
-      { label: 'SPEC', desc: 'Physical constraints, bounding limits' },
-      { label: 'PARAMS', desc: 'Dual-bound sliders &amp; precision numerical inputs' },
-      { label: 'ASSIST', desc: 'AI repair proposals, patch synthesis' },
-      { label: 'VALID', desc: 'C001, B001, C002, H001 watertight manifold' },
-      { label: 'HISTORY', desc: 'Immutable snapshot history, line-by-line diffs' },
-      { label: 'CODE', desc: 'Direct code editor with live syntax highlighting' },
-    ]
-
-    for (const card of expectedCards) {
-      expect(html).toContain(card.label)
-      expect(html).toContain(card.desc)
-    }
-
-    // Quick Actions
-    expect(html).toContain('New Design (⌘N)')
-    expect(html).toContain('Providers')
-    expect(html).toContain('Shortcuts (?)')
+    // DESIGN.md section 19: never explain the application's own architecture
+    expect(html).toContain('data-testid="inspector-empty"')
+    expect(html).toContain('还没有选中零件')
+    expect(html).not.toContain('INSPECTOR ARCHITECTURE')
+    expect(html).not.toContain('No Design Selected')
+    expect(html).not.toContain('STANDBY')
   })
-
   test('Loading State: renders 6 tab skeletons and content skeletons without spinners', () => {
     const html = renderToStaticMarkup(
       React.createElement(InspectorEmptyState, {

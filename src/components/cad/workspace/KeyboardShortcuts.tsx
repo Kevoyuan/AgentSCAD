@@ -13,7 +13,6 @@ export function KeyboardShortcuts({
   onShowCompare,
   onShowSettings,
   onCloseAll,
-  onSetActiveTab,
   onDelete,
   onProcess,
   onToggleSidebar,
@@ -29,7 +28,6 @@ export function KeyboardShortcuts({
   onShowCompare: (show: boolean) => void
   onShowSettings: (show: boolean) => void
   onCloseAll: () => void
-  onSetActiveTab: (tab: string) => void
   onDelete: (id: string) => void
   onProcess: (job: Job) => void
   onToggleSidebar?: () => void
@@ -72,19 +70,14 @@ export function KeyboardShortcuts({
       if (e.key === 'Delete' && selectedJob && !showComposer && !isInputFocused) {
         onDelete(selectedJob.id)
       }
-      // Space: Process selected job
-      if (e.key === ' ' && selectedJob && !showComposer && !isInputFocused) {
-        e.preventDefault()
-        if (selectedJob.state === 'NEW') onProcess(selectedJob)
-      }
-      // E: Edit SCAD code
-      if (e.key === 'e' && !e.metaKey && !e.ctrlKey && !isInputFocused && !showComposer) {
-        onSetActiveTab('CODE')
-      }
-      // H: Show history (LOG tab)
-      if (e.key === 'h' && !e.metaKey && !e.ctrlKey && !isInputFocused && !showComposer) {
-        onSetActiveTab('HISTORY')
-      }
+      /*
+       * Space, digits 1-6, 0 and F belong to the shell (MainWorkspace): Space hides
+       * every module, the digits and F drive the camera. This file used to write the
+       * same keys - Space toggled the same state a second time, and 1-6 set the old
+       * inspector tabs - so one keypress had two owners (DESIGN.md section 22) and
+       * the camera keys silently re-pointed a surface that is no longer on screen.
+       * `e` / `h` set those same tab values and went with them.
+       */
       // S: Open stats dashboard
       if (e.key === 's' && !e.metaKey && !e.ctrlKey && !isInputFocused && !showComposer) {
         onShowStats(true)
@@ -93,15 +86,10 @@ export function KeyboardShortcuts({
       if (e.key === 't' && !e.metaKey && !e.ctrlKey && !isInputFocused && !showComposer) {
         onShowSettings(true)
       }
-      // 1-6: Switch inspector tabs
-      const tabMap: Record<string, string> = { '1': 'SPEC', '2': 'PARAMETERS', '3': 'ASSIST', '4': 'VALIDATION', '5': 'HISTORY', '6': 'CODE' }
-      if (tabMap[e.key] && !e.metaKey && !e.ctrlKey && !isInputFocused && !showComposer) {
-        onSetActiveTab(tabMap[e.key])
-      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedJob, showComposer, onShowComposer, onShowCommandPalette, onShowShortcuts, onShowStats, onShowCompare, onShowSettings, onCloseAll, onSetActiveTab, onDelete, onProcess])
+  }, [selectedJob, showComposer, onShowComposer, onShowCommandPalette, onShowShortcuts, onShowStats, onShowCompare, onShowSettings, onCloseAll, onDelete, onProcess])
 
   // This component renders nothing
   return null

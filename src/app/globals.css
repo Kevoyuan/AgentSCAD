@@ -46,6 +46,43 @@
 
 /* ─── Light Theme Variables ──────────────────────────────────── */
 :root {
+  /* ── Shell tokens (DESIGN.md section 11) ────────────────────────────────────
+     The floating shell must render in both themes. Everything the module system
+     uses resolves here so no screen invents a colour (section 22). */
+
+  /* the workspace field: one gradient per theme, never a hardcoded dark one */
+  --shell-canvas-grad: radial-gradient(ellipse 70% 62% at 50% 46%, #FBFAF7 0%, #F5F2ED 46%, #F0EDE6 78%, #EAE6DE 100%);
+  --shell-grid: rgba(13, 13, 14, 0.045);
+  --shell-tick: rgba(13, 13, 14, 0.22);
+  --shell-scrim: rgba(28, 24, 20, 0.35);
+  --shell-cube-border: rgba(13, 13, 14, 0.18);
+  --shell-cube-face-a: rgba(255, 255, 255, 0.97);
+  --shell-cube-face-b: rgba(246, 243, 238, 0.97);
+  --shell-cube-face-c: rgba(236, 231, 223, 0.97);
+  --shell-cube-shadow: inset 0 0 16px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.90);
+  --shell-canvas: #F4F2EE;
+  --shell-module: rgba(255, 255, 255, 0.92);
+  --shell-module-solid: #FFFFFF;
+  --shell-inner: #EDF1F5;
+  --shell-raise: #E4E1DA;
+  --shell-well: rgba(13, 13, 14, 0.045);
+  --shell-hover: rgba(13, 13, 14, 0.05);
+  --shell-border: rgba(13, 13, 14, 0.10);
+  --shell-border-strong: rgba(13, 13, 14, 0.20);
+  --shell-hairline: rgba(13, 13, 14, 0.06);
+  --shell-text: #1B1917;
+  --shell-text-muted: #5C564D;
+  --shell-text-label: #7A7266;
+  --shell-text-dim: #9A9184;
+  --shell-placeholder: #A79E92;
+  --shell-signal: #E0512A;
+  --shell-signal-soft: #B8471F;
+  --shell-ok: #2E9E5B;
+  --shell-warn: #B5821A;
+  --shell-fail: #C0392B;
+  --shell-shadow: 0 14px 30px -10px rgba(28, 24, 20, 0.16), 0 3px 8px rgba(28, 24, 20, 0.08);
+  --shell-shadow-lift: 0 22px 46px -12px rgba(28, 24, 20, 0.22), 0 0 0 1px rgba(224, 81, 42, 0.40);
+
   --radius: 0.625rem;
   --background: oklch(0.985 0 0);
   --foreground: oklch(0.145 0 0);
@@ -64,7 +101,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: #E0512A;
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -97,7 +134,7 @@
   --app-scrollbar-thumb: #B8C5D3;
   --app-scrollbar-thumb-hover: #8FA0B2;
   --app-scrollbar-track: transparent;
-  --app-focus-ring: rgba(217, 119, 6, 0.45);
+  --app-focus-ring: rgba(224, 81, 42, 0.45);
   --app-interactive-hover: rgba(217, 119, 6, 0.08);
   --app-shadow-sm: 0 1px 2px rgba(17, 24, 32, 0.04);
   --app-shadow-md: 0 4px 12px rgba(17, 24, 32, 0.06);
@@ -172,17 +209,54 @@
   --cad-text: #111820;
   --cad-text-secondary: #3B4B5B;
   --cad-text-muted: #607080;
-  --cad-accent: #D97706;
-  --cad-accent-soft: rgba(217, 119, 6, 0.10);
-  --cad-grid: rgba(217, 119, 6, 0.06);
-  --cad-measure: #10B981;
-  --cad-success: #10B981;
-  --cad-warning: #D97706;
-  --cad-danger: #E25B5B;
+  /* DESIGN.md section 11: one expressive accent (signal), and no separate
+     measurement hue - dimensional values carry meaning through mono type and
+     units, not through a second colour. */
+  --cad-accent: #E0512A;
+  --cad-accent-soft: rgba(224, 81, 42, 0.10);
+  --cad-grid: rgba(13, 13, 14, 0.05);
+  --cad-measure: #E0512A;
+  --cad-success: #2E9E5B;
+  --cad-warning: #C08A1E;
+  --cad-danger: #C0392B;
 }
 
 /* ─── Dark Theme Variables (Direction 2: Shapr3D x VisionOS Spatial Canvas) ─── */
 .dark {
+
+  /* the workspace field: one gradient per theme, never a hardcoded dark one */
+  --shell-canvas-grad: radial-gradient(ellipse 70% 62% at 50% 46%, #322E29 0%, #242220 46%, #1A1917 78%, #141312 100%);
+  --shell-grid: rgba(255, 255, 255, 0.032);
+  --shell-tick: rgba(255, 255, 255, 0.22);
+  --shell-scrim: rgba(10, 9, 8, 0.62);
+  --shell-cube-border: rgba(255, 255, 255, 0.16);
+  --shell-cube-face-a: rgba(84, 78, 68, 0.95);
+  --shell-cube-face-b: rgba(72, 66, 57, 0.95);
+  --shell-cube-face-c: rgba(58, 54, 47, 0.95);
+  --shell-cube-shadow: inset 0 0 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  --shell-canvas: #141312;
+  --shell-module: rgba(34, 31, 28, 0.90);
+  --shell-module-solid: #26231F;
+  --shell-inner: #211F1C;
+  --shell-raise: #3A3631;
+  --shell-well: rgba(0, 0, 0, 0.28);
+  --shell-hover: rgba(255, 255, 255, 0.06);
+  --shell-border: rgba(255, 255, 255, 0.075);
+  --shell-border-strong: rgba(255, 255, 255, 0.17);
+  --shell-hairline: rgba(255, 255, 255, 0.045);
+  --shell-text: #EDE8E0;
+  --shell-text-muted: #BEB6AC;
+  --shell-text-label: #948C82;
+  --shell-text-dim: #6E6760;
+  --shell-placeholder: #645D55;
+  --shell-signal: #FF5A1F;
+  --shell-signal-soft: #FFB597;
+  --shell-ok: #7BD68A;
+  --shell-warn: #E8B84B;
+  --shell-fail: #E8583F;
+  --shell-shadow: 0 14px 30px -10px rgba(0, 0, 0, 0.62), 0 3px 8px rgba(0, 0, 0, 0.34);
+  --shell-shadow-lift: 0 22px 46px -12px rgba(0, 0, 0, 0.70), 0 0 0 1px rgba(255, 90, 31, 0.40);
+
   --background: #0A0D10;
   --foreground: #F8FAFC;
   --card: #12161C;
@@ -200,7 +274,7 @@
   --destructive: #E25B5B;
   --border: rgba(255, 255, 255, 0.09);
   --input: rgba(255, 255, 255, 0.09);
-  --ring: #F59E0B;
+  --ring: #FF5A1F;
   --chart-1: oklch(0.769 0.188 70.08);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.488 0.243 264.376);
@@ -215,69 +289,98 @@
   --sidebar-border: rgba(255, 255, 255, 0.09);
   --sidebar-ring: #F59E0B;
 
-  /* AgentSCAD custom - Dark (Direction 2: Shapr3D x VisionOS Precision Metrology) */
-  --app-bg: #0A0D10;
-  --app-surface: #12161C;
-  --app-surface-raised: #181C23;
-  --app-surface-50: rgba(10, 13, 16, 0.5);
+  /* Direction C2 — Floating Instrument Panel Design System Tokens (DESIGN.md section 11) */
+  --canvas-dark: #141312;
+  --canvas-deep-dark: #0E0D0C;
+  --module-dark: rgba(34, 31, 28, 0.90);
+  --module-solid-dark: #26231F;
+  --inner-dark: #211F1C;
+  --border-dark: rgba(255, 255, 255, 0.075);
+  --border-strong-dark: rgba(255, 255, 255, 0.17);
+  --foreground-dark: #EDE8E0;
+  --foreground-muted-dark: #BEB6AC;
+  --foreground-label-dark: #948C82;
+  --foreground-dim-dark: #6E6760;
+
+  --signal: #FF5A1F;
+  --signal-soft: #FFB597;
+  --pass: #7BD68A;
+  --warn: #E8B84B;
+  --fail: #E8583F;
+  --model-face: #9BA6B2;
+  --model-face-shaded: #77828E;
+
+  --mod: rgba(34, 31, 28, 0.90);
+  --mod-solid: #26231F;
+  --hair: rgba(255, 255, 255, 0.075);
+  --hair-2: rgba(255, 255, 255, 0.045);
+  --dim: #6E6760;
+  --label: #948C82;
+  --lift: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 14px 30px -10px rgba(0, 0, 0, 0.62), 0 3px 8px rgba(0, 0, 0, 0.34);
+
+  /* AgentSCAD custom - Dark (Direction C2: Warm Graphite & Signal Orange) */
+  --app-bg: #141312;
+  --app-surface: rgba(34, 31, 28, 0.90);
+  --app-surface-raised: #26231F;
+  --app-surface-50: rgba(20, 19, 18, 0.5);
   --app-surface-hover: rgba(255, 255, 255, 0.04);
-  --app-surface-95: rgba(10, 13, 16, 0.95);
-  --app-border: rgba(255, 255, 255, 0.09);
-  --app-border-subtle: rgba(255, 255, 255, 0.06);
-  --app-border-strong: rgba(255, 255, 255, 0.16);
-  --app-text-primary: #F8FAFC;
-  --app-text-secondary: #CBD5E1;
-  --app-text-muted: #94A3B8;
-  --app-text-dim: #525D6E;
+  --app-surface-95: rgba(20, 19, 18, 0.95);
+  --app-border: rgba(255, 255, 255, 0.075);
+  --app-border-subtle: rgba(255, 255, 255, 0.045);
+  --app-border-strong: rgba(255, 255, 255, 0.17);
+  --app-text-primary: #EDE8E0;
+  --app-text-secondary: #BEB6AC;
+  --app-text-muted: #948C82;
+  --app-text-dim: #6E6760;
   --app-text-bright: #FFFFFF;
-  --app-scrollbar-thumb: #222730;
-  --app-scrollbar-thumb-hover: #333A48;
+  --app-scrollbar-thumb: #33302B;
+  --app-scrollbar-thumb-hover: #4D4841;
   --app-scrollbar-track: transparent;
-  --app-focus-ring: rgba(245, 158, 11, 0.45);
-  --app-interactive-hover: rgba(245, 158, 11, 0.12);
+  --app-focus-ring: rgba(255, 90, 31, 0.45);
+  --app-interactive-hover: rgba(255, 90, 31, 0.12);
   --app-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
   --app-shadow-md: 0 16px 40px -8px rgba(0, 0, 0, 0.6);
-  --app-keyboard-bg: #181C23;
-  --app-keyboard-border: rgba(255, 255, 255, 0.09);
-  --app-keyboard-text: #94A3B8;
+  --app-keyboard-bg: #26231F;
+  --app-keyboard-border: rgba(255, 255, 255, 0.075);
+  --app-keyboard-text: #948C82;
   --app-skeleton-bg: rgba(255, 255, 255, 0.04);
   --app-notification-hover: rgba(255, 255, 255, 0.03);
   --app-footer-separator: rgba(255, 255, 255, 0.08);
-  --app-footer-tooltip-bg: #181C23;
-  --app-footer-tooltip-border: rgba(255, 255, 255, 0.1);
-  --app-footer-tooltip-text: #CBD5E1;
-  --app-gradient-separator: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-  --app-card-hover-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(245, 158, 11, 0.2);
+  --app-footer-tooltip-bg: #26231F;
+  --app-footer-tooltip-border: rgba(255, 255, 255, 0.075);
+  --app-footer-tooltip-text: #BEB6AC;
+  --app-gradient-separator: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.075), transparent);
+  --app-card-hover-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 90, 31, 0.2);
   --app-pipeline-bg: rgba(255, 255, 255, 0.04);
   --app-activity-hover: rgba(255, 255, 255, 0.03);
-  --app-selected-bg: rgba(245, 158, 11, 0.12);
+  --app-selected-bg: rgba(255, 90, 31, 0.12);
   --app-code-copy-hover: rgba(255, 255, 255, 0.08);
   --app-empty-bg: rgba(255, 255, 255, 0.02);
-  --app-accent: #F59E0B;
-  --app-accent-hover: #FBBF24;
-  --app-accent-bg: rgba(245, 158, 11, 0.14);
-  --app-accent-border: rgba(245, 158, 11, 0.35);
-  --app-accent-text: #F59E0B;
-  --app-accent-text-secondary: rgba(245, 158, 11, 0.85);
-  --app-danger: #E25B5B;
-  --app-danger-bg: rgba(226, 91, 91, 0.12);
-  --app-warning: #F59E0B;
-  --app-warning-bg: rgba(245, 158, 11, 0.12);
-  --app-success: #10B981;
-  --app-success-bg: rgba(16, 185, 129, 0.12);
-  --app-info: #F59E0B;
-  --app-info-bg: rgba(245, 158, 11, 0.12);
+  --app-accent: #FF5A1F;
+  --app-accent-hover: #FF6E36;
+  --app-accent-bg: rgba(255, 90, 31, 0.14);
+  --app-accent-border: rgba(255, 90, 31, 0.35);
+  --app-accent-text: #FF5A1F;
+  --app-accent-text-secondary: #FFB597;
+  --app-danger: #E8583F;
+  --app-danger-bg: rgba(232, 88, 63, 0.12);
+  --app-warning: #E8B84B;
+  --app-warning-bg: rgba(232, 184, 75, 0.12);
+  --app-success: #7BD68A;
+  --app-success-bg: rgba(123, 214, 138, 0.12);
+  --app-info: #FF5A1F;
+  --app-info-bg: rgba(255, 90, 31, 0.12);
 
   /* Dual-Theme Status Semantics (WCAG AA >= 4.5:1 compliant in dark mode) */
-  --app-status-success-text: #10B981;
-  --app-status-success-bg: rgba(16, 185, 129, 0.14);
-  --app-status-success-border: rgba(16, 185, 129, 0.32);
-  --app-status-warning-text: #F59E0B;
-  --app-status-warning-bg: rgba(245, 158, 11, 0.14);
-  --app-status-warning-border: rgba(245, 158, 11, 0.32);
-  --app-status-danger-text: #E25B5B;
-  --app-status-danger-bg: rgba(226, 91, 91, 0.14);
-  --app-status-danger-border: rgba(226, 91, 91, 0.32);
+  --app-status-success-text: #7BD68A;
+  --app-status-success-bg: rgba(123, 214, 138, 0.14);
+  --app-status-success-border: rgba(123, 214, 138, 0.32);
+  --app-status-warning-text: #E8B84B;
+  --app-status-warning-bg: rgba(232, 184, 75, 0.14);
+  --app-status-warning-border: rgba(232, 184, 75, 0.32);
+  --app-status-danger-text: #E8583F;
+  --app-status-danger-bg: rgba(232, 88, 63, 0.14);
+  --app-status-danger-border: rgba(232, 88, 63, 0.32);
   --app-status-info-text: #F59E0B;
   --app-status-info-bg: rgba(245, 158, 11, 0.14);
   --app-status-info-border: rgba(245, 158, 11, 0.32);
@@ -308,14 +411,14 @@
   --cad-text: #F8FAFC;
   --cad-text-secondary: #CBD5E1;
   --cad-text-muted: #94A3B8;
-  --cad-accent: #F59E0B;
-  --cad-accent-soft: rgba(245, 158, 11, 0.15);
-  --cad-grid: rgba(255, 255, 255, 0.04);
-  --cad-measure: #10B981;
-  --cad-success: #10B981;
-  --cad-warning: #F59E0B;
-  --cad-danger: #E25B5B;
-  --cad-info: #F59E0B;
+  --cad-accent: #FF5A1F;
+  --cad-accent-soft: rgba(255, 90, 31, 0.15);
+  --cad-grid: rgba(255, 255, 255, 0.035);
+  --cad-measure: #FF5A1F;
+  --cad-success: #7BD68A;
+  --cad-warning: #E8B84B;
+  --cad-danger: #E8583F;
+  --cad-info: #FF5A1F;
 }
 
 @layer base {
@@ -405,10 +508,11 @@ pre code { font-variant-ligatures: none; }
 /* Tab Indicator */
 [data-state="active"][role="tab"] { transition: border-color 0.15s ease; }
 
-/* Focus States */
+/* Focus States - one focus colour for the whole product: the shell's signal
+   accent, which is what `--ring` (shadcn focus-visible) resolves to as well. */
 input:focus, textarea:focus, select:focus {
   outline: none;
-  box-shadow: 0 0 0 2px var(--app-focus-ring);
+  box-shadow: 0 0 0 2px var(--ring);
 }
 
 /* ─── Animations ─────────────────────────────────────────── */
@@ -881,26 +985,26 @@ pre:hover .code-copy-btn { opacity: 1; }
 }
 
 @media (max-width: 1023px) {
-  .cad-left-panel {
-    display: none !important;
-  }
-
-  .cad-viewer-panel {
-    min-width: 58% !important;
-  }
-
+  /*
+   * The docked three-column layout these rules belonged to is gone (DESIGN.md
+   * section 3). Keeping them alive meant that at <=1023px `.cad-left-panel`
+   * still matched the slots rail inside its floating module and hid it with
+   * `display:none !important`: the plate stayed on screen, kept its count badge,
+   * and rendered an empty body, so no part could be selected.
+   *
+   * The classes survive as hooks (ViewerPanel: "styling/test hook"); the layout
+   * media queries do not. Responsive behaviour below 960px is still phase 6.
+   */
+  .cad-viewer-panel,
   .cad-inspector-panel {
-    min-width: 340px !important;
+    min-width: 0;
   }
 }
 
 @media (max-width: 767px) {
+  .cad-viewer-panel,
   .cad-inspector-panel {
-    display: none !important;
-  }
-
-  .cad-viewer-panel {
-    min-width: 100% !important;
+    min-width: 0;
   }
 }
 
@@ -941,4 +1045,23 @@ html.theme-transition *,
 html.theme-transition *::before,
 html.theme-transition *::after {
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.2s ease, box-shadow 0.3s ease, fill 0.2s ease, stroke 0.2s ease !important;
+}
+
+/*
+ * Direction C2 floating module plate.
+ *
+ * The plate is owned by `Module.tsx`, which writes every visual property from the
+ * shell tokens (DESIGN.md section 22: one writer per element). This file used to
+ * carry a second, hardcoded copy of the same plate - same background, same border,
+ * same shadow, literals instead of tokens - which made light mode and any token
+ * change silently disagree between the two definitions.
+ *
+ * Only the two affordances that are pure CSS are kept here.
+ */
+.mod-h {
+  cursor: grab;
+}
+
+.mod-h:active {
+  cursor: grabbing;
 }

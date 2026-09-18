@@ -24,11 +24,12 @@ export function SpecPanel({
     values.height ?? values.phone_thickness,
   ].filter(v => typeof v === 'number')
 
+  /* DESIGN.md section 18: engine paths and builder names are internals and must
+     not appear in the interface. What the user needs here is the part family and
+     the measured envelope. */
   const chips = [
-    job.partFamily ? getPartFamilyLabel(job.partFamily) : 'Part family pending',
-    job.generationPath?.replace(/_/g, ' ') || 'Generation path pending',
-    job.builderName || 'Builder pending',
-    dimensions.length ? `${dimensions.join(' x ')} mm` : 'Dimensions pending',
+    job.partFamily ? getPartFamilyLabel(job.partFamily) : '零件族待定',
+    dimensions.length ? `${dimensions.join(' × ')} mm` : '尺寸待定',
   ]
 
   return (
@@ -36,8 +37,7 @@ export function SpecPanel({
       {/* Design Brief & Prompt */}
       <div className="rounded-[6px] border border-[var(--app-border)] bg-[var(--app-surface)] p-3">
         <div className="flex items-center justify-between pb-2 mb-2 border-b border-[var(--app-border-subtle)]">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--app-text-muted)]">Design Brief</span>
-          <span className="text-[10px] font-mono text-[var(--app-text-dim)]">ID: {job.id.slice(0, 8)}</span>
+          <span className="text-[9px] font-mono uppercase tracking-[0.16em] text-[var(--app-text-muted)]">零件描述</span>
         </div>
         <p className="text-xs leading-relaxed text-[var(--app-text-primary)] font-normal select-text">
           {job.inputRequest}
@@ -57,17 +57,9 @@ export function SpecPanel({
           </div>
           <div className="flex items-center justify-between px-3 py-2 text-xs">
             <span className="text-[var(--app-text-muted)]">Bounding Box</span>
-            <span className="font-mono tabular-nums text-[var(--cad-measure)]">{dimensions.length ? `${dimensions.join(' × ')} mm` : 'Pending render'}</span>
+            <span className="font-mono tabular-nums text-[var(--cad-measure)]">{dimensions.length ? `${dimensions.join(' × ')} mm` : '—'}</span>
           </div>
-          <div className="flex items-center justify-between px-3 py-2 text-xs">
-            <span className="text-[var(--app-text-muted)]">Engine / Path</span>
-            <span className="font-mono text-[var(--app-text-secondary)]">{job.generationPath?.replace(/_/g, ' ') || 'Direct synthesis'}</span>
-          </div>
-          <div className="flex items-center justify-between px-3 py-2 text-xs">
-            <span className="text-[var(--app-text-muted)]">Builder</span>
-            <span className="font-mono text-[var(--app-text-secondary)]">{job.builderName || 'OpenSCAD WASM'}</span>
-          </div>
-        </div>
+                            </div>
       </div>
 
       {/* Diagnostics & Remediation Bar if Failed or Stale */}
@@ -110,13 +102,6 @@ export function SpecPanel({
         </div>
       )}
 
-      {/* Telemetry Footer */}
-      {(job.builderName || job.generationPath) && (
-        <div className="flex items-center gap-1.5 px-1 pt-1 text-[11px] font-mono text-[var(--cad-text-dim)]">
-          <Cpu className="h-3 w-3" />
-          <span>{[job.builderName, job.generationPath].filter(Boolean).join(' / ')}</span>
-        </div>
-      )}
     </div>
   )
 }

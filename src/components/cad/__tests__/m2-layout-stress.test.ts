@@ -170,32 +170,29 @@ describe("M2 Layout & Zero Horizontal Overflow Stress Tests", () => {
         "utf-8"
       );
 
-      // Root container has h-screen flex flex-col overflow-hidden
+      // Root container still clips both axes.
       expect(content).toContain("overflow-hidden");
       expect(content).toContain("h-screen flex flex-col");
 
-      // Header has shrink-0 min-w-0 max-w-full overflow-hidden
-      expect(content).toContain(
-        "shrink-0 min-w-0 max-w-full overflow-hidden gap-2"
-      );
-
-      // Header left cluster has min-w-0 flex-1 overflow-hidden
-      expect(content).toContain(
-        "flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden"
-      );
-
-      // Main container has min-h-0 w-full max-w-full overflow-hidden
+      // Stage clips: the canvas is full-bleed and must never scroll.
       expect(content).toContain(
         "flex-1 min-h-0 w-full max-w-full overflow-hidden relative"
       );
 
-      // ResizablePanelGroup has min-w-0 max-w-full overflow-hidden
-      expect(content).toContain(
-        'className="h-full w-full min-w-0 max-w-full overflow-hidden"'
-      );
+      // The resizable panel group is gone (DESIGN.md section 3): the shell is a
+      // single full-bleed canvas with absolutely positioned floating modules,
+      // so there is no column arithmetic left to overflow.
+      expect(content).not.toContain("ResizablePanelGroup");
 
-      // WorkspaceToolsMenu is imported and used
-      expect(content).toContain("WorkspaceToolsMenu");
+      // Floating modules are absolutely positioned inside the stage.
+      expect(content).toContain("absolute");
+
+      // Secondary surfaces converge on the brand module: settings and
+      // notifications are the only two utility entry points, and the seven-item
+      // tools dropdown is gone.
+      expect(content).toContain("SettingsSheet");
+      expect(content).toContain('aria-label="设置"');
+      expect(content).not.toContain("WorkspaceToolsMenu");
     });
 
     test("JobListPanel declares min-w-0 and responsive batch actions", () => {
@@ -210,12 +207,19 @@ describe("M2 Layout & Zero Horizontal Overflow Stress Tests", () => {
       // Wraps with PanelErrorBoundary
       expect(content).toContain('<PanelErrorBoundary panelName="Job List"');
 
-      // Batch action bar has overflow-hidden and flex-wrap
-      expect(content).toContain("overflow-hidden border-b border-[color:var(--app-border)]");
-      expect(content).toContain("flex items-center gap-1 min-w-0 flex-wrap justify-end");
+      // Batch action bar: quiet ruled strip, wraps, and carries the contextual
+      // statistics/comparison actions from DESIGN.md "Secondary surfaces".
+      expect(content).toContain('data-testid="slots-batch-bar"');
+      // Assert structure, not the exact ordering of utility class names - this
+      // assertion broke three times purely because the class string was reordered.
+      expect(content).toContain("flex-wrap");
+      expect(content).toContain("justify-end");
+      expect(content).toContain("onOpenCompare");
+      expect(content).toContain("onOpenStats");
 
-      // Batch action text labels are hidden below xl (1280px)
-      expect(content).toContain("hidden xl:inline");
+      // Labels are always visible now: the bar is a quiet strip of small mono
+      // actions, not a toolbar that has to shed text on narrow widths.
+      expect(content).toContain("已选");
     });
 
     test("ViewerPanel declares min-w-0 and isolated PanelErrorBoundary", () => {
@@ -224,8 +228,13 @@ describe("M2 Layout & Zero Horizontal Overflow Stress Tests", () => {
         "utf-8"
       );
 
-      // Panel has min-w-0 overflow-hidden
-      expect(content).toContain('className="cad-viewer-panel min-w-0 overflow-hidden"');
+      // The viewer is the full-bleed canvas now, not a resizable column
+      // (DESIGN.md section 3), but it must still clip and shrink. Assert the tokens
+      // rather than one exact class string: the previous exact match broke purely
+      // because the class list changed, which is not a defect.
+      expect(content).toContain("cad-viewer-panel");
+      expect(content).toContain("min-w-0");
+      expect(content).toContain("overflow-hidden");
 
       // Wraps with PanelErrorBoundary
       expect(content).toContain('<PanelErrorBoundary panelName="3D Viewport"');
@@ -233,6 +242,11 @@ describe("M2 Layout & Zero Horizontal Overflow Stress Tests", () => {
       // Replaces QuickStartDashboard with CadViewportEmptyState
       expect(content).not.toContain("<QuickStartDashboard");
       expect(content).toContain("CadViewportEmptyState");
+
+      // No docked panel chrome and no second competing primary action: the shell
+      // is gone, and the composer owns the only action (DESIGN.md section 5).
+      expect(content).not.toContain("ResizablePanel");
+      expect(content).not.toContain("Rebuild STL");
     });
 
     test("InspectorPanel declares min-w-0 and scrollable tabs", () => {
@@ -284,20 +298,23 @@ describe("M2 Layout & Zero Horizontal Overflow Stress Tests", () => {
       expect(content).toContain("Skeleton");
     });
 
-    test("WorkspaceToolsMenu consolidates 6 secondary actions into dropdown", () => {
-      const content = readFileSync(
-        resolve(srcDir, "workspace/WorkspaceToolsMenu.tsx"),
+    test("the shell converges secondary actions on the brand module, not a dropdown", () => {
+      const shell = readFileSync(
+        resolve(srcDir, "workspace/MainWorkspace.tsx"),
         "utf-8"
       );
 
-      // Contains Stats, Compare, Settings (providers + theme), Shortcuts, Command Palette, Export All Data
-      expect(content).toContain("Stats Dashboard");
-      expect(content).toContain("Compare Jobs");
-      expect(content).toContain("Model Providers");
-      expect(content).toContain("Theme & Styling");
-      expect(content).toContain("Shortcuts Guide");
-      expect(content).toContain("Command Palette");
-      expect(content).toContain("Export All Data");
-    });
+      // DESIGN.md "Secondary surfaces": settings and notifications are the only two
+      // utility entry points. Statistics and comparison are contextual to a
+      // multi-select in the slots rail; the rest are keystrokes.
+      expect(shell).toContain("SettingsSheet");
+      expect(shell).toContain('aria-label="设置"');
+      expect(shell).not.toContain("WorkspaceToolsMenu");
+
+      const list = readFileSync(resolve(srcDir, "workspace/JobListPanel.tsx"), "utf-8");
+      expect(list).toContain("onOpenCompare");
+      expect(list).toContain("onOpenStats");
+    })
+
   });
 });

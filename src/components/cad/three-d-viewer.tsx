@@ -5,6 +5,7 @@ import { Box, AlertCircle } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Job, parseJSON, safeNum } from './types'
 import { ViewerControls, useViewerControls } from './viewer-controls'
+import { useTheme } from 'next-themes'
 
 // ─── Rounded Rectangle Shape ──────────────────────────────────────────────────
 
@@ -26,6 +27,26 @@ function createRoundedRectShape(THREE: any, w: number, h: number, r: number) {
 
   return shape
 }
+
+/**
+ * Technical line colour for the part's edges, its bounding box and the dimension
+ * lines. Deliberately NOT the brand signal: DESIGN.md section 11 gives the signal
+ * colour to the action and the active state only, and section 4 says the part is
+ * neutral machined grey. These were hardcoded amber (0xF59E0B), which made the
+ * model read as an orange wireframe on top of the brand accent.
+ */
+const TECHNICAL_LINE = 0x93a1ae
+
+/*
+ * The camera stops 0.2 degrees short of the poles: at exactly +/-90 the forward
+ * axis is parallel to `up` and the view is undefined. OrbitControls' own polar
+ * limits must be the mirror of that rule - they were not (maxPolarAngle was 0.96π,
+ * i.e. -82.8 degrees of elevation), so asking for 下 left the camera 7 degrees
+ * short and the cube honestly reported a free angle instead of the stop. Drag was
+ * asymmetric in the same way: it could reach the top stop but never the bottom.
+ */
+const MAX_ELEVATION = 89.8
+const POLAR_GUARD = ((90 - MAX_ELEVATION) * Math.PI) / 180
 
 // ─── Auto-fit camera to geometry bounds ──────────────────────────────────────
 
@@ -72,7 +93,7 @@ function buildProceduralEnclosure(THREE: any, mainGroup: any, values: Record<str
     bevelSegments: 2,
   })
   const outerMat = new THREE.MeshPhongMaterial({
-    color: 0x3A404D,
+    color: 0x9BA6B2,
     transparent: true,
     opacity: 0.85,
     side: THREE.DoubleSide,
@@ -91,7 +112,7 @@ function buildProceduralEnclosure(THREE: any, mainGroup: any, values: Record<str
   const innerShape = createRoundedRectShape(THREE, innerW, innerD, innerR)
   const innerGeo = new THREE.ExtrudeGeometry(innerShape, { depth: innerH, bevelEnabled: false })
   const innerMat = new THREE.MeshPhongMaterial({
-    color: 0x22262E,
+    color: 0x77828E,
     transparent: true,
     opacity: 0.4,
     side: THREE.BackSide,
@@ -103,7 +124,7 @@ function buildProceduralEnclosure(THREE: any, mainGroup: any, values: Record<str
   mainGroup.add(innerMesh)
 
   const outerEdges = new THREE.EdgesGeometry(outerGeo, 15)
-  const outerLine = new THREE.LineSegments(outerEdges, new THREE.LineBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.45 }))
+  const outerLine = new THREE.LineSegments(outerEdges, new THREE.LineBasicMaterial({ color: TECHNICAL_LINE, transparent: true, opacity: 0.30 }))
   outerLine.rotation.x = -Math.PI / 2
   outerLine.position.y = 0
   mainGroup.add(outerLine)
@@ -117,7 +138,7 @@ function buildProceduralGear(THREE: any, mainGroup: any, values: Record<string, 
   const rootRadius = Math.max(outerDiameter * 0.32, outerDiameter / 2 - Math.max(2, outerDiameter * 0.08))
   const toothDepth = Math.max(1.2, outerDiameter / 2 - rootRadius)
   const mat = new THREE.MeshPhongMaterial({
-    color: 0x3A404D,
+    color: 0x9BA6B2,
     transparent: true,
     opacity: 0.85,
     side: THREE.DoubleSide,
@@ -150,7 +171,7 @@ function buildProceduralGear(THREE: any, mainGroup: any, values: Record<string, 
 
   const boreGeo = new THREE.CylinderGeometry(Math.max(0.8, boreDiameter / 2), Math.max(0.8, boreDiameter / 2), thickness + 0.2, 48)
   const boreMat = new THREE.MeshPhongMaterial({
-    color: 0x181C23,
+    color: 0x5D6772,
     transparent: true,
     opacity: 0.9,
     side: THREE.DoubleSide,
@@ -160,7 +181,7 @@ function buildProceduralGear(THREE: any, mainGroup: any, values: Record<string, 
   mainGroup.add(bore)
 
   const edges = new THREE.EdgesGeometry(bodyGeo, 20)
-  const edgeLines = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.4 }))
+  const edgeLines = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: TECHNICAL_LINE, transparent: true, opacity: 0.26 }))
   edgeLines.position.y = thickness / 2
   mainGroup.add(edgeLines)
 }
@@ -182,17 +203,17 @@ function createDimensionOverlay(THREE: any, mainGroup: any) {
   const min = box.min
   const max = box.max
 
-  // Bounding box wireframe (Warm Amber: 0xF59E0B)
+  // Bounding box wireframe (measurement layer, opt-in)
   const bboxGeo = new THREE.BoxGeometry(size.x, size.y, size.z)
   const bboxCenter = box.getCenter(new THREE.Vector3())
   const bboxEdges = new THREE.EdgesGeometry(bboxGeo)
   const bboxLine = new THREE.LineSegments(
     bboxEdges,
-    new THREE.LineBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.4 })
+    new THREE.LineBasicMaterial({ color: TECHNICAL_LINE, transparent: true, opacity: 0.26 })
   )
   bboxLine.position.copy(bboxCenter)
 
-  // Origin axis arrows (XYZ: Red, Green, Amber)
+  // Origin axis arrows: the universal XYZ convention (red / green / blue)
   const axisGroup = new THREE.Group()
   const arrowLen = Math.max(size.x, size.y, size.z) * 0.15
   const arrowHeadLen = arrowLen * 0.2
@@ -208,12 +229,12 @@ function createDimensionOverlay(THREE: any, mainGroup: any) {
   )
   const zArrow = new THREE.ArrowHelper(
     new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0),
-    arrowLen, 0xF59E0B, arrowHeadLen, arrowHeadWidth
+    arrowLen, 0x6e8ca8, arrowHeadLen, arrowHeadWidth
   )
   axisGroup.add(xArrow, yArrow, zArrow)
 
-  // Dimension lines along each axis (Warm Amber precision laser: 0xF59E0B)
-  const dimMat = new THREE.LineBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.65 })
+  // Dimension lines along each axis (measurement layer, opt-in)
+  const dimMat = new THREE.LineBasicMaterial({ color: TECHNICAL_LINE, transparent: true, opacity: 0.5 })
   const offset = Math.max(size.x, size.y, size.z) * 0.08
 
   // Width line (along X, at bottom-front)
@@ -259,17 +280,40 @@ function createDimLine(THREE: any, mat: any, start: any, end: any) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+export type ViewCommand = {
+  /** degrees; 0 = front, +90 = right */
+  azimuth: number
+  /** degrees; +90 = looking straight down */
+  elevation: number
+  /** bumped by the caller so repeating the same view still applies */
+  nonce: number
+  /** bumped when the caller wants the part refitted to the viewport */
+  fit?: number
+}
+
 export function ThreeDViewer({
   job,
   onDownloadStl,
   isDownloadingStl,
   hasStl,
+  viewCommand,
+  onViewChange,
 }: {
   job: Job
   onDownloadStl?: () => void
   isDownloadingStl?: boolean
   hasStl?: boolean
+  /* DESIGN.md section 4: the ViewCube and the viewport share one camera. The cube
+     cannot own orientation, so the camera is commanded from outside. */
+  viewCommand?: ViewCommand | null
+  onViewChange?: (camera: { azimuth: number; elevation: number }) => void
 }) {
+  // DESIGN.md section 11: one semantic hierarchy in both themes. The viewport
+  // field is part of the workspace, so it follows the theme rather than owning a
+  // separate "dark background" preference.
+  const { resolvedTheme } = useTheme()
+  const fieldIsDark = (resolvedTheme ?? 'dark') !== 'light'
+
   const mountRef = useRef<HTMLDivElement>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -278,12 +322,17 @@ export function ThreeDViewer({
     state: controlsState,
     setState: setControlsState,
   } = useViewerControls({
-    autoRotate: true,
+    // DESIGN.md section 4: the part is inspected, not performed at. Auto-rotate
+    // also makes the ViewCube's meaning drift, so it defaults off.
+    autoRotate: false,
     wireframe: false,
     showGrid: true,
     showAxes: true,
+    // DESIGN.md section 4: the default viewport is the part, a faint grid and an
+    // orientation triad. Bounding box and dimension lines are a measurement layer
+    // you switch on, not permanent furniture.
+    showDimensions: false,
     darkBg: true,
-    showDimensions: true,
   })
 
   const threeModuleRef = useRef<any>(null)
@@ -296,6 +345,63 @@ export function ThreeDViewer({
   const mainGroupRef = useRef<any>(null)
   const bboxOverlayRef = useRef<any>(null)
   const dimensionLabelsRef = useRef<{ w: string; d: string; h: string }>({ w: '', d: '', h: '' })
+
+  const lastNonceRef = useRef<number>(-1)
+  const lastFitRef = useRef<number>(0)
+  const reportRef = useRef(onViewChange)
+  reportRef.current = onViewChange
+
+  /* ViewCube -> camera: the cube only ever commands, it never owns orientation.
+     Declared with the other hooks, above every early return. */
+  useEffect(() => {
+    if (!viewCommand) return
+
+    // Fit is a separate request: the caller bumps `fit` without changing angles.
+    if (viewCommand.fit !== undefined && viewCommand.fit !== lastFitRef.current) {
+      lastFitRef.current = viewCommand.fit
+      const THREE = threeModuleRef.current
+      const camera = cameraRef.current
+      const controls = controlsObjRef.current
+      const object = mainGroupRef.current
+      if (THREE && camera && controls && object) {
+        fitCameraToObject(THREE, camera, controls, object)
+        const target = controls.target
+        const dx = camera.position.x - target.x
+        const dy = camera.position.y - target.y
+        const dz = camera.position.z - target.z
+        const dist = Math.hypot(dx, dy, dz) || 1
+        if (reportRef.current) {
+          reportRef.current({
+            azimuth: (Math.atan2(dx, dz) * 180) / Math.PI,
+            elevation: (Math.asin(Math.max(-1, Math.min(1, dy / dist))) * 180) / Math.PI,
+          })
+        }
+        controls.update?.()
+        return
+      }
+    }
+
+    if (viewCommand.nonce === lastNonceRef.current) return
+    const THREE = threeModuleRef.current
+    const camera = cameraRef.current
+    const controls = controlsObjRef.current
+    if (!THREE || !camera || !controls) return
+    lastNonceRef.current = viewCommand.nonce
+
+    const target = controls.target ?? new THREE.Vector3(0, 0, 0)
+    const distance = camera.position.distanceTo(target) || 100
+    const az = (viewCommand.azimuth * Math.PI) / 180
+    const el = (Math.max(-MAX_ELEVATION, Math.min(MAX_ELEVATION, viewCommand.elevation)) * Math.PI) / 180
+    camera.position.set(
+      target.x + distance * Math.cos(el) * Math.sin(az),
+      target.y + distance * Math.sin(el),
+      target.z + distance * Math.cos(el) * Math.cos(az)
+    )
+    camera.up.set(0, 1, 0)
+    camera.lookAt(target)
+    controls.update?.()
+  }, [viewCommand])
+
 
   const values = parseJSON<Record<string, number>>(job.parameterValues, {})
   const partFamily = job.partFamily || 'unknown'
@@ -336,10 +442,10 @@ export function ThreeDViewer({
     }
     if (sceneRef.current && threeModuleRef.current) {
       sceneRef.current.background = new threeModuleRef.current.Color(
-        controlsState.darkBg ? 0x0A0D10 : 0xF4F6F8
+        fieldIsDark ? 0x141312 : 0xF4F2EE
       )
     }
-  }, [controlsState])
+  }, [controlsState, fieldIsDark])
 
   const handleResetCamera = useCallback(() => {
     if (cameraRef.current && controlsObjRef.current && mainGroupRef.current && threeModuleRef.current) {
@@ -436,16 +542,32 @@ export function ThreeDViewer({
         controls.zoomSpeed = 0.9
         controls.panSpeed = 0.8
         controls.screenSpacePanning = true
-        controls.maxPolarAngle = Math.PI * 0.96
+        controls.minPolarAngle = POLAR_GUARD
+        controls.maxPolarAngle = Math.PI - POLAR_GUARD
         controls.autoRotate = controlsState.autoRotate
         controls.autoRotateSpeed = 0.5
         controlsObjRef.current = controls
 
+        // Report the camera outward on every orbit so the ViewCube mirrors it.
+        // The cube must never be able to disagree with what is on screen.
+        controls.addEventListener('change', () => {
+          const cam = cameraRef.current
+          const target = controls.target
+          if (!cam || !target || !reportRef.current) return
+          const dx = cam.position.x - target.x
+          const dy = cam.position.y - target.y
+          const dz = cam.position.z - target.z
+          const dist = Math.hypot(dx, dy, dz) || 1
+          const elevation = (Math.asin(Math.max(-1, Math.min(1, dy / dist))) * 180) / Math.PI
+          const azimuth = (Math.atan2(dx, dz) * 180) / Math.PI
+          reportRef.current({ azimuth, elevation })
+        })
+
         const gridHelper = new THREE.GridHelper(
           120,
           24,
-          controlsState.darkBg ? 0x2B3643 : 0xB8C5D3,
-          controlsState.darkBg ? 0x19222D : 0xD5DDE6
+          fieldIsDark ? 0x2B3643 : 0xC9C3B8,
+          fieldIsDark ? 0x19222D : 0xDED8CE
         )
         gridHelper.position.y = -0.01
         gridHelper.visible = controlsState.showGrid
@@ -492,7 +614,7 @@ export function ThreeDViewer({
             geometry.computeVertexNormals()
 
             const material = new THREE.MeshPhongMaterial({
-              color: 0x3E4450,
+              color: 0x9BA6B2,
               transparent: true,
               opacity: 0.92,
               side: THREE.DoubleSide,
@@ -508,7 +630,7 @@ export function ThreeDViewer({
 
             // Wireframe overlay (Warm Amber laser precision)
             const edges = new THREE.EdgesGeometry(geometry, 30)
-            const edgeMat = new THREE.LineBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.35 })
+            const edgeMat = new THREE.LineBasicMaterial({ color: TECHNICAL_LINE, transparent: true, opacity: 0.26 })
             const edgeLines = new THREE.LineSegments(edges, edgeMat)
             mainGroup.add(edgeLines)
 
@@ -549,7 +671,7 @@ export function ThreeDViewer({
         // distance, otherwise long phone-case models disappear into the background.
         const fitted = fitCameraToObject(THREE, camera, controls, mainGroup)
         scene.fog = new THREE.Fog(
-          controlsState.darkBg ? 0x0A0D10 : 0xF4F6F8,
+          fieldIsDark ? 0x141312 : 0xF4F2EE,
           Math.max(fitted.dist * 1.6, fitted.maxDim * 2.2, 220),
           Math.max(fitted.dist * 5.5, fitted.maxDim * 8, 900),
         )
@@ -596,7 +718,8 @@ export function ThreeDViewer({
         })
         resizeObserver.observe(container)
 
-        return () => {
+
+  return () => {
           cancelled = true
           if (animFrameId !== null) cancelAnimationFrame(animFrameId)
           if (resizeRafId !== null) cancelAnimationFrame(resizeRafId)
@@ -685,7 +808,7 @@ export function ThreeDViewer({
   }, [geometryKey])
 
   if (job.state === 'NEW' || job.state === 'SCAD_GENERATED') {
-    return (
+  return (
       <div className="flex flex-col items-center justify-center h-full text-[var(--app-text-dim)] gap-3">
         <div className="w-16 h-16 rounded-2xl bg-[var(--app-empty-bg)] flex items-center justify-center">
           <Box className="w-8 h-7 opacity-20" />
@@ -734,51 +857,24 @@ export function ThreeDViewer({
         </div>
       )}
       <div ref={mountRef} className="w-full h-full" />
-      
-      {/* Top Left: Part Family & Source Badge */}
-      <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-[5]">
-        <div className="flex items-center gap-1.5 rounded-md border border-[color:var(--app-border-subtle)] bg-[var(--app-surface-raised)]/80 backdrop-blur-md px-2 py-1 shadow-sm">
-          <span className="text-[11px] font-medium text-[var(--cad-text)]">
-            {partFamily}
-          </span>
-          <span className="text-[10px] font-mono text-[var(--app-accent)] font-semibold">
-            {job.stlPath ? 'STL' : 'PREVIEW'}
-          </span>
-          <span className="text-[10px] font-mono text-[var(--cad-text-muted)] border-l border-[color:var(--app-border-subtle)] pl-1.5">
-            mm
-          </span>
-        </div>
-      </div>
 
-      {/* Top Right: Geometry Dimensions Telemetry */}
-      {dimensionSummary && (
-        <div className="absolute top-2.5 right-2.5 z-[5] pointer-events-none">
-          <div className="flex items-center gap-1.5 rounded-md border border-[color:var(--app-border-subtle)] bg-[var(--app-surface-raised)]/80 backdrop-blur-md px-2 py-1 shadow-sm">
-            <span className="text-[10px] font-mono tracking-wider text-[var(--cad-text-muted)] uppercase">BBOX</span>
-            <span className="text-[11px] font-mono tabular-nums text-[var(--cad-measure)] font-medium">
-              {dimensionSummary} mm
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Bottom Center: Axis Dimensions Pill */}
+      {/* Axis dimension pill — only while the user turns annotation on. Measurements
+          belong to the 读数 module (DESIGN.md section 6), and section 4 asks for a
+          calm viewport by default: no family badge, no BBOX chip, no watermark.
+          Plain mono text, not an accent colour: section 11 removed the separate
+          measurement hue. */}
       {controlsState.showDimensions && dimLabels.w && (
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[5] pointer-events-none flex items-center gap-1.5 rounded-full border border-[color:var(--app-border-subtle)] bg-[var(--app-surface-raised)]/90 backdrop-blur-md px-3 py-0.5 shadow-md">
-          <span className="text-[11px] font-mono tabular-nums text-[var(--cad-measure)]"><span className="text-[var(--app-text-dim)] mr-0.5">X:</span>{dimLabels.w}</span>
-          <span className="text-[var(--app-border)]">|</span>
-          <span className="text-[11px] font-mono tabular-nums text-[var(--cad-measure)]"><span className="text-[var(--app-text-dim)] mr-0.5">Y:</span>{dimLabels.d}</span>
-          <span className="text-[var(--app-border)]">|</span>
-          <span className="text-[11px] font-mono tabular-nums text-[var(--cad-measure)]"><span className="text-[var(--app-text-dim)] mr-0.5">Z:</span>{dimLabels.h}</span>
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[5] pointer-events-none flex items-center gap-1.5 rounded-full border border-[var(--shell-border)] px-3 py-0.5 backdrop-blur-md"
+          style={{ background: 'var(--shell-module-solid)', boxShadow: 'var(--shell-shadow)' }}
+        >
+          <span className="text-[11px] font-mono tabular-nums text-[var(--shell-text)]"><span className="text-[var(--shell-text-dim)] mr-0.5">X:</span>{dimLabels.w}</span>
+          <span className="text-[var(--shell-border)]">|</span>
+          <span className="text-[11px] font-mono tabular-nums text-[var(--shell-text)]"><span className="text-[var(--shell-text-dim)] mr-0.5">Y:</span>{dimLabels.d}</span>
+          <span className="text-[var(--shell-border)]">|</span>
+          <span className="text-[11px] font-mono tabular-nums text-[var(--shell-text)]"><span className="text-[var(--shell-text-dim)] mr-0.5">Z:</span>{dimLabels.h}</span>
         </div>
       )}
 
-      {/* Bottom Left: Status Tag */}
-      <div className="absolute bottom-2.5 left-2.5 z-[5] pointer-events-none">
-        <span className="text-[9px] font-mono uppercase tracking-widest text-[var(--cad-text-muted)] opacity-60">
-          AgentSCAD Precision Viewport
-        </span>
-      </div>
       <ViewerControls
         state={controlsState}
         onChange={setControlsState}
