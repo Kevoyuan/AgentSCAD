@@ -262,14 +262,12 @@ export function getPartFamilyLabel(family: string | null): string {
  * Returns a color class for the part family icon.
  */
 export function getPartFamilyColor(family: string | null): string {
-  if (!family) return 'text-[var(--app-text-muted)]'
-  const colors: Record<string, string> = {
-    spur_gear: 'text-amber-400',
-    device_stand: 'text-teal-400',
-    phone_case: 'text-emerald-400',
-    electronics_enclosure: 'text-amber-500',
-    bracket: 'text-rose-400',
-    bolt: 'text-stone-300',
-  }
-  return colors[family.toLowerCase()] || 'text-[var(--app-text-muted)]'
+  /*
+   * DESIGN.md section 11: "no rainbow icon colouring". The family icon used to map
+   * each family to its own hue (amber, teal, emerald, rose, stone), which is exactly
+   * the pattern the budget forbids - the family name beside it is the meaning, so the
+   * icon is engraved like every other label.
+   */
+  void family
+  return 'text-[var(--shell-text-label)]'
 }

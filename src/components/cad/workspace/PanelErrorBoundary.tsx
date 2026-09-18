@@ -96,7 +96,7 @@ export class PanelErrorBoundary extends Component<PanelErrorBoundaryProps, Panel
           aria-live="assertive"
         >
           {/* Subsystem Isolation Badge */}
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-rose-500/10 border border-rose-500/25 text-rose-500 text-xs font-mono mb-3 shrink-0">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-transparent border border-transparent text-[var(--shell-fail)] text-xs font-mono mb-3 shrink-0">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
             <span className="uppercase tracking-wider font-semibold">
               {this.props.panelName} FAULT ISOLATED
@@ -112,7 +112,7 @@ export class PanelErrorBoundary extends Component<PanelErrorBoundaryProps, Panel
 
           {/* Monospace Error Diagnostic Box */}
           <div className="w-full max-w-md bg-[var(--app-bg)] border border-[color:var(--app-border-subtle)] rounded-[6px] p-3 text-left mb-4 overflow-x-auto max-h-32 text-xs font-mono tabular-nums">
-            <div className="text-[11px] font-mono text-rose-400 font-semibold mb-1 truncate">
+            <div className="text-[11px] font-mono text-[var(--shell-fail)] font-semibold mb-1 truncate">
               {this.state.error?.name || 'RuntimeError'}: {this.state.error?.message || 'Unexpected failure'}
             </div>
             {this.state.error?.stack && (
@@ -140,7 +140,7 @@ export class PanelErrorBoundary extends Component<PanelErrorBoundaryProps, Panel
             >
               {this.state.copied ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                  <Check className="w-3.5 h-3.5 text-[var(--shell-ok)]" />
                   已复制
                 </>
               ) : (

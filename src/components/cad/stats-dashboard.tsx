@@ -112,7 +112,7 @@ function ProgressRing({
   value,
   size = 80,
   strokeWidth = 5,
-  color = '#F59E0B',
+  color = '#FF5A1F',
   label,
   sublabel,
 }: {
@@ -182,7 +182,7 @@ function Sparkline({
   data,
   width = 200,
   height = 40,
-  color = '#8b5cf6',
+  color = '#FFB597',
 }: {
   data: Array<{ hour: number; count: number }>
   width?: number
@@ -291,16 +291,16 @@ function StateDistributionBar({ jobsByState }: { jobsByState: Record<string, num
         {segments.map((seg) => {
           const colorClass = seg.color.replace('bg-', '')
           const colorMap: Record<string, string> = {
-            'slate-400': '#94a3b8',
-            'amber-400': '#fbbf24',
-            'cyan-400': '#22d3ee',
-            'emerald-400': '#34d399',
-            'lime-400': '#a3e635',
-            'orange-400': '#fb923c',
-            'rose-400': '#fb7185',
-            'red-400': '#f87171',
-            'yellow-400': '#facc15',
-            'zinc-500': '#71717a',
+            'slate-400': '#A79E92',
+            'amber-400': '#E8B84B',
+            'cyan-400': '#FFB597',
+            'emerald-400': '#7BD68A',
+            'lime-400': '#7BD68A',
+            'orange-400': '#E8B84B',
+            'rose-400': '#E8583F',
+            'red-400': '#E8583F',
+            'yellow-400': '#E8B84B',
+            'zinc-500': '#A79E92',
             '[var(--app-state-neutral-dot)]': 'var(--app-state-neutral-dot)',
           }
           const hex = colorMap[colorClass] || 'var(--app-state-neutral-dot)'
@@ -321,16 +321,16 @@ function StateDistributionBar({ jobsByState }: { jobsByState: Record<string, num
         {segments.map((seg) => {
           const colorClass = seg.color.replace('bg-', '')
           const colorMap: Record<string, string> = {
-            'slate-400': '#94a3b8',
-            'amber-400': '#fbbf24',
-            'cyan-400': '#22d3ee',
-            'emerald-400': '#34d399',
-            'lime-400': '#a3e635',
-            'orange-400': '#fb923c',
-            'rose-400': '#fb7185',
-            'red-400': '#f87171',
-            'yellow-400': '#facc15',
-            'zinc-500': '#71717a',
+            'slate-400': '#A79E92',
+            'amber-400': '#E8B84B',
+            'cyan-400': '#FFB597',
+            'emerald-400': '#7BD68A',
+            'lime-400': '#7BD68A',
+            'orange-400': '#E8B84B',
+            'rose-400': '#E8583F',
+            'red-400': '#E8583F',
+            'yellow-400': '#E8B84B',
+            'zinc-500': '#A79E92',
             '[var(--app-state-neutral-dot)]': 'var(--app-state-neutral-dot)',
           }
           const hex = colorMap[colorClass] || 'var(--app-state-neutral-dot)'
@@ -397,17 +397,17 @@ function getActionInfo(state: string): { action: string; icon: React.ElementType
     case 'NEW':
       return { action: 'Created', icon: Plus, iconColor: 'text-[var(--app-state-neutral-text)]' }
     case 'SCAD_GENERATED':
-      return { action: 'SCAD Generated', icon: Zap, iconColor: 'text-amber-400' }
+      return { action: 'SCAD Generated', icon: Zap, iconColor: 'text-[var(--shell-warn)]' }
     case 'RENDERED':
-      return { action: 'Rendered', icon: Layers, iconColor: 'text-cyan-400' }
+      return { action: 'Rendered', icon: Layers, iconColor: 'text-[var(--shell-signal-soft)]' }
     case 'VALIDATED':
-      return { action: 'Validated', icon: CheckCircle2, iconColor: 'text-emerald-400' }
+      return { action: 'Validated', icon: CheckCircle2, iconColor: 'text-[var(--shell-ok)]' }
     case 'DELIVERED':
-      return { action: 'Delivered', icon: CheckCircle2, iconColor: 'text-lime-400' }
+      return { action: 'Delivered', icon: CheckCircle2, iconColor: 'text-[var(--shell-ok)]' }
     case 'VALIDATION_FAILED':
     case 'GEOMETRY_FAILED':
     case 'RENDER_FAILED':
-      return { action: 'Failed', icon: XCircle, iconColor: 'text-rose-400' }
+      return { action: 'Failed', icon: XCircle, iconColor: 'text-[var(--shell-fail)]' }
     case 'CANCELLED':
       return { action: 'Cancelled', icon: Ban, iconColor: 'text-[var(--app-text-muted)]' }
     default:
@@ -699,7 +699,7 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
         </StatCard>
 
         <StatCard icon={Clock} label="Avg Time">
-          <div className="text-xl font-mono font-bold tracking-tighter text-cyan-700 dark:text-cyan-400 tabular-nums">
+          <div className="text-xl font-mono font-bold tracking-tighter text-[var(--shell-signal-soft)] tabular-nums">
             {formatDuration(stats.avgProcessingTimeMs)}
           </div>
           <div className="text-[13px] text-[var(--app-text-dim)] mt-0.5">
@@ -713,7 +713,7 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
               value={stats.successRate}
               size={56}
               strokeWidth={4}
-              color="#34d399"
+              color="#7BD68A"
             />
           </div>
         </StatCard>

@@ -38,10 +38,19 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /*
+   * The radius scale is 3 / 4 / 6 / 9 / 999 (DESIGN.md section 13). shadcn derives
+   * rounded-sm/md/lg/xl from one `--radius: 0.625rem`, which produced 6/8/10/14px:
+   * every primitive and every legacy component was a step or two off the product's
+   * scale, so an 8px control sitting on a 9px plate read as a different system.
+   * Pinning the derived steps here fixes all of them at the root.
+   */
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 9px;
+  --radius-2xl: 9px;
+  --radius-3xl: 9px;
 }
 
 /* ─── Light Theme Variables ──────────────────────────────────── */
@@ -103,23 +112,31 @@
   --shell-shadow-lift: 0 22px 46px -12px rgba(28, 24, 20, 0.22), 0 0 0 1px rgba(224, 81, 42, 0.40);
 
   --radius: 0.625rem;
-  --background: oklch(0.985 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  /*
+   * shadcn's base tokens are the third alias layer (after --shell-* and --cad-*).
+   * Every primitive - Dialog, Sheet, Button, Input, Select, Tabs, Switch, Tooltip,
+   * DropdownMenu, Command, the toaster - reads its surface, text and border from
+   * here. Left on the stock oklch greys they render cool against a warm shell, and
+   * any child that does not set its own colour inherits a near-white that is not in
+   * the palette. They now resolve to the shell, in both themes (DESIGN.md section 22).
+   */
+  --background: var(--shell-module-solid);
+  --foreground: var(--shell-text);
+  --card: var(--shell-module-solid);
+  --card-foreground: var(--shell-text);
+  --popover: var(--shell-module-solid);
+  --popover-foreground: var(--shell-text);
+  --primary: var(--shell-signal);
+  --primary-foreground: #1A0F08;
+  --secondary: var(--shell-well);
+  --secondary-foreground: var(--shell-text);
+  --muted: var(--shell-well);
+  --muted-foreground: var(--shell-text-label);
+  --accent: color-mix(in srgb, var(--shell-signal) 12%, transparent);
+  --accent-foreground: var(--shell-signal-soft);
+  --destructive: var(--shell-fail);
+  --border: var(--shell-border);
+  --input: var(--shell-border);
   --ring: #E0512A;
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
@@ -220,24 +237,42 @@
   --app-state-neutral-text: #607080;
   --app-state-neutral-dot: #8FA0B2;
   --app-state-neutral-border: rgba(96, 112, 128, 0.2);
-  --cad-bg: #F4F6F8;
-  --cad-surface: #FFFFFF;
-  --cad-surface-raised: #EDF1F5;
-  --cad-border: #D5DDE6;
-  --cad-border-strong: #B8C5D3;
-  --cad-text: #111820;
-  --cad-text-secondary: #3B4B5B;
-  --cad-text-muted: #607080;
-  /* DESIGN.md section 11: one expressive accent (signal), and no separate
-     measurement hue - dimensional values carry meaning through mono type and
-     units, not through a second colour. */
-  --cad-accent: #E0512A;
-  --cad-accent-soft: rgba(224, 81, 42, 0.10);
-  --cad-grid: rgba(13, 13, 14, 0.05);
-  --cad-measure: #E0512A;
-  --cad-success: #2E9E5B;
-  --cad-warning: #C08A1E;
-  --cad-danger: #C0392B;
+  /*
+   * The `--cad-*` layer is an ALIAS, not a second palette (DESIGN.md section 22, token
+   * ownership). Every legacy panel still names these tokens - the provider form, the
+   * theme panel, the SCAD editor, the stats and compare surfaces, the activity feed -
+   * and while they held the old cool blue-grey family those panels could never match
+   * the shell no matter how they were styled. Re-pointing the layer converts all of
+   * them at once: values now resolve to the shell tokens, in both themes.
+   *
+   * DESIGN.md section 11: one expressive accent (signal), no separate measurement
+   * hue - dimensional values carry meaning through mono type and units.
+   */
+  --cad-bg: var(--shell-module-solid);
+  --cad-background: var(--shell-module-solid);
+  --cad-surface: var(--shell-well);
+  --cad-surface-raised: var(--shell-inner);
+  --cad-surface-muted: var(--shell-well);
+  --cad-border: var(--shell-border);
+  --cad-border-subtle: var(--shell-hairline);
+  --cad-border-strong: var(--shell-border-strong);
+  --cad-text: var(--shell-text);
+  --cad-text-primary: var(--shell-text);
+  --cad-text-secondary: var(--shell-text-muted);
+  --cad-text-muted: var(--shell-text-label);
+  --cad-text-dim: var(--shell-text-dim);
+  --cad-accent: var(--shell-signal);
+  --cad-accent-hover: var(--shell-signal);
+  --cad-accent-soft: color-mix(in srgb, var(--shell-signal) 10%, transparent);
+  --cad-accent-border: color-mix(in srgb, var(--shell-signal) 35%, transparent);
+  --cad-accent-bg: color-mix(in srgb, var(--shell-signal) 12%, transparent);
+  --cad-accent-text: var(--shell-signal-soft);
+  --cad-grid: var(--shell-grid);
+  --cad-measure: var(--shell-text);
+  --cad-success: var(--shell-ok);
+  --cad-warning: var(--shell-warn);
+  --cad-danger: var(--shell-fail);
+  --cad-input-bg: var(--shell-module-solid);
 }
 
 /* ─── Dark Theme Variables (Direction 2: Shapr3D x VisionOS Spatial Canvas) ─── */
@@ -290,34 +325,35 @@
   --shell-shadow: 0 14px 30px -10px rgba(0, 0, 0, 0.62), 0 3px 8px rgba(0, 0, 0, 0.34);
   --shell-shadow-lift: 0 22px 46px -12px rgba(0, 0, 0, 0.70), 0 0 0 1px rgba(255, 90, 31, 0.40);
 
-  --background: #0A0D10;
-  --foreground: #F8FAFC;
-  --card: #12161C;
-  --card-foreground: #F8FAFC;
-  --popover: #12161C;
-  --popover-foreground: #F8FAFC;
-  --primary: #F8FAFC;
-  --primary-foreground: #0A0D10;
-  --secondary: #181C23;
-  --secondary-foreground: #F8FAFC;
-  --muted: #181C23;
-  --muted-foreground: #94A3B8;
-  --accent: rgba(245, 158, 11, 0.14);
-  --accent-foreground: #F59E0B;
-  --destructive: #E25B5B;
-  --border: rgba(255, 255, 255, 0.09);
-  --input: rgba(255, 255, 255, 0.09);
+  /* Same alias layer as the light theme (see the comment there). */
+  --background: var(--shell-module-solid);
+  --foreground: var(--shell-text);
+  --card: var(--shell-module-solid);
+  --card-foreground: var(--shell-text);
+  --popover: var(--shell-module-solid);
+  --popover-foreground: var(--shell-text);
+  --primary: var(--shell-signal);
+  --primary-foreground: #1A0F08;
+  --secondary: var(--shell-well);
+  --secondary-foreground: var(--shell-text);
+  --muted: var(--shell-well);
+  --muted-foreground: var(--shell-text-label);
+  --accent: color-mix(in srgb, var(--shell-signal) 14%, transparent);
+  --accent-foreground: var(--shell-signal-soft);
+  --destructive: var(--shell-fail);
+  --border: var(--shell-border);
+  --input: var(--shell-border);
   --ring: #FF5A1F;
   --chart-1: oklch(0.769 0.188 70.08);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.488 0.243 264.376);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #0A0D10;
-  --sidebar-foreground: #F8FAFC;
-  --sidebar-primary: #F59E0B;
-  --sidebar-primary-foreground: #0A0D10;
-  --sidebar-accent: #181C23;
+  --sidebar: var(--shell-module-solid);
+  --sidebar-foreground: var(--shell-text);
+  --sidebar-primary: var(--shell-signal);
+  --sidebar-primary-foreground: #1A0F08;
+  --sidebar-accent: var(--shell-well);
   --sidebar-accent-foreground: #F8FAFC;
   --sidebar-border: rgba(255, 255, 255, 0.09);
   --sidebar-ring: #F59E0B;
@@ -436,22 +472,35 @@
   --app-state-neutral-text: #94A3B8;
   --app-state-neutral-dot: #525D6E;
   --app-state-neutral-border: rgba(148, 163, 184, 0.22);
-  --cad-bg: #0A0D10;
-  --cad-surface: #12161C;
-  --cad-surface-raised: #181C23;
-  --cad-border: rgba(255, 255, 255, 0.09);
-  --cad-border-strong: rgba(255, 255, 255, 0.16);
-  --cad-text: #F8FAFC;
-  --cad-text-secondary: #CBD5E1;
-  --cad-text-muted: #94A3B8;
-  --cad-accent: #FF5A1F;
-  --cad-accent-soft: rgba(255, 90, 31, 0.15);
-  --cad-grid: rgba(255, 255, 255, 0.035);
-  --cad-measure: #FF5A1F;
-  --cad-success: #7BD68A;
-  --cad-warning: #E8B84B;
-  --cad-danger: #E8583F;
-  --cad-info: #FF5A1F;
+  /* Same alias layer as the light theme: resolve to the shell, never to a second
+     palette. The dark values were already close, but `--cad-text` was the old near
+     white (#F8FAFC) and `--cad-surface` the old cool #12161C. */
+  --cad-bg: var(--shell-module-solid);
+  --cad-background: var(--shell-module-solid);
+  --cad-surface: var(--shell-well);
+  --cad-surface-raised: var(--shell-inner);
+  --cad-surface-muted: var(--shell-well);
+  --cad-border: var(--shell-border);
+  --cad-border-subtle: var(--shell-hairline);
+  --cad-border-strong: var(--shell-border-strong);
+  --cad-text: var(--shell-text);
+  --cad-text-primary: var(--shell-text);
+  --cad-text-secondary: var(--shell-text-muted);
+  --cad-text-muted: var(--shell-text-label);
+  --cad-text-dim: var(--shell-text-dim);
+  --cad-accent: var(--shell-signal);
+  --cad-accent-hover: var(--shell-signal);
+  --cad-accent-soft: color-mix(in srgb, var(--shell-signal) 15%, transparent);
+  --cad-accent-border: color-mix(in srgb, var(--shell-signal) 35%, transparent);
+  --cad-accent-bg: color-mix(in srgb, var(--shell-signal) 14%, transparent);
+  --cad-accent-text: var(--shell-signal-soft);
+  --cad-grid: var(--shell-grid);
+  --cad-measure: var(--shell-text);
+  --cad-success: var(--shell-ok);
+  --cad-warning: var(--shell-warn);
+  --cad-danger: var(--shell-fail);
+  --cad-input-bg: var(--shell-module-solid);
+  --cad-info: var(--shell-signal);
 }
 
 @layer base {
@@ -591,6 +640,7 @@ input:focus, textarea:focus, select:focus {
 .rail-create .rail-create-key {
   color: color-mix(in srgb, var(--shell-signal-soft) 72%, transparent);
 }
+
 
 /* ─── Animations ─────────────────────────────────────────── */
 

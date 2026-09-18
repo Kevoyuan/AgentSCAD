@@ -26,11 +26,14 @@ export interface ActivityEvent {
 // ─── Activity Icon & Color Mapping ──────────────────────────────────────
 
 const EVENT_CONFIG: Record<ActivityEventType, { icon: typeof Plus; color: string; bgColor: string }> = {
-  created: { icon: Plus, color: 'text-[var(--app-accent-text)]', bgColor: 'bg-[var(--app-accent-bg)]' },
-  processed: { icon: Play, color: 'text-amber-400', bgColor: 'bg-amber-500/10' },
-  review: { icon: AlertTriangle, color: 'text-yellow-300', bgColor: 'bg-yellow-500/10' },
-  delivered: { icon: CheckCircle2, color: 'text-lime-400', bgColor: 'bg-lime-500/10' },
-  failed: { icon: XCircle, color: 'text-rose-400', bgColor: 'bg-rose-500/10' },
+  /* Semantic colours only, and only where a semantic state exists (DESIGN.md
+     section 11). The old map reached for amber/lime/rose Tailwind steps that are not
+     in the palette. */
+  created: { icon: Plus, color: 'text-[var(--shell-text-label)]', bgColor: 'bg-transparent' },
+  processed: { icon: Play, color: 'text-[var(--shell-warn)]', bgColor: 'bg-transparent' },
+  review: { icon: AlertTriangle, color: 'text-[var(--shell-warn)]', bgColor: 'bg-transparent' },
+  delivered: { icon: CheckCircle2, color: 'text-[var(--shell-ok)]', bgColor: 'bg-transparent' },
+  failed: { icon: XCircle, color: 'text-[var(--shell-fail)]', bgColor: 'bg-transparent' },
 }
 
 // ─── Time ago helper ──────────────────────────────────────────────────────

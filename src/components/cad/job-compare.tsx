@@ -88,7 +88,7 @@ function ParamRow({
       <span
         className={`text-sm font-mono text-right tabular-nums ${
           diff === 'higher'
-            ? 'bg-emerald-500/10 text-emerald-400'
+            ? 'bg-transparent text-[var(--shell-ok)]'
             : 'text-[var(--app-text-secondary)]'
         }`}
       >
@@ -105,9 +105,9 @@ function ParamRow({
       <span
         className={`text-sm font-mono tabular-nums ${
           diff === 'lower'
-            ? 'bg-rose-500/10 text-rose-400'
+            ? 'bg-transparent text-[var(--shell-fail)]'
             : diff === 'higher'
-            ? 'bg-emerald-500/10 text-emerald-400'
+            ? 'bg-transparent text-[var(--shell-ok)]'
             : 'text-[var(--app-text-secondary)]'
         }`}
       >
@@ -134,10 +134,10 @@ function ValidationRow({
   const bothSame = leftStatus === rightStatus
   const statusIcon = (status: ValidationEvidenceStatus | 'MISSING') => {
     const icon = status === 'PASS'
-      ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+      ? <CheckCircle2 className="w-3.5 h-3.5 text-[var(--shell-ok)]" />
       : status === 'FAIL' || status === 'ERROR'
-        ? <XCircle className="w-3.5 h-3.5 text-rose-400" />
-        : <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+        ? <XCircle className="w-3.5 h-3.5 text-[var(--shell-fail)]" />
+        : <AlertTriangle className="w-3.5 h-3.5 text-[var(--shell-warn)]" />
     return (
       <span className="flex flex-col items-center gap-0.5" aria-label={status} title={status}>
         {icon}
@@ -149,18 +149,18 @@ function ValidationRow({
   return (
     <div
       className={`grid grid-cols-[1fr_58px_20px_58px] items-center gap-1 py-1.5 px-2 border-b border-[color:var(--app-border)] last:border-0 ${
-        !bothSame ? 'bg-amber-500/5' : ''
+        !bothSame ? 'bg-transparent' : ''
       }`}
     >
       <span className="text-sm text-[var(--app-text-muted)] truncate flex items-center gap-1.5">
-        {isCritical && <AlertTriangle className="w-3.5 h-3.5 text-amber-500/60 flex-shrink-0" />}
+        {isCritical && <AlertTriangle className="w-3.5 h-3.5 text-[var(--shell-warn)] flex-shrink-0" />}
         {ruleName}
       </span>
       <span className="flex items-center justify-center">
         {statusIcon(leftStatus)}
       </span>
       <span className="flex items-center justify-center">
-        {!bothSame && <span className="w-1 h-1 rounded-full bg-amber-400" />}
+        {!bothSame && <span className="w-1 h-1 rounded-full bg-[var(--shell-warn)]" />}
       </span>
       <span className="flex items-center justify-center">
         {statusIcon(rightStatus)}
@@ -269,10 +269,10 @@ export function JobCompare({ jobs }: JobCompareProps) {
 
   // State color map for compare borders
   const borderColorMap: Record<string, string> = {
-    NEW: '#94a3b8', SCAD_GENERATED: '#fbbf24', RENDERED: '#22d3ee',
-    VALIDATED: '#34d399', DELIVERED: '#a3e635', DEBUGGING: '#fb923c',
-    REPAIRING: '#fb923c', VALIDATION_FAILED: '#fb7185', GEOMETRY_FAILED: '#f87171',
-    RENDER_FAILED: '#f87171', HUMAN_REVIEW: '#facc15', CANCELLED: '#71717a',
+    NEW: '#A79E92', SCAD_GENERATED: '#E8B84B', RENDERED: '#FFB597',
+    VALIDATED: '#7BD68A', DELIVERED: '#7BD68A', DEBUGGING: '#E8B84B',
+    REPAIRING: '#E8B84B', VALIDATION_FAILED: '#E8583F', GEOMETRY_FAILED: '#E8583F',
+    RENDER_FAILED: '#E8583F', HUMAN_REVIEW: '#E8B84B', CANCELLED: '#A79E92',
   }
 
   return (
@@ -297,7 +297,7 @@ export function JobCompare({ jobs }: JobCompareProps) {
       {/* Job selectors */}
       <div className="grid grid-cols-[1fr_20px_1fr] gap-2 mb-4 items-center">
         <Select value={leftId} onValueChange={setLeftId}>
-          <SelectTrigger className="h-7 bg-[var(--app-input-bg)] border-[color:var(--app-border)] text-[var(--app-text-secondary)] text-xs compare-border-left" style={{ borderLeftColor: leftJob ? (borderColorMap[leftJob.state] || '#71717a') : 'transparent' }}>
+          <SelectTrigger className="h-7 bg-[var(--app-input-bg)] border-[color:var(--app-border)] text-[var(--app-text-secondary)] text-xs compare-border-left" style={{ borderLeftColor: leftJob ? (borderColorMap[leftJob.state] || '#A79E92') : 'transparent' }}>
             <SelectValue placeholder="Select job A..." />
           </SelectTrigger>
           <SelectContent className="bg-[var(--app-bg)] border-[color:var(--app-border)]">
@@ -320,7 +320,7 @@ export function JobCompare({ jobs }: JobCompareProps) {
         </div>
 
         <Select value={rightId} onValueChange={setRightId}>
-          <SelectTrigger className="h-7 bg-[var(--app-input-bg)] border-[color:var(--app-border)] text-[var(--app-text-secondary)] text-xs compare-border-left" style={{ borderLeftColor: rightJob ? (borderColorMap[rightJob.state] || '#71717a') : 'transparent' }}>
+          <SelectTrigger className="h-7 bg-[var(--app-input-bg)] border-[color:var(--app-border)] text-[var(--app-text-secondary)] text-xs compare-border-left" style={{ borderLeftColor: rightJob ? (borderColorMap[rightJob.state] || '#A79E92') : 'transparent' }}>
             <SelectValue placeholder="Select job B..." />
           </SelectTrigger>
           <SelectContent className="bg-[var(--app-bg)] border-[color:var(--app-border)]">

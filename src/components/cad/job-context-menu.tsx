@@ -60,7 +60,7 @@ export function JobContextMenu({
         {/* Process / Reprocess */}
         {canProcess && (
           <ContextMenuItem
-            className="text-sm gap-2 text-emerald-400 focus:text-emerald-300 focus:bg-emerald-500/10"
+            className="text-sm gap-2 text-[var(--shell-ok)] focus:text-[var(--shell-ok)] focus:bg-transparent"
             onClick={() => onProcess(job)}
           >
             {job.state === 'DELIVERED' ? <RotateCcw className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -82,7 +82,7 @@ export function JobContextMenu({
         {/* Cancel (for active states) */}
         {isCancelable && (
           <ContextMenuItem
-            className="text-sm gap-2 text-orange-400 focus:text-orange-300 focus:bg-orange-500/10"
+            className="text-sm gap-2 text-[var(--shell-warn)] focus:text-[var(--shell-warn)] focus:bg-transparent"
             onClick={() => onCancel(job)}
           >
             <Ban className="w-3.5 h-3.5" />
@@ -126,12 +126,12 @@ export function JobContextMenu({
         {/* Delete - destructive */}
         <ContextMenuItem
           variant="destructive"
-          className="text-sm gap-2 text-rose-400 focus:text-rose-300 focus:bg-rose-500/10"
+          className="text-sm gap-2 text-[var(--shell-fail)] focus:text-[var(--shell-fail)] focus:bg-transparent"
           onClick={() => onDelete(job.id)}
         >
           <Trash2 className="w-3.5 h-3.5" />
           Delete
-          <ContextMenuShortcut className="text-xs text-rose-600/60">Del</ContextMenuShortcut>
+          <ContextMenuShortcut className="text-xs text-[var(--shell-fail)]">Del</ContextMenuShortcut>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
