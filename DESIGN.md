@@ -781,6 +781,11 @@ Per screen:
 Launching a state with two competing oranges (button + status line) is acceptable because
 they are one object. Three is not.
 
+The accent's **soft form** carries secondary actions that are not the state's action:
+the rail's `＋ 新零件` uses `#FFB597` text, a 40% signal border and a 10% signal well,
+reaching full signal only on hover. It reads as the theme colour without becoming the
+second solid orange group, and it is the same soft role the stale status line uses.
+
 ---
 
 ## 12. Typography
