@@ -1,186 +1,20 @@
 'use client'
 
-/*
- * ==========================================
- * Junior Designer Assumptions & Design Decisions
- * ==========================================
- *
- * 1. 宽屏物理距离感知假设：
- *    在 1m 笔记本或超宽 (4K) 显示器上，如果底部快捷键指南随父容器无限横向拉伸，
- *    快捷键 `kbd` 与它的文字描述距离会过远。读者视线需要频繁横向跳跃，造成眼部疲劳。
- *    因此，在 Layout 上添加 `max-w-[800px] mx-auto` 的约束是必要的，这能确保视线自然聚焦。
- *
- * 2. 位置四问响应：
- *    - 叙事角色：此处的 Onboarding 快捷键速查表是“引导/效率”角色，引导用户从小白跨越到键盘流专家。
- *    - 观众距离：1m 显示器，所以字号保持为 12px 即可。
- *    - 视觉温度：安静、工具感、物理刻度盘气质。背景与分割线都以极淡色表现，使快捷键本身呈现低对比度的专业感。
- *    - 容量估算：一横排 4 个快捷键卡片，宽度限制在 800px 下每个约 180px，内容塞得极其宽松、呼吸感充分。
- *
- * 3. 标题排版层级优化 (Typographic Contrast Optimization)：
- *    原先的 onboarding 大标题 H3 (如 "How the 3D Pipeline Works" 等) 与小卡片 H4 共享了 12px (text-xs) 的尺寸，
- *    导致层级扁平。将其升级为 13px (text-[13px]) 能够创造更清晰的字号缩放比例与导向感，强化设计视觉层级。
- */
-
 import { useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
-import {
-  Box, Play, Clock, CheckCircle2,
-  Cpu, Layers, Plus, Ruler, BoxSelect, AlertTriangle, RotateCcw,
-  ShieldCheck, ShieldAlert, ShieldQuestion, Settings, Hammer,
-  ArrowRight, ChevronRight, Command, Sparkles, BookOpen, ChevronLeft
-} from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ResizablePanel } from '@/components/ui/resizable'
 
-import { Job, CANCELABLE_STATES, ValidationResult, parseJSON, timeAgo } from '@/components/cad/types'
-import { StateBadge } from '@/components/cad/state-badge'
-import { PartFamilyIcon, getPartFamilyLabel, getPartFamilyColor } from '@/components/cad/part-family-icon'
-import { QuickActionsBar } from '@/components/cad/quick-actions-bar'
-import { buildDeliveryReadiness, type DeliveryReadinessReport } from '@/lib/validation/delivery-readiness'
+import { Job, CANCELABLE_STATES } from '@/components/cad/types'
 import { PanelErrorBoundary } from './PanelErrorBoundary'
 import { CadViewportEmptyState } from './empty-states'
 
 const ThreeDViewer = dynamic(() => import('@/components/cad/three-d-viewer').then(m => ({ default: m.ThreeDViewer })), { ssr: false, loading: () => <div className="flex items-center justify-center h-full p-4"><Skeleton className="h-full w-full rounded-[6px]" /></div> })
-const JobStatusPage = dynamic(() => import('@/components/cad/job-status-page').then(m => ({ default: m.JobStatusPage })), { ssr: false, loading: () => <div className="p-6"><Skeleton className="h-96 w-full rounded-[6px]" /></div> })
-
-function getReadinessTone(report: DeliveryReadinessReport) {
-  switch (report.status) {
-    case 'ready':
-      return {
-        icon: ShieldCheck,
-        shell: 'border-emerald-500/20 bg-emerald-500/[0.07]',
-        text: 'text-emerald-400',
-        progress: 'bg-emerald-500',
-      }
-    case 'blocked':
-      return {
-        icon: ShieldAlert,
-        shell: 'border-rose-500/20 bg-rose-500/[0.07]',
-        text: 'text-rose-400',
-        progress: 'bg-rose-500',
-      }
-    case 'review':
-      return {
-        icon: AlertTriangle,
-        shell: 'border-amber-500/20 bg-amber-500/[0.07]',
-        text: 'text-amber-400',
-        progress: 'bg-amber-500',
-      }
-    case 'unverified':
-      return {
-        icon: ShieldQuestion,
-        shell: 'border-slate-400/20 bg-slate-400/[0.07]',
-        text: 'text-slate-300',
-        progress: 'bg-slate-400',
-      }
-    default:
-      return {
-        icon: Clock,
-        shell: 'border-[color:var(--app-border)] bg-[var(--app-surface)]',
-        text: 'text-[var(--app-text-muted)]',
-        progress: 'bg-[var(--app-accent)]',
-      }
-  }
-}
-
-function DeliveryReadinessStrip({
-  job,
-  isProcessing,
-  onProcess,
-  onRepair,
-  onVisualRepair,
-  onDownloadScad,
-  onDownloadStl,
-  onSetActiveTab,
-}: {
-  job: Job
-  isProcessing: boolean
-  onProcess: (job: Job) => void
-  onRepair: (job: Job) => void
-  onVisualRepair: (job: Job) => void
-  onDownloadScad: (job: Job) => void
-  onDownloadStl?: (job: Job) => void
-  onSetActiveTab: (tab: string) => void
-}) {
-  const validationResults = parseJSON<ValidationResult[]>(job.validationResults, [])
-  const report = buildDeliveryReadiness({
-    state: job.state,
-    scadSource: job.scadSource,
-    stlPath: job.stlPath,
-    pngPath: job.pngPath,
-    validationResults,
-  })
-  const tone = getReadinessTone(report)
-  const Icon = tone.icon
-  const primaryDetail = report.blockers[0] || report.warnings[0] || report.summary
-  const showAction = report.nextAction !== 'wait'
-
-  const handleAction = () => {
-    switch (report.nextAction) {
-      case 'process':
-      case 'reprocess':
-        onProcess(job)
-        break
-      case 'auto_repair':
-        onRepair(job)
-        break
-      case 'visual_repair':
-        onVisualRepair(job)
-        break
-      case 'inspect_validation':
-        onSetActiveTab('VALIDATION')
-        break
-      case 'export':
-        if (job.stlPath && onDownloadStl) {
-          onDownloadStl(job)
-        } else {
-          onDownloadScad(job)
-        }
-        break
-    }
-  }
-
-  const actionLabel = report.nextAction === 'export'
-    ? (job.stlPath && onDownloadStl ? 'Download STL' : 'Download SCAD')
-    : report.nextActionLabel
-
-  return (
-    <div className={`mx-3 my-2 rounded-lg border px-3 py-2 ${tone.shell}`}>
-      <div className="flex min-w-0 items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <Icon className={`h-4 w-4 shrink-0 ${tone.text}`} />
-          <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className={`truncate text-sm font-medium ${tone.text}`}>{report.label}</span>
-              <span className="shrink-0 rounded border border-[color:var(--app-border)] bg-[var(--app-surface)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--app-text-muted)]">
-                {Math.round(report.score * 100)}%
-              </span>
-            </div>
-            <p className="mt-0.5 truncate text-[13px] text-[var(--app-text-muted)]">{primaryDetail}</p>
-          </div>
-        </div>
-        {showAction && (
-          <Button
-            size="sm"
-            variant={report.status === 'ready' ? 'default' : 'outline'}
-            className="h-7 shrink-0 gap-1.5 text-xs"
-            onClick={handleAction}
-            disabled={isProcessing}
-          >
-            {actionLabel}
-          </Button>
-        )}
-      </div>
-      <div className="mt-2 h-1 overflow-hidden rounded-full bg-[var(--app-border-subtle)]">
-        <div className={`h-full rounded-full transition-all ${tone.progress}`} style={{ width: `${Math.round(report.score * 100)}%` }} />
-      </div>
-    </div>
-  )
-}
 
 export function ViewerPanel({
+  viewCommand,
+  onViewChange,
   selectedJob,
   isProcessing,
   processingJobId,
@@ -201,6 +35,8 @@ export function ViewerPanel({
   onShowComposer,
   isFirstLoadComplete,
 }: {
+  viewCommand?: import('@/components/cad/three-d-viewer').ViewCommand | null
+  onViewChange?: (camera: { azimuth: number; elevation: number }) => void
   selectedJob: Job | null
   isProcessing: boolean
   processingJobId: string | null
@@ -287,177 +123,101 @@ export function ViewerPanel({
   const isSelectedProcessing = Boolean(selectedJob && isProcessing && processingJobId === selectedJob.id)
 
   return (
-    <ResizablePanel id="agentscad-viewer-panel" order={2} defaultSize={52} minSize={36} className="cad-viewer-panel min-w-0 overflow-hidden">
+    // The viewer is no longer a resizable panel (DESIGN.md section 3: the canvas is
+    // the application). `cad-viewer-panel` stays as the styling/test hook.
+    <div className="cad-viewer-panel min-w-0 overflow-hidden w-full h-full">
       <PanelErrorBoundary panelName="3D Viewport" resetKey={selectedJob?.id}>
-        <div className="flex flex-col h-[calc(100%-16px)] my-2 rounded-2xl border border-white/[0.06] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.8)] min-w-0 overflow-hidden relative bg-[#0A0D10]/95 backdrop-blur-xl">
+        <div className="w-full h-full min-w-0 overflow-hidden relative">
           {selectedJob ? (
           <>
-            {/* Precision Viewport Header: Model-first, clean, essential state only */}
-            <div className="h-9 px-3 border-b border-[var(--cad-border)] bg-[var(--cad-surface)] flex items-center justify-between shrink-0 min-w-0">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <PartFamilyIcon family={selectedJob.partFamily || 'unknown'} size={14} className={getPartFamilyColor(selectedJob.partFamily)} />
-                <span className="text-xs font-semibold text-[var(--cad-text)] truncate max-w-[260px] md:max-w-[420px]" title={selectedJob.inputRequest}>
-                  {selectedJob.inputRequest}
-                </span>
-                {getDimensionSummary(selectedJob) && (
-                  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono text-[var(--cad-measure)]">
-                    <Ruler className="w-3 h-3" />
-                    {getDimensionSummary(selectedJob)}
-                  </span>
-                )}
-              </div>
-
-              {/* Essential State & Viewport Action Cluster */}
-              <div className="flex items-center gap-2 shrink-0">
-                <StateBadge state={selectedJob.state} size="xs" />
-                {selectedJob.state === 'NEW' && (
-                  <Button
-                    size="sm"
-                    className="h-6 text-xs gap-1 px-2 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white rounded-[5px] active:scale-[0.98]"
-                    onClick={() => onProcess(selectedJob)}
-                    disabled={isProcessing}
-                  >
-                    <Play className="w-3 h-3" />
-                    <span>Generate</span>
-                  </Button>
-                )}
-                {['DELIVERED', 'HUMAN_REVIEW', 'VALIDATION_FAILED', 'GEOMETRY_FAILED', 'RENDER_FAILED'].includes(selectedJob.state) && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-6 text-xs gap-1 px-2 border-[var(--app-border)] hover:bg-[var(--app-surface-hover)] rounded-[5px] active:scale-[0.98]"
-                    onClick={() => onProcess(selectedJob)}
-                    disabled={isProcessing}
-                    title="Rebuild model"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    <span>Rebuild</span>
-                  </Button>
-                )}
-                {selectedJob.stlPath && (
-                  <Button
-                    size="sm"
-                    className="h-6 text-xs gap-1 px-2 bg-[var(--app-surface-raised)] border border-[var(--app-border)] hover:bg-[var(--app-surface-hover)] text-[var(--app-text-primary)] rounded-[5px] active:scale-[0.98]"
-                    onClick={() => handleDownloadStl(selectedJob)}
-                    disabled={downloading}
-                    title="Export binary STL"
-                  >
-                    <Box className="w-3 h-3 text-[var(--cad-measure)]" />
-                    <span>Export STL</span>
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Center Content: Conditional based on job state */}
+            {/* Center Content: Conditional based on job state.
+                DESIGN.md sections 3 and 7: the canvas is the application, and during
+                a run "the previous geometry stays visible, dimmed, and labelled with
+                its revision". Progress is reported by the four-lamp strip; failures
+                are reported as verdicts in 检验; the trace log is the 记录 sheet. So
+                the viewport never replaces the part with a status page, and never
+                prints provider ids, generation paths or step names at user level. */}
             {(() => {
-              const canShowRenderedViewer = Boolean(selectedJob.stlPath) &&
-                ['DELIVERED', 'HUMAN_REVIEW'].includes(selectedJob.state) &&
-                !isSelectedProcessing
-              const isActiveProcessing = !canShowRenderedViewer &&
-                !['NEW', 'DELIVERED', 'CANCELLED'].includes(selectedJob.state) &&
-                !['VALIDATION_FAILED', 'GEOMETRY_FAILED', 'RENDER_FAILED'].includes(selectedJob.state)
+              const hasGeometry = Boolean(selectedJob.stlPath)
+              const isRunning = isSelectedProcessing ||
+                (!['NEW', 'DELIVERED', 'CANCELLED', 'HUMAN_REVIEW',
+                   'VALIDATION_FAILED', 'GEOMETRY_FAILED', 'RENDER_FAILED'].includes(selectedJob.state))
               const isFailed = ['VALIDATION_FAILED', 'GEOMETRY_FAILED', 'RENDER_FAILED'].includes(selectedJob.state)
-              const isCancelable = CANCELABLE_STATES.includes(selectedJob.state)
 
-              if (isSelectedProcessing || isActiveProcessing) {
+              // A run or a failure with geometry on disk: keep the part on screen.
+              if (hasGeometry) {
                 return (
-                  <JobStatusPage
-                    job={selectedJob}
-                    streamEvents={isSelectedProcessing ? pipelineEvents : []}
-                    onViewLogs={() => onSetActiveTab('LOG')}
-                    onViewError={() => onSetActiveTab('VALIDATION')}
-                    onCancel={onCancel}
-                    onResolveIntent={(selectedInterpretationId) => onResolveIntent(selectedJob, selectedInterpretationId)}
-                    isCancelable={isCancelable || isSelectedProcessing}
-                  />
-                )
-              }
+                  <div className="w-full h-full min-h-0 relative">
+                    {isRunning && (
+                      <div className="absolute top-4 left-2 z-10 rounded-[9px] border border-[var(--shell-border)] px-3 py-2 flex items-center gap-2 backdrop-blur-md"
+                        style={{ background: 'var(--shell-module)', boxShadow: 'var(--shell-shadow)' }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-[1px] bg-[var(--shell-signal)] animate-pulse shrink-0" />
+                        <p className="text-[11.5px] text-[var(--shell-text-muted)]">
+                          正在重建 · 下面是上一版几何
+                        </p>
+                      </div>
+                    )}
 
-              if (isFailed) {
-                return (
-                  <JobStatusPage
-                    job={selectedJob}
-                    onViewLogs={() => onSetActiveTab('LOG')}
-                    onViewError={() => onSetActiveTab('VALIDATION')}
-                    onCancel={onCancel}
-                    onResolveIntent={(selectedInterpretationId) => onResolveIntent(selectedJob, selectedInterpretationId)}
-                    isCancelable={false}
-                  />
-                )
-              }
-
-              // Rendered artifact states: show the actual STL/preview, even if validation needs review.
-              if (selectedJob.state === 'DELIVERED' || canShowRenderedViewer) {
-                return (
-                  <div className="flex-1 p-2 min-h-0 relative">
-                    {selectedJob.state === 'HUMAN_REVIEW' && (
-                      <div className="absolute top-4 left-4 right-4 z-10 cad-viewport-glass rounded-lg px-3 py-2 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <AlertTriangle className="w-4 h-4 text-[var(--cad-warning)] shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-[var(--cad-text)]">Rendered with validation blockers</p>
-                            <p className="text-xs text-[var(--cad-text-muted)] truncate">Preview and STL are available. Reprocess or edit before export.</p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2 shrink-0">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-[13px] gap-1.5"
-                            onClick={() => onVisualRepair(selectedJob)}
-                            disabled={isProcessing}
-                          >
-                            <Cpu className="w-3.5 h-3.5" />
-                            Visual Repair
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="h-7 text-[13px] gap-1.5 bg-[var(--cad-accent)] hover:bg-[var(--app-accent-hover)]"
-                            onClick={() => onProcess(selectedJob)}
-                            disabled={isProcessing}
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                            Reprocess
-                          </Button>
+                    {/* Informational notices only. The composer owns the single
+                        action (section 5); what can be repaired is answered in 检验. */}
+                    {!isRunning && selectedJob.state === 'HUMAN_REVIEW' && (
+                      <div className="absolute top-4 left-2 z-10 rounded-[9px] border border-[var(--shell-border)] px-3 py-2 flex items-center gap-2 max-w-[420px] backdrop-blur-md"
+                        style={{ background: 'var(--shell-module)', boxShadow: 'var(--shell-shadow)' }}
+                      >
+                        <AlertTriangle className="w-4 h-4 text-[var(--shell-warn)] shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[12.5px] font-medium text-[var(--shell-text)]">几何已生成，检验有拦截项</p>
+                          <p className="text-[11px] text-[var(--shell-text-muted)] truncate">预览和 STL 都在。导出前先在检验里看结论，或按生成重建。</p>
                         </div>
                       </div>
                     )}
-                    {!selectedJob.stlPath && (
-                      <div className="absolute top-4 left-4 right-4 z-10 cad-viewport-glass rounded-lg px-3 py-2 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <AlertTriangle className="w-4 h-4 text-[var(--cad-warning)] shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-[var(--cad-text)]">Preview is live from parameters</p>
-                            <p className="text-xs text-[var(--cad-text-muted)] truncate">Rendered STL is stale. Rebuild to produce manufacturable artifacts.</p>
-                          </div>
+                    {!isRunning && isFailed && (
+                      <div className="absolute top-4 left-2 z-10 rounded-[9px] border border-[var(--shell-border)] px-3 py-2 flex items-center gap-2 max-w-[420px] backdrop-blur-md"
+                        style={{ background: 'var(--shell-module)', boxShadow: 'var(--shell-shadow)' }}
+                      >
+                        <AlertTriangle className="w-4 h-4 text-[var(--shell-fail)] shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[12.5px] font-medium text-[var(--shell-text)]">重建没有通过</p>
+                          <p className="text-[11px] text-[var(--shell-text-muted)] truncate">下面是上一版可用的几何。失败原因在检验里，完整记录在记录里。</p>
                         </div>
-                        <Button
-                          size="sm"
-                          className="h-7 text-[13px] gap-1.5 bg-[var(--cad-accent)] hover:bg-[var(--app-accent-hover)] shrink-0"
-                          onClick={() => onProcess(selectedJob)}
-                          disabled={isProcessing}
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          Rebuild STL
-                        </Button>
                       </div>
                     )}
-                    <ThreeDViewer
-                      job={selectedJob}
-                      onDownloadStl={() => handleDownloadStl(selectedJob)}
-                      isDownloadingStl={downloading}
-                      hasStl={Boolean(selectedJob.stlPath)}
-                    />
+                    {!isRunning && !isFailed && !selectedJob.stlPath && (
+                      <div className="absolute top-4 left-2 z-10 rounded-[9px] border border-[var(--shell-border)] px-3 py-2 flex items-center gap-2 max-w-[420px] backdrop-blur-md"
+                        style={{ background: 'var(--shell-module)', boxShadow: 'var(--shell-shadow)' }}
+                      >
+                        <AlertTriangle className="w-4 h-4 text-[var(--shell-warn)] shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[12.5px] font-medium text-[var(--shell-text)]">这是参数预览，不是已构建的 STL</p>
+                          <p className="text-[11px] text-[var(--shell-text-muted)] truncate">按生成重建后才会产出可导出的几何。</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className={isRunning ? 'w-full h-full opacity-[0.42] transition-opacity' : 'w-full h-full'}>
+                      <ThreeDViewer
+                        job={selectedJob}
+                        onDownloadStl={() => handleDownloadStl(selectedJob)}
+                        isDownloadingStl={downloading}
+                        hasStl={Boolean(selectedJob.stlPath)}
+                        viewCommand={viewCommand}
+                        onViewChange={onViewChange}
+                      />
+                    </div>
                   </div>
                 )
               }
 
-              // NEW / SCAD_GENERATED: Show engineered empty/ready state with Process & SCAD buttons
+              // No geometry yet: the invitation, with the run reported by the lamps.
               return (
                 <CadViewportEmptyState
                   selectedJob={selectedJob}
-                  isProcessing={isSelectedProcessing}
+                  isProcessing={isSelectedProcessing || isRunning}
+                  awaitingDecision={
+                    selectedJob.state === 'HUMAN_REVIEW' &&
+                    selectedJob.generationPath === 'intent_clarification'
+                  }
                   onProcess={onProcess}
                   onShowComposer={onShowComposer}
                   onSetActiveTab={onSetActiveTab}
@@ -471,8 +231,8 @@ export function ViewerPanel({
             onShowComposer={onShowComposer}
           />
         )}
-      </div>
-    </PanelErrorBoundary>
-  </ResizablePanel>
-)
+        </div>
+      </PanelErrorBoundary>
+    </div>
+  )
 }

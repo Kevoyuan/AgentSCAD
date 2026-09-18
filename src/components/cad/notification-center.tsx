@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useSyncExternalStore } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { createPortal } from 'react-dom'
 import {
   Bell, CheckCircle2, XCircle, Ban, Settings, Code2, AlertTriangle,
   CheckCheck, Trash2, X, Activity
@@ -28,6 +29,20 @@ export interface Notification {
   timestamp: Date
   read: boolean
 }
+
+/*
+ * The drawer is portalled to <body>, which is a client-only concern: rendering it
+ * during SSR would produce markup React cannot hydrate against.
+ *
+ * This is deliberately not `useState(false)` + `useEffect(() => setMounted(true))`:
+ * setting state synchronously in an effect triggers a cascading render
+ * (`react-hooks/set-state-in-effect`), and the effect is not synchronising with an
+ * external system - it is only asking "is this the client yet". `useSyncExternalStore`
+ * answers that question during render with no extra commit.
+ */
+const subscribeToNothing = () => () => {}
+const onClient = () => true
+const onServer = () => false
 
 // ─── Notification Icon & Color Mapping ─────────────────────────────────────
 
@@ -122,6 +137,16 @@ export function NotificationCenter({
 
   const unreadCount = notifications.filter(n => !n.read).length
 
+  const mounted = useSyncExternalStore(subscribeToNothing, onClient, onServer)
+
+  // DESIGN.md "Secondary surfaces": a tier-2 surface is dismissed with Esc.
+  useEffect(() => {
+    if (!isOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isOpen])
+
   // Close on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -141,7 +166,10 @@ export function NotificationCenter({
       <Button
         variant="ghost"
         size="sm"
-        className="h-6 text-xs gap-1 text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)] relative"
+        /* DESIGN.md section 21: an icon-only control carries an accessible name. */
+        aria-label={unreadCount > 0 ? `通知，${unreadCount} 条未读` : '通知'}
+        title="通知"
+        className="h-6 w-6 p-0 rounded-[4px] text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] relative"
         onClick={() => {
           setActiveView(unreadCount > 0 || notifications.length > 0 ? 'notifications' : 'activity')
           setIsOpen(!isOpen)
@@ -159,21 +187,39 @@ export function NotificationCenter({
         )}
       </Button>
 
-      {/* Notification Panel */}
-      <AnimatePresence>
+      {/* DESIGN.md "Secondary surfaces": the bell opens a right-hand drawer, not a
+          popover, so it never covers the part and never competes with the composer.
+          Portalled to <body> because `position: fixed` inside the stage's scaled
+          transform would resolve against the stage instead of the viewport. */}
+      {mounted && createPortal(
+        <AnimatePresence>
         {isOpen && (
+          <>
           <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.95 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="absolute right-0 top-8 w-80 linear-surface linear-border rounded-lg linear-shadow-md z-50"
+            key="scrim"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[59] bg-black/55"
+            onClick={() => setIsOpen(false)}
+            aria-hidden="true"
+          />
+          <motion.aside
+            key="drawer"
+            role="dialog"
+            aria-label="通知"
+            initial={{ x: 28, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 28, opacity: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="fixed right-0 top-0 bottom-0 z-[60] flex w-[368px] max-w-[86vw] flex-col bg-[var(--shell-module-solid)]/97 backdrop-blur-2xl border-l border-[color:var(--shell-border)] shadow-[-24px_0_48px_-12px_rgba(0,0,0,0.7)]"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-[color:var(--app-border)]">
               <div className="flex items-center gap-2">
                 <Bell className="w-3.5 h-3.5 text-[var(--app-accent-text)]" />
-                <span className="text-sm font-medium text-[var(--app-text-secondary)]">Updates</span>
+                <span className="text-sm font-medium text-[var(--app-text-secondary)]">通知</span>
                 {unreadCount > 0 && (
                   <span className="text-[8px] font-mono px-1.5 py-0.5 rounded-full bg-[var(--app-accent-bg)] text-[var(--app-accent-text)] border border-[color:var(--app-accent-border)]">
                     {unreadCount} new
@@ -188,7 +234,7 @@ export function NotificationCenter({
                     className="h-5 text-[8px] gap-0.5 text-[var(--app-accent-text)] hover:text-[var(--app-accent-text)] px-1"
                     onClick={onMarkAllRead}
                   >
-                    <CheckCheck className="w-2.5 h-2.5" />Mark all read
+                    <CheckCheck className="w-2.5 h-2.5" />全部已读
                   </Button>
                 )}
                 {notifications.length > 0 && (
@@ -221,7 +267,7 @@ export function NotificationCenter({
                 }`}
                 onClick={() => setActiveView('notifications')}
               >
-                Notifications {notifications.length > 0 ? notifications.length : ''}
+                通知 {notifications.length > 0 ? notifications.length : ''}
               </button>
               <button
                 className={`h-6 rounded-md px-2 text-[11px] font-medium transition-colors ${
@@ -231,7 +277,7 @@ export function NotificationCenter({
                 }`}
                 onClick={() => setActiveView('activity')}
               >
-                Activity {activityEvents.length > 0 ? activityEvents.length : ''}
+                动态 {activityEvents.length > 0 ? activityEvents.length : ''}
               </button>
             </div>
 
@@ -273,9 +319,12 @@ export function NotificationCenter({
                 />
               </div>
             )}
-          </motion.div>
+          </motion.aside>
+          </>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   )
 }

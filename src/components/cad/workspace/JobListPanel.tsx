@@ -52,6 +52,8 @@ export function JobListPanel({
   onSetActiveTab,
   onShowComposer,
   onResetFilters,
+  onOpenStats,
+  onOpenCompare,
   isFirstLoadComplete,
   panelRef,
   onCollapseChange,
@@ -84,6 +86,10 @@ export function JobListPanel({
   onSetActiveTab: (tab: string) => void
   onShowComposer?: (presetText?: string) => void
   onResetFilters?: () => void
+  /* DESIGN.md "Secondary surfaces": statistics and comparison have no permanent
+     entry point. They appear here, contextually, once several designs are selected. */
+  onOpenStats?: () => void
+  onOpenCompare?: () => void
 }) {
   const hasActiveFilters = Boolean(
     filterState.search.trim().length > 0 ||
@@ -116,55 +122,79 @@ export function JobListPanel({
             stateCounts={stateCounts}
           />
 
-          {/* Batch Action Bar */}
+          {/* Batch action bar. Appears only in an explicit multi-select mode.
+              DESIGN.md section 6: selection must not compete with the open design,
+              so this is a quiet ruled strip, not a coloured toolbar. */}
           <AnimatePresence>
             {selectedIds.size > 0 && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden border-b border-[color:var(--app-border)] bg-[var(--app-batch-bar-bg)] shrink-0"
+                className="overflow-hidden border-b border-[color:var(--shell-border)] bg-[var(--shell-well)] shrink-0"
+                data-testid="slots-batch-bar"
               >
-                <div className="flex items-center justify-between px-3 py-1.5 gap-1 min-w-0">
-                  <span className="text-xs font-mono text-[var(--app-batch-bar-text)] shrink-0">
-                    {selectedIds.size} selected
+                {/* The count is an anchor on the left; the actions wrap beside it
+                    rather than pushing it onto a line of its own. */}
+                <div className="flex items-start gap-2 px-2.5 py-1.5 min-w-0">
+                  <span className="shrink-0 pt-[3px] font-mono text-[10.5px] leading-none text-[var(--shell-text-muted)]">
+                    已选 {selectedIds.size}
                   </span>
-                  <div className="flex items-center gap-1 min-w-0 flex-wrap justify-end">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-0.5">
+                    {/* >= 2 designs: these two are the only read-only actions here */}
+                    {selectedIds.size >= 2 && onOpenCompare && (
+                      <button
+                        type="button"
+                        onClick={onOpenCompare}
+                        className="h-6 px-2 rounded-[4px] font-mono text-[10.5px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] transition-colors shrink-0"
+                      >
+                        对比
+                      </button>
+                    )}
+                    {selectedIds.size >= 2 && onOpenStats && (
+                      <button
+                        type="button"
+                        onClick={onOpenStats}
+                        className="h-6 px-2 rounded-[4px] font-mono text-[10.5px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] transition-colors shrink-0"
+                      >
+                        统计
+                      </button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs px-2 gap-1 text-[var(--app-accent-text)] hover:bg-[var(--app-accent-bg)] shrink-0"
+                      className="h-6 px-2 gap-1 rounded-[4px] font-mono text-[10.5px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] shrink-0"
                       onClick={() => onBatchAction('reprocess')}
                     >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span className="hidden xl:inline">Rebuild</span>
+                      <RotateCcw className="w-3 h-3" />
+                      重建
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs px-2 gap-1 text-orange-400 hover:text-orange-300 shrink-0"
+                      className="h-6 px-2 gap-1 rounded-[4px] font-mono text-[10.5px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] shrink-0"
                       onClick={() => onBatchAction('cancel')}
                     >
-                      <Ban className="w-3.5 h-3.5" />
-                      <span className="hidden xl:inline">Cancel</span>
+                      <Ban className="w-3 h-3" />
+                      取消
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs px-2 gap-1 text-rose-400 hover:text-rose-300 shrink-0"
+                      className="h-6 px-2 gap-1 rounded-[4px] font-mono text-[10.5px] text-[var(--shell-fail)] hover:bg-[var(--shell-fail)]/12 shrink-0"
                       onClick={() => onBatchAction('delete')}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span className="hidden xl:inline">Delete</span>
+                      <Trash2 className="w-3 h-3" />
+                      删除
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs px-2 text-[var(--app-text-muted)] shrink-0"
+                      className="h-6 w-6 p-0 rounded-[4px] text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] shrink-0"
                       onClick={onClearSelection}
-                      aria-label="Clear selection"
+                      aria-label="清除选择"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <X className="w-3 h-3" />
                     </Button>
                   </div>
                 </div>
@@ -185,30 +215,39 @@ export function JobListPanel({
                 items={sortedJobs.map(j => j.id)}
                 strategy={verticalListSortingStrategy}
               >
-                <div className="min-w-0 divide-y divide-[color:var(--app-border-subtle)]">
-                  {sortedJobs.map(job => (
-                    <JobContextMenu
-                      key={job.id}
-                      job={job}
-                      onProcess={onProcess}
-                      onDuplicate={onDuplicate}
-                      onCancel={onCancel}
-                      onDelete={onDelete}
-                      onLinkParent={onLinkParent}
-                    >
-                      <SortableJobCard
+                <div className="min-w-0">
+                  {/* Each row is a keyboard-selectable option (DESIGN.md section 21);
+                      the empty state stays outside the listbox. */}
+                  <div
+                    role="listbox"
+                    aria-label="零件槽位"
+                    className="min-w-0 divide-y divide-[color:var(--app-border-subtle)]"
+                  >
+                    {sortedJobs.map((job, i) => (
+                      <JobContextMenu
+                        key={job.id}
                         job={job}
-                        isSelected={selectedJob?.id === job.id}
-                        isChecked={selectedIds.has(job.id)}
-                        onSelect={(j) => { onSelectJob(j); onSetActiveTab('SPEC') }}
-                        onToggleSelect={onToggleSelect}
                         onProcess={onProcess}
-                        onCancel={onCancel}
                         onDuplicate={onDuplicate}
+                        onCancel={onCancel}
                         onDelete={onDelete}
-                      />
-                    </JobContextMenu>
-                  ))}
+                        onLinkParent={onLinkParent}
+                      >
+                        <SortableJobCard
+                          index={i + 1}
+                          job={job}
+                          isSelected={selectedJob?.id === job.id}
+                          isChecked={selectedIds.has(job.id)}
+                          onSelect={(j) => { onSelectJob(j); onSetActiveTab('SPEC') }}
+                          onToggleSelect={onToggleSelect}
+                          onProcess={onProcess}
+                          onCancel={onCancel}
+                          onDuplicate={onDuplicate}
+                          onDelete={onDelete}
+                        />
+                      </JobContextMenu>
+                    ))}
+                  </div>
                   {jobs.length === 0 && (
                     <div className="p-3">
                       <JobListEmptyState

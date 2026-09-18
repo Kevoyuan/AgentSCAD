@@ -1,80 +1,51 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronRight, Copy, CheckCircle } from 'lucide-react'
-import { copyText } from '@/lib/clipboard'
+import { ChevronRight } from 'lucide-react'
 
 interface BreadcrumbNavProps {
   jobId: string
+  /* preferred over jobId for display */
+  jobName?: string
   activeTab: string
   onNavigateHome?: () => void
   onNavigateJobs?: () => void
 }
 
 const TAB_LABELS: Record<string, string> = {
-  PARAMS: 'Parameters',
-  PARAMETERS: 'Parameters',
-  SPEC: 'Brief',
-  MODEL: 'Model',
-  CODE: 'OpenSCAD',
-  VALIDATION: 'Checks',
-  RESEARCH: 'Research',
-  VALIDATE: 'Checks',
-  SCAD: 'OpenSCAD',
-  LOG: 'Activity',
-  NOTES: 'Notes',
-  DEPS: 'Dependencies',
-  HISTORY: 'History',
-  AI: 'Agent',
+  SPEC: '描述',
+  PARAMS: '尺寸',
+  PARAMETERS: '尺寸',
+  MODEL: '来源',
+  CODE: '源码',
+  SCAD: '源码',
+  VALIDATION: '检验',
+  VALIDATE: '检验',
+  HISTORY: '记录',
+  LOG: '记录',
+  NOTES: '记录',
+  ASSIST: '助手',
+  AI: '助手',
 }
 
-export function BreadcrumbNav({ jobId, activeTab, onNavigateHome, onNavigateJobs }: BreadcrumbNavProps) {
-  const [copied, setCopied] = useState(false)
-  const jobPrefix = jobId.slice(0, 8)
+export function BreadcrumbNav({ jobId, jobName, activeTab, onNavigateHome, onNavigateJobs }: BreadcrumbNavProps) {
   const tabLabel = TAB_LABELS[activeTab] || activeTab
-
-  const handleCopyId = async () => {
-    const ok = await copyText(jobId)
-    if (ok) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    }
-  }
+  // DESIGN.md section 6: no internal ids in the interface. The design's own name
+  // is what identifies it to the user; the cuid stays in the data layer.
+  const displayName = (jobName || '').trim() || '未命名零件'
 
   return (
-    <nav className="flex items-center gap-1.5 h-5 text-[11px] font-mono shrink-0 select-none" aria-label="Breadcrumb">
-      <button
-        className="text-[var(--app-text-muted)] hover:text-[var(--app-text-primary)] transition-colors"
-        onClick={onNavigateHome}
-        aria-label="Navigate to home"
+    // One line, the design's own name. The trail "AgentSCAD / Designs / <id>" was
+    // three levels of navigation for a two-level product, and the active tab is
+    // already shown by the tab strip directly below.
+    <nav
+      className="flex min-w-0 items-center h-5 shrink-0 select-none"
+      aria-label="当前位置"
+    >
+      <span
+        className="min-w-0 truncate font-mono text-[10px] tracking-[0.04em] text-[var(--shell-text-dim)]"
+        title={displayName}
       >
-        AgentSCAD
-      </button>
-      <ChevronRight className="w-2.5 h-2.5 text-[var(--app-text-dim)]/70" />
-      <button
-        className="text-[var(--app-text-muted)] hover:text-[var(--app-text-primary)] transition-colors"
-        onClick={onNavigateJobs}
-        aria-label="Navigate to designs list"
-      >
-        Designs
-      </button>
-      <ChevronRight className="w-2.5 h-2.5 text-[var(--app-text-dim)]/70" />
-      <button
-        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-[var(--app-surface-raised)] border border-[color:var(--app-border)] text-[var(--app-text-primary)] hover:border-[var(--cad-accent)] transition-colors group cursor-pointer"
-        onClick={handleCopyId}
-        title="Click to copy full Job ID"
-        aria-label={`Job ID: ${jobPrefix}. Click to copy.`}
-      >
-        <span className="font-semibold">{jobPrefix}</span>
-        {copied ? (
-          <CheckCircle className="w-2.5 h-2.5 text-emerald-500" />
-        ) : (
-          <Copy className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 transition-opacity" />
-        )}
-      </button>
-      <ChevronRight className="w-2.5 h-2.5 text-[var(--app-text-dim)]/70" />
-      <span className="text-[var(--cad-accent)] font-semibold">
-        {tabLabel}
+        {displayName}
       </span>
     </nav>
   )

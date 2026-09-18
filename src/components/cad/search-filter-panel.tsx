@@ -298,41 +298,6 @@ export function SearchFilterPanel({
         </TooltipProvider>
       </div>
 
-      {/* State Pills - Always visible */}
-      <div className="px-2.5 pb-2">
-        <div className="flex items-center gap-0.5 overflow-x-auto rounded-[7px] border border-[color:var(--app-border-subtle)] bg-[var(--app-bg)] p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]" style={{ scrollbarWidth: 'none' }}>
-        {FILTER_STATES.map(f => {
-          const totalFiltered = Object.values(stateCounts).reduce((a, b) => a + b, 0)
-          const count = f.key === 'ALL' ? totalFiltered :
-            f.key === 'FAILED' ? (stateCounts['VALIDATION_FAILED'] || 0) + (stateCounts['GEOMETRY_FAILED'] || 0) + (stateCounts['RENDER_FAILED'] || 0) :
-            stateCounts[f.key] || 0
-          const isMultiActive = f.key === 'ALL'
-            ? filters.states.length === 0
-            : filters.states.includes(f.key === 'FAILED' ? 'FAILED' : f.key)
-          return (
-            <button
-              key={f.key}
-              className={`shrink-0 max-w-[128px] text-[10px] font-semibold px-2 py-1 rounded-[5px] transition-all min-h-6 active:scale-[0.98] truncate ${
-                isMultiActive ? 'bg-[var(--app-surface)] text-[var(--app-text-primary)] shadow-[0_1px_2px_rgba(15,23,42,0.06),inset_0_0_0_1px_var(--app-border-subtle)]' : 'text-[var(--app-text-muted)] hover:bg-[var(--app-surface-hover)] hover:text-[var(--app-text-secondary)]'
-              }`}
-              onClick={() => {
-                if (f.key === 'ALL') {
-                  updateFilter('states', [])
-                } else {
-                  toggleState(f.key === 'FAILED' ? 'FAILED' : f.key)
-                }
-              }}
-              aria-label={`Filter by ${f.label}`}
-              aria-pressed={isMultiActive}
-            >
-              {f.label} {count > 0 ? count : ''}
-            </button>
-          )
-        })}
-        </div>
-      </div>
-
-      {/* Expanded Filter Panel */}
       <AnimatePresence>
         {expanded && (
           <motion.div
@@ -345,6 +310,40 @@ export function SearchFilterPanel({
             <div className="mx-2.5 mb-2.5 rounded-[8px] border border-[color:var(--app-border-subtle)] bg-[var(--app-surface)] p-2.5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
               {/* Row 1: Date Range */}
               <div className="space-y-3">
+                {/* Status lives in here. DESIGN.md section 6: filters open from one
+                    action rather than permanently consuming module height. */}
+                <FilterSection label="Status">
+                  <div className="flex flex-wrap items-center gap-1 rounded-[7px] bg-[var(--app-bg)] p-1">
+                    {FILTER_STATES.map(f => {
+                      const totalFiltered = Object.values(stateCounts).reduce((a, b) => a + b, 0)
+                      const count = f.key === 'ALL'
+                        ? totalFiltered
+                        : f.key === 'FAILED'
+                        ? (stateCounts['VALIDATION_FAILED'] || 0) + (stateCounts['GEOMETRY_FAILED'] || 0) + (stateCounts['RENDER_FAILED'] || 0)
+                        : stateCounts[f.key] || 0
+                      const isOn = f.key === 'ALL'
+                        ? filters.states.length === 0
+                        : filters.states.includes(f.key)
+                      return (
+                        <button
+                          key={f.key}
+                          className={chipClass(isOn)}
+                          onClick={() => {
+                            if (f.key === 'ALL') updateFilter('states', [])
+                            else toggleState(f.key)
+                          }}
+                          aria-pressed={isOn}
+                        >
+                          <span className="block truncate">
+                            {f.label}
+                            {count > 0 ? ` ${count}` : ''}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </FilterSection>
+
                 <FilterSection label="Date range">
                   <div className="grid grid-cols-2 gap-1 rounded-[7px] bg-[var(--app-bg)] p-1">
                     {DATE_OPTIONS.map(opt => (

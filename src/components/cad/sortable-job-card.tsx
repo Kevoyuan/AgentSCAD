@@ -17,6 +17,8 @@ import {
 
 interface SortableJobCardProps {
   job: Job
+  /* DESIGN.md section 6 row anatomy: 01 / 02 / 03 as the row's leading mark. */
+  index?: number
   isSelected: boolean
   isChecked: boolean
   isDragging?: boolean
@@ -27,6 +29,29 @@ interface SortableJobCardProps {
   onDuplicate: (job: Job) => void
   onDelete: (id: string) => void
 }
+
+/**
+ * Row state text. DESIGN.md section 6 keeps a row to number / name / one state
+ * line, and the vocabulary table prefers 可导出 over DELIVERED, 待确认 over
+ * HUMAN_REVIEW, and so on. Colour is a secondary signal; the word is primary.
+ */
+const STATE_TEXT: Record<string, string> = {
+  NEW: '待生成',
+  SCAD_GENERATED: '待渲染',
+  RENDERED: '已渲染',
+  VALIDATED: '校验通过',
+  DELIVERED: '可导出',
+  DEBUGGING: '修复中',
+  REPAIRING: '修复中',
+  VALIDATION_FAILED: '校验未通过',
+  GEOMETRY_FAILED: '几何失败',
+  RENDER_FAILED: '渲染失败',
+  HUMAN_REVIEW: '待确认',
+  CANCELLED: '已取消',
+  DELETING: '删除中',
+}
+const PASS_STATES = ['DELIVERED', 'VALIDATED', 'RENDERED']
+const WARN_STATES = ['HUMAN_REVIEW', 'DEBUGGING', 'REPAIRING', 'SCAD_GENERATED']
 
 // Processing states that should show the pulse ring animation
 const PROCESSING_STATES = ['SCAD_GENERATED', 'RENDERED', 'VALIDATED', 'DEBUGGING', 'REPAIRING']
@@ -78,6 +103,7 @@ export function extractKeyDimensions(job: Job): string | null {
 
 export function SortableJobCard({
   job,
+  index,
   isSelected,
   isChecked,
   isDragging = false,
@@ -114,163 +140,127 @@ export function SortableJobCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`group/card relative cursor-pointer overflow-hidden border-b border-[var(--app-border-subtle)] px-2.5 py-2 transition-all ${
-        isDragging || isSortableDragging
-          ? 'shadow-lg ring-1 ring-[var(--app-accent-border)] scale-[1.01] z-50 bg-[var(--app-surface-raised)]'
-          : ''
-      } ${
-        isProcessing ? 'opacity-95' : ''
-      } ${
-        isSelected
-          ? 'bg-[var(--app-selected-bg)] border-l-2 border-l-[var(--app-accent)]'
-          : 'bg-transparent hover:bg-[var(--app-surface-hover)] border-l-2 border-l-transparent'
-      }`}
+      data-testid="design-row"
+      /*
+       * DESIGN.md section 21: every operation is reachable from the keyboard, and no
+       * focus may land on something invisible. A row is the only way to open a part,
+       * so it is a real tab stop with Enter/Space activation, and the utilities that
+       * live on hover also appear on focus-within.
+       */
+      role="option"
+      aria-selected={isSelected}
+      tabIndex={0}
+      aria-label={`${job.inputRequest}，${STATE_TEXT[job.state] ?? job.state}`}
+      className={[
+        'group/row relative cursor-pointer border-b border-[color:var(--shell-hairline)] pl-2 pr-2.5 py-2 transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--shell-signal)] focus-visible:ring-inset',
+        isSelected ? 'bg-[var(--shell-signal)]/[0.09]' : 'hover:bg-[var(--shell-hover)]',
+        (isDragging || isSortableDragging) && 'z-50 bg-[var(--shell-inner)]',
+      ].filter(Boolean).join(' ')}
       onClick={() => onSelect(job)}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return
+        // Space would otherwise scroll the rail while also selecting.
+        e.preventDefault()
+        onSelect(job)
+      }}
     >
-      {/* Drag Handle */}
-      <div
-        className="absolute right-1 top-1.5 z-10 flex min-h-[22px] min-w-[22px] cursor-grab items-center justify-center rounded p-1 text-[var(--app-text-dim)] opacity-0 transition-opacity hover:text-[var(--app-text-secondary)] active:cursor-grabbing group-hover/card:opacity-100"
-        {...attributes}
-        {...listeners}
-        onClick={(e) => e.stopPropagation()}
-        aria-label="Drag to reorder"
-      >
-        <GripVertical className="w-3 h-3" />
-      </div>
+      {/* active mark: a 2px signal bar, the only saturated element in the rail */}
+      {isSelected && (
+        <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-[var(--shell-signal)]" />
+      )}
 
-      {/* Select checkbox */}
-      <div className="absolute left-1.5 top-2.5 z-10" onClick={e => e.stopPropagation()}>
+      {/* Row utilities live on hover and take no permanent space. No action
+          cluster: DESIGN.md section 6 forbids persistent icon groups per row. */}
+      <div className="absolute right-1.5 top-1.5 z-10 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100">
         <button
-          className={`flex h-4 w-4 items-center justify-center rounded transition-all ${
-            isChecked
-              ? 'bg-[var(--app-accent)] text-white'
-              : 'text-[var(--app-text-dim)] opacity-0 hover:bg-[var(--app-surface-hover)] group-hover/card:opacity-100'
-          }`}
-          onClick={() => onToggleSelect(job.id)}
-          aria-label={isChecked ? 'Deselect design' : 'Select design'}
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+          aria-label="拖动排序"
+          className="h-5 w-4 grid place-items-center rounded-[3px] cursor-grab text-[var(--shell-text-dim)] hover:text-[var(--shell-text-muted)] active:cursor-grabbing"
+        >
+          <GripVertical className="w-3 h-3" />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleSelect(job.id) }}
+          aria-label={isChecked ? '取消选择' : '选择零件'}
+          className={[
+            'h-5 w-5 grid place-items-center rounded-[3px] transition-colors',
+            isChecked ? 'text-[var(--shell-signal)]' : 'text-[var(--shell-text-dim)] hover:text-[var(--shell-text-muted)]',
+          ].join(' ')}
         >
           {isChecked ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
         </button>
       </div>
 
-      <div className="relative z-[1] pl-5 pr-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            {/* Design brief / title */}
-            <p className="line-clamp-2 text-xs font-medium leading-snug text-[var(--app-text-secondary)] group-hover/card:text-[var(--app-text-primary)] transition-colors">
-              {job.inputRequest}
-            </p>
+      <div className="flex items-start gap-2.5">
+        <span
+          className={[
+            'w-4 shrink-0 pt-[3px] font-mono text-[10px] tabular-nums',
+            isSelected ? 'text-[var(--shell-signal)]' : 'text-[var(--shell-text-dim)]',
+          ].join(' ')}
+        >
+          {String(index ?? 0).padStart(2, '0')}
+        </span>
 
-            {/* Metrology dimensions overlay */}
-            {keyDimensions && (
-              <div className="mt-0.5 text-[11px] font-mono text-[var(--cad-measure)] tracking-tight">
-                {keyDimensions}
-              </div>
-            )}
+        <div className="min-w-0 flex-1 pr-8">
+          <p
+            className={[
+              'line-clamp-2 text-[12px] font-semibold leading-[1.3] transition-colors',
+              isSelected ? 'text-[var(--shell-text)]' : 'text-[var(--shell-text-muted)] group-hover/row:text-[var(--shell-text)]',
+            ].join(' ')}
+          >
+            {job.inputRequest}
+          </p>
 
-            {/* Status & time ago */}
-            <div className="mt-1 flex min-w-0 items-center gap-1.5 flex-wrap">
-              <StateBadge state={job.state} size="xs" />
-              <span className="text-[10px] font-mono tabular-nums text-[var(--app-text-muted)]">
-                {timeAgo(job.createdAt)}
-              </span>
+          <div className="mt-1 flex items-center gap-2 font-mono text-[9.5px] leading-none">
+            <span
+              className={FAILED_STATES.includes(job.state)
+                ? 'text-[var(--shell-fail)]'
+                : PASS_STATES.includes(job.state)
+                ? 'text-[var(--shell-ok)]'
+                : WARN_STATES.includes(job.state)
+                ? 'text-[var(--shell-warn)]'
+                : 'text-[var(--shell-text-dim)]'}
+            >
+              {STATE_TEXT[job.state] ?? job.state}
+            </span>
+            {keyDimensions && <span className="truncate text-[var(--shell-text-dim)]">{keyDimensions}</span>}
+            <span className="ml-auto shrink-0 tabular-nums text-[var(--shell-text-dim)]">
+              {timeAgo(job.createdAt)}
+            </span>
+          </div>
+
+          {(isProcessing || FAILED_STATES.includes(job.state)) && (
+            <div className="mt-1.5 h-[2px] w-full overflow-hidden rounded-full bg-[var(--shell-hairline)]">
+              <div
+                className="h-full rounded-full transition-[width] duration-500"
+                style={{
+                  width: `${Math.max(4, Math.min(100, progressPercent))}%`,
+                  background: FAILED_STATES.includes(job.state) ? 'var(--shell-fail)' : 'var(--shell-signal)',
+                }}
+              />
             </div>
-          </div>
-          <div className="shrink-0 pt-0.5">
-            <PartFamilyIcon family={job.partFamily || 'unknown'} size="xs" />
-          </div>
+          )}
         </div>
 
-        {/* Selected compact thumbnail */}
-        {isSelected && job.pngPath && job.state !== 'NEW' && job.state !== 'SCAD_GENERATED' && (
-          <div className="mt-2 h-14 overflow-hidden rounded-[5px] border border-[var(--app-border)] bg-[var(--app-surface-raised)] shadow-inner">
+        {/* a small preview, only once geometry exists */}
+        {job.pngPath && job.state !== 'NEW' && job.state !== 'SCAD_GENERATED' && (
+          <div className="mt-0.5 h-[34px] w-[34px] shrink-0 overflow-hidden rounded-[4px] border border-[color:var(--shell-border)] bg-[var(--shell-well)]">
             {previewFailed ? (
-              <div className="flex h-full w-full items-center justify-center gap-2 text-[10px] text-[var(--app-text-dim)]">
-                <PartFamilyIcon family={job.partFamily || 'unknown'} size="xs" />
-                <span>Preview unavailable</span>
-              </div>
+              <div className="grid h-full w-full place-items-center text-[var(--shell-raise)]">·</div>
             ) : (
               <img
                 src={job.pngPath}
-                alt="Design preview"
-                className="w-full h-full object-cover"
+                alt=""
+                className="h-full w-full object-cover"
                 loading="lazy"
                 onError={() => setFailedPreviewPath(job.pngPath)}
               />
             )}
           </div>
         )}
-
-        {/* Progress bar when running or failed */}
-        {(isProcessing || FAILED_STATES.includes(job.state)) && (
-          <div className="pipeline-mini-progress mt-1.5">
-            <div
-              className="pipeline-mini-progress-fill"
-              style={{
-                width: `${job.state === 'DELIVERED' ? 100 : progressPercent}%`,
-                backgroundColor: FAILED_STATES.includes(job.state) ? 'var(--app-danger)' : 'var(--app-accent)'
-              }}
-            />
-          </div>
-        )}
-
-        {/* Contextual Action Dock on Hover */}
-        <div className="mt-1.5 flex items-center justify-end gap-1 opacity-0 transition-opacity duration-150 group-hover/card:opacity-100" onClick={e => e.stopPropagation()}>
-          {job.state === 'NEW' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-5 gap-1 px-1.5 text-[11px] text-[var(--app-accent-text)] hover:bg-[var(--app-accent-bg)] rounded"
-              onClick={() => onProcess(job)}
-              title="Generate"
-            >
-              <Play className="w-3 h-3" />
-              <span>Generate</span>
-            </Button>
-          )}
-          {FAILED_STATES.includes(job.state) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-5 gap-1 px-1.5 text-[11px] text-[var(--app-accent-text)] hover:bg-[var(--app-accent-bg)] rounded"
-              onClick={() => onProcess(job)}
-              title="Rebuild"
-            >
-              <RefreshCw className="w-3 h-3" />
-              <span>Rebuild</span>
-            </Button>
-          )}
-          {isCancelable && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-5 gap-1 px-1.5 text-[11px] text-[var(--app-warning)] hover:bg-[var(--app-warning-bg)] rounded"
-              onClick={() => onCancel(job)}
-              title="Cancel"
-            >
-              <Ban className="w-3 h-3" />
-              <span>Cancel</span>
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-5 w-5 p-0 text-[var(--app-text-dim)] hover:text-[var(--app-text-secondary)] hover:bg-[var(--app-surface-hover)] rounded"
-            onClick={() => onDuplicate(job)}
-            title="Duplicate"
-          >
-            <Repeat className="w-3 h-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-5 w-5 p-0 text-[var(--app-text-dim)] hover:text-[var(--app-danger)] hover:bg-[var(--app-danger-bg)] rounded"
-            onClick={() => onDelete(job.id)}
-            title="Delete"
-          >
-            <Trash2 className="w-3 h-3" />
-          </Button>
-        </div>
       </div>
     </div>
   )
@@ -281,25 +271,13 @@ export function SortableJobCard({
 export function DragOverlayCard({ job }: { job: Job }) {
   const keyDimensions = extractKeyDimensions(job)
   return (
-    <div
-      className="rounded-md border border-[var(--app-accent-border)] bg-[var(--app-surface)] p-2.5 shadow-xl ring-2 ring-[var(--app-accent-border)]/40 scale-[1.02]"
-    >
-      <div className="pl-4 pr-5">
-        <div className="flex items-start justify-between gap-1.5">
-          <p className="text-xs text-[var(--app-text-secondary)] leading-tight line-clamp-2 flex-1">{job.inputRequest}</p>
-          <div className="flex items-center gap-1 shrink-0">
-            <PartFamilyIcon family={job.partFamily || 'unknown'} size="xs" />
-          </div>
-        </div>
-        {keyDimensions && (
-          <div className="mt-0.5 text-[11px] font-mono text-[var(--cad-measure)]">
-            {keyDimensions}
-          </div>
-        )}
-        <div className="flex items-center gap-1.5 mt-1.5">
-          <StateBadge state={job.state} size="xs" />
-          <span className="text-[10px] text-[var(--app-text-dim)] font-mono">{timeAgo(job.createdAt)}</span>
-        </div>
+    <div className="rounded-[9px] border border-[var(--shell-signal)]/40 bg-[var(--shell-module-solid)] px-3 py-2.5 shadow-[0_22px_46px_-12px_rgba(0,0,0,0.7)]">
+      <p className="line-clamp-2 text-[12px] font-semibold leading-[1.3] text-[var(--shell-text)]">
+        {job.inputRequest}
+      </p>
+      <div className="mt-1 flex items-center gap-2 font-mono text-[9.5px] text-[var(--shell-text-dim)]">
+        <span>{STATE_TEXT[job.state] ?? job.state}</span>
+        {keyDimensions && <span>{keyDimensions}</span>}
       </div>
     </div>
   )

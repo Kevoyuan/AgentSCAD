@@ -150,6 +150,7 @@ export function InspectorPanel({
               <div className="min-w-0 shrink-0 px-3 py-1 breadcrumb-fade-in">
                 <BreadcrumbNav
                   jobId={selectedJob.id}
+                  jobName={selectedJob.inputRequest}
                   activeTab={normalizedActiveTab}
                   onNavigateHome={onClearSelectedJob}
                   onNavigateJobs={onClearSelectedJob}
@@ -157,16 +158,16 @@ export function InspectorPanel({
               </div>
               <TabsList className="w-full justify-start gap-0.5 overflow-x-auto overflow-y-hidden px-2 py-0 bg-[var(--app-surface)] border-b border-[var(--app-border)] h-8 rounded-none shrink-0 shadow-none">
                 {[
-                  { key: 'SPEC', label: 'Brief', icon: BoxSelect },
-                  { key: 'PARAMETERS', label: 'Parameters', icon: Settings },
-                  { key: 'VALIDATION', label: 'Checks', icon: Shield },
-                  { key: 'CODE', label: 'OpenSCAD', icon: FileCode },
-                  { key: 'HISTORY', label: 'History', icon: History },
+                  { key: 'SPEC', label: '描述', icon: BoxSelect },
+                  { key: 'PARAMETERS', label: '尺寸', icon: Settings },
+                  { key: 'VALIDATION', label: '检验', icon: Shield },
+                  { key: 'CODE', label: '源码', icon: FileCode },
+                  { key: 'HISTORY', label: '记录', icon: History },
                 ].map(tab => (
                   <TabsTrigger
                     key={tab.key}
                     value={tab.key}
-                    className="relative shrink-0 h-8 px-2.5 py-0 text-xs font-mono tracking-normal rounded-none border-b-2 border-transparent bg-transparent text-[var(--app-text-muted)] shadow-none transition-colors hover:text-[var(--app-text-primary)] data-[state=active]:border-[var(--app-accent)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--app-text-primary)] data-[state=active]:font-semibold data-[state=active]:shadow-none select-none cursor-pointer"
+                    className="relative shrink-0 h-8 px-3 py-0 text-[12px] font-mono tracking-normal rounded-none border-b-2 border-transparent bg-transparent text-[var(--app-text-muted)] shadow-none transition-colors hover:text-[var(--app-text-primary)] data-[state=active]:border-[var(--app-accent)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--app-text-primary)] data-[state=active]:font-semibold data-[state=active]:shadow-none select-none cursor-pointer"
                   >
                     {tab.label}
                   </TabsTrigger>
