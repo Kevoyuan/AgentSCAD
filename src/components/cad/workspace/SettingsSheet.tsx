@@ -55,6 +55,9 @@ export function SettingsSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
+        /* The header below carries the shell's own close control; without this the
+           primitive's default X stacks on top of it. */
+        showCloseButton={false}
         className="w-full sm:max-w-[560px] p-0 gap-0 border-l border-[color:var(--shell-border)] bg-[var(--shell-module-solid)]/97 backdrop-blur-2xl shadow-[inset_1px_0_0_rgba(255,255,255,0.07),-24px_0_48px_-12px_rgba(0,0,0,0.7)]"
         aria-describedby={undefined}
       >
