@@ -458,9 +458,11 @@ may fire while the user is composing text.
 
 ### Slots `零件槽位`
 
-The rail carries one create action in its header (`新零件`, ⌘N). It used to exist only
-in the empty state, so a workspace with designs in it had no visible way to start
-another one. It sits in the header rather than the body because the body scrolls.
+The rail carries one create action, a full-width `＋ 新零件` button with its ⌘N hint,
+directly under the search row. It used to exist only in the empty state, so a workspace
+with designs in it had no visible way to start another one. It is a bordered control
+like the search field above it, not a dim word, and it stays unlit: the composer owns
+the one lit action per state.
 
 The design list is a numbered rail, not a table and not a card grid.
 
