@@ -1254,13 +1254,15 @@ below was reproduced before it was changed.
 | The cube drives the part | `ViewCube`'s drag path only set the angle without bumping the viewer's command nonce, so the cube turned, the label moved and the part did not (measured: 0 of 360,000 viewport pixels changed). Both paths now share one command handler; the same measurement reads 73,861 |
 | The active composer is one signal | the field had a border *and* a 2px ring in the same amber, under a row of three bordered key chips. Now: one 1px amber border, and the shortcuts are engraved text with ⌘K as the only control in that row |
 | The cube tracks the pointer while dragging | the same 0.34s ease that makes a clicked view legible was also on during the drag, so the cube trailed the pointer. It is now tied to the drag state (measured 0.34s at rest → 0s while dragging → 0.34s after release), drag updates are rAF-coalesced (120 synthetic pointer moves cost 0.4ms total), and the viewer's echo of a commanded angle no longer triggers a second render per move |
+| The rail has a visible create action | it existed only in the empty state, so a workspace with designs in it offered no way to start another one. `＋ 新零件 ⌘N` sits under the search row (246×28), carries the accent's soft form, and opens the create surface |
+| The create surface is a shell plate | it was the last all-legacy screen: `--cad-*` surfaces, orange focus glow, English labels, three sets of boxed controls. Now: shell plate and hairlines, engraved 零件描述 / 模型引擎 / 标签, the signal-filled active segment, the soft form for 设置 and AI 润色, one solid signal group (生成, disabled until there is a brief), and Chinese copy throughout. Measured: 0 legacy `--cad-*` computed colours left inside the dialog, both themes |
 | `bun run lint` is green | the notification drawer detects the client with `useSyncExternalStore` instead of `setState` in an effect |
 
 **Not done**
 
 | Item | Note |
 | --- | --- |
-| Case memory and templates folded into composer recall | they still live in the old creation modal |
+| Case memory and templates folded into composer recall | they still live in the create surface; that surface is now in the shell's language (see the fix table), but §8's one flow is not built yet |
 | Theme panel content re-tokenised | container is new, contents still use old tokens |
 | Responsive behaviour below 960px | the rail is no longer hidden, but §20's stacked layout (viewport 45vh, modules as full-width sheets summoned one at a time) is still not built |
 | §20 960–1279px tuning | modules shrink and their bodies scroll (measured: 尺寸/检验 cap at 46% of the column), but the dimensions module does not yet fold its second parameter group behind a disclosure |
