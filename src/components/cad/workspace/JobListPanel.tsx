@@ -113,7 +113,9 @@ export function JobListPanel({
       className="cad-left-panel min-w-0 overflow-hidden"
     >
       <PanelErrorBoundary panelName="Job List" resetKey={selectedJob?.id}>
-        <div className="flex flex-col h-[calc(100%-16px)] m-2 rounded-2xl border border-white/[0.08] shadow-[0_16px_40px_-8px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl bg-[var(--app-surface)]/90 min-w-0 overflow-hidden">
+        {/* The floating module plate is the frame (DESIGN.md section 22, one card): the
+            docked panel's own border, radius, blur and shadow used to stack on top of it. */}
+        <div className="flex flex-col h-full min-w-0 overflow-hidden">
           {/* Search & Filter Panel */}
           <SearchFilterPanel
             filters={filterState}
@@ -276,6 +278,7 @@ export function JobListPanel({
               ) : null}
             </DragOverlay>
           </DndContext>
+
         </div>
       </PanelErrorBoundary>
     </ResizablePanel>
