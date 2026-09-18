@@ -604,6 +604,8 @@ export function MainWorkspace() {
             <Module
               id="brand"
               title="AGENTSCAD"
+              /* A wordmark, not a section: it stays out of the heading outline. */
+              titleAs="span"
               collapsible={false}
               draggable={true}
               isFree={moduleStates['brand']?.isFree}

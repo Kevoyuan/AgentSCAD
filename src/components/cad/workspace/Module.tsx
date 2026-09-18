@@ -7,6 +7,12 @@ import { cn } from '@/lib/utils'
 export interface ModuleProps {
   id: string
   title: React.ReactNode
+  /**
+   * A module title is a heading, so screen readers can navigate the eight plates as
+   * an outline (DESIGN.md section 21). The brand plate carries a wordmark rather than
+   * a section name, so it opts out.
+   */
+  titleAs?: 'h2' | 'span'
   badge?: React.ReactNode
   children: React.ReactNode
   className?: string
@@ -38,6 +44,7 @@ export interface ModuleProps {
 export function Module({
   id,
   title,
+  titleAs = 'h2',
   badge,
   children,
   className,
@@ -265,10 +272,17 @@ export function Module({
           <div className="grip pointer-events-none absolute left-1/2 top-[3px] -translate-x-1/2 w-[22px] h-[2px] rounded-[2px] bg-[var(--shell-border-strong)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100" />
         )}
 
-        {/* Title: 9px mono engraved per Section 12 */}
-        <span className="font-mono text-[9px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)] truncate">
-          {title}
-        </span>
+        {/* Title: 9px mono engraved per Section 12, and a real heading so the eight
+            plates form an outline for screen readers (DESIGN.md section 21). */}
+        {titleAs === 'h2' ? (
+          <h2 className="font-mono text-[9px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)] truncate m-0">
+            {title}
+          </h2>
+        ) : (
+          <span className="font-mono text-[9px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)] truncate">
+            {title}
+          </span>
+        )}
 
         {/* State/Badge on the right */}
         {badge && (
