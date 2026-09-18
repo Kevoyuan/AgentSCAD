@@ -38,6 +38,21 @@ function createRoundedRectShape(THREE: any, w: number, h: number, r: number) {
 const TECHNICAL_LINE = 0x93a1ae
 
 /*
+ * The field is painted by three.js, so it cannot inherit a CSS variable the way a
+ * div does: the background, the fog and the grid were literals (#0B0F14, #141312,
+ * #2B3643, #C9C3B8) that had already drifted from the token map. Read the shell's
+ * own field tokens instead, so the largest surface in the product has one owner.
+ */
+function fieldToken(name: string, fallback: number): number {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return fallback
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw)) return fallback
+  return parseInt(raw.slice(1).length === 3
+    ? raw.slice(1).split('').map(c => c + c).join('')
+    : raw.slice(1), 16)
+}
+
+/*
  * The camera stops 0.2 degrees short of the poles: at exactly +/-90 the forward
  * axis is parallel to `up` and the view is undefined. OrbitControls' own polar
  * limits must be the mirror of that rule - they were not (maxPolarAngle was 0.96π,
@@ -442,7 +457,7 @@ export function ThreeDViewer({
     }
     if (sceneRef.current && threeModuleRef.current) {
       sceneRef.current.background = new threeModuleRef.current.Color(
-        fieldIsDark ? 0x141312 : 0xF4F2EE
+        fieldToken('--shell-canvas-deep', fieldIsDark ? 0x0E0D0C : 0xEDE9E1)
       )
     }
   }, [controlsState, fieldIsDark])
@@ -516,8 +531,8 @@ export function ThreeDViewer({
 
       try {
         const scene = new THREE.Scene()
-        scene.background = new THREE.Color(controlsState.darkBg ? 0x0B0F14 : 0xF4F6F8)
-        scene.fog = new THREE.Fog(controlsState.darkBg ? 0x0B0F14 : 0xF4F6F8, 600, 1200)
+        scene.background = new THREE.Color(fieldToken('--shell-canvas-deep', controlsState.darkBg ? 0x0E0D0C : 0xEDE9E1))
+        scene.fog = new THREE.Fog(fieldToken('--shell-canvas-deep', controlsState.darkBg ? 0x0E0D0C : 0xEDE9E1), 600, 1200)
         sceneRef.current = scene
 
         const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000)
@@ -566,8 +581,8 @@ export function ThreeDViewer({
         const gridHelper = new THREE.GridHelper(
           120,
           24,
-          fieldIsDark ? 0x2B3643 : 0xC9C3B8,
-          fieldIsDark ? 0x19222D : 0xDED8CE
+          fieldToken('--shell-field-grid-strong', fieldIsDark ? 0x242322 : 0xD5D2CB),
+          fieldToken('--shell-field-grid', fieldIsDark ? 0x191817 : 0xE0DCD5)
         )
         gridHelper.position.y = -0.01
         gridHelper.visible = controlsState.showGrid
@@ -671,7 +686,7 @@ export function ThreeDViewer({
         // distance, otherwise long phone-case models disappear into the background.
         const fitted = fitCameraToObject(THREE, camera, controls, mainGroup)
         scene.fog = new THREE.Fog(
-          fieldIsDark ? 0x141312 : 0xF4F2EE,
+          fieldToken('--shell-canvas-deep', fieldIsDark ? 0x0E0D0C : 0xEDE9E1),
           Math.max(fitted.dist * 1.6, fitted.maxDim * 2.2, 220),
           Math.max(fitted.dist * 5.5, fitted.maxDim * 8, 900),
         )

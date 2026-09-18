@@ -66,6 +66,13 @@
   --shell-part-edge: #7C8794;
   --shell-part-shadow: rgba(28, 24, 20, 0.20);
   --shell-canvas: #F4F2EE;
+  /* The field the part sits on: one step deeper than the canvas, from the token map
+     (DESIGN.md colors.canvas-deep-dark) rather than the old cool #F4F6F8. */
+  --shell-canvas-deep: #EDE9E1;
+  /* Solid equivalents of the field grid (base + 5.5% ink / + 11%), because the WebGL
+     grid helper takes flat colours and cannot read an rgba token. */
+  --shell-field-grid: #E0DCD5;
+  --shell-field-grid-strong: #D5D2CB;
   --shell-module: rgba(255, 255, 255, 0.92);
   --shell-module-solid: #FFFFFF;
   --shell-inner: #EDF1F5;
@@ -250,6 +257,10 @@
      the part, so this only needs to be a hint of weight. */
   --shell-part-shadow: rgba(0, 0, 0, 0.34);
   --shell-canvas: #141312;
+  /* Field tokens: same two steps as the light theme, warm not cool. */
+  --shell-canvas-deep: #0E0D0C;
+  --shell-field-grid: #191817;
+  --shell-field-grid-strong: #242322;
   --shell-module: rgba(34, 31, 28, 0.90);
   --shell-module-solid: #26231F;
   --shell-inner: #211F1C;
@@ -995,14 +1006,19 @@ pre:hover .code-copy-btn { opacity: 1; }
 }
 
 .cad-viewport-shell {
-  background:
-    linear-gradient(90deg, var(--cad-grid) 1px, transparent 1px),
-    linear-gradient(0deg, var(--cad-grid) 1px, transparent 1px),
-    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--cad-accent) 14%, transparent), transparent 34%),
-    var(--cad-bg);
-  background-size: 28px 28px, 28px 28px, 100% 100%, 100% 100%;
-  border: 1px solid var(--cad-border);
-  border-radius: 8px;
+  /*
+   * The viewport is the largest surface in the product and it was painted from the
+   * old palette: `--cad-bg` (#0A0D10 dark / #F4F6F8 light, a cool near-black and a
+   * cool grey) instead of the C2 field, `--cad-grid` for its straight grid, a 14%
+   * accent radial halo behind the part (a zero-offset glow: decoration, not depth)
+   * and a 1px legacy border with an 8px radius. The canvas is transparent, so that
+   * background colour is what the user actually sees around the part.
+   *
+   * Now: one field token, no halo, no inset frame. DESIGN.md section 3 makes the
+   * canvas full-bleed and section 4 puts the lighting on the camera, not on a
+   * decorative glow behind the part.
+   */
+  background: var(--shell-canvas-deep);
 }
 
 .cad-viewport-glass {

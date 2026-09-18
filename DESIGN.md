@@ -8,6 +8,10 @@ colors:
   # dark workspace (default)
   canvas-dark: "#141312"
   canvas-deep-dark: "#0E0D0C"
+  # The field the part sits on, and the two grid weights painted into it. The viewer
+  # reads these, so the largest surface has the same owner as every plate.
+  field-grid-dark: "#191817"
+  field-grid-strong-dark: "#242322"
   module-dark: "rgba(34,31,28,0.90)"
   module-solid-dark: "#26231F"
   inner-dark: "#211F1C"
@@ -21,6 +25,9 @@ colors:
   foreground-dim-dark: "#92897E"
   # light workspace
   canvas-light: "#F4F2EE"
+  canvas-deep-light: "#EDE9E1"
+  field-grid-light: "#E0DCD5"
+  field-grid-strong-light: "#D5D2CB"
   module-light: "rgba(255,255,255,0.92)"
   border-light: "#D9D3C9"
   foreground-light: "#1B1917"
@@ -375,6 +382,10 @@ value will drift the moment the CSS changes — that failure has already shipped
 - The near and far planes hug the part. A wide near/far ratio destroys depth precision
   and makes a thin shell z-fight against its own inner wall.
 - The part material is neutral machined grey. Never tint the model to match the brand.
+- **The field is the canvas, not a spotlight.** Field colour, fog and grid come from the
+  shell's `canvas-deep` and `field-grid` tokens. No radial glow sits behind the part: a
+  zero-offset coloured halo is decoration, not depth, and it fights the part for
+  attention. The lights that shape the part ride with the camera (above).
 
 ### Failure mode
 
