@@ -14,6 +14,8 @@ export interface ModuleProps {
    */
   titleAs?: 'h2' | 'span'
   badge?: React.ReactNode
+  /** Extra header control, placed before the collapse control (e.g. the rail's add). */
+  headerAction?: React.ReactNode
   children: React.ReactNode
   className?: string
   bodyClassName?: string
@@ -46,6 +48,7 @@ export function Module({
   title,
   titleAs = 'h2',
   badge,
+  headerAction,
   children,
   className,
   bodyClassName,
@@ -290,6 +293,8 @@ export function Module({
             {badge}
           </span>
         )}
+
+        {headerAction}
 
         {/* Collapse Control Button */}
         {collapsible && (
