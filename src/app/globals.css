@@ -965,6 +965,51 @@ pre:hover .code-copy-btn { opacity: 1; }
     position: absolute;
     inset: -4px;
   }
+
+  /*
+   * DESIGN.md section 20: hit targets are at least 44px on touch. Every control in
+   * the shell measured under 44px (module collapse 16x16, bell and gear 24x24,
+   * density segments 36x22 / 46x22, row utilities 16x20 / 20x20, viewport controls
+   * 28x28), so the hit area grows to 44px tall while the visible control keeps its
+   * instrument size. Vertical only: these controls sit shoulder to shoulder
+   * horizontally, and a wider invisible target would steal taps from its neighbour.
+   */
+  .mod-h button,
+  #brand button,
+  #controls button,
+  #cmd button,
+  #view-cube button,
+  [data-testid="design-row"] button {
+    position: relative;
+  }
+
+  .mod-h button::after,
+  #brand button::after,
+  #controls button::after,
+  #cmd button::after,
+  #view-cube button::after,
+  [data-testid="design-row"] button::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+
+  /* Fields and chips cannot grow their hit area with a pseudo-element: an <input>
+     ignores ::after, and the empty-state chips are the whole target. These grow. */
+  #cmd input,
+  #slots input,
+  #slots button,
+  [data-testid="viewport-cold-start"] button {
+    min-height: 44px;
+  }
+
+  #slots button {
+    min-width: 44px;
+  }
 }
 
 /* Footer tooltip */
