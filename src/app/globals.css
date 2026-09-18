@@ -60,6 +60,11 @@
   --shell-cube-face-b: rgba(246, 243, 238, 0.97);
   --shell-cube-face-c: rgba(236, 231, 223, 0.97);
   --shell-cube-shadow: inset 0 0 16px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.90);
+  /* Machined material for the 正在生成 part (DESIGN.md section 17). Same grey the
+     viewport uses for the part, so the loader and the result read as one material. */
+  --shell-part-face: #9AA5B1;
+  --shell-part-edge: #7C8794;
+  --shell-part-shadow: rgba(28, 24, 20, 0.20);
   --shell-canvas: #F4F2EE;
   --shell-module: rgba(255, 255, 255, 0.92);
   --shell-module-solid: #FFFFFF;
@@ -234,6 +239,12 @@
   --shell-cube-face-b: rgba(72, 66, 57, 0.95);
   --shell-cube-face-c: rgba(58, 54, 47, 0.95);
   --shell-cube-shadow: inset 0 0 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  /* Machined material for the 正在生成 part (DESIGN.md section 17). */
+  --shell-part-face: #9BA6B2;
+  --shell-part-edge: #5F6874;
+  /* A contact shadow, not a stain: on the dark canvas the vignette already grounds
+     the part, so this only needs to be a hint of weight. */
+  --shell-part-shadow: rgba(0, 0, 0, 0.34);
   --shell-canvas: #141312;
   --shell-module: rgba(34, 31, 28, 0.90);
   --shell-module-solid: #26231F;
@@ -513,6 +524,18 @@ pre code { font-variant-ligatures: none; }
 input:focus, textarea:focus, select:focus {
   outline: none;
   box-shadow: 0 0 0 2px var(--ring);
+}
+
+/*
+ * Fields that carry their own focus treatment opt out of the generic ring.
+ * Inside the shell a field states focus by turning its own border amber
+ * (DESIGN.md section 5, "the action is a circular button inside the field");
+ * the generic ring drew a second amber rectangle just inside the first, which is
+ * what made the active composer read as a warning panel.
+ */
+.shell-field:focus,
+.shell-field:focus-visible {
+  box-shadow: none;
 }
 
 /* ─── Animations ─────────────────────────────────────────── */
@@ -875,6 +898,29 @@ pre:hover .code-copy-btn { opacity: 1; }
   .activity-slide-in { animation: none; }
   .state-bounce { animation: none; }
   .empty-float { animation: none; }
+}
+
+/* ─── 正在生成: the part tumbling on the bench ───────────────────────────────────
+   Two axes, so it reads as an object being turned over rather than a spinning
+   sprite: it nods on X while it comes round on Y. */
+@keyframes partTumble {
+  0% { transform: rotateX(-22deg) rotateY(0deg); }
+  50% { transform: rotateX(16deg) rotateY(180deg); }
+  100% { transform: rotateX(-22deg) rotateY(360deg); }
+}
+
+.part-tumble {
+  animation: partTumble 5.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+/* Reduced motion: the part holds a readable three-quarter angle instead of turning.
+   This has to come after the rule above - the earlier reduced-motion block sits
+   higher in the file and lost the cascade, so the gear kept spinning. */
+@media (prefers-reduced-motion: reduce) {
+  .part-tumble {
+    animation: none;
+    transform: rotateX(-20deg) rotateY(32deg);
+  }
 }
 
 /* Touch devices: expand hit area for icon-sized buttons to WCAG 44x44.

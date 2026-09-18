@@ -341,6 +341,14 @@ elements directly is unreliable and must not be used.
 rotateY(-azimuth)` and is driven from the same state as the viewport, so it can never
 disagree with what is on screen.
 
+**Drag is 1:1; the ease is for commands.** The cube carries a 0.34s transform
+transition so that a *clicked* standard view visibly travels there — that motion is how
+the mapping is learned. While the pointer is down the transition must be off, or the
+cube eases toward the pointer and reads as lag. Drag updates are coalesced to one state
+update per frame (a trackpad reports at 120Hz, and each update re-renders the
+workspace), and the viewer's echo of the angle we just commanded is not stored as new
+state.
+
 **Labels are honest.** An angle that lands exactly on one of the 26 stops shows that
 stop's name (`等轴 · 前上右`). Any other angle says so (`自由视角 · 下`). Never imply a
 stop exists when the camera is between stops.
@@ -977,6 +985,13 @@ state change legible without animation.
 - **No fake timings.** Never print `GENERATE ~8s` for a step whose duration is unknown.
 - **Cancellation is always reachable.** It is the composer button, so it is on screen in
   every density level.
+- **A first build leaves the bench occupied.** While there is no geometry yet, a small
+  machined part turns over in the middle of the canvas (`GeneratingPart.tsx`): real CSS
+  3D, the same technique as the ViewCube, the same material tokens as the part, no
+  second WebGL context, and a held three-quarter angle under
+  `prefers-reduced-motion`. It reports nothing — the four lamps are the progress
+  display, and this only says the machine is working. A rebuild keeps the previous
+  revision on screen instead.
 - SSE payloads keep the existing contract (`data: ${JSON.stringify(payload)}\n\n`).
 
 ---
@@ -1210,6 +1225,9 @@ below was reproduced before it was changed.
 | The plate has one definition | the hardcoded `.mod` duplicate in `globals.css` is gone; `Module.tsx` owns the plate through shell tokens |
 | One focus colour | `--ring` and the input focus ring resolve to the shell signal (light `#E0512A`, dark `#FF5A1F`) instead of the old amber |
 | The composer never covers 读数 | its width is `min(620px, 100vw − 456px)`: measured overlap 0px at 1440 / 1150 / 1100 / 1000 / 960, and 620px is unchanged at the reference size |
+| The cube drives the part | `ViewCube`'s drag path only set the angle without bumping the viewer's command nonce, so the cube turned, the label moved and the part did not (measured: 0 of 360,000 viewport pixels changed). Both paths now share one command handler; the same measurement reads 73,861 |
+| The active composer is one signal | the field had a border *and* a 2px ring in the same amber, under a row of three bordered key chips. Now: one 1px amber border, and the shortcuts are engraved text with ⌘K as the only control in that row |
+| The cube tracks the pointer while dragging | the same 0.34s ease that makes a clicked view legible was also on during the drag, so the cube trailed the pointer. It is now tied to the drag state (measured 0.34s at rest → 0s while dragging → 0.34s after release), drag updates are rAF-coalesced (120 synthetic pointer moves cost 0.4ms total), and the viewer's echo of a commanded angle no longer triggers a second render per move |
 | `bun run lint` is green | the notification drawer detects the client with `useSyncExternalStore` instead of `setState` in an effect |
 
 **Not done**
