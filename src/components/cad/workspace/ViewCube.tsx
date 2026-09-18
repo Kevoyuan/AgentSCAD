@@ -182,6 +182,13 @@ export function ViewCube({
   const hostRef = React.useRef<HTMLDivElement>(null)
   const [perspective, setPerspective] = React.useState(400)
   const dragRef = React.useRef({ moved: false })
+  const frameRef = React.useRef<number | null>(null)
+  const [isDragging, setIsDragging] = React.useState(false)
+
+  // A pending frame must not fire after the cube unmounts.
+  React.useEffect(() => () => {
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current)
+  }, [])
 
   React.useEffect(() => {
     const el = hostRef.current
@@ -210,24 +217,45 @@ export function ViewCube({
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault()
     const el = e.currentTarget as HTMLElement
-    const sx = e.clientX
-    const sy = e.clientY
-    const az0 = azimuth
-    const el0 = elevation
+    const start = { x: e.clientX, y: e.clientY, az: azimuth, el: elevation }
+    let pending: { x: number; y: number } | null = null
     dragRef.current.moved = false
+    setIsDragging(true)
     el.setPointerCapture(e.pointerId)
-    const move = (ev: PointerEvent) => {
-      const dx = ev.clientX - sx
-      const dy = ev.clientY - sy
+
+    /*
+     * One state update per frame, not one per pointer event: a trackpad reports at
+     * 120Hz and a React update here re-renders the whole workspace, so applying every
+     * event was doing twice the work the display could show.
+     */
+    const apply = () => {
+      frameRef.current = null
+      if (!pending) return
+      const dx = pending.x - start.x
+      const dy = pending.y - start.y
       if (Math.abs(dx) + Math.abs(dy) > 4) dragRef.current.moved = true
       onChange?.({
-        azimuth: az0 - dx * 0.65,
-        elevation: Math.max(-89.8, Math.min(89.8, el0 + dy * 0.55)),
+        azimuth: start.az - dx * 0.65,
+        elevation: Math.max(-89.8, Math.min(89.8, start.el + dy * 0.55)),
       })
     }
+
+    const move = (ev: PointerEvent) => {
+      pending = { x: ev.clientX, y: ev.clientY }
+      if (frameRef.current === null) frameRef.current = requestAnimationFrame(apply)
+    }
+
     const up = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
+      if (frameRef.current !== null) {
+        cancelAnimationFrame(frameRef.current)
+        frameRef.current = null
+      }
+      // Land exactly on the release point rather than on the last painted frame, and
+      // settle `moved` before the click handler reads it.
+      apply()
+      setIsDragging(false)
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -267,7 +295,17 @@ export function ViewCube({
             height: VC_SIZE,
             transformStyle: 'preserve-3d',
             transform: `rotateX(${-elevation}deg) rotateY(${-azimuth}deg)`,
-            transition: 'transform .34s cubic-bezier(.32,.72,.28,1)',
+            /* Promote the cube to its own layer: it rotates on every drag frame, and
+               without this Chrome repaints six shadowed faces each time. */
+            willChange: 'transform',
+            /*
+             * The eased transition is for a *commanded* view (a click lands on a
+             * standard angle, and watching the cube travel there is how the user
+             * learns the mapping). It must not be on while dragging: at 0.34s the
+             * cube eases toward the pointer and reads as lag, which is exactly the
+             * feel the C5 iteration removed from the prototype.
+             */
+            transition: isDragging ? 'none' : 'transform .34s cubic-bezier(.32,.72,.28,1)',
           }}
         >
           {Object.entries(CUBE).map(([id, def]) => (

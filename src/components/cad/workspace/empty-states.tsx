@@ -3,6 +3,7 @@
 import React from 'react'
 import { Plus, RotateCcw, AlertCircle } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { GeneratingPart } from './GeneratingPart'
 
 /*
  * Empty states, per DESIGN.md:
@@ -152,6 +153,11 @@ export function CadViewportEmptyState({
           </>
         ) : isProcessing ? (
           <>
+            {/* The bench is not empty while the machine works: a small part turns
+                over in the middle of the canvas. It states nothing - the lamps above
+                are the progress display (DESIGN.md section 17) - and it is replaced
+                by the real part the moment geometry lands. */}
+            <GeneratingPart className="mb-4" />
             <p className="text-[13px] text-[var(--shell-text-muted)]">正在生成几何…</p>
             <p className="mt-1.5 font-mono text-[10.5px] text-[var(--shell-text-dim)]">
               进度在上方的四个灯里，停止用输入框右边的按钮

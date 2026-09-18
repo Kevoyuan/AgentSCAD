@@ -262,7 +262,8 @@ export function SearchFilterPanel({
             value={filters.search}
             onChange={e => updateFilter('search', e.target.value)}
             placeholder="Search designs..."
-            className="h-8 min-w-0 rounded-[7px] border-[var(--app-border-subtle)] bg-[var(--app-input-bg)] pl-8 pr-7 text-xs shadow-none placeholder:text-[var(--app-text-dim)] focus:border-[var(--app-accent)]"
+            /* `shell-field`: focus is this border turning amber, not a ring inside it. */
+            className="shell-field h-8 min-w-0 rounded-[7px] border-[var(--app-border-subtle)] bg-[var(--app-input-bg)] pl-8 pr-7 text-xs placeholder:text-[var(--app-text-dim)] focus:border-[var(--shell-signal)]"
             suppressHydrationWarning
           />
           {filters.search && (

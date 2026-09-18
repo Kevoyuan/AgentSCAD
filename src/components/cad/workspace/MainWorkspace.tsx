@@ -493,6 +493,37 @@ export function MainWorkspace() {
     Boolean(state.selectedJob && !state.selectedJob.stlPath)
   const isActionBusy = isSaving || state.isProcessing
 
+  /*
+   * The cube has two ways to ask for a view and they must reach the same camera:
+   * a click asks for a standard view, a drag asks for a free angle.
+   *
+   * `ThreeDViewer` applies a command only when the nonce changes - that guard is
+   * what keeps an unrelated re-render from re-applying a stale angle. The drag path
+   * used to set the angle without bumping it, so dragging the cube rotated the cube,
+   * moved the label, and left the part exactly where it was (measured: 0 of 360,000
+   * viewport pixels changed). Both paths now go through here.
+   */
+  const applyViewCommand = (next: { azimuth: number; elevation: number }) => {
+    setCamera({ azimuth: next.azimuth, elevation: next.elevation })
+    setViewNonce(v => v + 1)
+  }
+
+  /*
+   * The viewer reports its camera back on every orbit frame. A command we just sent
+   * arrives as an echo of the same angle, and storing it as a fresh object would
+   * re-render the whole workspace a second time per pointer move during a cube drag -
+   * that echo was the other half of the drag lag. Angles wrap, so compare them on a
+   * circle; elevation does not, so compare it directly.
+   */
+  const handleViewChange = (next: { azimuth: number; elevation: number }) => {
+    setCamera(prev =>
+      Math.abs(((prev.azimuth - next.azimuth + 540) % 360) - 180) < 0.05 &&
+      Math.abs(prev.elevation - next.elevation) < 0.05
+        ? prev
+        : { azimuth: next.azimuth, elevation: next.elevation }
+    )
+  }
+
   // Re-stacking positions for column layout
   // When a module is free, its user-dragged coordinates are used.
   // When not free, it stacks neatly into its column.
@@ -884,7 +915,7 @@ export function MainWorkspace() {
             >
               <ViewerPanel
                 viewCommand={{ azimuth: camera.azimuth, elevation: camera.elevation, nonce: viewNonce, fit: fitNonce }}
-                onViewChange={(c) => setCamera({ azimuth: c.azimuth, elevation: c.elevation })}
+                onViewChange={handleViewChange}
                 selectedJob={state.selectedJob}
                 isProcessing={state.isProcessing}
                 processingJobId={state.processingJobId}
@@ -1046,11 +1077,8 @@ export function MainWorkspace() {
               <ViewCube
                 azimuth={camera.azimuth}
                 elevation={camera.elevation}
-                onChange={(c) => setCamera({ azimuth: c.azimuth, elevation: c.elevation })}
-                onCommand={(c) => {
-                  setCamera({ azimuth: c.azimuth, elevation: c.elevation })
-                  setViewNonce(v => v + 1)
-                }}
+                onChange={applyViewCommand}
+                onCommand={applyViewCommand}
               />
             </div>
           )}
@@ -1089,8 +1117,11 @@ export function MainWorkspace() {
             /* 620px at the reference size. Below ~1100px the centred composer starts to
                reach the 读数 column at bottom-left; capping the width at
                `100vw - 2*(16 + 204 + 8)` keeps the two out of each other's way without
-               moving either (the 456 is the readout column plus its margins, twice). */
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 w-[min(620px,calc(100vw-456px))] max-w-[calc(100vw-32px)] pointer-events-auto select-none"
+               moving either (the 456 is the readout column plus its margins, twice).
+               The 320px floor matters: without it the formula goes negative on a phone
+               and the composer collapses to zero width - no field, no action, no way to
+               start a design. Measured at 375px: 0px wide before, 320px after. */
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 w-[min(620px,max(320px,calc(100vw-456px)))] max-w-[calc(100vw-32px)] pointer-events-auto select-none"
           >
             <div
               className="mod p-2"
@@ -1106,8 +1137,13 @@ export function MainWorkspace() {
               {/* Inner top highlight */}
               <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-[var(--shell-hairline)] z-10" />
 
-              {/* Composer Input Field with 34px Circular Action Button */}
-              <div className="flex items-center gap-2.5 h-11 px-3.5 rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] focus-within:border-[var(--shell-signal)] focus-within:ring-2 focus-within:ring-[var(--shell-signal)]/15 transition-all">
+              {/* Composer Input Field with 34px Circular Action Button.
+                  The active state is one signal, not three: a 1px border that turns
+                  amber plus the caret. The row used to add a 2px ring on top of the
+                  border and a third boxed hint row below, which read as a warning
+                  panel rather than an input (DESIGN.md section 5: "The action is a
+                  circular button inside the field"). */}
+              <div className="flex items-center gap-2.5 h-11 px-3.5 rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] focus-within:border-[var(--shell-signal)] transition-colors">
                 <span className="text-[var(--shell-placeholder)] font-mono text-sm select-none">›</span>
                 <input
                   id="prompt"
@@ -1125,7 +1161,7 @@ export function MainWorkspace() {
                       handleComposerSubmit()
                     }
                   }}
-                  className="flex-1 bg-transparent border-0 outline-none text-[12.5px] text-[var(--shell-text)] placeholder:text-[var(--shell-placeholder)] min-w-0 font-normal select-text"
+                  className="shell-field flex-1 bg-transparent border-0 outline-none text-[12.5px] text-[var(--shell-text)] placeholder:text-[var(--shell-placeholder)] min-w-0 font-normal select-text"
                 />
 
                 {/* Circular Action Button. Stops an in-flight run; otherwise it
@@ -1162,21 +1198,21 @@ export function MainWorkspace() {
                 </button>
               </div>
 
-              {/* Keyboard Shortcuts Hint Row and Staleness Line */}
-              <div className="flex items-center justify-between gap-2 px-1 pt-1.5 text-[9px] font-mono text-[var(--shell-text-dim)]">
-                <div className="flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.5 rounded-[3px] border border-[color:var(--shell-border)] bg-black/20 text-[var(--shell-text-dim)]">
-                    ⌘ ⏎ 生成
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded-[3px] border border-[color:var(--shell-border)] bg-black/20 text-[var(--shell-text-dim)]">
-                    空格 隐藏面板
-                  </span>
+              {/* Hint row and staleness line.
+                  Three bordered chips sat here; the shortcuts are the same
+                  information but they do not need three boxes competing with the
+                  field above them. Only ⌘K is a control (it opens the palette), so
+                  only ⌘K is a button; the rest is engraved text. */}
+              <div className="flex items-center justify-between gap-3 px-1 pt-1.5 text-[9px] font-mono text-[var(--shell-text-dim)]">
+                <div className="flex items-center gap-3 whitespace-nowrap">
+                  <span>⌘⏎ 生成</span>
+                  <span>空格 隐藏面板</span>
                   <button
                     type="button"
                     onClick={() => state.setShowCommandPalette(true)}
-                    className="px-1.5 py-0.5 rounded-[3px] border border-[color:var(--shell-border)] bg-black/20 text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] hover:border-white/20 transition-colors"
+                    className="hover:text-[var(--shell-text)] transition-colors"
                   >
-                    ⌘ K 指令
+                    ⌘K 指令
                   </button>
                 </div>
                 <span
