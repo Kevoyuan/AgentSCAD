@@ -353,16 +353,20 @@ rotateY(-azimuth)` and is driven from the same state as the viewport, so it can 
 disagree with what is on screen.
 
 **Drag is 1:1; the ease is for commands.** The cube carries a 0.34s transform
-transition so that a *clicked* standard view visibly travels there — that motion is how
-the mapping is learned. While the pointer is down the transition must be off, or the
+transition (`cubic-bezier(.32,.72,.28,1)`) so that a *clicked* standard view visibly travels there — that motion is how
+the mapping is learned. While the pointer is down the transition is off (`transition: none`), or the
 cube eases toward the pointer and reads as lag. Drag updates are coalesced to one state
-update per frame (a trackpad reports at 120Hz, and each update re-renders the
-workspace), and the viewer's echo of the angle we just commanded is not stored as new
-state.
+update per frame via `requestAnimationFrame` (a trackpad reports at 120Hz, and each update re-renders the
+workspace), with pending frames cancelled on unmount or release. The viewer's echo of a commanded angle
+is recognized (circular angle diff on azimuth and direct elevation check within 0.05°) and does not re-render.
 
-**Labels are honest.** An angle that lands exactly on one of the 26 stops shows that
-stop's name (`等轴 · 前上右`). Any other angle says so (`自由视角 · 下`). Never imply a
-stop exists when the camera is between stops.
+**Labels are honest and camera guard is symmetric ±89.8°.** The camera clamps elevation
+to ±89.8° (`POLAR_GUARD = ((90 - MAX_ELEVATION) * Math.PI) / 180`) because the forward vector is
+undefined at exactly ±90°. OrbitControls' polar limits are symmetric (`minPolarAngle = POLAR_GUARD`,
+`maxPolarAngle = Math.PI - POLAR_GUARD`), eliminating the previous bug where `maxPolarAngle` was
+capped at 0.96π (−82.8°) and made `下` unreachable. With `labelFor`'s 0.25° tolerance for vertical
+stops, `3` / `6` keystrokes and top/bottom face clicks land on ±89.8° and honestly report `上` and `下`.
+Any other angle says so (`自由视角 · 下`). Never imply a stop exists when the camera is between stops.
 
 **Geometry must derive from the element, not from constants.** The face offset is half
 the cube's measured width, the pick perspective is read from computed style, and the
@@ -398,10 +402,8 @@ Never show an empty viewport with no explanation.
 
 The composer is the product's one input and the product's one primary action.
 
-**Geometry: fixed 620px, horizontally centred on the canvas, 16px from the bottom edge.**
-It does not stretch with the window and it cannot be dragged. A 1200px-wide field pushed
-the action 900px away from the text being typed and read as a page footer rather than an
-instrument control.
+**Geometry: width is `min(620px, max(320px, 100vw - 456px))`, horizontally centred on the canvas, 16px from the bottom edge.**
+It does not stretch arbitrarily with the window and it cannot be dragged. Capping the width at `100vw - 456px` keeps the composer from colliding with or covering the bottom-left 读数 column (204px readout plate width plus gutters on both sides = 456px) as the viewport narrows below ~1100px. A 320px floor prevents it from collapsing to zero width on narrow viewports (measured at 375px: 0px wide before, 320px after).
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
@@ -417,6 +419,10 @@ instrument control.
 - Symbol states: **↑** = generate / submit; **■** = stop while running.
 - The label is available as the accessible name and tooltip (`生成` / `重建` / `停止` /
   `确认并生成`).
+
+### Input field focus ownership
+
+The composer field owns its focus state. Inside the shell, `.shell-field` turns its own 1px border amber (`focus-within:border-[var(--shell-signal)]`) and suppresses the generic focus ring (`box-shadow: none`). This replaces the old pattern where a 2px outer ring was drawn inside another ring, which made the active composer read as a warning panel rather than an input.
 
 ### One action per state
 
@@ -458,9 +464,10 @@ may fire while the user is composing text.
 
 ### Slots `零件槽位`
 
-The rail carries one create action, a full-width `＋ 新零件` button with its ⌘N hint,
-directly under the search row. It used to exist only in the empty state, so a workspace
-with designs in it had no visible way to start another one. It is a bordered control
+The rail carries one visible create action, a full-width `＋ 新零件` button with its `⌘N` hint (height 28px),
+directly under the search row. It previously existed only in the empty state, so a workspace
+with designs in it had no visible way to start another one. It carries the accent's soft form (`.rail-create`),
+styled with soft signal text and tint, reaching full signal only on hover. It is a bordered control
 like the search field above it, not a dim word, and it stays unlit: the composer owns
 the one lit action per state.
 
@@ -586,20 +593,23 @@ menu nobody opens.
 
 | Surface | v1 placement | Where it belongs |
 | --- | --- | --- |
-| Providers / models | dialog from the tools menu | Settings sheet · **提供方** tab. Also reachable from the first-run canvas and from the brand module. Must preserve the composer draft |
-| Theme / palette | dialog from the tools menu | Settings sheet · **外观** tab |
+| Providers / models | dialog from the tools menu | Settings sheet · **提供方** tab. Also reachable from the first-run canvas and from the brand module. Must preserve the composer draft. On-palette, but currently retains 11–13px type with English labels (Preset, Name, Base URL, API Key, Model, Enabled, Default, Test, Save) |
+| Theme / palette | dialog from the tools menu | Settings sheet · **外观** tab. Strictly scoped to the three theme modes (亮色 / 暗色 / 跟随系统). It previously wrote ~20 CSS variables without consumers and set `--cad-accent`/`--primary`/`--ring` that fought the shell. Density lives in the 面板 module (全览 / 调参 / 看模型) |
 | Statistics | modal from the tools menu | No permanent entry point. Summarise in the slots rail when several designs are selected |
 | Compare designs | modal from the tools menu | Contextual: appears in the slots rail action bar once 2+ designs are selected |
-| Notifications + activity | popover in the app bar | Bell in the brand module → right drawer |
-| Command palette / shortcuts | menu items and keys | Keys only. Never a menu row |
+| Notifications + activity | popover in the app bar | Bell in the brand module → right drawer. Semantic colors from shell palette (`--shell-ok`, `--shell-warn`, `--shell-fail`, `--shell-signal-soft`, `--shell-text-label`) |
+| Command palette / shortcuts | menu items and keys | Keys only (`⌘K` / `⌘/`). Never a menu row |
 | Export all data | menu item | Bottom of the Settings sheet. It is a maintenance action, not a daily one |
-| Case memory (记忆) | tab inside the creation modal | **Folded into composer recall.** As the user types, previously accepted briefs surface as suggestions. It is not a panel |
-| Templates | tab inside the creation modal | Same: they become the three examples under the composer. Not a grid of cards |
-| Research / dependencies | inspector tab | A collapsed **来源** section inside the 检验 module |
-| Notes | inspector tab | Inline in the 描述 module |
-| Chat | inspector tab | The composer is the chat |
-| Revision history | inspector tab | The revision flip-dot in 检验 expands into the history list |
-| OpenSCAD editor | inspector tab | Its own 源码 module, collapsible, and expandable to full canvas |
+| Case memory (记忆) | tab inside the creation modal | **Folded into composer recall.** As the user types, previously accepted briefs surface as suggestions. Currently still bundled in the creation modal (`JobComposer.tsx`) |
+| Templates | tab inside the creation modal | Same: intended as examples under the composer; currently still bundled in the creation modal (`JobComposer.tsx`) |
+| Research / dependencies | inspector tab | Currently no active entry point since the inspector sheet tab list was trimmed to 描述/源码/记录; components remain bundled |
+| Notes | inspector tab | Currently no active entry point; component remains bundled |
+| Chat | inspector tab | The composer is the chat. Legacy `ChatPanel` (`ASSIST`) has no active entry point in the trimmed sheet |
+| Revision history | inspector tab | The **记录** tab inside the inspector sheet |
+| OpenSCAD editor | inspector tab | The **源码** tab inside the inspector sheet, plus the canvas module |
+
+> [!NOTE]
+> The inspector sheet tab strip (`InspectorPanel.tsx`) was trimmed to 描述 (`SPEC`), 源码 (`CODE`), and 记录 (`HISTORY`). Five legacy inspector panels (`PARAMETERS`, `VALIDATION`, `ASSIST`, `DEPS`, `RESEARCH`) have no active entry point in the sheet, but their component code remains bundled in the tree.
 
 #### Rules for tier 2
 
@@ -678,6 +688,12 @@ not in the creation path.
 module or a dialog reachable from the brand module, never a forced detour through a
 settings page that discards the draft.
 
+### Creation surface status (New Design dialog)
+
+The New Design dialog (`JobComposer.tsx`) has been refactored into a shell plate: it uses the shell's surfaces (`var(--shell-module-solid)`, `var(--shell-well)`), hairline borders, 9px radius, shell elevation shadows, and Chinese typography roles (`零件描述`, `模型引擎`, `标签`). It features exactly one solid signal group (`生成`, disabled until a non-empty brief and configured model exist), with secondary controls (`设置`, `AI 润色`) using the accent's soft form.
+
+However, it remains a modal dialog rather than the pure single composer flow envisioned above: templates (`JobTemplateCards`) and case memory (`CaseMemory`) still live inside the modal dialog and provide parameter assistance, which is why the modal dialog survives in the current implementation.
+
 ---
 
 ## 9. First-run Experience
@@ -740,19 +756,31 @@ Border             rgba(255,255,255,0.075)
 Border (emphasis)  rgba(255,255,255,0.17)
 Text               #EDE8E0
 Muted text         #BEB6AC
-Label              #948C82
-Dim                #6E6760
+Label              #A79E92
+Dim                #92897E
+Placeholder        #92897E
 ```
 
 #### Light
 
 ```text
 Canvas             #F4F2EE
+Canvas deep        #EDE9E1
+Field grid         #E0DCD5
+Field grid strong  #D5D2CB
 Module             rgba(255,255,255,0.92)
+Module solid       #FFFFFF
+Inner well         #EDF1F5
 Border             #D9D3C9
+Border (emphasis)  rgba(13,13,14,0.20)
 Text               #1B1917
-Muted text         #6B6459
+Muted text         #5C564D
+Label              #6B6459
+Dim                #7C7468
+Placeholder        #7C7468
 ```
+
+**Text ladder contrast.** The `label`, `dim`, and `placeholder` steps were raised so that every step clears 4.5:1 on the module plate in both themes (dark label: 6.0:1, dark dim: 4.6:1; light label: 5.2:1, light dim: 4.6:1). This fixed real contrast failures where dark dim measured 2.95:1, dark placeholder 2.53:1, light composer hint 3.11:1, and light cube label 4.24:1.
 
 ### Accent roles
 
@@ -785,6 +813,23 @@ The accent's **soft form** carries secondary actions that are not the state's ac
 the rail's `＋ 新零件` uses `#FFB597` text, a 40% signal border and a 10% signal well,
 reaching full signal only on hover. It reads as the theme colour without becoming the
 second solid orange group, and it is the same soft role the stale status line uses.
+
+### Enforced colour rules across every surface
+
+A repeatable scan reports zero out-of-palette colours on every reachable surface:
+
+- **State colours**: Every runtime state (`NEW`, `SCAD_GENERATED`, `RENDERED`, `VALIDATED`, `DELIVERED`, `DEBUGGING`, `REPAIRING`, `VALIDATION_FAILED`, `GEOMETRY_FAILED`, `RENDER_FAILED`, `HUMAN_REVIEW`, `CANCELLED`) resolves strictly to pass (`--shell-ok` / `#7BD68A`), warn (`--shell-warn` / `#E8B84B`), fail (`--shell-fail` / `#E8583F`), soft signal (`--shell-signal-soft` / `#FFB597`), or label/neutral (`--shell-text-label` / `--app-state-neutral-*` / `#A79E92`).
+- **Activity feed and notification maps**: Use the exact same semantic palette tokens (`--shell-ok`, `--shell-warn`, `--shell-fail`, `--shell-signal-soft`, `--shell-text-label`), never arbitrary Tailwind steps.
+- **Part-family icons**: No longer paint a hue per family (the previous multi-hue rainbow of amber, teal, emerald, rose, and stone was removed). Icons render engraved in `text-[var(--shell-text-label)]` alongside the family name.
+- **SCAD syntax highlighter** (`src/lib/scad-highlight.ts`): Uses semantic roles instead of a seven-hue rainbow:
+  - Keywords: accent soft `text-[var(--shell-signal-soft)]`
+  - Engine variables (`$fn`, `$fa`, etc.) and special values (`true`, `false`, `undef`): caution / warn `text-[var(--shell-warn)]`
+  - Builtin modules/functions: `text-[var(--shell-text-label)]`
+  - Comments: italic `text-[var(--shell-text-dim)]`
+  - Strings: `text-[var(--shell-text-muted)]`
+  - Numbers: `text-[var(--shell-text)]`
+  - Operators: `text-[var(--shell-text-dim)]`
+  - Everything else: steps down the neutral text ladder.
 
 ---
 
@@ -856,44 +901,48 @@ stacked modules.
 canvas gutter     16px
 module gap        10px
 module padding    8–11px
-composer          620px wide, centred, bottom 16px
+composer          min(620px, max(320px, 100vw - 456px)), centred, bottom 16px
 control height    22px (stepper) · 34px (circle action) · 44px (composer field)
 ```
 
 The readout module stays pinned bottom-left, independent of the composer. The two are
-separate modules on the same baseline, not a row.
+separate modules on the same baseline, not a row. Capping composer width at `100vw - 456px` ensures
+they never collide or overlap at narrower desktop viewports.
 
 The stage scales to fit the window as one unit, letterboxed. Fixed-size 3D canvases must
 never be laid out with reflowing CSS.
 
 ### Elevation
 
-Every module floats, so elevation is a system, not an exception:
+Every module floats, so elevation is a system, not an exception. **The floating plate has a single definition** owned by `Module.tsx` through shell tokens, eliminating hardcoded CSS duplicates that previously drifted:
 
 ```css
-/* floating module */
-background: rgba(34,31,28,0.90);
-border: 1px solid rgba(255,255,255,0.075);
-box-shadow: 0 14px 30px -10px rgba(0,0,0,0.62),
-            0 3px 8px rgba(0,0,0,0.34);
+/* floating module plate (owned by Module.tsx via shell tokens) */
+background: var(--shell-module);
+border: 1px solid var(--shell-border);
+border-radius: 9px;
+box-shadow: var(--shell-shadow);
 backdrop-filter: blur(16px) saturate(1.15);
 ```
 
-A 1px inner highlight on the top edge (`inset 0 1px 0 rgba(255,255,255,0.07)`) is what
+A 1px inner highlight on the top edge (`h-[1px] bg-[var(--shell-hairline)]`) is what
 makes the plate read as physical rather than as generic glass. Dragging raises the shadow
-one step.
+one step (`var(--shell-shadow-lift)`). The module body always scrolls vertically (`overflow-y-auto`)
+rather than clipping its content (`overflow-hidden` is strictly for clipping the plate's rounded corners).
 
 Do not add glow. Do not nest cards. Do not give a module a shadow *and* a coloured border.
 
 ### Shapes
 
 ```text
-3px     pick hotspots
-4px     steppers, output buttons, small controls
-6px     inputs, the composer field
-9px     floating modules
+3px     pick hotspots (--radius-sm)
+4px     steppers, output buttons, small controls (--radius-md)
+6px     inputs, the composer field (--radius-lg)
+9px     floating modules (--radius-xl, 2xl, 3xl)
 999px   the circular action, status dots
 ```
+
+The radius scale is pinned at root (`3 / 4 / 6 / 9 / 999` in `globals.css`), replacing shadcn's stock `6/8/10/14` derivation so every control and container matches the product's scale.
 
 Panels no longer meet edge to edge — that rule belonged to the docked shell.
 
@@ -1089,7 +1138,7 @@ parameter group behind a disclosure. The canvas is never shrunk to make room.
 
 ### < 960px
 
-The docked-position metaphor stops working. Switch to a stacked layout:
+The docked-position metaphor stops working. The intended stacked layout is:
 
 ```text
 3D viewport (fixed 45vh)
@@ -1100,10 +1149,15 @@ modules as full-width sheets, summoned one at a time
 Do not compress floating modules into a grid. Do not keep five floating plates on a
 tablet-sized canvas.
 
+**Current implementation reality:** The slots rail is no longer hidden (the legacy docked-layout media queries that forced `display: none !important` on `.cad-left-panel` below 1024px were removed from `globals.css`), but the Section 20 stacked layout is not yet built; plates still overlap each other at 375px.
+
 ### Touch
 
-Hit targets ≥ 44px, no hover-only affordances, and the ViewCube regions must be reachable
-by tap. Orbit uses a single-finger drag, zoom uses pinch.
+Hit targets are at least 44px, with no hover-only discoverability, and the ViewCube regions are reachable by tap. Orbit uses a single-finger drag, zoom uses pinch.
+
+Under `@media (pointer: coarse)`:
+- Module collapse buttons (`.mod-h button`), brand controls (`#brand button`), density and command buttons (`#controls button`, `#cmd button`), ViewCube buttons (`#view-cube button`), and design row controls (`[data-testid="design-row"] button`) expand to 44px tall hit areas via vertical pseudo-element expansion (`::after`). Expansion is strictly vertical so adjacent controls sitting shoulder-to-shoulder horizontally do not steal taps from each other.
+- Interactive fields and chips that cannot use pseudo-elements (`#cmd input`, `#slots input`, `#slots button`, empty-state preset buttons) enforce a physical minimum height of 44px (and minimum width of 44px for buttons).
 
 ---
 
@@ -1114,37 +1168,53 @@ Target WCAG 2.2 AA.
 Mandatory:
 
 - semantic buttons; every icon control has an accessible name;
+- **module titles are `h2` headings** (`titleAs = 'h2'` in `Module.tsx`), allowing screen readers to navigate the eight plates as a clean structural outline (the brand plate stays a wordmark);
 - keyboard access to every operation;
-- visible focus (see Components);
+- **visible focus is one amber border rather than a ring inside a ring**: inputs and fields inside the shell use `.shell-field` which states focus through their own 1px border turning amber (`focus-within:border-[var(--shell-signal)]`) and suppresses generic focus rings (`box-shadow: none`), while `--ring` resolves to the shell signal;
 - text alternatives for every state colour;
-- sufficient contrast, including the 9px engraved labels and dim values;
+- **sufficient contrast across the entire text ladder**: every step (`foreground`, `muted`, `label`, `dim`, `placeholder`) clears 4.5:1 against the module plate and canvas in both dark and light themes (dark label: 6.0:1, dark dim: 4.6:1; light label: 5.2:1, light dim: 4.6:1);
+- **browser surfaces owned by shell palette**: scrollbars (`scrollbar-color: var(--shell-scroll-thumb) transparent` and webkit scrollbar rules) and text selection (`::selection` using a 30% signal mix) come strictly from the shell tokens rather than browser defaults or legacy purple/zinc styles;
 - error text associated with its field;
-- reduced-motion behavior;
-- no hover-only discovery;
+- reduced-motion behavior (`part-tumble` loader halts on `prefers-reduced-motion: reduce` and holds a still isometric angle);
+- no hover-only discovery (row utilities that reveal on hover also reveal on `group-focus-within/row`);
 - **no drag-only operation** — module position and camera orientation both have
   non-drag equivalents (layout reset, ViewCube clicks, keyboard presets);
 - logical focus restoration after overlays.
 
 For the viewport specifically: standard views (front / back / left / right / top / bottom /
-isometric), fit, and zoom must be reachable from the keyboard. A precision drag must
+isometric), fit, and zoom must be reachable from the keyboard (`1`–`6`, `0`, `f`). A precision drag must
 never be the only way to answer "show me the front".
 
 ---
 
 ## 22. Component Architecture
 
-### Token ownership
+### Palette ownership & token layers
+
+The shell owns the product palette (`src/app/globals.css`, `--shell-*`). There is no second palette.
+Three alias layers resolve directly to the shell tokens instead of maintaining separate colour definitions:
+
+1. **The `--cad-*` alias layer**: Every legacy panel naming these tokens (`--cad-bg`, `--cad-surface`, `--cad-border`, `--cad-text`, `--cad-accent`, etc.) now resolves to `--shell-*` tokens in both dark and light themes.
+2. **shadcn base tokens**: All shadcn primitives read `--background`, `--foreground`, `--card`, `--popover`, `--primary`, `--secondary`, `--muted`, `--accent`, `--destructive`, `--border`, `--input`, `--ring` directly from the shell tokens (`--shell-module-solid`, `--shell-text`, `--shell-signal`, `--shell-fail`, etc.). No primitive inherits stock oklch greys or off-palette near-whites.
+3. **Radius scale pinned to 3/4/6/9/999**: The derived steps (`--radius-sm: 3px; --radius-md: 4px; --radius-lg: 6px; --radius-xl: 9px; --radius-2xl: 9px; --radius-3xl: 9px;`) replace shadcn's default `6/8/10/14px` derivation, so control and module geometry stay aligned across every component.
 
 ```
-src/app/globals.css             semantic CSS variables (--app-*, --signal, --pass, …)
-tailwind.config.ts              maps tokens to utility names
-src/components/ui/*             primitives (button, input, dialog, …)
-src/components/cad/workspace/*  shell: modules, dock, ViewCube, viewport
-src/components/cad/*            domain panels
+src/app/globals.css             Shell palette (--shell-*), alias layers, pinned radius
+tailwind.config.ts              Maps tokens to utility names
+src/components/ui/*             shadcn primitives resolving to shell tokens
+src/components/cad/workspace/*  Shell: modules, ViewCube, viewport, composer
+src/components/cad/*            Domain panels (re-pointed to shell via alias layer)
 ```
 
 Screen files must not invent colours. If a screen needs a colour that does not exist,
 the token set is wrong.
+
+### Floating module plate ownership
+
+The floating plate has **exactly one definition**: `Module.tsx` owns its background, border, radius, shadow, and blur through shell tokens. Hardcoded duplicates in CSS (such as the old `.mod` block in `globals.css`) are removed.
+
+- **Scrolling body**: `Module.tsx` applies `overflow-hidden` to the outer container strictly to clip rounded corners; the inner body (`mod-b`) uses `overflow-y-auto` so modules scroll their contents rather than clipping controls.
+- **Header outline**: Module headers use `titleAs = 'h2'` so that screen readers can navigate the eight plates as a document outline.
 
 ### shadcn strategy
 
@@ -1164,21 +1234,27 @@ confirm the writer count is one.
 
 ## 23. Existing Component Migration
 
-| File | Action |
+| File | Status & Action |
 | --- | --- |
-| `workspace/MainWorkspace.tsx` | Becomes the module host. Loses the app bar, footer, resizable panels and the persistent pipeline strip |
-| `workspace/JobListPanel.tsx` | Becomes the `零件槽位` module. Loses `SearchFilterPanel`'s permanent chips and the card markup |
-| `workspace/ViewerPanel.tsx` | Becomes the WebGL canvas + ViewCube. The `<img>` preview path survives only as the WebGL fallback |
-| `workspace/InspectorPanel.tsx` | Splits into `尺寸`, `检验`, `产出/版本` modules |
-| `workspace/JobComposer.tsx` | Collapses into the single composer: no modal, no template grid, no tag field in the primary path |
-| `pipeline-visualization.tsx` | Becomes the four-lamp strip |
-| `quick-actions-bar.tsx` | Deleted; the actions move into the composer and the modules |
-| `footer.tsx` | Deleted; environment state lives in the brand module |
-| `three-d-viewer.tsx` | Keeps the STL pipeline, gains the camera contract above |
-| `job-status-page.tsx` | Renders the module layout read-only |
+| `workspace/MainWorkspace.tsx` | Module host. Loses the app bar, footer, resizable panels and persistent pipeline strip. Owns Space and camera key bindings |
+| `workspace/JobListPanel.tsx` | `零件槽位` module. Includes full-width `＋ 新零件 ⌘N` button carrying soft accent; keyboard navigation (`role="option"`, `tabIndex=0`) |
+| `workspace/ViewerPanel.tsx` | WebGL canvas + ViewCube. The `<img>` preview path survives only as the WebGL fallback |
+| `workspace/InspectorPanel.tsx` | Trimmed to 描述 (`SPEC`), 源码 (`CODE`), 记录 (`HISTORY`). Five legacy panels (`PARAMETERS`, `VALIDATION`, `ASSIST`, `DEPS`, `RESEARCH`) have no active entry point in the tab strip, but their components remain bundled in the tree |
+| `workspace/JobComposer.tsx` | Styled as a shell plate with Chinese copy and solid signal button, but survives as a modal dialog because templates and case memory still live there |
+| `provider-settings-panel.tsx` | On-palette now, but still 11–13px type with English labels (Preset / Name / Base URL / API Key / Model / Enabled / Default / Test / Save) |
+| `theme-panel.tsx` | Scoped strictly to the three theme modes (亮色 / 暗色 / 跟随系统); removed ~20 unconsumed CSS variables |
+| `three-d-viewer.tsx` | Keeps STL pipeline, implements camera contract with symmetric ±89.8° guard and deduplicated angle echo |
+| `pipeline-visualization.tsx` | Dead file with no active importer |
+| `job-status-page.tsx` | Dead file with no active importer |
+| `timeline-panel.tsx` | Dead file with no active importer |
+| `scad-viewer.tsx` | Dead file with no active importer |
+| `cad-primitives.tsx` | Dead file with no active importer |
+| `notes-panel.tsx` | Dead file with no active importer |
+| `job-version-history.tsx` | Dead file with no active importer |
+| `quick-actions-bar.tsx` | Dead file with no active importer |
+| `footer.tsx` | Dead file with no active importer |
 
-`job-compare.tsx`, `stats-dashboard.tsx`, `theme-panel.tsx`, `provider-settings-panel.tsx`
-are secondary surfaces. They open as sheets or dialogs and are out of the main canvas.
+`job-compare.tsx` and `stats-dashboard.tsx` are contextual secondary surfaces opened from the rail batch bar.
 
 ---
 
@@ -1222,7 +1298,7 @@ Verified against the running app with real job data, not against intentions.
 | Slots filters collapsed into one action; status moved inside it | the five permanent chips are gone |
 | ViewCube: 26 regions, ray picking, mirrors the camera, no snap on release | 6 regression tests in `viewcube.test.tsx` |
 | Keyboard standard views and fit (`1`–`6`, `0`, `F`), each key with exactly one owner | verified: 1→前, 2→右, 3→上, 4→后, 5→左, 6→下, 0→等轴 · 前上右, F refits |
-| Composer: fixed 620px, centred, pinned, circular action, staleness line | 5-state capture |
+| Composer: `min(620px, max(320px, 100vw - 456px))`, centred, pinned, circular action, staleness line | 5-state capture; 620px at the reference size, 320px at 375px, 0px overlap with 读数 at 1440 / 1150 / 1100 / 1000 / 960 |
 | Settings sheet from the brand module: 提供方 / 外观 tabs + export-all | opens over the shell, never touches the draft |
 | Notifications as a right-hand drawer, portalled, Esc to dismiss | 368×900 at the right edge; Esc closes |
 | Brand module owns the only two utility entry points (bell, gear) | the seven-item tools dropdown is gone |
@@ -1248,25 +1324,30 @@ below was reproduced before it was changed.
 | Every part opens from the keyboard | rows are `role="option"` + `tabIndex=0` inside a `role="listbox"` with Enter/Space activation; the hover utilities also reveal on `group-focus-within/row`, so focus never lands on an invisible control |
 | 上 and 下 are reachable stops again | two bugs, both fixed: OrbitControls' polar limit was 0.96π (−82.8°), so 下 never arrived (it stopped 7° short and the cube honestly said 自由视角); the camera guard is now symmetric ±89.8° and `ViewCube.labelFor` resolves that guard to the ±90 stop. Measured: `3` → 上 at +89.8°, `6` → 下 at −89.8° |
 | One owner per key | `KeyboardShortcuts.tsx` no longer writes Space, `1`–`6`, `e` or `h`; `MainWorkspace.tsx` owns Space and the camera keys |
-| The plate has one definition | the hardcoded `.mod` duplicate in `globals.css` is gone; `Module.tsx` owns the plate through shell tokens |
-| One focus colour | `--ring` and the input focus ring resolve to the shell signal (light `#E0512A`, dark `#FF5A1F`) instead of the old amber |
-| The composer never covers 读数 | its width is `min(620px, 100vw − 456px)`: measured overlap 0px at 1440 / 1150 / 1100 / 1000 / 960, and 620px is unchanged at the reference size |
+| The plate has one definition | the hardcoded `.mod` duplicate in `globals.css` is gone; `Module.tsx` owns the plate through shell tokens; module body scrolls with `overflow-y-auto` rather than clipping |
+| One focus colour | `--ring` and the input focus ring resolve to the shell signal (light `#E0512A`, dark `#FF5A1F`) instead of the old amber; `.shell-field` disables inner duplicate ring |
+| The composer never covers 读数 | its width is `min(620px, max(320px, 100vw − 456px))`: measured overlap 0px at 1440 / 1150 / 1100 / 1000 / 960, and 320px floor prevents zero-width collapse on mobile |
 | The cube drives the part | `ViewCube`'s drag path only set the angle without bumping the viewer's command nonce, so the cube turned, the label moved and the part did not (measured: 0 of 360,000 viewport pixels changed). Both paths now share one command handler; the same measurement reads 73,861 |
 | The active composer is one signal | the field had a border *and* a 2px ring in the same amber, under a row of three bordered key chips. Now: one 1px amber border, and the shortcuts are engraved text with ⌘K as the only control in that row |
 | The cube tracks the pointer while dragging | the same 0.34s ease that makes a clicked view legible was also on during the drag, so the cube trailed the pointer. It is now tied to the drag state (measured 0.34s at rest → 0s while dragging → 0.34s after release), drag updates are rAF-coalesced (120 synthetic pointer moves cost 0.4ms total), and the viewer's echo of a commanded angle no longer triggers a second render per move |
-| The rail has a visible create action | it existed only in the empty state, so a workspace with designs in it offered no way to start another one. `＋ 新零件 ⌘N` sits under the search row (246×28), carries the accent's soft form, and opens the create surface |
+| The rail has a visible create action | it existed only in the empty state, so a workspace with designs in it offered no way to start another one. `＋ 新零件 ⌘N` sits under the search row (246×28), carries the accent's soft form (`.rail-create`), and opens the create surface |
 | The create surface is a shell plate | it was the last all-legacy screen: `--cad-*` surfaces, orange focus glow, English labels, three sets of boxed controls. Now: shell plate and hairlines, engraved 零件描述 / 模型引擎 / 标签, the signal-filled active segment, the soft form for 设置 and AI 润色, one solid signal group (生成, disabled until there is a brief), and Chinese copy throughout. Measured: 0 legacy `--cad-*` computed colours left inside the dialog, both themes |
+| Palette ownership rule & 3 alias layers | the shell owns the palette; three alias layers resolve directly to it: `--cad-*` re-pointed to `--shell-*`, shadcn base tokens mapped to shell tokens, and radius scale pinned to 3/4/6/9/999 (§22) |
+| Enforced colour rules across every surface | state colours (NEW / SCAD_GENERATED / ... / CANCELLED) come from pass/warn/fail/label; activity feed and notification maps use the same; part-family icons no longer paint a hue per family; SCAD syntax highlighter uses roles (accent soft for keywords, warn for engine variables, text ladder for rest); repeatable scan reports zero out-of-palette colours on every reachable surface |
+| Text ladder contrast raised | label, dim, and placeholder steps were raised so every step clears 4.5:1 against the module plate in both themes (dark label 6.0:1, dim 4.6:1; light label 5.2:1, dim 4.6:1), fixing real failures: dark dim was 2.95:1, placeholder 2.53:1, light composer hint 3.11:1, light cube label 4.24:1 |
+| Appearance panel scoped to theme modes | the 外观 tab offers strictly the three theme modes (亮色 / 暗色 / 跟随系统); removed ~20 unconsumed CSS variables and conflicting `--cad-accent`/`--primary`/`--ring` writers; density lives in the 面板 module |
+| Touch targets & accessibility | module titles are `h2` headings (brand plate stays a wordmark); module collapse and row controls expand to 44px tall hit areas under `(pointer: coarse)`; scrollbars and `::selection` come from the shell palette |
 | `bun run lint` is green | the notification drawer detects the client with `useSyncExternalStore` instead of `setState` in an effect |
 
 **Not done**
 
 | Item | Note |
 | --- | --- |
-| Case memory and templates folded into composer recall | they still live in the create surface; that surface is now in the shell's language (see the fix table), but §8's one flow is not built yet |
-| Theme panel content re-tokenised | container is new, contents still use old tokens |
-| Responsive behaviour below 960px | the rail is no longer hidden, but §20's stacked layout (viewport 45vh, modules as full-width sheets summoned one at a time) is still not built |
-| §20 960–1279px tuning | modules shrink and their bodies scroll (measured: 尺寸/检验 cap at 46% of the column), but the dimensions module does not yet fold its second parameter group behind a disclosure |
-| Research / dependencies / notes placement per §6 | reachable from the 源码 / 记录 sheet; not yet collapsed into 检验 as a 来源 section |
+| Case memory and templates folded into composer recall | they still live in the create surface modal; that surface is now in the shell's language (see the fix table), but §8's one flow is not built yet: templates and case memory still live there and are the reason it survives |
+| Responsive behaviour below 960px | the rail is no longer hidden, but §20's stacked layout (viewport 45vh, modules as full-width sheets summoned one at a time) is not built; plates still overlap each other at 375px |
+| Provider settings form | on-palette now, but still 11–13px type with English labels (Preset / Name / Base URL / API Key / Model / Enabled / Default / Test / Save) |
+| Five panels with no entry point since sheet trimmed to 描述/源码/记录 | PARAMETERS, VALIDATION, ASSIST, DEPS, RESEARCH have no active entry point in the inspector tab strip; their components are still bundled |
+| Dead files with no importer | job-status-page, pipeline-visualization, timeline-panel, scad-viewer, cad-primitives, notes-panel, job-version-history, quick-actions-bar, footer |
 | Model orientation convention (Open question 2) | still open: the ViewCube's meaning depends on the generated SCAD's axes |
 
 ### Phase 0 — Contract
@@ -1488,7 +1569,8 @@ Measured on the running app at 1440×900 with the seeded session's real jobs:
    face. Either fix orientation at generation time or normalise it before render.
 3. **`assets/views/` (26 pre-rendered PNGs).** Currently unused after the WebGL port.
    Wire them as the no-WebGL fallback or delete them.
-4. **Slots still open a design into the old tabs.** The 源码 / 记录 sheet reuses
-   `InspectorPanel`, so `描述` / 尺寸 / 检验 / 源码 / 记录 still exist there as tabs even
-   though 尺寸 and 检验 are now canvas modules. The sheet should keep only 描述, 源码 and
-   记录, and 依赖 / 来源 / 笔记 should move to where §6 puts them.
+4. **Orphaned inspector panels.** The inspector sheet (`InspectorPanel.tsx`) was trimmed
+   to 描述, 源码, and 记录. Five panels (PARAMETERS, VALIDATION, ASSIST, DEPS, RESEARCH)
+   now have no active entry point in the tab strip, but their components remain bundled
+   in the tree. Once their active homes in canvas modules and sheets are fully settled,
+   the dead panel code should be pruned.
