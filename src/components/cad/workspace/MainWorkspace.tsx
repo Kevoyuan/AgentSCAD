@@ -1262,7 +1262,7 @@ export function MainWorkspace() {
           <DialogHeader>
             <DialogTitle className="text-sm font-semibold text-[var(--shell-text)]">源码 / 记录</DialogTitle>
             <DialogDescription id="details-description" className="sr-only">
-              OpenSCAD source, revision history, notes and dependencies for the selected design
+              这个零件的源码、版本记录、笔记与依赖
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-hidden">
