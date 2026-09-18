@@ -15,14 +15,18 @@ colors:
   border-strong-dark: "rgba(255,255,255,0.17)"
   foreground-dark: "#EDE8E0"
   foreground-muted-dark: "#BEB6AC"
-  foreground-label-dark: "#948C82"
-  foreground-dim-dark: "#6E6760"
+  # The four text steps, darkest surface to quietest. Every step clears 4.5:1 on the
+  # module plate, which is what section 21 requires of the dim values too.
+  foreground-label-dark: "#A79E92"
+  foreground-dim-dark: "#92897E"
   # light workspace
   canvas-light: "#F4F2EE"
   module-light: "rgba(255,255,255,0.92)"
   border-light: "#D9D3C9"
   foreground-light: "#1B1917"
-  foreground-muted-light: "#6B6459"
+  foreground-muted-light: "#5C564D"
+  foreground-label-light: "#6B6459"
+  foreground-dim-light: "#7C7468"
   # semantic accents (budgeted — see Colors)
   signal: "#FF5A1F"
   signal-soft: "#FFB597"
