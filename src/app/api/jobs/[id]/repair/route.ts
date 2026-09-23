@@ -16,6 +16,7 @@ import {
 import { sanitizeGeneratedScadSource } from "@/lib/tools/scad-sanitizer";
 import { buildJobQuality } from "@/lib/validation/job-quality";
 import { toPublicJob, toPublicJobOrNull } from "@/lib/public-job";
+import { recordArtifactVersion } from "@/lib/artifacts/artifact-version";
 
 export const maxDuration = 300;
 
@@ -123,10 +124,12 @@ export async function POST(
     let renderLog: import("@/lib/harness/types").RenderLog | null = null;
     let stlFilePath: string | null = null;
     let pngFilePath: string | null = null;
+    let renderedArtifacts: import("@/lib/harness/types").RenderedArtifacts | null = null;
 
     try {
       const artifacts = await renderScadArtifacts(id, sanitized, undefined, execution.assertActive);
       clearValidationCache();
+      renderedArtifacts = artifacts;
       stlPath = artifacts.stlPath;
       pngPath = artifacts.pngPath;
       stlFilePath = artifacts.stlFilePath;
@@ -212,6 +215,17 @@ export async function POST(
     } catch { /* use empty */ }
     repairHistory.push(repairEntry);
 
+    if (renderSucceeded && renderedArtifacts) {
+      await recordArtifactVersion({
+        jobId: id,
+        scadSource: sanitized,
+        artifacts: renderedArtifacts,
+        validationResults: revalidationResults,
+        instructionFingerprint: repairMeta.instruction_fingerprint ?? null,
+        modelExecution: repairMeta.model_execution ?? null,
+      });
+    }
+
     if (criticalFailures.length > 0) {
       await execution.update({
         where: { id },
@@ -232,11 +246,14 @@ export async function POST(
           qualityScore: quality.qualityScore,
           validationReportJson: quality.validationReportJson,
           cadIntentJson: JSON.stringify({
+            ...(cadIntent ?? {}),
             part_type: repaired.part_type,
             summary: repaired.summary,
             features: repaired.features,
             constraints: repaired.constraints,
             design_rationale: repaired.design_rationale,
+            instruction_fingerprint: repairMeta.instruction_fingerprint ?? cadIntent?.instruction_fingerprint ?? null,
+            model_execution: repairMeta.model_execution ?? cadIntent?.model_execution ?? null,
           }),
           modelingPlanJson: JSON.stringify(repaired.modeling_plan),
           validationTargetsJson: JSON.stringify(repaired.validation_targets),
@@ -277,11 +294,14 @@ export async function POST(
         qualityScore: quality.qualityScore,
         validationReportJson: quality.validationReportJson,
         cadIntentJson: JSON.stringify({
+          ...(cadIntent ?? {}),
           part_type: repaired.part_type,
           summary: repaired.summary,
           features: repaired.features,
           constraints: repaired.constraints,
           design_rationale: repaired.design_rationale,
+          instruction_fingerprint: repairMeta.instruction_fingerprint ?? cadIntent?.instruction_fingerprint ?? null,
+          model_execution: repairMeta.model_execution ?? cadIntent?.model_execution ?? null,
         }),
         modelingPlanJson: JSON.stringify(repaired.modeling_plan),
         validationTargetsJson: JSON.stringify(repaired.validation_targets),

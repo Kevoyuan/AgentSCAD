@@ -11,7 +11,7 @@ import type {
 } from "@/lib/harness/types";
 
 export interface PersistedGenerationPlan {
-  schema_version: 1;
+  schema_version: 2;
   fingerprint: string;
   plan: CadGenerationPlan;
 }
@@ -66,6 +66,18 @@ function plannedFeatures(intelligence: RequestIntelligenceV1): CadFeature[] {
   }));
 }
 
+function explicitValidationMode(request: string, intelligence: RequestIntelligenceV1) {
+  const stated = [request, intelligence.brief?.intendedUse ?? "", ...(intelligence.brief?.explicitConstraints ?? [])].join(" ");
+  const assembly = /\b(?:assembly|separate parts|multiple parts|multi-part)\b|\b(?:[2-9]|two|three)(?:\s+\w+){0,3}\s+parts\b|装配|多个零件|两个零件|两部分|分体/i.test(stated);
+  const display = /\b(?:display-only|display model|non-printable|not for printing)\b|展示模型|仅供展示|不用于打印/i.test(stated);
+  const exactParts = stated.match(/\b([2-9])(?:\s+\w+){0,3}\s+parts\b|\b(two|three)(?:\s+\w+){0,3}\s+parts\b|([二两三四五六七八九])个?零件/iu);
+  const chineseCounts: Record<string, number> = { 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  const expectedComponentCount = exactParts
+    ? exactParts[1] ? Number(exactParts[1]) : exactParts[2] ? (exactParts[2].toLowerCase() === "two" ? 2 : 3) : chineseCounts[exactParts[3]]
+    : undefined;
+  return { assembly, display, expectedComponentCount };
+}
+
 export function buildGenerationPlan(args: {
   request: string;
   family: PartFamily;
@@ -74,44 +86,28 @@ export function buildGenerationPlan(args: {
   intelligence: RequestIntelligenceV1;
 }): PersistedGenerationPlan {
   const { request, family, parameterValues, parameterSchema, intelligence } = args;
+  const validationMode = explicitValidationMode(request, intelligence);
   const features = plannedFeatures(intelligence);
   const dimensions = numericDimensions(parameterSchema);
   const constraints: CadConstraints = {
     dimensions,
     assumptions: [...intelligence.assumptions],
-    manufacturing: {
-      min_wall_thickness: dimensions.wall_thickness ?? 1.2,
-      printable: true,
-    },
-    geometry: {
-      must_be_manifold: true,
-      centered: true,
-      no_floating_parts: true,
-    },
-    code: {
-      use_parameters: true,
-      use_library_modules: true,
-      avoid_magic_numbers: true,
-      top_level_module: "generated_part",
-    },
+    explicit_constraints: [...(intelligence.brief?.explicitConstraints ?? [])],
+    manufacturing: {},
+    geometry: {},
+    code: {},
   };
   const validationTargets: CadValidationTargets = {
     expected_bbox: [],
-    required_feature_checks: [
-      "single connected body",
-      ...features.map((feature) => feature.description),
-      ...(intelligence.brief?.acceptanceCriteria ?? []),
-    ],
-    forbidden_failure_modes: [
-      "missing required features",
-      "floating parts",
-      "non-manifold mesh",
-      "sub-minimum printable features",
-    ],
+    required_feature_checks: [...(intelligence.brief?.acceptanceCriteria ?? [])],
+    forbidden_failure_modes: [],
+    ...(validationMode.assembly ? { allow_multiple_components: true } : {}),
+    ...(validationMode.expectedComponentCount ? { expected_component_count: validationMode.expectedComponentCount } : {}),
+    ...(validationMode.display ? { manufacturing_mode: "display" as const } : {}),
   };
 
   return {
-    schema_version: 1,
+    schema_version: 2,
     fingerprint: generationPlanFingerprint(request, family, parameterValues, intelligence),
     plan: {
       part_type: family === "unknown"
@@ -121,16 +117,8 @@ export function buildGenerationPlan(args: {
       units: "mm",
       features,
       constraints,
-      modeling_plan: [
-        "Create the primary printable body from editable top-level dimensions.",
-        ...features.map((feature) => `Model required feature: ${feature.description}.`),
-        "Apply cutouts and clearances as subtractive geometry with explicit overlap tolerances.",
-        "Assemble one manifold body in generated_part() and expose it once at the top level.",
-      ],
-      design_rationale: [
-        "Use a compact, persisted geometry contract so retries can resume at code generation.",
-        "Keep OpenSCAD as the artifact source of truth for editable parameters.",
-      ],
+      modeling_plan: [],
+      design_rationale: [],
       validation_targets: validationTargets,
     },
   };
@@ -145,7 +133,7 @@ export function restoreGenerationPlan(
     const parsed = JSON.parse(cadIntentJson) as { generation_plan?: PersistedGenerationPlan };
     const persisted = parsed.generation_plan;
     if (
-      persisted?.schema_version !== 1
+      persisted?.schema_version !== 2
       || persisted.fingerprint !== expectedFingerprint
       || !persisted.plan
       || !Array.isArray(persisted.plan.modeling_plan)

@@ -49,7 +49,7 @@ export async function claimJobExecution(
   if (typeof db.$transaction !== "function" || !db.jobVersion) {
     return {
       async assertActive() {},
-      async update(args: { data: Prisma.JobUpdateManyMutationInput; where?: unknown }) {
+      async update(args: { data: Prisma.JobUpdateManyMutationInput; where?: Prisma.JobWhereInput }) {
         if (db.job?.update) {
           return db.job.update({
             where: { id: job.id },
@@ -98,9 +98,12 @@ export async function claimJobExecution(
         throw new JobExecutionStopped();
       }
     },
-    async update(args: { data: Prisma.JobUpdateManyMutationInput; where?: unknown }) {
+    async update(args: { data: Prisma.JobUpdateManyMutationInput; where?: Prisma.JobWhereInput }) {
       return db.$transaction(async (tx) => {
-        const updated = await tx.job.updateMany({ where: where(), data: args.data });
+        const updated = await tx.job.updateMany({
+          where: args.where ? { AND: [where(), args.where] } : where(),
+          data: args.data,
+        });
         if (updated.count !== 1) throw new JobExecutionStopped();
         return tx.job.findUniqueOrThrow({ where: { id: job.id } });
       });

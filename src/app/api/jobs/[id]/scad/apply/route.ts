@@ -18,6 +18,7 @@ import {
   validateRenderedArtifacts,
 } from '@/lib/tools/validation-tool'
 import { buildJobQuality } from '@/lib/validation/job-quality'
+import { recordArtifactVersion } from '@/lib/artifacts/artifact-version'
 import type { ParameterDef, RenderedArtifacts } from '@/lib/harness/types'
 
 export const maxDuration = 300
@@ -228,6 +229,14 @@ export async function POST(
             message: 'Running mesh and visual design-intent validation...',
           })
           await execution.assertActive()
+          let storedValidationTargets: import('@/lib/harness/types').CadValidationTargets | undefined
+          try {
+            storedValidationTargets = job.validationTargetsJson
+              ? JSON.parse(job.validationTargetsJson)
+              : undefined
+          } catch {
+            storedValidationTargets = undefined
+          }
           const validationResults = await validateRenderedArtifacts({
             inputRequest: job.inputRequest ?? 'generic part',
             partFamily: job.partFamily,
@@ -235,6 +244,7 @@ export async function POST(
             stlFilePath: renderedArtifacts.stlFilePath,
             previewImagePath: renderedArtifacts.pngFilePath,
             wallThickness: parameterState.wallThickness,
+            validationTargets: storedValidationTargets,
           })
           const criticalFailures = getCriticalValidationFailures(validationResults)
           const quality = buildJobQuality({
@@ -242,6 +252,13 @@ export async function POST(
             scadSource,
             stlPath: renderedArtifacts.stlPath,
             pngPath: renderedArtifacts.pngPath,
+            validationResults,
+          })
+
+          await recordArtifactVersion({
+            jobId: id,
+            scadSource,
+            artifacts: renderedArtifacts,
             validationResults,
           })
 

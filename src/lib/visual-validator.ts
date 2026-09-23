@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { createMimoChatCompletion, getMimoConfig } from "@/lib/mimo";
-import { loadSkill } from "@/lib/skill-resolver";
+import { loadSkill, skillInstructions } from "@/lib/skill-resolver";
 import type { ValidationResult } from "@/lib/mesh-validator";
 
 type VisualValidationIssue = {
@@ -135,7 +135,7 @@ export async function validatePreviewAgainstRequest({
       model: process.env.MIMO_VISION_MODEL || "mimo-v2.5",
       stream: false,
       messages: [
-        { role: "system", content: skill },
+      { role: "system", content: skillInstructions(skill) },
         {
           role: "user",
           content: [

@@ -1,6 +1,10 @@
 ---
 name: scad-chat
 description: Explain or modify OpenSCAD conversationally for AgentSCAD jobs, including code edits, manufacturing advice, parameter suggestions, and full replacement SCAD patches.
+version: 1
+when_to_use: The user asks for conversational CAD explanation or an interactive SCAD change.
+when_not_to_use: A pipeline generation, repair, or deterministic validation step is running.
+required_inputs: [user_message]
 triggers:
   - explain scad
   - modify scad

@@ -60,6 +60,10 @@ async function readJsonFile<T>(filePath: string): Promise<T | null> {
   }
 }
 
+export function skillInstructions(content: string): string {
+  return content.replace(/^---\r?\n[\s\S]*?\r?\n---\s*/, "").trim();
+}
+
 export function isExperimentalMemoryPromptEnabled(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
@@ -139,19 +143,21 @@ export async function buildScadPrompt(
   parameterValues: Record<string, unknown>,
   researchEvidence?: string,
 ): Promise<{ systemPrompt: string; userPrompt: string } | null> {
-  const [skillContent, familySchema, libraryPromptRaw, retrievalCtx, stdLibDocRaw] = await Promise.all([
+  const [skillContent, planningSkill, familySchema, libraryPromptRaw, retrievalCtx, stdLibDocRaw] = await Promise.all([
     loadSkill("scad-generation"),
+    loadSkill("scad-planning"),
     loadFamilySchema(partFamily),
     buildScadLibraryPrompt(),
     retrieveContext(inputRequest),
     loadStdLibDoc(),
   ]);
-  if (!skillContent) return null;
+  if (!skillContent || !planningSkill) return null;
 
   // Prompt sections are no longer silently cut off. Truncating the skill, the
   // standard library reference or the library guidance mid-sentence produced
   // prompts that asked for APIs the model could no longer see.
-  const boundedSkill = skillContent;
+  const boundedSkill = skillInstructions(skillContent);
+  const planningInstructions = skillInstructions(planningSkill);
   const libraryPrompt = libraryPromptRaw;
   const retrievalText = formatRetrievalContext(retrievalCtx);
   const stdLibDoc = stdLibDocRaw;
@@ -184,6 +190,7 @@ export async function buildScadPrompt(
   if (markerIdx >= 0) {
     systemPrompt = [
       boundedSkill.slice(0, markerIdx).trim(),
+      planningInstructions,
       stdLibDoc,
       libraryPrompt,
       retrievalText,
@@ -193,6 +200,7 @@ export async function buildScadPrompt(
     // Fallback: entire file is the system prompt, build a simple user prompt
     systemPrompt = [
       boundedSkill.trim(),
+      planningInstructions,
       stdLibDoc,
       libraryPrompt,
       retrievalText,
@@ -209,28 +217,6 @@ export async function buildScadPrompt(
       /\{parameterValues\}/g,
       JSON.stringify(parameterValues, null, 2)
     );
-
-  // Inject manufacturing constraints that the validator enforces.
-  // These are NOT the design wall_thickness parameter — they are
-  // printability thresholds the mesh validator checks against.
-  {
-    const returnMarker = "Return the JSON object";
-    const idx = userPrompt.lastIndexOf(returnMarker);
-    if (idx >= 0) {
-      const constraints = [
-        "FDM minimum wall thickness: 1.2 mm (R001 validation will fail below this)",
-        "Every printable local feature must be at least 1.2 mm thick/wide, including decorative ribs, relief lines, scrollwork, rims, lips, bridges around holes, nose ridges, tabs, bosses, and connectors.",
-        "Prefer 1.6 mm or thicker for decorative details and 2.0 mm or thicker for structural/support features unless the user explicitly asks for a non-printable display-only model.",
-        "Do not create knife-edge, hairline, zero-thickness, or sub-1.2 mm features. If a requested visual detail would be too thin, simplify, merge, emboss, or thicken it while preserving the design intent.",
-        "Avoid tangential/coplanar boolean contacts and degenerate sliver triangles; overlap joined solids by an explicit merge tolerance such as 0.2 mm.",
-        "All dimensions in millimeters",
-      ].join("\n");
-      userPrompt =
-        userPrompt.slice(0, idx).trimEnd() +
-        `\n\n## Manufacturing constraints (validated)\n${constraints}\n\n` +
-        userPrompt.slice(idx);
-    }
-  }
 
   // Optional web-research evidence. It is advisory: the generator may use it to
   // constrain dimensions, but it must not present the model as an official product.
@@ -281,14 +267,15 @@ export async function buildScadCodingPrompt(
   generationPlan: unknown,
   researchEvidence?: string,
 ): Promise<{ systemPrompt: string; userPrompt: string } | null> {
-  const [skillContent, familySchema, libraryPromptRaw, retrievalCtx, stdLibDocRaw] = await Promise.all([
+  const [skillContent, planningSkill, familySchema, libraryPromptRaw, retrievalCtx, stdLibDocRaw] = await Promise.all([
     loadSkill("scad-coding"),
+    loadSkill("scad-planning"),
     loadFamilySchema(partFamily),
     buildScadLibraryPrompt(),
     retrieveContext(inputRequest),
     loadStdLibDoc(),
   ]);
-  if (!skillContent) return null;
+  if (!skillContent || !planningSkill) return null;
 
   const params = (familySchema?.parameters ?? []).map((parameter) => ({
     ...parameter,
@@ -296,13 +283,14 @@ export async function buildScadCodingPrompt(
   }));
   return {
     systemPrompt: [
-      skillContent,
+      skillInstructions(skillContent),
+      skillInstructions(planningSkill),
       stdLibDocRaw,
       libraryPromptRaw,
       formatRetrievalContext(retrievalCtx),
     ].filter(Boolean).join("\n\n"),
     userPrompt: [
-      "Implement this approved CAD generation plan as complete OpenSCAD.",
+      "Use this persisted request-evidence contract to plan and implement complete OpenSCAD.",
       `<user_request>\n${inputRequest}\n</user_request>`,
       `<generation_plan>\n${JSON.stringify(generationPlan, null, 2)}\n</generation_plan>`,
       `<editable_parameters>\n${JSON.stringify(params, null, 2)}\n</editable_parameters>`,

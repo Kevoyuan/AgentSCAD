@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { buildScadCodingPrompt, buildScadPrompt, loadFamilySchema, loadSkill, applyParameterOverrides } from "@/lib/skill-resolver";
 import { createChatCompletionDetailed } from "@/lib/tools/model-router";
 import { sanitizeGeneratedScadSource } from "@/lib/tools/scad-sanitizer";
@@ -136,9 +137,9 @@ function emptyStructuredDefaults(): Pick<
     constraints: {
       dimensions: {},
       assumptions: [],
-      manufacturing: { min_wall_thickness: 2, printable: true },
-      geometry: { must_be_manifold: true, centered: true, no_floating_parts: true },
-      code: { use_parameters: true, use_library_modules: true, avoid_magic_numbers: true, top_level_module: "generated_part" },
+      manufacturing: {},
+      geometry: {},
+      code: {},
     },
     modeling_plan: [],
     design_rationale: [],
@@ -437,6 +438,8 @@ export async function runScadGenerationSkill(
     throw new Error(`${generationPlan ? "scad-coding" : "scad-generation"} skill is missing`);
   }
 
+  const modelStartedAt = Date.now();
+  let modelCallCount = 1;
   const completion = await createChatCompletionDetailed({
     messages: [
       { role: "system", content: prompt.systemPrompt },
@@ -485,6 +488,7 @@ export async function runScadGenerationSkill(
             ? "Your previous output was truncated. Please output a concise CAD Intent JSON followed by a complete, unbroken ```scad ... ``` code block. Ensure the OpenSCAD code is properly closed."
             : "FORMAT CORRECTION: Output Part 1 as CAD Intent JSON, followed by a ```scad ... ``` code fence containing complete OpenSCAD source code. Do not output extraneous commentary.";
 
+        modelCallCount += 1;
         const retryCompletion = await createChatCompletionDetailed({
           messages: [
             { role: "system", content: prompt.systemPrompt },
@@ -551,6 +555,14 @@ export async function runScadGenerationSkill(
   );
   const preparedResult = {
     ...plannedResult,
+    instruction_fingerprint: createHash("sha256").update(prompt.systemPrompt).digest("hex"),
+    model_execution: {
+      model: lastEvidence.model ?? "unknown",
+      provider: lastEvidence.provider ?? "unknown",
+      usage: lastEvidence.usage,
+      call_count: modelCallCount,
+      latency_ms: Date.now() - modelStartedAt,
+    },
     parameters: extractedParameters,
     scad_source: sanitizedScadSource,
   };

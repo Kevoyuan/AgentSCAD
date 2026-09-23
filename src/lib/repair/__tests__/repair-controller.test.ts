@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { assertRepairCompletionUsable } from "@/lib/repair/repair-controller";
+import { assertRepairCompletionUsable, buildRepairPrompt } from "@/lib/repair/repair-controller";
 import type { ModelCompletionResponse } from "@/lib/tools/model-router";
 
 function completion(overrides: Partial<ModelCompletionResponse> = {}): ModelCompletionResponse {
@@ -13,6 +13,27 @@ function completion(overrides: Partial<ModelCompletionResponse> = {}): ModelComp
     ...overrides,
   };
 }
+
+test("repair prompt separates failed geometry from unavailable evidence and retains constraints", () => {
+  const prompt = buildRepairPrompt({
+    originalRequest: "two-part hinge",
+    partFamily: "unknown",
+    currentScadCode: "generated_part();",
+    cadIntent: { constraints: { explicit_constraints: ["two separate moving parts"] } },
+    validationResults: [
+      { rule_id: "C001", rule_name: "Compile", level: "ENGINEERING", passed: false, is_critical: true, message: "syntax error", status: "FAIL" },
+      { rule_id: "R001", rule_name: "Wall", level: "ENGINEERING", passed: false, is_critical: true, message: "Skipped: validator unavailable", status: "SKIP" },
+      { rule_id: "C002", rule_name: "Components", level: "ENGINEERING", passed: false, is_critical: true, message: "tool error", status: "ERROR" },
+    ],
+  });
+  const failed = prompt.split("### Failed Rules")[1].split("### Passing and Warning Rules")[0];
+  expect(failed).toContain("C001 Compile");
+  expect(failed).not.toContain("R001 Wall");
+  expect(failed).not.toContain("C002 Components");
+  expect(prompt).toContain("SKIP R001 Wall");
+  expect(prompt).toContain("ERROR C002 Components");
+  expect(prompt).toContain("two separate moving parts");
+});
 
 describe("repair completion guard", () => {
   test("accepts a complete repair reply", () => {

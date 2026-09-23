@@ -46,7 +46,36 @@ describe("generation plan checkpoint", () => {
       "button openings",
     ]);
     expect(checkpoint.plan.constraints.dimensions.wall_thickness).toBe(2);
+    expect(checkpoint.plan.constraints.manufacturing).toEqual({});
+    expect(checkpoint.plan.constraints.geometry).toEqual({});
+    expect(checkpoint.plan.modeling_plan).toEqual([]);
+    expect(checkpoint.plan.validation_targets.required_feature_checks).toEqual(["camera opening is unobstructed"]);
     expect(restoreGenerationPlan(stored, checkpoint.fingerprint)).toEqual(checkpoint);
     expect(restoreGenerationPlan(stored, "different-input-fingerprint")).toBeNull();
+    expect(restoreGenerationPlan(JSON.stringify({ generation_plan: { ...checkpoint, schema_version: 1 } }), checkpoint.fingerprint)).toBeNull();
+  });
+
+  test("preserves explicit assembly constraints without imposing printability or one body", () => {
+    const checkpoint = buildGenerationPlan({
+      request: "two moving parts for display",
+      family: "unknown",
+      parameterValues: {},
+      parameterSchema: [],
+      intelligence: {
+        ...intelligence,
+        rawRequest: "two moving parts for display",
+        brief: {
+          summary: "Two moving parts",
+          intendedUse: "display",
+          requiredFeatures: ["moving joint"],
+          explicitConstraints: ["two separate moving parts"],
+          acceptanceCriteria: ["parts can move independently"],
+        },
+      },
+    });
+    expect(checkpoint.plan.constraints.explicit_constraints).toEqual(["two separate moving parts"]);
+    expect(checkpoint.plan.constraints.manufacturing.printable).toBeUndefined();
+    expect(checkpoint.plan.validation_targets.required_feature_checks).toEqual(["parts can move independently"]);
+    expect(checkpoint.plan.modeling_plan).toEqual([]);
   });
 });

@@ -177,4 +177,20 @@ describe("outcome summary", () => {
     expect(rejectedThenAccepted.latestDecision?.kind).toBe("accepted");
     expect(rejectedThenAccepted.taskSucceeded).toBe(true);
   });
+
+  test("an acceptance for an older artifact version does not mark the current result as accepted", async () => {
+    const { summarizeJobOutcomes } = await import("../job-outcome");
+    const staleAcceptance = summarizeJobOutcomes(
+      [{ kind: "accepted" as JobOutcomeKind, createdAt: at(1), artifactVersionId: "version-1" }],
+      "version-2",
+    );
+    expect(staleAcceptance.latestDecision?.kind).toBe("accepted");
+    expect(staleAcceptance.taskSucceeded).toBe(false);
+
+    const currentAcceptance = summarizeJobOutcomes(
+      [{ kind: "accepted" as JobOutcomeKind, createdAt: at(1), artifactVersionId: "version-2" }],
+      "version-2",
+    );
+    expect(currentAcceptance.taskSucceeded).toBe(true);
+  });
 });

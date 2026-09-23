@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { latestArtifactVersionId } from "@/lib/artifacts/artifact-version";
 
 /**
  * Job outcome ledger.
@@ -55,6 +56,7 @@ export interface JobOutcomeEvent {
   kind: JobOutcomeKind;
   source: JobOutcomeSource;
   detail: string | null;
+  artifactVersionId: string | null;
   createdAt: Date;
 }
 
@@ -91,12 +93,14 @@ export async function recordJobOutcome(
     );
   }
 
+  const artifactVersionId = await latestArtifactVersionId(input.jobId);
   const created = await db.jobOutcome.create({
     data: {
       jobId: input.jobId,
       kind: input.kind,
       source,
       detail: sanitizeOutcomeDetail(input.detail),
+      artifactVersionId,
     },
   });
 
@@ -106,6 +110,7 @@ export async function recordJobOutcome(
     kind: created.kind as JobOutcomeKind,
     source: created.source as JobOutcomeSource,
     detail: created.detail,
+    artifactVersionId: created.artifactVersionId,
     createdAt: created.createdAt,
   };
 }
@@ -155,6 +160,7 @@ export async function listJobOutcomes(
     kind: row.kind as JobOutcomeKind,
     source: row.source as JobOutcomeSource,
     detail: row.detail,
+    artifactVersionId: row.artifactVersionId,
     createdAt: row.createdAt,
   }));
 }
@@ -163,7 +169,7 @@ export interface JobOutcomeSummary {
   total: number;
   counts: Record<JobOutcomeKind, number>;
   /** Most recent decision event, if the user has made one. */
-  latestDecision: { kind: JobOutcomeKind; createdAt: Date } | null;
+  latestDecision: { kind: JobOutcomeKind; createdAt: Date; artifactVersionId?: string | null } | null;
   /**
    * True only when the most recent decision is `accepted`.
    *
@@ -175,7 +181,8 @@ export interface JobOutcomeSummary {
 }
 
 export function summarizeJobOutcomes(
-  events: Array<Pick<JobOutcomeEvent, "kind" | "createdAt">>,
+  events: Array<Pick<JobOutcomeEvent, "kind" | "createdAt"> & { artifactVersionId?: string | null }>,
+  currentArtifactVersionId?: string | null,
 ): JobOutcomeSummary {
   const counts = JOB_OUTCOME_KINDS.reduce(
     (acc, kind) => ({ ...acc, [kind]: 0 }),
@@ -188,7 +195,7 @@ export function summarizeJobOutcomes(
     if (isJobOutcomeKind(event.kind)) counts[event.kind] += 1;
     if (!JOB_OUTCOME_DECISIONS.includes(event.kind)) continue;
     if (!latestDecision || event.createdAt >= latestDecision.createdAt) {
-      latestDecision = { kind: event.kind, createdAt: event.createdAt };
+      latestDecision = { kind: event.kind, createdAt: event.createdAt, artifactVersionId: event.artifactVersionId };
     }
   }
 
@@ -196,6 +203,7 @@ export function summarizeJobOutcomes(
     total: events.length,
     counts,
     latestDecision,
-    taskSucceeded: latestDecision?.kind === "accepted",
+    taskSucceeded: latestDecision?.kind === "accepted"
+      && (!currentArtifactVersionId || latestDecision.artifactVersionId === currentArtifactVersionId),
   };
 }

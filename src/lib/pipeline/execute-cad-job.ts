@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { MIMO_DEFAULT_MODEL } from "@/lib/mimo";
-import { appendLog, incrementRetryCount, parameterDefsToValues } from "@/lib/stores/job-store";
+import { appendLog, parameterDefsToValues } from "@/lib/stores/job-store";
 import {
   extractParameterDefsFromScad,
   mergeExtractedParameters,
@@ -46,7 +46,9 @@ import type {
 } from "@/lib/harness/types";
 import { ModelRequestError } from "@/lib/model-runtime";
 import { randomUUID } from "crypto";
-import type { JobExecution } from "./job-execution";
+import { recordArtifactVersion } from "@/lib/artifacts/artifact-version";
+import type { Prisma } from "@prisma/client";
+import { JobExecutionStopped, type JobExecution } from "./job-execution";
 import {
   buildGenerationPlan,
   generationPlanFingerprint,
@@ -149,7 +151,7 @@ function compileFailureResult(message: string) {
     rule_name: "OpenSCAD Compile",
     level: "GEOMETRY",
     passed: false,
-    status: "ERROR" as const,
+    status: "FAIL" as const,
     is_critical: true,
     message: boundedMessage,
   };
@@ -165,13 +167,53 @@ function demoDelay(): Promise<void> {
 export async function executeCadJob(
   jobId: string,
   sendEvent: ProcessEventSink,
-  _claimedExecution?: JobExecution
+  claimedExecution?: JobExecution
 ) {
   const job = await db.job.findUnique({ where: { id: jobId } });
   if (!job) {
     throw new Error(`Job not found with id: ${jobId}`);
   }
 
+  const jobStartedAt = Date.now();
+  const executionAbort = new AbortController();
+  let leaseCheckRunning = false;
+  const leaseTimer = claimedExecution ? setInterval(async () => {
+    if (leaseCheckRunning || executionAbort.signal.aborted) return;
+    leaseCheckRunning = true;
+    try { await claimedExecution.assertActive(); }
+    catch (error) {
+      // Only a lost lease cancels the run; a transient database error must not.
+      if (error instanceof JobExecutionStopped) executionAbort.abort();
+    }
+    finally { leaseCheckRunning = false; }
+  }, 1_000) : null;
+  const assertExecution = async () => {
+    if (executionAbort.signal.aborted) throw new JobExecutionStopped();
+    await claimedExecution?.assertActive();
+  };
+  const updateJob = async (args: {
+    where: { id: string };
+    data: Prisma.JobUpdateManyMutationInput;
+  }) => {
+    await assertExecution();
+    return claimedExecution
+      ? claimedExecution.update({ data: args.data })
+      : db.job.update(args);
+  };
+  const updateJobIf = async (args: {
+    where: Prisma.JobWhereInput;
+    data: Prisma.JobUpdateManyMutationInput;
+  }): Promise<{ count: number }> => {
+    await assertExecution();
+    if (!claimedExecution) return db.job.updateMany(args);
+    try {
+      await claimedExecution.update(args);
+      return { count: 1 };
+    } catch (error) {
+      if (error instanceof JobExecutionStopped) return { count: 0 };
+      throw error;
+    }
+  };
   let currentStage: string = "intake";
   try {
     let paramValues: Record<string, unknown> = {};
@@ -193,9 +235,9 @@ export async function executeCadJob(
     let requestResearch: ResearchResultV1 | null = null;
     currentStage = "research";
     try {
-      requestResearch = await runRequestResearch({ request: inputRequest, model: job.modelId });
+      requestResearch = await runRequestResearch({ request: inputRequest, model: job.modelId, signal: executionAbort.signal });
       const researched = requestResearch.status === "OK" || requestResearch.status === "PARTIAL";
-      await db.job.update({
+      await updateJob({
         where: { id: jobId },
         data: {
           researchResult: JSON.stringify(requestResearch),
@@ -245,6 +287,7 @@ export async function executeCadJob(
           inputRequest,
           job.modelId,
           formatResearchEvidence(requestResearch),
+          executionAbort.signal,
         );
         if (modelIntelligence.status !== "UNKNOWN") {
           requestIntelligence = modelIntelligence;
@@ -296,7 +339,7 @@ export async function executeCadJob(
       const clarificationQuestion = requestIntelligence.clarificationQuestion
         ?? "Which interpretation should AgentSCAD model?";
 
-      await db.job.update({
+      await updateJob({
         where: { id: jobId },
         data: {
           state: "HUMAN_REVIEW",
@@ -376,7 +419,7 @@ export async function executeCadJob(
         "CAD_PLANNED",
         `Persisted generation plan ${generationPlanCheckpoint.fingerprint.slice(0, 12)} for ${partFamily}`,
       );
-      await db.job.update({
+      await updateJob({
         where: { id: jobId },
         data: {
           generationPath: "structured_plan_ready",
@@ -417,7 +460,7 @@ export async function executeCadJob(
         job.modelId,
         partFamily,
         generationPlanCheckpoint.plan,
-        undefined,
+        executionAbort.signal,
         formatResearchEvidence(requestResearch),
       );
       usedLLM = true;
@@ -439,6 +482,8 @@ export async function executeCadJob(
           features: llmError.generationResult.features,
           constraints: llmError.generationResult.constraints,
           design_rationale: llmError.generationResult.design_rationale,
+          instruction_fingerprint: llmError.generationResult.instruction_fingerprint,
+          model_execution: llmError.generationResult.model_execution,
         });
 
         generationExecutionLogs = appendLog(
@@ -455,7 +500,7 @@ export async function executeCadJob(
           repairLeaseEntry,
         ]);
         compileRepairLease = repairLease;
-        const claim = await db.job.updateMany({
+        const claim = await updateJobIf({
           where: { id: jobId, state: job.state },
           data: {
             state: "REPAIRING",
@@ -513,6 +558,7 @@ export async function executeCadJob(
               validation_targets: llmError.generationResult.validation_targets,
             },
             requestedModel: job.modelId,
+            signal: executionAbort.signal,
           });
           failedScad = repairResult.generationResult.scad_source;
           await validateGeneratedScadSource(failedScad);
@@ -570,7 +616,7 @@ export async function executeCadJob(
             validationResults,
           });
 
-          const committed = await db.job.updateMany({
+          const committed = await updateJobIf({
             where: { id: jobId, state: "REPAIRING", repairHistory: repairLease },
             data: {
               state: "HUMAN_REVIEW",
@@ -674,6 +720,8 @@ export async function executeCadJob(
           features: generationResult.features,
           constraints: generationResult.constraints,
           design_rationale: generationResult.design_rationale,
+          instruction_fingerprint: generationResult.instruction_fingerprint,
+          model_execution: generationResult.model_execution,
         }),
         modelingPlanJson: JSON.stringify(generationResult.modeling_plan),
         validationTargetsJson: JSON.stringify(generationResult.validation_targets),
@@ -688,7 +736,7 @@ export async function executeCadJob(
           research_evidence: requestResearch?.evidence ?? [],
           research_notes: requestResearch?.notes ?? "",
           similar_designs: usedLLM ? [] : ["standard_box_enclosure_v1", "parametric_case_v2"],
-          best_practices: ["Minimum wall thickness 1.2mm for FDM", "Add fillets for strength"],
+          best_practices: [],
         }),
         // Keep the approved intake at the top level so a later re-process can
         // restore the user's choice without another clarification/model call.
@@ -698,10 +746,15 @@ export async function executeCadJob(
           approach: generationPath,
           orchestration: "planned_code_validate_repair_v1",
           plan_fingerprint: generationPlanCheckpoint.fingerprint,
-          model_id: job.modelId || process.env.MIMO_MODEL || MIMO_DEFAULT_MODEL,
+          instruction_fingerprint: generationResult.instruction_fingerprint ?? null,
+          model_id: generationResult.model_execution?.model ?? job.modelId ?? process.env.MIMO_MODEL ?? MIMO_DEFAULT_MODEL,
+          provider: generationResult.model_execution?.provider ?? null,
+          usage: generationResult.model_execution?.usage ?? null,
           parameters_mapped: generationResult.parameters.map((p) => p.key),
           llm_used: usedLLM,
         }),
+        llmCallCount: generationResult.model_execution?.call_count ?? 0,
+        latencyMs: Date.now() - jobStartedAt,
         repairHistory: compileRepairClaimed ? compileRepairPreviousHistory : job.repairHistory,
         executionLogs: appendLog(
           generationExecutionLogs,
@@ -710,13 +763,13 @@ export async function executeCadJob(
         ),
       };
     if (compileRepairClaimed) {
-      const committed = await db.job.updateMany({
+      const committed = await updateJobIf({
         where: { id: jobId, state: "REPAIRING", repairHistory: compileRepairLease },
         data: generatedData,
       });
       if (committed.count !== 1) return;
     } else {
-      await db.job.update({ where: { id: jobId }, data: generatedData });
+      await updateJob({ where: { id: jobId }, data: generatedData });
     }
 
     sendEvent({
@@ -743,7 +796,7 @@ export async function executeCadJob(
       sendEvent({ state: "SCAD_GENERATED", step: "rendering", message: "Generating STL..." });
       sendEvent({ state: "SCAD_GENERATED", step: "rendering", message: "Generating PNG preview..." });
 
-      renderedArtifacts = await renderScadArtifacts(jobId, scadCode);
+      renderedArtifacts = await renderScadArtifacts(jobId, scadCode, undefined, assertExecution);
       clearValidationCache();
     } catch (execError) {
       const renderError =
@@ -759,7 +812,7 @@ export async function executeCadJob(
         validationResults: [],
       });
 
-      await db.job.update({
+      await updateJob({
         where: { id: jobId },
         data: {
           state: "GEOMETRY_FAILED",
@@ -789,8 +842,9 @@ export async function executeCadJob(
     if (!renderedArtifacts) {
       throw new Error("OpenSCAD render did not return artifact paths");
     }
+    let finalArtifacts = renderedArtifacts;
 
-    await db.job.update({
+    await updateJob({
       where: { id: jobId },
       data: {
         state: "RENDERED",
@@ -834,6 +888,7 @@ export async function executeCadJob(
       validationTargets: generationResult.validation_targets,
       skipVisual: true, // Phase 4: visual validation is user-triggered only
     });
+    let finalValidationResults = validationResults;
     const criticalFailures = getCriticalValidationFailures(validationResults);
     const validationQuality = buildJobQuality({
       state: criticalFailures.length > 0 ? "HUMAN_REVIEW" : "DELIVERED",
@@ -857,7 +912,7 @@ export async function executeCadJob(
           message: `Validation found ${criticalFailures.length} critical failure(s). Attempting automatic repair...`,
         });
 
-        await db.job.update({
+        await updateJob({
           where: { id: jobId },
           data: {
             state: "REPAIRING",
@@ -873,7 +928,7 @@ export async function executeCadJob(
         });
 
         try {
-          await incrementRetryCount(jobId);
+          await updateJob({ where: { id: jobId }, data: { retryCount: { increment: 1 } } });
 
           const repairResult = await runRepair({
             originalRequest: inputRequest,
@@ -888,6 +943,7 @@ export async function executeCadJob(
               validation_targets: generationResult.validation_targets,
             },
             requestedModel: job.modelId,
+            signal: executionAbort.signal,
           });
 
           const repairedScad = repairResult.generationResult.scad_source;
@@ -906,10 +962,10 @@ export async function executeCadJob(
             // persisted and only failed later inside the renderer, which parked the
             // job in HUMAN_REVIEW with a syntax-error artifact.
             await validateGeneratedScadSource(repairedScad);
-            repairedArtifacts = await renderScadArtifacts(jobId, repairedScad);
+            repairedArtifacts = await renderScadArtifacts(jobId, repairedScad, undefined, assertExecution);
           } catch (reRenderError) {
             const msg = reRenderError instanceof Error ? reRenderError.message : "Unknown";
-            await db.job.update({
+            await updateJob({
               where: { id: jobId },
               data: {
                 state: "HUMAN_REVIEW",
@@ -956,7 +1012,13 @@ export async function executeCadJob(
             });
 
             if (stillFailing.length > 0) {
-              await db.job.update({
+              await recordArtifactVersion({
+                jobId, scadSource: repairedScad, artifacts: repairedArtifacts,
+                validationResults: revalidationResults,
+                instructionFingerprint: repairResult.repairMeta.instruction_fingerprint ?? null,
+                modelExecution: repairResult.repairMeta.model_execution ?? null,
+              });
+              await updateJob({
                 where: { id: jobId },
                 data: {
                   state: "HUMAN_REVIEW",
@@ -987,7 +1049,9 @@ export async function executeCadJob(
 
             // Repair succeeded — update job and continue to delivery
             scadCode = repairedScad; // use repaired SCAD going forward
-            await db.job.update({
+            finalArtifacts = repairedArtifacts;
+            finalValidationResults = revalidationResults;
+            await updateJob({
               where: { id: jobId },
               data: {
                 scadSource: repairedScad,
@@ -1024,7 +1088,7 @@ export async function executeCadJob(
             step: "repair_error",
             message: `Auto-repair attempt failed: ${errMsg}. Manual review needed.`,
           });
-          await db.job.update({
+          await updateJob({
             where: { id: jobId },
             data: {
               state: "HUMAN_REVIEW",
@@ -1047,7 +1111,13 @@ export async function executeCadJob(
         await demoDelay();
       } else {
         // Already tried max repairs — go to HUMAN_REVIEW
-        await db.job.update({
+        await recordArtifactVersion({
+          jobId, scadSource: scadCode, artifacts: renderedArtifacts,
+          validationResults,
+          instructionFingerprint: generationResult.instruction_fingerprint,
+          modelExecution: generationResult.model_execution,
+        });
+        await updateJob({
           where: { id: jobId },
           data: {
             state: "HUMAN_REVIEW",
@@ -1075,7 +1145,7 @@ export async function executeCadJob(
     }
 
     if (!wasRepaired) {
-      await db.job.update({
+      await updateJob({
         where: { id: jobId },
         data: {
           state: "VALIDATED",
@@ -1114,7 +1184,14 @@ export async function executeCadJob(
     });
     await demoDelay();
 
-    await db.job.update({
+    await assertExecution();
+    await recordArtifactVersion({
+      jobId, scadSource: scadCode, artifacts: finalArtifacts,
+      validationResults: finalValidationResults,
+      instructionFingerprint: generationResult.instruction_fingerprint,
+      modelExecution: generationResult.model_execution,
+    });
+    await updateJob({
       where: { id: jobId },
       data: {
         state: "DELIVERED",
@@ -1136,6 +1213,7 @@ export async function executeCadJob(
       job: toPublicJobOrNull(finalJob),
     });
   } catch (error) {
+    if (error instanceof JobExecutionStopped || executionAbort.signal.aborted) return;
     console.error("Error during job processing:", error);
 
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -1161,7 +1239,7 @@ export async function executeCadJob(
       }
     }
 
-    await db.job.update({
+    await updateJob({
       where: { id: jobId },
       data: {
         state: errorState,
@@ -1182,5 +1260,7 @@ export async function executeCadJob(
       retryable,
       ...(modelError?.evidence ? { evidence: modelError.evidence } : {}),
     });
+  } finally {
+    if (leaseTimer) clearInterval(leaseTimer);
   }
 }
