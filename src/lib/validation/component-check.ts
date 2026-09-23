@@ -6,7 +6,10 @@
 
 import type { ValidationCheck, RawMeshData } from "./validation-types";
 
-export function checkComponents(meshData: RawMeshData): ValidationCheck {
+export function checkComponents(
+  meshData: RawMeshData,
+  targets?: { allow_multiple_components?: boolean; expected_component_count?: number },
+): ValidationCheck {
   const { componentCount, isWatertight, isVolume } = meshData;
 
   if (componentCount === 0) {
@@ -18,6 +21,24 @@ export function checkComponents(meshData: RawMeshData): ValidationCheck {
       status: "SKIP",
       is_critical: false,
       message: "Skipped — component count not available from mesh analysis",
+    };
+  }
+
+  if (targets?.expected_component_count && componentCount !== targets.expected_component_count) {
+    return {
+      rule_id: "C002", rule_name: "Connected Components", level: "ENGINEERING",
+      passed: false, status: "FAIL", is_critical: true,
+      message: `Expected ${targets.expected_component_count} separate components, detected ${componentCount}.`,
+      details: { componentCount, expectedComponentCount: targets.expected_component_count },
+    };
+  }
+
+  if (componentCount > 1 && targets?.allow_multiple_components) {
+    return {
+      rule_id: "C002", rule_name: "Connected Components", level: "ENGINEERING",
+      passed: true, status: "WARN", is_critical: false,
+      message: `${componentCount} separate components are allowed by the request; individual part integrity and assembly fit still need review.`,
+      details: { componentCount, isWatertight, isVolume },
     };
   }
 

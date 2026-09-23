@@ -220,14 +220,9 @@ export function normalizeGenerationResult(
       constraints: structured?.constraints ?? {
         dimensions: {},
         assumptions: [],
-        manufacturing: { min_wall_thickness: 2, printable: true },
-        geometry: { must_be_manifold: true, centered: true, no_floating_parts: true },
-        code: {
-          use_parameters: true,
-          use_library_modules: true,
-          avoid_magic_numbers: true,
-          top_level_module: "generated_part",
-        },
+        manufacturing: {},
+        geometry: {},
+        code: {},
       },
       modeling_plan: Array.isArray(structured?.modeling_plan) ? structured.modeling_plan : [],
       design_rationale: Array.isArray(structured?.design_rationale)
@@ -276,14 +271,9 @@ export function normalizeGenerationResult(
     constraints: {
       dimensions: {},
       assumptions: [],
-      manufacturing: { min_wall_thickness: 2, printable: true },
-      geometry: { must_be_manifold: true, centered: true, no_floating_parts: true },
-      code: {
-        use_parameters: true,
-        use_library_modules: true,
-        avoid_magic_numbers: true,
-        top_level_module: "generated_part",
-      },
+      manufacturing: {},
+      geometry: {},
+      code: {},
     },
     modeling_plan: [],
     design_rationale: [],

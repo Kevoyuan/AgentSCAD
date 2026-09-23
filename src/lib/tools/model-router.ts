@@ -290,7 +290,7 @@ function waitForModel<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> 
       },
       (error) => {
         signal.removeEventListener("abort", abort);
-        resolve(error);
+        reject(error);
       },
     );
   });

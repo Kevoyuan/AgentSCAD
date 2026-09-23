@@ -1,6 +1,10 @@
 ---
 name: scad-generation
 description: Generate new AgentSCAD CAD artifacts from natural-language requests by producing structured CAD intent and valid, editable OpenSCAD source.
+version: 1
+when_to_use: A new CAD artifact is requested and no persisted request-evidence checkpoint is supplied.
+when_not_to_use: A persisted checkpoint is available, or existing SCAD needs repair.
+required_inputs: [user_request]
 triggers:
   - generate cad
   - new cad artifact
@@ -151,15 +155,15 @@ Use `_merge_tol = 0.2` for watertight boolean union overlaps.
 7. Put all user-editable numeric parameters before any `module`, `function`, or geometry operation.
 8. Use descriptive `snake_case` names; never use one-letter parameter names for user-editable dimensions.
 9. Use `color()` calls on major subassemblies so the preview is visually readable, but keep the model printable and connected.
-10. Prefer composed modules for distinct features, but ensure the top-level object is a single 3D printable assembly.
-11. Never rely on zero-overlap face contact to connect solids. Parts that must be one printable body must overlap by `_merge_tol` (0.2 mm), or be modeled as one boolean solid. Feet, lips, ribs, brackets, and support posts must penetrate the base by that tolerance rather than merely touching its surface.
+10. Prefer composed modules for distinct features. Choose a single body or a multi-part assembly according to the user's request.
+11. Never rely on zero-overlap face contact to connect solids. Parts intended as one printable body must overlap by `_merge_tol` (0.2 mm), or be modeled as one boolean solid. Feet, lips, ribs, brackets, and support posts must penetrate the base by that tolerance rather than merely touching its surface.
 12. Avoid coincident coplanar solids inside `union()`. If two components share a plane or occupy the same volume boundary, offset or overlap them deliberately so OpenSCAD exports a watertight manifold STL.
 13. All geometry must be inside a single `module generated_part() { ... }` and called once at the top level with `generated_part();`.
 
 ## Engineering Constraints
 
-- Minimum wall thickness for FDM printing: 1.2 mm
-- Every printable local feature must be at least 1.2 mm thick/wide, including decorative ribs, relief lines, scrollwork, rims, lips, bridges around holes, nose ridges, tabs, bosses, and connectors.
+- When FDM printing is intended, minimum wall thickness is 1.2 mm.
+- Every FDM printable local feature must be at least 1.2 mm thick/wide, including decorative ribs, relief lines, scrollwork, rims, lips, bridges around holes, nose ridges, tabs, bosses, and connectors.
 - Prefer 1.6 mm or thicker for decorative details and 2.0 mm or thicker for structural/support features unless the user explicitly asks for a non-printable display-only model.
 - Do not create knife-edge, hairline, zero-thickness, or sub-1.2 mm features. If a requested visual detail would be too thin, simplify, merge, emboss, or thicken it while preserving the design intent.
 - Standard pressure angle for spur gears: 20 degrees

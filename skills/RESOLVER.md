@@ -7,6 +7,8 @@ Use this resolver to choose the smallest SCAD skill needed for a job. Keep the r
 | Situation | Skill |
 |---|---|
 | Interpret or classify a request before generation | `skills/scad-intake/SKILL.md` |
+| Choose a modeling approach from the persisted request evidence | `skills/scad-planning/SKILL.md` |
+| Turn a persisted request-evidence contract into complete OpenSCAD | `skills/scad-coding/SKILL.md` |
 | Generate a new CAD artifact from a user request | `skills/scad-generation/SKILL.md` |
 | Repair invalid or failed OpenSCAD while preserving intent | `skills/scad-repair/SKILL.md` |
 | Review validation output, logs, previews, or artifacts | `skills/scad-validation-review/SKILL.md` |
@@ -39,6 +41,13 @@ Do not change these contracts from skill content:
 - Model routing uses an explicitly configured provider/model first, then matching OpenRouter or DeepSeek routes, then MiMo when enabled. Text-only requests may fall back to `z-ai-web-dev-sdk`; visual requests may not. Known and unknown families both use LLM generation; legacy templates require the explicit demo-only `AGENTSCAD_TEMPLATE_FALLBACK=true` switch.
 
 ## Guardrails
+
+- The current pipeline persists a versioned request-evidence contract, then loads `scad-planning` and `scad-coding` together for one model call. `scad-generation` serves the unplanned generation path. `scad-validation-review` is guidance for review requests and is not currently called by the job pipeline.
+- The persisted contract records stated features, dimensions, assumptions, constraints, and acceptance criteria. Empty modeling fields do not authorize a default geometry strategy.
+- Core model-stage skills declare `version`, `when_to_use`, `when_not_to_use`, and `required_inputs` in frontmatter. Keep `skills/manifest.json` in sync with every `SKILL.md`; the registry test enforces this.
+- Generated artifacts record an `instruction_fingerprint` for the assembled system instruction bundle. It includes selected retrieval and available-library guidance, so it identifies the actual instructions used for that run rather than a single global skill release.
+- `validation_targets` may carry explicit requirements such as `allow_multiple_components`, `expected_component_count`, and `manufacturing_mode`. Deterministic validators read these instead of assuming every request is a single FDM-printable solid. Unstated requests keep the strict single-body, FDM defaults.
+- Each delivered build records an immutable `JobArtifactVersion` (SCAD hash, source, artifact copies, validation results, instruction fingerprint, model execution). Accept, reject, edit, and export events link to the version that was current when they happened, so acceptance never silently transfers to a later build.
 
 - Prefer adding or refining skills/docs over widening orchestration code.
 - Prefer approved OpenSCAD libraries when the runtime reports them available.

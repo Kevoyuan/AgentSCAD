@@ -6,7 +6,7 @@
 // original request; current SCAD is supplied later to the repair model.
 // ---------------------------------------------------------------------------
 
-import { loadSkill } from "@/lib/skill-resolver";
+import { loadSkill, skillInstructions } from "@/lib/skill-resolver";
 import { createChatCompletionWithFallback } from "@/lib/tools/model-router";
 import { createMimoChatCompletion } from "@/lib/mimo";
 import { normalizeGenerationResult } from "@/lib/harness/structured-output";
@@ -162,7 +162,7 @@ export async function runVisualAnalysis(input: {
 
   const skillContent = await loadSkill("scad-visual-validate");
   const systemPrompt = skillContent
-    ? skillContent.replace(/^---[\s\S]*?---\s*/, "").trim()
+    ? skillInstructions(skillContent)
     : "You are a CAD visual inspector. Compare the rendered preview image against the user's request and identify visual discrepancies.";
 
   const userPrompt = [

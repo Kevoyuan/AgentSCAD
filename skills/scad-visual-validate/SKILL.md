@@ -1,6 +1,10 @@
 ---
 name: scad-visual-validate
 description: Compare rendered CAD preview images against the original or approved user request to catch visible design-intent failures without seeing generation rationale or source code.
+version: 1
+when_to_use: A rendered preview and the original or approved request are available for visual comparison.
+when_not_to_use: No preview is available or the question concerns mesh facts invisible in the image.
+required_inputs: [original_request, rendered_preview]
 triggers:
   - visual validation
   - compare preview to request

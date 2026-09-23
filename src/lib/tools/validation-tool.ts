@@ -61,7 +61,13 @@ export async function validateRenderedArtifacts(
 async function runRenderedValidation(
   input: ValidateRenderedInput
 ): Promise<ValidationResult[]> {
-  const meshResults = await validateStl(input.stlFilePath, input.wallThickness, input.jobId);
+  const rawMeshResults = await validateStl(input.stlFilePath, input.wallThickness, input.jobId);
+  const meshResults = input.validationTargets?.manufacturing_mode === "display"
+    ? rawMeshResults.map((rule) => rule.rule_id === "R001"
+      ? { ...rule, passed: false, status: "SKIP" as const, is_critical: false,
+          message: "Skipped — FDM wall thickness is not applicable to the explicitly requested display model" }
+      : rule)
+    : rawMeshResults;
 
   // Visual validation runs only when explicitly requested (Phase 4: user-triggered)
   const visualResults: ValidationResult[] = input.skipVisual
@@ -86,7 +92,7 @@ async function runRenderedValidation(
     additionalChecks.push(
       checkBoundingBox(meshData, input.validationTargets?.expected_bbox)
     );
-    additionalChecks.push(checkComponents(meshData));
+    additionalChecks.push(checkComponents(meshData, input.validationTargets));
 
     // Estimate required holes from validation targets
     const expectedMinHoles = inferExpectedMinimumHoleCount(

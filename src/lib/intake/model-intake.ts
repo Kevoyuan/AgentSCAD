@@ -1,5 +1,5 @@
 import { parseJsonObject } from "@/lib/harness/structured-output";
-import { loadSkill } from "@/lib/skill-resolver";
+import { loadSkill, skillInstructions } from "@/lib/skill-resolver";
 import { createChatCompletionWithFallback } from "@/lib/tools/model-router";
 
 import { normalizeModelRequestIntelligence } from "./model-request-intelligence";
@@ -9,6 +9,7 @@ export async function runModelCadIntake(
   rawRequest: string,
   requestedModel?: string | null,
   researchEvidence?: string,
+  signal?: AbortSignal,
 ): Promise<RequestIntelligenceV1> {
   const skill = await loadSkill("scad-intake");
   if (!skill) throw new Error("scad-intake skill is missing");
@@ -24,7 +25,7 @@ export async function runModelCadIntake(
 
   const rawContent = await createChatCompletionWithFallback({
     messages: [
-      { role: "system", content: skill },
+      { role: "system", content: skillInstructions(skill) },
       {
         role: "user",
         content: `Analyze this CAD request. Return only the required JSON object.\n\n<user_request>\n${rawRequest}\n</user_request>${evidenceBlock}`,
@@ -32,6 +33,7 @@ export async function runModelCadIntake(
     ],
     model: requestedModel?.trim() || undefined,
     stream: false,
+    signal,
   });
   const parsed = parseJsonObject<unknown>(rawContent);
   return normalizeModelRequestIntelligence(rawRequest, parsed);

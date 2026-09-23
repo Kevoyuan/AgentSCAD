@@ -33,15 +33,19 @@ export interface CadFeature {
 export interface CadConstraints {
   dimensions: Record<string, number>;
   assumptions: string[];
-  manufacturing: { min_wall_thickness: number; printable: boolean };
-  geometry: { must_be_manifold: boolean; centered: boolean; no_floating_parts: boolean };
-  code: { use_parameters: boolean; use_library_modules: boolean; avoid_magic_numbers: boolean; top_level_module: string };
+  explicit_constraints?: string[];
+  manufacturing: { min_wall_thickness?: number; printable?: boolean };
+  geometry: { must_be_manifold?: boolean; centered?: boolean; no_floating_parts?: boolean };
+  code: { use_parameters?: boolean; use_library_modules?: boolean; avoid_magic_numbers?: boolean; top_level_module?: string };
 }
 
 export interface CadValidationTargets {
   expected_bbox: number[];
   required_feature_checks: string[];
   forbidden_failure_modes: string[];
+  allow_multiple_components?: boolean;
+  expected_component_count?: number;
+  manufacturing_mode?: "fdm" | "display";
 }
 
 export interface LLMGenerationResult {
@@ -51,6 +55,14 @@ export interface LLMGenerationResult {
 }
 
 export interface StructuredGenerationResult extends LLMGenerationResult {
+  instruction_fingerprint?: string;
+  model_execution?: {
+    model: string;
+    provider: string;
+    usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number; reasoningTokens?: number };
+    call_count: number;
+    latency_ms: number;
+  };
   part_type: string;
   units: string;
   features: CadFeature[];

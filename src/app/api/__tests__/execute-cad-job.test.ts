@@ -581,7 +581,7 @@ describe("executeCadJob", () => {
     const persistedValidation = JSON.parse(String(updates.at(-1)?.data.validationResults));
     expect(persistedValidation).toHaveLength(1);
     expect(persistedValidation.every((result: { rule_id: string; status: string }) =>
-      result.rule_id === "C001" && result.status === "ERROR"
+      result.rule_id === "C001" && result.status === "FAIL"
     )).toBe(true);
     expect(String(updates.at(-1)?.data.executionLogs)).toContain("OPENSCAD_COMPILE_FAILED");
     expect(String(updates.at(-1)?.data.renderLog)).toContain("Current top level object is empty");

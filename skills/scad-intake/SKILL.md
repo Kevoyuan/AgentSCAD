@@ -1,6 +1,10 @@
 ---
 name: scad-intake
 description: Interpret a natural-language CAD request before geometry generation, identify materially different meanings, and return a bounded evidence-grounded brief or one high-information clarification question. Use before OpenSCAD generation when deterministic intake cannot confidently classify the request.
+version: 1
+when_to_use: Deterministic intake leaves a materially different CAD interpretation unresolved.
+when_not_to_use: A user-approved interpretation already exists or deterministic intake has a confident match.
+required_inputs: [original_request]
 ---
 
 # SCAD Intake

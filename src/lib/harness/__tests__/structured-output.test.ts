@@ -55,6 +55,8 @@ generated_part();
     expect(result.part_type).toBe("electronics_enclosure");
     expect(result.summary).toBe("Custom Enclosure Box");
     expect(result.scad_source).toContain("module generated_part()");
+    expect(result.constraints.manufacturing.printable).toBeUndefined();
+    expect(result.constraints.geometry.no_floating_parts).toBeUndefined();
   });
 
   test("handles response with <think> reasoning tags before JSON and SCAD", () => {

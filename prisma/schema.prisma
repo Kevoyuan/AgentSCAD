@@ -50,6 +50,7 @@ model Job {
   children        Job[]    @relation("JobHierarchy")
   versions        JobVersion[]
   outcomes        JobOutcome[]
+  artifactVersions JobArtifactVersion[]
 
   @@index([createdAt])
   @@index([browserSessionId, createdAt])
@@ -66,11 +67,31 @@ model JobOutcome {
   kind      String   // "accepted" | "rejected" | "user_edited" | "exported"
   source    String   @default("user") // "user" | "system"
   detail    String?  // bounded free text or JSON describing the event
+  artifactVersionId String?
   createdAt DateTime @default(now())
   job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  artifactVersion JobArtifactVersion? @relation(fields: [artifactVersionId], references: [id], onDelete: SetNull)
 
   @@index([jobId, createdAt])
   @@index([kind, createdAt])
+  @@index([artifactVersionId])
+}
+
+model JobArtifactVersion {
+  id          String   @id @default(cuid())
+  jobId       String
+  scadHash    String
+  scadSource  String
+  stlPath     String?
+  pngPath     String?
+  validationResults String?
+  instructionFingerprint String?
+  modelExecution String?
+  createdAt   DateTime @default(now())
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  outcomes    JobOutcome[]
+
+  @@index([jobId, createdAt])
 }
 
 model JobVersion {

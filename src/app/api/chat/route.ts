@@ -4,8 +4,9 @@ import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import { createMimoChatCompletion, getMimoConfig, MIMO_DEFAULT_MODEL } from "@/lib/mimo";
 import { createOpenRouterChatCompletion, isOpenRouterModel } from "@/lib/openrouter";
 import { createProviderChatCompletion, findProviderForModel } from "@/lib/provider-settings";
-import { loadSkill } from "@/lib/skill-resolver";
+import { loadSkill, skillInstructions } from "@/lib/skill-resolver";
 import { isModelMultimodal } from "@/app/api/models/route";
+import { CHAT_SCAD_CHAR_BUDGET, boundedContextJson, selectRecentChatTurns } from "@/lib/chat/context-budget";
 
 type ContentPart =
   | { type: "text"; text: string }
@@ -26,9 +27,10 @@ export async function POST(request: NextRequest) {
       images?: string[];
     };
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    const selectedMessages = selectRecentChatTurns(messages);
+    if (!selectedMessages) {
       return new Response(
-        JSON.stringify({ error: "Messages array is required" }),
+        JSON.stringify({ error: "A recent user message within the context limit is required" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -50,7 +52,7 @@ When proposing OpenSCAD changes, optimize for one-click application:
 - Do not split one edit across separate parameter/module/call code blocks unless the user explicitly asks for manual instructions.
 - Keep prose outside the code block brief; the code block must be self-contained and ready for Apply & Render.`;
 
-    let systemPrompt = (await loadSkill("scad-chat")) || SKILL_FALLBACK;
+    let systemPrompt = skillInstructions((await loadSkill("scad-chat")) || SKILL_FALLBACK);
 
     if (jobId) {
       const access = await getJobAccessScope(request);
@@ -73,15 +75,18 @@ When proposing OpenSCAD changes, optimize for one-click application:
           paramValues = job.parameterValues ? JSON.parse(job.parameterValues) : null;
         } catch { /* skip malformed values */ }
 
+        const scadContext = job.scadSource && job.scadSource.length <= CHAT_SCAD_CHAR_BUDGET
+          ? `\nGenerated SCAD Code:\n\`\`\`openscad\n${job.scadSource}\n\`\`\``
+          : "\nFull SCAD source exceeds the chat context limit. Do not propose a replacement file without reading the complete source.";
         systemPrompt += `\n\nCurrent job context:
 - Job ID: ${job.id}
 - State: ${job.state}
 - Request: "${job.inputRequest}"
 - Part Family: ${job.partFamily || "unknown"}
 - Builder: ${job.builderName || "unknown"}
-- Parameter Schema: ${paramSchema ? JSON.stringify(paramSchema, null, 2) : "N/A"}
-- Current Parameter Values: ${paramValues ? JSON.stringify(paramValues, null, 2) : "N/A"}
-${job.scadSource ? `\nGenerated SCAD Code:\n\`\`\`openscad\n${job.scadSource}\n\`\`\`` : ""}`;
+- Parameter Schema: ${paramSchema ? boundedContextJson(paramSchema, 6_000) : "N/A"}
+- Current Parameter Values: ${paramValues ? boundedContextJson(paramValues, 4_000) : "N/A"}
+${scadContext}`;
 
         systemPrompt += `\n\nSCAD response contract:
 - If the user asks for a geometry/code modification, return exactly one final \`\`\`openscad code block containing the complete updated SCAD file.
@@ -92,7 +97,7 @@ ${job.scadSource ? `\nGenerated SCAD Code:\n\`\`\`openscad\n${job.scadSource}\n\
         if (job.validationResults) {
           try {
             const validation = JSON.parse(job.validationResults);
-            systemPrompt += `\n\nValidation Results: ${JSON.stringify(validation, null, 2)}`;
+            systemPrompt += `\n\nValidation Results: ${boundedContextJson(validation, 6_000)}`;
           } catch {
             // skip
           }
@@ -110,7 +115,7 @@ ${job.scadSource ? `\nGenerated SCAD Code:\n\`\`\`openscad\n${job.scadSource}\n\
     // Check if the model supports multimodal input (dynamic lookup from models registry)
     const isMultimodal = isModelMultimodal(requestedModel);
 
-    for (const msg of messages) {
+    for (const msg of selectedMessages) {
       if (
         isMultimodal &&
         images &&

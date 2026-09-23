@@ -6,7 +6,9 @@
 // and returns the repaired result.
 // ---------------------------------------------------------------------------
 
-import { loadSkill } from "@/lib/skill-resolver";
+import { createHash } from "crypto";
+import { loadSkill, skillInstructions } from "@/lib/skill-resolver";
+import { buildScadLibraryPrompt } from "@/lib/tools/scad-library-resolver";
 import {
   createChatCompletionDetailed,
   type ModelCompletionResponse,
@@ -40,6 +42,8 @@ export interface RepairResult {
   risk: "low" | "medium" | "high";
   requires_rerender: boolean;
   assumptions: string[];
+  instruction_fingerprint?: string;
+  model_execution?: { model: string; provider: string; usage?: ModelErrorEvidence["usage"]; latency_ms: number };
 }
 
 function emptyStructuredDefaults() {
@@ -50,9 +54,9 @@ function emptyStructuredDefaults() {
     constraints: {
       dimensions: {},
       assumptions: [],
-      manufacturing: { min_wall_thickness: 2, printable: true },
-      geometry: { must_be_manifold: true, centered: true, no_floating_parts: true },
-      code: { use_parameters: true, use_library_modules: true, avoid_magic_numbers: true, top_level_module: "generated_part" },
+      manufacturing: {},
+      geometry: {},
+      code: {},
     },
     modeling_plan: [],
     design_rationale: [],
@@ -64,21 +68,27 @@ function emptyStructuredDefaults() {
   };
 }
 
-function buildRepairPrompt(input: RepairInput): string {
+export function buildRepairPrompt(input: RepairInput): string {
   const failedRules = input.validationResults
-    .filter((r) => !r.passed)
+    .filter((r) => getValidationEvidenceStatus(r) === "FAIL")
     .map((r) => `- ${r.rule_id} ${r.rule_name} (${r.is_critical ? "CRITICAL" : "non-critical"}): ${r.message}`)
     .join("\n");
 
   const passedRules = input.validationResults
     .filter((r) => ["PASS", "WARN"].includes(getValidationEvidenceStatus(r)))
-    .map((r) => `- ${r.rule_id} ${r.rule_name}: ${r.message}`)
+    .map((r) => `- ${getValidationEvidenceStatus(r)} ${r.rule_id} ${r.rule_name}: ${r.message}`)
+    .join("\n");
+
+  const unavailableRules = input.validationResults
+    .filter((r) => ["SKIP", "ERROR", "NOT_RUN"].includes(getValidationEvidenceStatus(r)))
+    .map((r) => `- ${getValidationEvidenceStatus(r)} ${r.rule_id} ${r.rule_name}: ${r.message}`)
     .join("\n");
 
   const intentBlock = input.cadIntent
     ? [
         `Part type: ${input.cadIntent.part_type || "unknown"}`,
         `Features: ${JSON.stringify(input.cadIntent.features || [])}`,
+        `Constraints: ${JSON.stringify(input.cadIntent.constraints || {})}`,
         `Modeling plan: ${JSON.stringify(input.cadIntent.modeling_plan || [])}`,
         `Validation targets: ${JSON.stringify(input.cadIntent.validation_targets || {})}`,
       ].join("\n")
@@ -103,8 +113,12 @@ function buildRepairPrompt(input: RepairInput): string {
     "### Failed Rules",
     failedRules || "(none — all passed)",
     "",
-    "### Passed Rules",
+    "### Passing and Warning Rules",
     passedRules || "(none)",
+    "",
+    "### Unavailable or Unexecuted Rules",
+    unavailableRules || "(none)",
+    "These statuses are uncertainty, not evidence of a geometry defect. Do not repair them as failed checks.",
     "",
     "## Repair Goal",
     "Fix ONLY the failed validation checks listed above.",
@@ -113,7 +127,7 @@ function buildRepairPrompt(input: RepairInput): string {
     "Use AgentSCAD standard library modules (include <agentscad_std.scad>) when possible.",
     "Keep parameters as top-level assignments.",
     "",
-    "Return the full corrected structured JSON with updated scad_code:",
+    "Return the full corrected structured JSON with updated scad_source:",
     '{"part_type": "...", "features": [...], "modeling_plan": [...], "scad_source": "..."}',
     "",
     "Output the JSON object first, then a blank line, then the SCAD code in a markdown fence.",
@@ -173,15 +187,17 @@ export async function runRepair(input: RepairInput): Promise<{
   generationResult: StructuredGenerationResult;
   repairMeta: RepairResult;
 }> {
-  const skillContent = await loadSkill("scad-repair");
+  const [skillContent, libraryPrompt] = await Promise.all([
+    loadSkill("scad-repair"),
+    buildScadLibraryPrompt(),
+  ]);
   const systemPrompt = skillContent
-    ? skillContent
-        .replace(/^---[\s\S]*?---\s*/, "")
-        .trim()
+    ? [skillInstructions(skillContent), libraryPrompt].filter(Boolean).join("\n\n")
     : "You are a CAD repair engineer. Fix the SCAD code to pass all validation checks.";
 
   const userPrompt = buildRepairPrompt(input);
 
+  const modelStartedAt = Date.now();
   const completion = await createChatCompletionDetailed({
     messages: [
       { role: "system", content: systemPrompt },
@@ -221,6 +237,13 @@ export async function runRepair(input: RepairInput): Promise<{
     risk: "medium",
     requires_rerender: true,
     assumptions: [],
+    instruction_fingerprint: createHash("sha256").update(systemPrompt).digest("hex"),
+    model_execution: {
+      model: completion.model,
+      provider: completion.provider,
+      usage: completion.usage,
+      latency_ms: Date.now() - modelStartedAt,
+    },
   };
 
   // Try to extract explicit repair metadata from response

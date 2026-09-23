@@ -1,6 +1,10 @@
 ---
 name: scad-repair
 description: Repair AgentSCAD OpenSCAD after generation, rendering, or validation failures. Use whenever a job is in GEOMETRY_FAILED, RENDER_FAILED, VALIDATION_FAILED, REPAIRING, or DEBUGGING, or when the user asks to fix broken SCAD while preserving the original CAD intent and runtime contracts.
+version: 1
+when_to_use: Existing SCAD has an actionable compile or validation failure, or the user explicitly requests repair.
+when_not_to_use: Only SKIP, ERROR, or NOT_RUN evidence is available and there is no actionable source defect.
+required_inputs: [original_request, current_scad, validation_evidence]
 triggers:
   - repair scad
   - render failed
@@ -52,10 +56,10 @@ generated_part();
 
 1. Preserve the user's design intent before optimizing style.
 2. Make the smallest complete repair that can render with OpenSCAD.
-3. Fix ONLY the listed validation failures. Do not change dimensions or features that already pass.
+3. Fix ONLY rules with status `FAIL`. Treat `SKIP`, `ERROR`, and `NOT_RUN` as missing evidence or unavailable tools, not geometry failures. Do not change dimensions or features that already pass.
 4. Preserve all required features from the CAD intent.
 5. Keep every editable parameter as a top-level assignment.
-6. Prefer AgentSCAD standard library modules (`include <agentscad_std.scad>`) for robust geometry.
+6. Prefer AgentSCAD standard library modules (`include <agentscad_std.scad>`) for robust geometry. Use additional libraries only when the runtime lists them as available.
 7. Fall back to built-in OpenSCAD primitives only when no library module fits.
 8. Avoid reserved keyword variable names, especially `module`, `function`, `if`, `else`, `for`, `let`, `use`, `include`.
 9. Keep dimensions in millimeters unless the input clearly says otherwise.

@@ -39,7 +39,7 @@ Use available context:
 2. Separate render failures from validation failures.
 3. Treat failed critical validation rules as blockers.
 4. Treat skipped semantic or visual checks as uncertainty, not success proof.
-5. Note when Python/trimesh was unavailable and mock validation was used.
+5. Note when Python/trimesh was unavailable; affected mesh checks are `SKIP`, not passes or mock results.
 6. Compare visible preview evidence to the original request when an image is available.
 7. Recommend repair only when the failure is actionable; otherwise recommend rerender, dependency setup, or human review.
 8. Do not override deterministic mesh validation or claim pass when a tool result says a critical rule failed.

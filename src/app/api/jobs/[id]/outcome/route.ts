@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { latestArtifactVersionId } from "@/lib/artifacts/artifact-version";
 import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import {
   JOB_OUTCOME_KINDS,
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({
       outcomes,
-      summary: summarizeJobOutcomes(outcomes),
+      summary: summarizeJobOutcomes(outcomes, await latestArtifactVersionId(id)),
     });
   } catch (error) {
     console.error("List job outcomes error:", error);
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const outcomes = await listJobOutcomes(id, JOB_OUTCOME_MAX_LIMIT);
 
     return NextResponse.json(
-      { outcome, outcomes, summary: summarizeJobOutcomes(outcomes) },
+      { outcome, outcomes, summary: summarizeJobOutcomes(outcomes, await latestArtifactVersionId(id)) },
       { status: 201 },
     );
   } catch (error) {

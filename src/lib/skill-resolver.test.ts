@@ -4,9 +4,14 @@ import {
   buildScadCodingPrompt,
   buildScadPrompt,
   isExperimentalMemoryPromptEnabled,
+  skillInstructions,
 } from "./skill-resolver";
 
 describe("skill resolver containment", () => {
+  test("keeps routing metadata out of the model instruction body", () => {
+    expect(skillInstructions("---\nname: scad-coding\nversion: 1\n---\n# Instructions"))
+      .toBe("# Instructions");
+  });
   test("injects web research evidence into the generation prompt", async () => {
     const evidence = [
       "## External research (web evidence, verify before trusting)",
@@ -61,5 +66,7 @@ describe("skill resolver containment", () => {
     expect(prompt?.userPrompt).toContain("<generation_plan>");
     expect(prompt?.userPrompt).toContain("Return only one ```scad fenced block");
     expect(prompt?.systemPrompt).not.toContain("Part 1 — CAD Intent JSON");
+    expect(prompt?.systemPrompt).toContain("# SCAD Planning");
+    expect(prompt?.systemPrompt).not.toContain("when_not_to_use:");
   });
 });
