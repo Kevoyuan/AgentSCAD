@@ -49,8 +49,13 @@ Run locally using **Bun** or **Docker Compose**:
 git clone https://github.com/Kevoyuan/AgentSCAD.git
 cd AgentSCAD
 
-# Install dependencies and initialize SQLite schema
+# Install dependencies
 bun install
+
+# Create local configuration (includes DATABASE_URL for SQLite)
+cp .env.example .env
+
+# Initialize SQLite schema
 bun run db:push
 
 # Start the dev server
