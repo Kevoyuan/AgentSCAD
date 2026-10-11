@@ -49,8 +49,13 @@ AgentSCAD 是一个**本地优先、开源的 AI 参数化 CAD 工作区**。采
 git clone https://github.com/Kevoyuan/AgentSCAD.git
 cd AgentSCAD
 
-# 安装依赖并初始化数据库
+# 安装依赖
 bun install
+
+# 创建本地配置（包含 SQLite 所需的 DATABASE_URL）
+cp .env.example .env
+
+# 初始化数据库
 bun run db:push
 
 # 启动开发服务器
