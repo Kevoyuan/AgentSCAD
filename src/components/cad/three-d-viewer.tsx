@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Box, AlertCircle } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -323,6 +325,8 @@ export function ThreeDViewer({
   viewCommand?: ViewCommand | null
   onViewChange?: (camera: { azimuth: number; elevation: number }) => void
 }) {
+  const { t } = useI18n()
+
   // DESIGN.md section 11: one semantic hierarchy in both themes. The viewport
   // field is part of the workspace, so it follows the theme rather than owning a
   // separate "dark background" preference.
@@ -828,7 +832,7 @@ export function ThreeDViewer({
         <div className="w-16 h-16 rounded-2xl bg-[var(--app-empty-bg)] flex items-center justify-center">
           <Box className="w-8 h-7 opacity-20" />
         </div>
-        <span className="text-xs">Process job to generate 3D preview</span>
+        <span className="text-xs">{t("Process job to generate 3D preview")}</span>
       </div>
     )
   }
@@ -840,17 +844,17 @@ export function ThreeDViewer({
           <>
             <img
               src={job.pngPath}
-              alt="Rendered CAD preview"
+              alt={t("Rendered CAD preview")}
               className="max-h-full max-w-full object-contain"
             />
             <div className="absolute left-3 top-3 rounded border border-[color:var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-[11px] text-[var(--app-text-muted)] shadow-sm">
-              WebGL unavailable. Showing rendered PNG preview.
+              {t("WebGL unavailable. Showing rendered PNG preview.")}
             </div>
           </>
         ) : (
           <>
             <AlertCircle className="w-8 h-7 text-rose-500/50" />
-            <span className="text-xs text-rose-400">3D preview unavailable</span>
+            <span className="text-xs text-rose-400">{t("3D preview unavailable")}</span>
             <span className="text-[13px] text-[var(--app-text-dim)]">{error}</span>
           </>
         )}
@@ -866,7 +870,7 @@ export function ThreeDViewer({
             <Skeleton className="w-full h-28 rounded-md" />
             <div className="flex flex-col items-center gap-1.5 w-full">
               <Skeleton className="w-3/4 h-3.5 rounded" />
-              <span className="text-[11px] font-mono tracking-wider text-[var(--app-text-muted)]">INITIALIZING 3D VIEWPORT...</span>
+              <span className="text-[11px] font-mono tracking-wider text-[var(--app-text-muted)]">{t("INITIALIZING 3D VIEWPORT...")}</span>
             </div>
           </div>
         </div>

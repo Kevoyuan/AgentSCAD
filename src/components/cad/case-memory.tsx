@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Brain, ArrowRight } from 'lucide-react'
@@ -35,6 +37,8 @@ interface CaseMemoryProps {
 // ─── Debounce Hook ──────────────────────────────────────────────────────────
 
 function useDebounce<T>(value: T, delay: number): T {
+
+
   const [debouncedValue, setDebouncedValue] = useState(value)
 
   useEffect(() => {
@@ -50,6 +54,8 @@ function useDebounce<T>(value: T, delay: number): T {
 // ─── Case Memory Component ──────────────────────────────────────────────────
 
 export function CaseMemory({ searchQuery, onSuggestionClick }: CaseMemoryProps) {
+  const { t } = useI18n()
+
   const [similarJobs, setSimilarJobs] = useState<SimilarJob[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -115,10 +121,10 @@ export function CaseMemory({ searchQuery, onSuggestionClick }: CaseMemoryProps) 
       <div className="mb-2 flex h-4 items-center gap-1.5">
         <Brain className="w-3.5 h-3.5 text-[var(--shell-text-label)]" />
         <span className="font-mono text-[9px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)]">
-          案例记忆
+          {t("Case memory")}
         </span>
         <span className={`font-mono text-[9px] text-[var(--shell-signal-soft)] transition-opacity ${(isSearching || isWaitingForDebounce) ? 'opacity-100' : 'opacity-0'}`}>
-          检索中…
+          {t("Searching…")}
         </span>
       </div>
 
@@ -163,7 +169,7 @@ export function CaseMemory({ searchQuery, onSuggestionClick }: CaseMemoryProps) 
                       onSuggestionClick?.(job)
                     }}
                   >
-                    使用 <ArrowRight className="w-2 h-2" />
+                    {t("Use")}<ArrowRight className="w-2 h-2" />
                   </button>
                 </div>
               </motion.div>
@@ -171,7 +177,7 @@ export function CaseMemory({ searchQuery, onSuggestionClick }: CaseMemoryProps) 
           </motion.div>
         ) : (
           <div className="flex min-h-10 items-center justify-center text-[12.5px] text-[var(--shell-text-dim)]">
-            {isSearching || isWaitingForDebounce ? '正在检索历史零件…' : '没有相似的历史零件'}
+            {isSearching || isWaitingForDebounce ? t("Searching previous parts…") : t("No similar previous parts")}
           </div>
         )}
       </div>

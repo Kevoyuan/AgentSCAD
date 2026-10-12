@@ -1,5 +1,7 @@
 'use client'
 
+import { englishTranslator, type Translator } from '@/lib/i18n'
+
 /*
  * Artifact helpers for the 检验 module (DESIGN.md section 6, "Output and revisions").
  *
@@ -58,9 +60,9 @@ export function useArtifactSize(jobId: string | null, type: 'stl' | 'scad', enab
   return size
 }
 
-export async function downloadArtifact(job: Job, type: 'stl' | 'scad') {
+export async function downloadArtifact(job: Job, type: 'stl' | 'scad', t: Translator = englishTranslator) {
   const toastId = `${type}-download-${job.id}`
-  toast.loading(type === 'stl' ? 'Fetching STL…' : 'Fetching OpenSCAD…', { id: toastId })
+  toast.loading(type === 'stl' ? t("Fetching STL…") : t("Fetching OpenSCAD…"), { id: toastId })
   try {
     // `download=1` marks this as a real user export rather than a viewer or size fetch,
     // so the outcome ledger only sees deliberate downloads.
@@ -82,11 +84,11 @@ export async function downloadArtifact(job: Job, type: 'stl' | 'scad') {
     a.click()
     document.body.removeChild(a)
     setTimeout(() => URL.revokeObjectURL(url), 1000)
-    toast.success(type === 'stl' ? 'STL downloaded' : 'OpenSCAD downloaded', {
+    toast.success(type === 'stl' ? t("STL downloaded") : t("OpenSCAD downloaded"), {
       id: toastId,
       description: filename,
     })
   } catch (err) {
-    toast.error(err instanceof Error ? err.message : 'Download failed', { id: toastId })
+    toast.error(err instanceof Error ? err.message : t("Download failed"), { id: toastId })
   }
 }

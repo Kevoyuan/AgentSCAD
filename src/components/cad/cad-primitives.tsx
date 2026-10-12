@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { CheckCircle2, Circle, CircleAlert, LockKeyhole } from 'lucide-react'
 import { Job, ValidationResult, parseJSON } from './types'
 import { buildDeliveryReadiness } from '@/lib/validation/delivery-readiness'
@@ -95,6 +97,8 @@ export function CadConstraintChip({
 }
 
 export function CadExportChecklist({ job }: { job: Job }) {
+  const { t } = useI18n()
+
   const validation = parseJSON<ValidationResult[]>(job.validationResults, [])
   const readiness = buildDeliveryReadiness({
     state: job.state,
@@ -116,7 +120,7 @@ export function CadExportChecklist({ job }: { job: Job }) {
   const ready = readiness.status === 'ready'
 
   return (
-    <CadPanel title={ready ? 'Export-ready' : readiness.label} eyebrow="quality gate">
+    <CadPanel title={ready ? t("Export-ready") : readiness.label} eyebrow="quality gate">
       <div className="space-y-2 p-3">
         <div className="rounded-md border border-[color:var(--cad-border)] bg-black/10 px-2 py-1.5">
           <p className="text-[13px] text-[var(--cad-text-secondary)]">{readiness.summary}</p>

@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 /*
  * ─── JUNIOR DESIGNER ASSUMPTIONS & DESIGN DECISIONS ─────────────────────────
  * 1. Responsive Sparkline Viewboxing (Sparkline 响应式折线图)：
@@ -189,6 +191,8 @@ function Sparkline({
   height?: number
   color?: string
 }) {
+  const { t } = useI18n()
+
   if (data.length === 0) return null
 
   const max = Math.max(...data.map((d) => d.count), 1)
@@ -216,7 +220,7 @@ function Sparkline({
       viewBox={`0 0 ${width} ${height}`}
       className="w-full h-auto overflow-visible"
       role="img"
-      aria-label={`Activity sparkline: ${data.reduce((a, b) => a + b.count, 0)} jobs in last 24 hours`}
+      aria-label={t("Activity sparkline: {0} jobs in last 24 hours", { 0: data.reduce((a, b) => a + b.count, 0) })}
     >
       <defs>
         <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
@@ -416,6 +420,8 @@ function getActionInfo(state: string): { action: string; icon: React.ElementType
 }
 
 function ActivityTimeline({ jobs }: { jobs: Job[] }) {
+  const { t } = useI18n()
+
   // Generate timeline events from all jobs
   const events = useMemo<TimelineEvent[]>(() => {
     const allEvents: TimelineEvent[] = []
@@ -506,7 +512,7 @@ function ActivityTimeline({ jobs }: { jobs: Job[] }) {
   if (events.length === 0) {
     return (
       <div className="text-center py-4">
-        <p className="text-[13px] text-[var(--app-text-dim)]">No recent activity</p>
+        <p className="text-[13px] text-[var(--app-text-dim)]">{t("No recent activity")}</p>
       </div>
     )
   }
@@ -567,6 +573,8 @@ function ActivityTimeline({ jobs }: { jobs: Job[] }) {
 // ─── Main Stats Dashboard ───────────────────────────────────────────────────
 
 export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
+  const { t } = useI18n()
+
   const stats = useMemo<StatsData>(() => {
     const totalJobs = jobs.length
 
@@ -663,7 +671,7 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
     >
       {/* Screen-reader summary */}
       <div className="sr-only" role="status" aria-live="polite">
-        Dashboard showing {stats.totalJobs} total jobs, {stats.successRate.toFixed(0)}% success rate,
+        {t("Dashboard showing")} {stats.totalJobs} total jobs, {stats.successRate.toFixed(0)}% success rate,
         {stats.jobsCreatedToday} jobs created today, most common part family is {stats.mostCommonPartFamily.replace(/_/g, ' ')},
         average processing time {formatDuration(stats.avgProcessingTimeMs)}.
         Job states: {Object.entries(stats.jobsByState).map(([state, count]) => `${state.replace(/_/g, ' ')}: ${count}`).join(', ')}.
@@ -674,7 +682,7 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4 text-[var(--app-accent-text)]" />
           <h2 className="text-sm font-semibold text-[var(--app-text-primary)] tracking-wide">
-            System Analytics
+            {t("System Analytics")}
           </h2>
         </div>
         {onClose && (
@@ -689,7 +697,7 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
 
       {/* Top row: Key metrics */}
       <motion.div variants={staggerContainer} className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-        <StatCard icon={Layers} label="Total Jobs">
+        <StatCard icon={Layers} label={t("Total Jobs")}>
           <div className="text-2xl font-mono font-bold tracking-tighter text-[var(--app-text-primary)] tabular-nums">
             <AnimatedCounter value={stats.totalJobs} />
           </div>
@@ -698,16 +706,16 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
           </div>
         </StatCard>
 
-        <StatCard icon={Clock} label="Avg Time">
+        <StatCard icon={Clock} label={t("Avg Time")}>
           <div className="text-xl font-mono font-bold tracking-tighter text-[var(--shell-signal-soft)] tabular-nums">
             {formatDuration(stats.avgProcessingTimeMs)}
           </div>
           <div className="text-[13px] text-[var(--app-text-dim)] mt-0.5">
-            processing time
+            {t("processing time")}
           </div>
         </StatCard>
 
-        <StatCard icon={CheckCircle2} label="Success">
+        <StatCard icon={CheckCircle2} label={t("Success")}>
           <div className="flex justify-center py-1">
             <ProgressRing
               value={stats.successRate}
@@ -718,11 +726,11 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
           </div>
         </StatCard>
 
-        <StatCard icon={Zap} label="Top Family">
+        <StatCard icon={Zap} label={t("Top Family")}>
           <div className="text-sm font-mono font-semibold tracking-tight text-[var(--app-accent-text)] truncate">
             {stats.mostCommonPartFamily.replace(/_/g, ' ')}
           </div>
-          <div className="text-[13px] text-[var(--app-text-dim)] mt-0.5">most common</div>
+          <div className="text-[13px] text-[var(--app-text-dim)] mt-0.5">{t("most common")}</div>
         </StatCard>
       </motion.div>
 
@@ -734,7 +742,7 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
         <div className="flex items-center gap-1.5 mb-3">
           <TrendingUp className="w-3.5 h-3.5 text-[var(--app-text-dim)]" />
           <span className="text-xs font-mono text-[var(--app-text-muted)] tracking-widest uppercase">
-            Jobs by State
+            {t("Jobs by State")}
           </span>
         </div>
         <StateDistributionBar jobsByState={stats.jobsByState} />
@@ -749,7 +757,7 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
           <div className="flex items-center gap-1.5">
             <Activity className="w-3.5 h-3.5 text-[var(--app-text-dim)]" />
             <span className="text-xs font-mono text-[var(--app-text-muted)] tracking-widest uppercase">
-              Activity (24h)
+              {t("Activity (24h)")}
             </span>
           </div>
           <span className="text-[13px] font-mono text-[var(--app-text-muted)] tabular-nums">
@@ -770,11 +778,11 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
           <div className="flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-[var(--app-text-dim)]" />
             <span className="text-xs font-mono text-[var(--app-text-muted)] tracking-widest uppercase">
-              Recent Activity
+              {t("Recent Activity")}
             </span>
           </div>
           <span className="text-xs font-mono text-[var(--app-text-dim)]">
-            Last 10 events
+            {t("Last 10 events")}
           </span>
         </div>
         <ActivityTimeline jobs={jobs} />

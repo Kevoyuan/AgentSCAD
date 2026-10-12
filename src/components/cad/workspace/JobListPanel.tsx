@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import * as React from 'react'
 import { ImperativePanelHandle } from 'react-resizable-panels'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -91,6 +93,8 @@ export function JobListPanel({
   onOpenStats?: () => void
   onOpenCompare?: () => void
 }) {
+  const { t } = useI18n()
+
   const hasActiveFilters = Boolean(
     filterState.search.trim().length > 0 ||
     (filterState.states && filterState.states.length > 0) ||
@@ -112,7 +116,7 @@ export function JobListPanel({
       onExpand={() => onCollapseChange?.(false)}
       className="cad-left-panel min-w-0 overflow-hidden"
     >
-      <PanelErrorBoundary panelName="Job List" resetKey={selectedJob?.id}>
+      <PanelErrorBoundary panelName={t("Job List")} resetKey={selectedJob?.id}>
         {/* The floating module plate is the frame (DESIGN.md section 22, one card): the
             docked panel's own border, radius, blur and shadow used to stack on top of it. */}
         <div className="flex flex-col h-full min-w-0 overflow-hidden">
@@ -140,7 +144,7 @@ export function JobListPanel({
                     rather than pushing it onto a line of its own. */}
                 <div className="flex items-start gap-2 px-2.5 py-1.5 min-w-0">
                   <span className="shrink-0 pt-[3px] font-mono text-[10.5px] leading-none text-[var(--shell-text-muted)]">
-                    已选 {selectedIds.size}
+                    {t("selected")}{selectedIds.size}
                   </span>
                   <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-0.5">
                     {/* >= 2 designs: these two are the only read-only actions here */}
@@ -150,7 +154,7 @@ export function JobListPanel({
                         onClick={onOpenCompare}
                         className="h-6 px-2 rounded-[4px] font-mono text-[10.5px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] transition-colors shrink-0"
                       >
-                        对比
+                        {t("Compare")}
                       </button>
                     )}
                     {selectedIds.size >= 2 && onOpenStats && (
@@ -159,7 +163,7 @@ export function JobListPanel({
                         onClick={onOpenStats}
                         className="h-6 px-2 rounded-[4px] font-mono text-[10.5px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] transition-colors shrink-0"
                       >
-                        统计
+                        {t("Statistics")}
                       </button>
                     )}
                     <Button
@@ -169,7 +173,7 @@ export function JobListPanel({
                       onClick={() => onBatchAction('reprocess')}
                     >
                       <RotateCcw className="w-3 h-3" />
-                      重建
+                      {t("Rebuild")}
                     </Button>
                     <Button
                       variant="ghost"
@@ -178,7 +182,7 @@ export function JobListPanel({
                       onClick={() => onBatchAction('cancel')}
                     >
                       <Ban className="w-3 h-3" />
-                      取消
+                      {t("Cancel")}
                     </Button>
                     <Button
                       variant="ghost"
@@ -187,14 +191,14 @@ export function JobListPanel({
                       onClick={() => onBatchAction('delete')}
                     >
                       <Trash2 className="w-3 h-3" />
-                      删除
+                      {t("Delete")}
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-6 w-6 p-0 rounded-[4px] text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] shrink-0"
                       onClick={onClearSelection}
-                      aria-label="清除选择"
+                      aria-label={t("Clear selection")}
                     >
                       <X className="w-3 h-3" />
                     </Button>
@@ -215,13 +219,13 @@ export function JobListPanel({
           <button
             type="button"
             onClick={() => onShowComposer?.()}
-            aria-label="新零件"
-            title="新零件（⌘N）"
+            aria-label={t("New part")}
+            title={t("New part (⌘N)")}
             className="rail-create shrink-0 mx-2.5 mb-2 h-[28px] px-2.5 rounded-[5px] border flex items-center justify-between gap-2 font-mono text-[10.5px] transition-colors"
           >
             <span className="flex items-center gap-1.5">
               <Plus className="w-3 h-3" />
-              新零件
+              {t("New part")}
             </span>
             <span className="rail-create-key">⌘N</span>
           </button>
@@ -244,7 +248,7 @@ export function JobListPanel({
                       the empty state stays outside the listbox. */}
                   <div
                     role="listbox"
-                    aria-label="零件槽位"
+                    aria-label={t("Part slots")}
                     className="min-w-0 divide-y divide-[color:var(--app-border-subtle)]"
                   >
                     {sortedJobs.map((job, i) => (

@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 /*
  * ─── AgentSCAD shell: Direction C2, floating instrument panel ────────────────
  * Authority: DESIGN.md at the repo root.
@@ -51,7 +53,8 @@ import { useWorkspaceState } from './useWorkspaceState'
 import { JobListPanel } from './JobListPanel'
 import { ViewerPanel } from './ViewerPanel'
 import { InspectorPanel } from './InspectorPanel'
-import { SettingsSheet } from './SettingsSheet'
+import { SettingsSheet, type SettingsTab } from './SettingsSheet'
+import { LanguagePanel } from '@/components/cad/language-panel'
 import { ViewCube } from './ViewCube'
 import { DEFAULT_FILTER_STATE } from '@/components/cad/search-filter-panel'
 const JobComposer = dynamic(() => import('./JobComposer').then(m => ({ default: m.JobComposer })), { ssr: false })
@@ -72,6 +75,8 @@ export type DensityPreset = 'full' | 'tuning' | 'model-only'
  * claim a revision that does not exist.
  */
 function useRevision(jobId: string | null): number {
+
+
   const [state, setState] = useState<{ jobId: string | null; count: number }>({ jobId, count: 0 })
 
   // Reset during render when the design changes: an effect would cost a second
@@ -145,8 +150,10 @@ const DEFAULT_MODULE_STATES: Record<string, ModuleState> = {
 }
 
 export function MainWorkspace() {
+  const { t } = useI18n()
+
   const state = useWorkspaceState()
-  const [settingsTab, setSettingsTab] = useState<'providers' | 'theme'>('providers')
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('providers')
   const [providerRevision, setProviderRevision] = useState(0)
   const [floatingPrompt, setFloatingPrompt] = useState('')
 
@@ -215,12 +222,12 @@ export function MainWorkspace() {
       await state.loadJobs()
       return true
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '参数保存失败')
+      toast.error(err instanceof Error ? err.message : t("Failed to save parameters"))
       return false
     } finally {
       setIsSaving(false)
     }
-  }, [state, paramDraft])
+  }, [state, paramDraft, t])
 
   const handleComposerSubmit = () => {
     if (floatingPrompt.trim()) {
@@ -335,7 +342,7 @@ export function MainWorkspace() {
   const commandPaletteActions: CommandAction[] = [
     {
       id: 'create-job',
-      label: 'New Design',
+      label: t("New Design"),
       icon: <Plus className="w-4 h-4 text-[var(--shell-ok)]" />,
       shortcut: '⌘N',
       onSelect: () => state.setShowComposer(true),
@@ -343,7 +350,7 @@ export function MainWorkspace() {
     },
     {
       id: 'toggle-theme',
-      label: 'Toggle Theme',
+      label: t("Toggle Theme"),
       icon: <Palette className="w-4 h-4 text-[var(--shell-signal)]" />,
       shortcut: 'T',
       onSelect: () => {
@@ -354,7 +361,7 @@ export function MainWorkspace() {
     },
     {
       id: 'show-stats',
-      label: 'Show Statistics',
+      label: t("Show Statistics"),
       icon: <BarChart3 className="w-4 h-4 text-[var(--shell-ok)]" />,
       shortcut: '',
       onSelect: () => state.setShowStats(true),
@@ -362,7 +369,7 @@ export function MainWorkspace() {
     },
     {
       id: 'show-compare',
-      label: 'Compare Designs',
+      label: t("Compare Designs"),
       icon: <GitCompare className="w-4 h-4 text-[var(--shell-warn)]" />,
       shortcut: 'C',
       onSelect: () => state.setShowCompare(true),
@@ -370,7 +377,7 @@ export function MainWorkspace() {
     },
     {
       id: 'export-data',
-      label: 'Export All Data',
+      label: t("Export All Data"),
       icon: <Box className="w-4 h-4 text-[var(--shell-text-muted)]" />,
       shortcut: '',
       onSelect: () => state.exportAllData(),
@@ -397,7 +404,7 @@ export function MainWorkspace() {
 
   const activeJobName = state.selectedJob?.inputRequest
     ? (state.selectedJob.inputRequest.slice(0, 32))
-    : '未命名零件'
+    : t("Untitled part")
 
   const lampStates = readLampStates(state.pipelineEvents)
   const revision = useRevision(state.selectedJob?.id ?? null)
@@ -475,16 +482,16 @@ export function MainWorkspace() {
    * them in two places is what produced a lit button beside a stale "无需重建".
    */
   const actionLabel = state.isProcessing
-    ? '停止'
+    ? t("Stop")
     : floatingPrompt.trim()
-      ? '生成'
+      ? t("Generate")
       : hasPendingDecision
-        ? '确认并生成'
+        ? t("Confirm and generate")
         : hasDraftChanges
-          ? '重建'
+          ? t("Rebuild")
           : state.selectedJob
-            ? '重建'
-            : '生成'
+            ? t("Rebuild")
+            : t("Generate")
   const isActionArmed =
     state.isProcessing ||
     Boolean(floatingPrompt.trim()) ||
@@ -593,7 +600,7 @@ export function MainWorkspace() {
 
         {/* Canvas Hint */}
         <div className="pointer-events-none absolute left-1/2 bottom-[82px] -translate-x-1/2 font-mono text-[9.5px] tracking-[0.12em] text-[var(--shell-text-dim)] uppercase select-none z-10">
-          {isSpaceHidden ? '面板已隐藏 · 按空格恢复' : '拖动模块标题栏可以移动 · 空格键 隐藏全部面板'}
+          {isSpaceHidden ? t("Panels hidden · Press Space to restore") : t("Drag a module header to move it · Space hides all panels")}
         </div>
 
         {/* ── Floating Module Layer (Layer 2) ─────────────────────────────────── */}
@@ -629,8 +636,8 @@ export function MainWorkspace() {
                   {activeJobName}
                 </span>
                 <div className="flex items-center gap-1.5 ml-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--shell-ok)] shadow-[0_0_7px_rgba(123,214,138,0.65)]" title="Provider Ready" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--shell-ok)] shadow-[0_0_7px_rgba(123,214,138,0.65)]" title="OpenSCAD Ready" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--shell-ok)] shadow-[0_0_7px_rgba(123,214,138,0.65)]" title={t("Provider Ready")} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--shell-ok)] shadow-[0_0_7px_rgba(123,214,138,0.65)]" title={t("OpenSCAD Ready")} />
                   <span
                     className={cn(
                       'w-1.5 h-1.5 rounded-full',
@@ -640,10 +647,10 @@ export function MainWorkspace() {
                         ? 'bg-[var(--shell-ok)] shadow-[0_0_7px_rgba(123,214,138,0.65)]'
                         : 'bg-[var(--shell-raise)]'
                     )}
-                    title={state.isProcessing ? '运行中' : state.selectedJob ? '就绪' : '空闲'}
+                    title={state.isProcessing ? t("Running") : state.selectedJob ? t("Ready") : t("Idle")}
                   />
                   <span className="font-mono text-[9px] tracking-[0.12em] text-[var(--shell-text-label)] ml-0.5">
-                    {state.isProcessing ? '运行中' : state.selectedJob ? '就绪' : '空闲'}
+                    {state.isProcessing ? t("Running") : state.selectedJob ? t("Ready") : t("Idle")}
                   </span>
                 </div>
 
@@ -665,8 +672,8 @@ export function MainWorkspace() {
                   />
                   <button
                     type="button"
-                    aria-label="设置"
-                    title="设置 ⌘,"
+                    aria-label={t("Settings")}
+                    title={t("Settings ⌘,")}
                     onClick={() => { setSettingsTab('providers'); setSettingsOpen(true) }}
                     className="w-6 h-6 grid place-items-center rounded-[4px] text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] transition-colors"
                   >
@@ -681,7 +688,7 @@ export function MainWorkspace() {
           {isModuleVisible('controls') && (
             <Module
               id="controls"
-              title="CONTROLS"
+              title={t("CONTROLS")}
               collapsible={false}
               draggable={true}
               isFree={moduleStates['controls']?.isFree}
@@ -695,7 +702,7 @@ export function MainWorkspace() {
             >
               <div className="flex items-center gap-2 px-2.5 py-1.5 cursor-grab active:cursor-grabbing">
                 <span className="font-mono text-[9px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)] px-1 select-none">
-                  面板
+                  {t("Panels")}
                 </span>
 
                 {/* Density Presets: Full / Tuning / Model-Only */}
@@ -713,7 +720,7 @@ export function MainWorkspace() {
                         : 'text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] bg-transparent'
                     )}
                   >
-                    全览
+                    {t("Overview")}
                   </button>
                   <button
                     type="button"
@@ -728,7 +735,7 @@ export function MainWorkspace() {
                         : 'text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] bg-transparent'
                     )}
                   >
-                    调参
+                    {t("Tune")}
                   </button>
                   <button
                     type="button"
@@ -743,7 +750,7 @@ export function MainWorkspace() {
                         : 'text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] bg-transparent'
                     )}
                   >
-                    看模型
+                    {t("Model")}
                   </button>
                 </div>
 
@@ -754,7 +761,7 @@ export function MainWorkspace() {
                   type="button"
                   id="reset"
                   onClick={handleResetLayout}
-                  title="重置模块位置"
+                  title={t("Reset module positions")}
                   className="w-6 h-6 rounded-[5px] border border-[color:var(--shell-border)] hover:border-white/20 text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] flex items-center justify-center font-mono text-xs cursor-pointer transition-colors"
                 >
                   ↺
@@ -764,7 +771,7 @@ export function MainWorkspace() {
 
                 {/* Revision label */}
                 <span id="qid" className="font-mono text-[9px] tracking-[0.1em] text-[var(--shell-text-dim)] px-1 select-none whitespace-nowrap">
-                  {state.selectedJob ? '第 4 版' : '第 — 版'}
+                  {state.selectedJob ? t("Revision 4") : t("Revision —")}
                 </span>
 
                 <div className="w-[1px] h-4 bg-white/[0.075] mx-0.5" />
@@ -787,10 +794,10 @@ export function MainWorkspace() {
               }}
             >
               {[
-                { label: '读懂描述', state: 'INTAKE' },
-                { label: '写出 OpenSCAD', state: 'SYNTHESIS' },
-                { label: '渲染几何', state: 'RENDER' },
-                { label: '检验', state: 'VALIDATION' },
+                { label: t("Interpret request"), state: 'INTAKE' },
+                { label: t("Write OpenSCAD"), state: 'SYNTHESIS' },
+                { label: t("Render geometry"), state: 'RENDER' },
+                { label: t("Checks"), state: 'VALIDATION' },
               ].map((lamp, i) => {
                 // The strip reports where the run actually is, from the SSE steps
                 // the pipeline emits, instead of a fixed "third lamp is running".
@@ -832,7 +839,7 @@ export function MainWorkspace() {
           {isModuleVisible('slots') && (
             <Module
               id="slots"
-              title="零件槽位"
+              title={t("Part slots")}
               badge={`${state.jobs.length}`}
               isFree={slotsState.isFree}
               isCollapsed={slotsState.isCollapsed}
@@ -891,8 +898,8 @@ export function MainWorkspace() {
           {isModuleVisible('viewer') && (
             <Module
               id="viewer"
-              title="视口 · 3D"
-              badge={state.selectedJob ? (state.isProcessing ? '渲染中' : state.selectedJob.state) : '就绪'}
+              title={t("Viewport · 3D")}
+              badge={state.selectedJob ? (state.isProcessing ? t("Rendering") : state.selectedJob.state) : t("Ready")}
               isFree={viewerState.isFree}
               isCollapsed={viewerState.isCollapsed}
               onCollapseChange={(col) => handleCollapseChange('viewer', col)}
@@ -959,8 +966,8 @@ export function MainWorkspace() {
               <Module
                 id="params"
                 flow
-                title="尺寸"
-                badge={hasDraftChanges ? `${changes.length} 项已改` : resolvedSchema ? `${resolvedSchema.parameters.length} 项` : '待生成'}
+                title={t("Dimensions")}
+                badge={hasDraftChanges ? t("{0} changed", { 0: changes.length }) : resolvedSchema ? t("{0} parameters", { 0: resolvedSchema.parameters.length }) : t("Awaiting generation")}
                 isFree={paramsState.isFree}
                 isCollapsed={paramsState.isCollapsed}
                 onCollapseChange={col => handleCollapseChange('params', col)}
@@ -985,8 +992,8 @@ export function MainWorkspace() {
               <Module
                 id="decision"
                 flow
-                title="要你定一下"
-                badge="还没有几何"
+                title={t("Choose an interpretation")}
+                badge={t("No geometry yet")}
                 isFree={decisionState.isFree}
                 isCollapsed={decisionState.isCollapsed}
                 onCollapseChange={col => handleCollapseChange('decision', col)}
@@ -1007,8 +1014,8 @@ export function MainWorkspace() {
               <Module
                 id="checks"
                 flow
-                title="检验"
-                badge={checksModuleHint(state.selectedJob, state.isProcessing)}
+                title={t("Checks")}
+                badge={checksModuleHint(state.selectedJob, state.isProcessing, t)}
                 isFree={checksState.isFree}
                 isCollapsed={isChecksCollapsed}
                 onCollapseChange={col => {
@@ -1048,8 +1055,8 @@ export function MainWorkspace() {
               <Module
                 id="code"
                 flow
-                title="源码"
-                badge={`${state.selectedJob.scadSource.split('\n').length} 行`}
+                title={t("Code")}
+                badge={t("{0} lines", { 0: state.selectedJob.scadSource.split('\n').length })}
                 isFree={codeState.isFree}
                 isCollapsed={codeState.isCollapsed ?? true}
                 onCollapseChange={col => handleCollapseChange('code', col)}
@@ -1065,7 +1072,7 @@ export function MainWorkspace() {
                     className="w-full h-[30px] rounded-[4px] border border-[color:var(--shell-border)] font-mono text-[10px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:border-[var(--shell-border-strong)] transition-colors"
                     style={{ background: 'var(--shell-well)' }}
                   >
-                    打开源码 / 记录
+                    {t("Open code / history")}
                   </button>
                 </div>
               </Module>
@@ -1089,7 +1096,7 @@ export function MainWorkspace() {
           {isModuleVisible('readout') && (
             <Module
               id="readout"
-              title="读数"
+              title={t("Readouts")}
               collapsible={true}
               draggable={true}
               isFree={moduleStates['readout']?.isFree}
@@ -1152,8 +1159,8 @@ export function MainWorkspace() {
                   type="text"
                   placeholder={
                     state.selectedJob?.inputRequest
-                      ? `说一句话改这个零件，比如「壁厚加到 2.4」`
-                      : `写一句话，描述你要的零件，比如「装在 35 mm 导轨上的相机支架」`
+                      ? t("Describe a change, for example: “Increase wall thickness to 2.4”")
+                      : t("Describe the part you need, for example: “Camera bracket for a 35 mm DIN rail”")
                   }
                   value={floatingPrompt}
                   onChange={(e) => setFloatingPrompt(e.target.value)}
@@ -1207,14 +1214,14 @@ export function MainWorkspace() {
                   only ⌘K is a button; the rest is engraved text. */}
               <div className="flex items-center justify-between gap-3 px-1 pt-1.5 text-[9px] font-mono text-[var(--shell-text-dim)]">
                 <div className="flex items-center gap-3 whitespace-nowrap">
-                  <span>⌘⏎ 生成</span>
-                  <span>空格 隐藏面板</span>
+                  <span>{t("⌘⏎ Generate")}</span>
+                  <span>{t("Space Hide panels")}</span>
                   <button
                     type="button"
                     onClick={() => state.setShowCommandPalette(true)}
                     className="hover:text-[var(--shell-text)] transition-colors"
                   >
-                    ⌘K 指令
+                    {t("⌘K Commands")}
                   </button>
                 </div>
                 <span
@@ -1227,22 +1234,22 @@ export function MainWorkspace() {
                   )}
                 >
                   {isSpaceHidden
-                    ? '面板已隐藏 · 按空格恢复'
+                    ? t("Panels hidden · Press Space to restore")
                     : isSaving
-                    ? '保存参数 · 重建中'
+                    ? t("Saving parameters · Rebuilding")
                     : state.isProcessing
-                    ? '渲染中'
+                    ? t("Rendering")
                     : floatingPrompt.trim()
-                    ? '按 ⌘ ⏎ 生成新版本'
+                    ? t("Press ⌘ ⏎ to generate a new version")
                     : hasPendingDecision
-                    ? '选中的解释会记进描述'
+                    ? t("Your choice will be added to the description")
                     : hasDraftChanges
-                    ? `参数已改 ${changes.length} 项，需重建`
+                    ? t("{0} parameters changed · Rebuild required", { 0: changes.length })
                     : state.selectedJob?.stlPath
-                    ? '无需重建'
+                    ? t("No rebuild needed")
                     : state.selectedJob
-                    ? '还没有几何 · 按生成'
-                    : '先在下面写一句描述'}
+                    ? t("No geometry yet · Press Generate")
+                    : t("Start with a description below")}
                 </span>
               </div>
             </div>
@@ -1260,9 +1267,9 @@ export function MainWorkspace() {
           aria-describedby="details-description"
         >
           <DialogHeader>
-            <DialogTitle className="text-sm font-semibold text-[var(--shell-text)]">源码 / 记录</DialogTitle>
+            <DialogTitle className="text-sm font-semibold text-[var(--shell-text)]">{t("Code / history")}</DialogTitle>
             <DialogDescription id="details-description" className="sr-only">
-              这个零件的源码、版本记录、笔记与依赖
+              {t("Source code, version history, notes and dependencies for this part")}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-hidden">
@@ -1293,7 +1300,7 @@ export function MainWorkspace() {
                 isFirstLoadComplete={state.isFirstLoadComplete}
               />
             ) : (
-              <p className="p-6 text-[13px] text-[var(--shell-text-dim)]">先选一个零件。</p>
+              <p className="p-6 text-[13px] text-[var(--shell-text-dim)]">{t("Select a part first.")}</p>
             )}
           </div>
         </DialogContent>
@@ -1333,15 +1340,15 @@ export function MainWorkspace() {
       <AlertDialog open={!!state.cancelTarget} onOpenChange={() => state.setCancelTarget(null)}>
         <AlertDialogContent className="bg-[rgba(34,31,28,0.96)] border border-[color:var(--shell-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_24px_48px_-12px_rgba(0,0,0,0.6)] rounded-[9px] backdrop-blur-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-sm font-semibold text-[var(--shell-text)]">Cancel Job?</AlertDialogTitle>
+            <AlertDialogTitle className="text-sm font-semibold text-[var(--shell-text)]">{t("Cancel Job?")}</AlertDialogTitle>
             <AlertDialogDescription className="text-xs text-[var(--shell-text-muted)]">
-              This will cancel job &quot;{state.cancelTarget?.inputRequest?.slice(0, 60)}&quot;. This action cannot be undone.
+              {t("This will cancel job \"")}{state.cancelTarget?.inputRequest?.slice(0, 60)}{t("\". This action cannot be undone.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-[var(--shell-module-solid)] border-[color:var(--shell-border)] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] text-xs">Keep Running</AlertDialogCancel>
+            <AlertDialogCancel className="bg-[var(--shell-module-solid)] border-[color:var(--shell-border)] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] text-xs">{t("Keep Running")}</AlertDialogCancel>
             <AlertDialogAction className="bg-[var(--shell-fail)] hover:bg-[#FF6E36] text-white text-xs font-semibold" onClick={() => state.cancelTarget && state.handleCancel(state.cancelTarget)}>
-              Cancel Job
+              {t("Cancel Job")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1352,10 +1359,10 @@ export function MainWorkspace() {
         <DialogContent className="bg-[rgba(34,31,28,0.96)] border border-[color:var(--shell-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_24px_48px_-12px_rgba(0,0,0,0.6)] rounded-[9px] max-w-md overflow-x-hidden backdrop-blur-xl" aria-describedby="shortcuts-description">
           <DialogHeader>
             <DialogTitle className="text-sm flex items-center gap-2 text-[var(--shell-text)]">
-              <Keyboard className="w-4 h-4 text-[var(--shell-signal)]" />Keyboard Shortcuts
+              <Keyboard className="w-4 h-4 text-[var(--shell-signal)]" />{t("Keyboard Shortcuts")}
             </DialogTitle>
             <DialogDescription id="shortcuts-description" className="sr-only">
-              Keyboard shortcuts for navigating and controlling AgentSCAD
+              {t("Keyboard shortcuts for navigating and controlling AgentSCAD")}
             </DialogDescription>
           </DialogHeader>
           <div className="h-[1px] bg-white/[0.075] my-1" />
@@ -1364,17 +1371,17 @@ export function MainWorkspace() {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <ArrowUpDown className="w-3.5 h-3.5 text-[var(--shell-signal)]" />
-                <span className="text-[13px] font-mono tracking-widest text-[var(--shell-signal)] uppercase">Navigation</span>
+                <span className="text-[13px] font-mono tracking-widest text-[var(--shell-signal)] uppercase">{t("Navigation")}</span>
               </div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                 {[
-                  { keys: ['Space', ''], desc: 'Hide/show panels' },
-                  { keys: ['?', ''], desc: 'Toggle shortcuts' },
-                  { keys: ['1', '-', '6'], desc: 'Switch inspector tab' },
-                  { keys: ['E', ''], desc: 'Edit SCAD code' },
-                  { keys: ['H', ''], desc: 'Show history (LOG)' },
-                  { keys: ['S', ''], desc: 'Open stats dashboard' },
-                  { keys: ['T', ''], desc: 'Open theme settings' },
+                  { keys: ['Space', ''], desc: t("Hide/show panels") },
+                  { keys: ['?', ''], desc: t("Toggle shortcuts") },
+                  { keys: ['1', '-', '6'], desc: t("Switch inspector tab") },
+                  { keys: ['E', ''], desc: t("Edit SCAD code") },
+                  { keys: ['H', ''], desc: t("Show history (LOG)") },
+                  { keys: ['S', ''], desc: t("Open stats dashboard") },
+                  { keys: ['T', ''], desc: t("Open theme settings") },
                 ].map((s) => (
                   <div key={s.desc} className="flex items-center justify-between gap-2">
                     <span className="text-[13px] text-[var(--shell-text-muted)]">{s.desc}</span>
@@ -1389,13 +1396,13 @@ export function MainWorkspace() {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Play className="w-3.5 h-3.5 text-[var(--shell-ok)]" />
-                <span className="text-[13px] font-mono tracking-widest text-[var(--shell-ok)] uppercase">Actions</span>
+                <span className="text-[13px] font-mono tracking-widest text-[var(--shell-ok)] uppercase">{t("Actions")}</span>
               </div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                 {[
-                  { keys: ['⌘', 'N'], desc: 'New job' },
-                  { keys: ['⌘', '⏎'], desc: 'Generate / Rebuild' },
-                  { keys: ['Del'], desc: 'Delete selected' },
+                  { keys: ['⌘', 'N'], desc: t("New job") },
+                  { keys: ['⌘', '⏎'], desc: t("Generate / Rebuild") },
+                  { keys: ['Del'], desc: t("Delete selected") },
                 ].map((s) => (
                   <div key={s.desc} className="flex items-center justify-between gap-2">
                     <span className="text-[13px] text-[var(--shell-text-muted)]">{s.desc}</span>
@@ -1410,16 +1417,16 @@ export function MainWorkspace() {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Settings className="w-3.5 h-3.5 text-[var(--shell-warn)]" />
-                <span className="text-[13px] font-mono tracking-widest text-[var(--shell-warn)] uppercase">Inspector Tabs</span>
+                <span className="text-[13px] font-mono tracking-widest text-[var(--shell-warn)] uppercase">{t("Inspector Tabs")}</span>
               </div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                 {[
-                  { key: '1', tab: 'SPEC' },
-                  { key: '2', tab: 'PARAMS' },
-                  { key: '3', tab: 'ASSIST' },
-                  { key: '4', tab: 'VALID' },
-                  { key: '5', tab: 'HISTORY' },
-                  { key: '6', tab: 'CODE' },
+                  { key: '1', tab: t("SPEC") },
+                  { key: '2', tab: t("PARAMS") },
+                  { key: '3', tab: t("ASSIST") },
+                  { key: '4', tab: t("VALID") },
+                  { key: '5', tab: t("HISTORY") },
+                  { key: '6', tab: t("CODE") },
                 ].map((s) => (
                   <div key={s.tab} className="flex items-center justify-between gap-2">
                     <span className="text-[13px] text-[var(--shell-text-muted)] font-mono">{s.tab}</span>
@@ -1432,12 +1439,12 @@ export function MainWorkspace() {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Zap className="w-3.5 h-3.5 text-[var(--shell-signal)]" />
-                <span className="text-[13px] font-mono tracking-widest text-[var(--shell-signal)] uppercase">General</span>
+                <span className="text-[13px] font-mono tracking-widest text-[var(--shell-signal)] uppercase">{t("General")}</span>
               </div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                 {[
-                  { keys: ['Esc'], desc: 'Close dialog' },
-                  { keys: ['?'], desc: 'Toggle shortcuts' },
+                  { keys: ['Esc'], desc: t("Close dialog") },
+                  { keys: ['?'], desc: t("Toggle shortcuts") },
                 ].map((s) => (
                   <div key={s.desc} className="flex items-center justify-between gap-2">
                     <span className="text-[13px] text-[var(--shell-text-muted)]">{s.desc}</span>
@@ -1457,10 +1464,10 @@ export function MainWorkspace() {
         <DialogContent className="bg-[rgba(34,31,28,0.96)] border border-[color:var(--shell-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_24px_48px_-12px_rgba(0,0,0,0.6)] rounded-[9px] w-[min(44rem,calc(100vw-2rem))] max-w-none max-h-[min(82vh,760px)] overflow-y-auto overflow-x-hidden backdrop-blur-xl" aria-describedby="stats-description">
           <DialogHeader>
             <DialogTitle className="text-sm flex items-center gap-2 text-[var(--shell-text)]">
-              <BarChart3 className="w-4 h-4 text-[var(--shell-ok)]" />Stats Dashboard
+              <BarChart3 className="w-4 h-4 text-[var(--shell-ok)]" />{t("Stats Dashboard")}
             </DialogTitle>
             <DialogDescription id="stats-description" className="sr-only">
-              Statistics and metrics for all CAD jobs
+              {t("Statistics and metrics for all CAD jobs")}
             </DialogDescription>
           </DialogHeader>
           <StatsDashboard jobs={state.allJobs} onClose={() => state.setShowStats(false)} />
@@ -1472,10 +1479,10 @@ export function MainWorkspace() {
         <DialogContent className="bg-[rgba(34,31,28,0.96)] border border-[color:var(--shell-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_24px_48px_-12px_rgba(0,0,0,0.6)] rounded-[9px] max-w-4xl max-h-[80vh] overflow-y-auto overflow-x-hidden backdrop-blur-xl" aria-describedby="compare-description">
           <DialogHeader>
             <DialogTitle className="text-sm flex items-center gap-2 text-[var(--shell-text)]">
-              <GitCompare className="w-4 h-4 text-[var(--shell-warn)]" />Compare Designs
+              <GitCompare className="w-4 h-4 text-[var(--shell-warn)]" />{t("Compare Designs")}
             </DialogTitle>
             <DialogDescription id="compare-description" className="sr-only">
-              Side-by-side comparison of selected CAD designs
+              {t("Side-by-side comparison of selected CAD designs")}
             </DialogDescription>
           </DialogHeader>
           <JobCompare jobs={state.allJobs} />
@@ -1487,17 +1494,19 @@ export function MainWorkspace() {
         <DialogContent className="bg-[rgba(34,31,28,0.96)] border border-[color:var(--shell-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_24px_48px_-12px_rgba(0,0,0,0.6)] rounded-[9px] flex h-[min(760px,calc(100vh-3rem))] w-[min(42rem,calc(100vw-2rem))] max-w-none flex-col overflow-hidden backdrop-blur-xl" aria-describedby="settings-description">
           <DialogHeader>
             <DialogTitle className="text-sm flex items-center gap-2 text-[var(--shell-text)]">
-              <Settings className="w-4 h-4 text-[var(--shell-signal)]" />Settings
+              <Settings className="w-4 h-4 text-[var(--shell-signal)]" />{t("Settings")}
             </DialogTitle>
             <DialogDescription id="settings-description" className="sr-only">
-              Theme customization, providers, and application settings
+              {t("Theme customization, providers, and application settings")}
             </DialogDescription>
           </DialogHeader>
           <div className="h-[1px] bg-white/[0.075] my-1" />
-          <Tabs value={settingsTab} onValueChange={(value) => setSettingsTab(value as 'providers' | 'theme')} className="min-h-0 flex-1">
-            <TabsList className="grid w-full grid-cols-2 bg-[var(--shell-module-solid)] border border-[color:var(--shell-border)]">
-              <TabsTrigger value="providers" className="text-xs data-[state=active]:bg-[var(--shell-signal)] data-[state=active]:text-[#180D06]">Providers</TabsTrigger>
-              <TabsTrigger value="theme" className="text-xs data-[state=active]:bg-[var(--shell-signal)] data-[state=active]:text-[#180D06]">Theme</TabsTrigger>
+          <Tabs value={settingsTab} onValueChange={(value) => setSettingsTab(value as SettingsTab)} className="min-h-0 flex-1">
+            <TabsList className="grid w-full grid-cols-3 bg-[var(--shell-module-solid)] border border-[color:var(--shell-border)]">
+              <TabsTrigger value="providers" className="text-xs data-[state=active]:bg-[var(--shell-signal)] data-[state=active]:text-[#180D06]">{t("Providers")}</TabsTrigger>
+              <TabsTrigger value="theme" className="text-xs data-[state=active]:bg-[var(--shell-signal)] data-[state=active]:text-[#180D06]">{t("Theme")}</TabsTrigger>
+              <TabsTrigger value="language" className="text-xs data-[state=active]:bg-[var(--shell-signal)] data-[state=active]:text-[#180D06]">{t("Language")}
+</TabsTrigger>
             </TabsList>
             <div className="min-h-0 flex-1 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
               <TabsContent value="providers" forceMount className="mt-3 data-[state=inactive]:hidden">
@@ -1507,6 +1516,9 @@ export function MainWorkspace() {
               </TabsContent>
               <TabsContent value="theme" forceMount className="mt-3 data-[state=inactive]:hidden">
                 <ThemePanel />
+              </TabsContent>
+              <TabsContent value="language" forceMount className="mt-3 data-[state=inactive]:hidden">
+                <LanguagePanel />
               </TabsContent>
             </div>
           </Tabs>

@@ -1,5 +1,6 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
 import { motion } from 'framer-motion'
 import {
   Tooltip,
@@ -26,8 +27,9 @@ const SHORT_LABELS: Record<string, string> = {
 }
 
 export function StateBadge({ state, size = 'sm', timestamp }: { state: string; size?: 'xs' | 'sm' | 'md'; timestamp?: string }) {
+  const { t, locale } = useI18n()
   const info = getStateInfo(state)
-  const label = SHORT_LABELS[state] || state.replace(/_/g, ' ')
+  const label = t(SHORT_LABELS[state] || state.replace(/_/g, ' '))
   const isFailed = FAILED_STATES.includes(state)
   const isDelivered = state === 'DELIVERED'
   const isReview = state === 'HUMAN_REVIEW'
@@ -36,7 +38,7 @@ export function StateBadge({ state, size = 'sm', timestamp }: { state: string; s
   const formatTimestamp = (ts: string) => {
     try {
       const d = new Date(ts)
-      return d.toLocaleString('en-US', {
+      return d.toLocaleString(locale, {
         month: 'short', day: 'numeric',
         hour: '2-digit', minute: '2-digit', second: '2-digit'
       })
@@ -60,14 +62,14 @@ export function StateBadge({ state, size = 'sm', timestamp }: { state: string; s
         <motion.span
           key={state}
           className={`inline-flex items-center rounded-sm font-mono font-medium relative ${
-            size === 'xs' ? 'gap-1 text-[8px] px-1 py-0.5' : 
-            size === 'sm' ? 'gap-1.5 text-[10px] px-1.5 py-0.5' : 
+            size === 'xs' ? 'gap-1 text-[8px] px-1 py-0.5' :
+            size === 'sm' ? 'gap-1.5 text-[10px] px-1.5 py-0.5' :
             'gap-1.5 text-xs px-2 py-0.5'
           } ${
-            isFailed ? 'text-[var(--cad-danger)]' : 
-            isDelivered ? 'text-[var(--cad-success)]' : 
-            isReview ? 'text-[var(--cad-warning)]' : 
-            isProcessing ? 'text-[var(--cad-accent)]' : 
+            isFailed ? 'text-[var(--cad-danger)]' :
+            isDelivered ? 'text-[var(--cad-success)]' :
+            isReview ? 'text-[var(--cad-warning)]' :
+            isProcessing ? 'text-[var(--cad-accent)]' :
             'text-[var(--cad-text-muted)]'
           } bg-transparent border border-transparent transition-colors`}
           initial={{ scale: 1.05, opacity: 0 }}
@@ -75,10 +77,10 @@ export function StateBadge({ state, size = 'sm', timestamp }: { state: string; s
           transition={{ duration: 0.2 }}
         >
           <span className={`relative rounded-full ${
-            isFailed ? 'bg-[var(--cad-danger)]' : 
-            isDelivered ? 'bg-[var(--cad-success)]' : 
-            isReview ? 'bg-[var(--cad-warning)]' : 
-            isProcessing ? 'bg-[var(--cad-accent)]' : 
+            isFailed ? 'bg-[var(--cad-danger)]' :
+            isDelivered ? 'bg-[var(--cad-success)]' :
+            isReview ? 'bg-[var(--cad-warning)]' :
+            isProcessing ? 'bg-[var(--cad-accent)]' :
             'bg-[var(--cad-text-muted)]'
           } ${isProcessing || isDelivered ? 'status-pulse' : ''} ${
             size === 'xs' ? 'w-1 h-1' : 'w-1.5 h-1.5'

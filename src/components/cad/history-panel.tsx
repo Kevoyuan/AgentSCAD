@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import * as React from 'react'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -17,6 +19,8 @@ interface HistoryPanelProps {
 }
 
 export function HistoryPanel({ job, onUpdate }: HistoryPanelProps) {
+  const { t } = useI18n()
+
   const [subTab, setSubTab] = useState<HistorySubTab>('versions')
   const logs = parseJSON<ExecutionLog[]>(job.executionLogs, [])
   const hasNotes = Boolean(job.notes && job.notes.trim().length > 0)
@@ -36,7 +40,7 @@ export function HistoryPanel({ job, onUpdate }: HistoryPanelProps) {
             }`}
           >
             <History className="w-3 h-3" />
-            <span>VERSIONS</span>
+            <span>{t("VERSIONS")}</span>
           </button>
 
           <button
@@ -49,7 +53,7 @@ export function HistoryPanel({ job, onUpdate }: HistoryPanelProps) {
             }`}
           >
             <Clock className="w-3 h-3" />
-            <span>TIMELINE</span>
+            <span>{t("TIMELINE")}</span>
             {logs.length > 0 && (
               <span
                 className={`text-[10px] font-mono tabular-nums px-1 py-0.2 rounded ${
@@ -73,7 +77,7 @@ export function HistoryPanel({ job, onUpdate }: HistoryPanelProps) {
             }`}
           >
             <StickyNote className="w-3 h-3" />
-            <span>NOTES</span>
+            <span>{t("NOTES")}</span>
             {hasNotes && (
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
             )}

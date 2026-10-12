@@ -1,5 +1,8 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+import { englishTranslator, type Translator } from '@/lib/i18n'
+
 /*
  * 要你定一下 — the decision module, shown instead of 尺寸 while a clarification is
  * pending (DESIGN.md section 6 conditional modules; workflow states section 10).
@@ -38,10 +41,10 @@ export function readInterpretations(job: Job | null): IntentInterpretation[] {
   return Array.isArray(intent.interpretations) ? intent.interpretations : []
 }
 
-export function readClarificationQuestion(job: Job | null): string {
+export function readClarificationQuestion(job: Job | null, t: Translator = englishTranslator): string {
   if (!job) return ''
   const intent = parseJSON<IntentClarification>(job.intentResult, {})
-  return intent.clarificationQuestion || '这句话可以理解成几种零件，选一个再生成。'
+  return intent.clarificationQuestion || t("This description could mean several parts. Choose one before generating.")
 }
 
 export function DecisionModule({
@@ -53,21 +56,23 @@ export function DecisionModule({
   selectedId: string | null
   onSelect: (id: string) => void
 }) {
+  const { t } = useI18n()
+
   const interpretations = readInterpretations(job)
-  const question = readClarificationQuestion(job)
+  const question = readClarificationQuestion(job, t)
 
   return (
     <div className="px-[11px] pb-[11px]">
       <div className="pt-[3px] pb-[9px]">
         <p className="text-[12.5px] font-semibold leading-[1.4] text-[var(--shell-text)]">{question}</p>
         <p className="mt-[5px] font-mono text-[9px] leading-[1.5] text-[var(--shell-text-dim)]">
-          选中的解释会记进描述，然后按输入框右边的按钮生成
+          {t("Your choice will be added to the description. Then use the button beside the input to generate.")}
         </p>
       </div>
 
       {interpretations.length === 0 ? (
         <p className="py-2 text-[11.5px] text-[var(--shell-text-dim)]">
-          这次没有可选的解释。改成更具体的描述，或者重建一次。
+          {t("No interpretations available. Make the description more specific or rebuild.")}
         </p>
       ) : (
         <div>

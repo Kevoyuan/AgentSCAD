@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useI18n } from "@/components/i18n-provider"
 import * as SheetPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"
 
@@ -59,6 +60,7 @@ function SheetContent({
    */
   showCloseButton?: boolean
 }) {
+  const { t } = useI18n()
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -82,7 +84,7 @@ function SheetContent({
         {showCloseButton && (
           <SheetPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
             <XIcon className="size-4" />
-            <span className="sr-only">关闭</span>
+            <span className="sr-only">{t("Close")}</span>
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Content>

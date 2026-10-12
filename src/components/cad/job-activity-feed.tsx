@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -77,6 +79,8 @@ export function JobActivityFeed({
   onEventClick,
   showHeader = true,
 }: JobActivityFeedProps) {
+  const { t } = useI18n()
+
   const [filter, setFilter] = useState<ActivityEventType | 'ALL'>('ALL')
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -97,7 +101,7 @@ export function JobActivityFeed({
         <div className="flex items-center justify-between px-3 py-2 border-b border-[color:var(--app-border)]">
           <div className="flex items-center gap-2">
             <Activity className="w-3.5 h-3.5 text-[var(--app-accent-text)]" />
-            <span className="text-sm font-medium text-[var(--app-text-secondary)]">Activity Feed</span>
+            <span className="text-sm font-medium text-[var(--app-text-secondary)]">{t("Activity Feed")}</span>
             <span className="text-[8px] font-mono px-1.5 py-0.5 rounded-full bg-[var(--app-accent-bg)] text-[var(--app-accent-text)] border border-[color:var(--app-accent-border)]">
               {filteredEvents.length}
             </span>
@@ -110,7 +114,7 @@ export function JobActivityFeed({
                 className="h-5 text-[8px] gap-0.5 text-[var(--app-text-muted)] hover:text-[var(--app-text-muted)] px-1"
                 onClick={onClear}
               >
-                <Trash2 className="w-2.5 h-2.5" />Clear
+                <Trash2 className="w-2.5 h-2.5" />{t("Clear")}
               </Button>
             )}
           </div>
@@ -130,7 +134,7 @@ export function JobActivityFeed({
             }`}
             onClick={() => setFilter(opt.key)}
           >
-            {opt.label}
+            {t(opt.label)}
           </button>
         ))}
       </div>
@@ -143,9 +147,9 @@ export function JobActivityFeed({
               <Activity className="w-5 h-5 text-[var(--cad-text-muted)]" />
             </div>
             <p className="text-sm text-[var(--app-text-dim)]">
-              {filter === 'ALL' ? 'No activity yet' : `No ${filter} events`}
+              {filter === 'ALL' ? t("No activity yet") : t("No {0} events", { 0: filter })}
             </p>
-            <p className="text-xs text-[var(--app-text-dim)]">Events will appear here as jobs progress</p>
+            <p className="text-xs text-[var(--app-text-dim)]">{t("Events will appear here as jobs progress")}</p>
           </div>
         ) : (
           <div className="divide-y divide-[color:var(--app-border)]">

@@ -3,6 +3,8 @@
 import React, { Component, type ReactNode, type ErrorInfo } from 'react'
 import { AlertTriangle, RotateCcw, Copy, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { englishTranslator } from '@/lib/i18n'
+import { I18nContext, type I18nContextValue } from '@/components/i18n-provider'
 
 export interface PanelErrorBoundaryProps {
   panelName: string
@@ -22,6 +24,9 @@ interface PanelErrorBoundaryState {
 }
 
 export class PanelErrorBoundary extends Component<PanelErrorBoundaryProps, PanelErrorBoundaryState> {
+  static contextType = I18nContext
+  declare context: I18nContextValue
+
   constructor(props: PanelErrorBoundaryProps) {
     super(props)
     this.state = {
@@ -81,6 +86,7 @@ export class PanelErrorBoundary extends Component<PanelErrorBoundaryProps, Panel
   }
 
   render() {
+    const t = this.context?.t ?? englishTranslator
     if (this.state.hasError) {
       if (typeof this.props.fallback === 'function') {
         return this.props.fallback(this.state.error || new Error('Unknown error'), this.handleReset)
@@ -99,21 +105,19 @@ export class PanelErrorBoundary extends Component<PanelErrorBoundaryProps, Panel
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-transparent border border-transparent text-[var(--shell-fail)] text-xs font-mono mb-3 shrink-0">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
             <span className="uppercase tracking-wider font-semibold">
-              {this.props.panelName} FAULT ISOLATED
+              {this.props.panelName} {t("FAULT ISOLATED")}
             </span>
           </div>
 
           <h3 className="text-sm font-semibold tracking-tight text-[var(--app-text-primary)] mb-1.5">
-            面板子系统已隔离
-          </h3>
+            {t(t("Panel error isolated"))}</h3>
           <p className="text-xs text-[var(--app-text-muted)] max-w-sm mb-4 leading-relaxed">
-            该面板发生未捕获渲染异常，其他面板与全局 CAD 会话已被安全隔离保护。可点击下方重试恢复或切换任务自愈。
-          </p>
+            {t(t("This panel encountered a rendering error. Your other panels and CAD session are preserved. Retry the panel or switch parts to recover."))}</p>
 
           {/* Monospace Error Diagnostic Box */}
           <div className="w-full max-w-md bg-[var(--app-bg)] border border-[color:var(--app-border-subtle)] rounded-[6px] p-3 text-left mb-4 overflow-x-auto max-h-32 text-xs font-mono tabular-nums">
             <div className="text-[11px] font-mono text-[var(--shell-fail)] font-semibold mb-1 truncate">
-              {this.state.error?.name || 'RuntimeError'}: {this.state.error?.message || 'Unexpected failure'}
+              {this.state.error?.name || 'RuntimeError'}: {this.state.error?.message || t("Unexpected failure")}
             </div>
             {this.state.error?.stack && (
               <pre className="text-[10px] text-[var(--app-text-dim)] font-mono leading-tight whitespace-pre-wrap break-all max-h-16 overflow-y-auto">
@@ -130,8 +134,7 @@ export class PanelErrorBoundary extends Component<PanelErrorBoundaryProps, Panel
               className="h-7 text-xs font-medium gap-1.5 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white px-3 rounded-[6px] active:scale-[0.98]"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              重试面板 (Retry)
-            </Button>
+              {t(t("Retry panel"))}</Button>
             <Button
               size="sm"
               variant="outline"
@@ -141,13 +144,11 @@ export class PanelErrorBoundary extends Component<PanelErrorBoundaryProps, Panel
               {this.state.copied ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-[var(--shell-ok)]" />
-                  已复制
-                </>
+                  {t(t("Copied"))}</>
               ) : (
                 <>
                   <Copy className="w-3.5 h-3.5" />
-                  复制诊断
-                </>
+                  {t(t("Copy diagnostics"))}</>
               )}
             </Button>
           </div>

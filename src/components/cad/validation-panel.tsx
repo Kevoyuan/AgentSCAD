@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import * as React from 'react'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -25,6 +27,8 @@ interface ValidationPanelProps {
 }
 
 export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
+  const { t, locale } = useI18n()
+
   const [showAllPassed, setShowAllPassed] = useState(false)
   const results = parseJSON<ValidationResult[]>(job.validationResults, [])
 
@@ -34,7 +38,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
         <div className="w-12 h-12 rounded-xl bg-[var(--app-empty-bg)] flex items-center justify-center">
           <Shield className="w-6 h-6 opacity-30" />
         </div>
-        <p className="text-sm">No validation results</p>
+        <p className="text-sm">{t("No validation results")}</p>
       </div>
     )
   }
@@ -95,16 +99,16 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
       {/* 质检综合看板与工程结论指示 */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-[color:var(--app-border)] bg-[var(--app-surface-raised)]/30 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-eyebrow text-[var(--app-text-muted)] font-mono text-[10px] uppercase tracking-wider">MANUFACTURING AUDIT</span>
+          <span className="text-eyebrow text-[var(--app-text-muted)] font-mono text-[10px] uppercase tracking-wider">{t("MANUFACTURING AUDIT")}</span>
           {blockers.length === 0 ? (
             <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Ready to export</span>
+              <span>{t("Ready to export")}</span>
             </span>
           ) : (
             <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1">
               <ShieldAlert className="w-3.5 h-3.5" />
-              <span>Validation blocked</span>
+              <span>{t("Validation blocked")}</span>
             </span>
           )}
         </div>
@@ -112,7 +116,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
           <div className="flex items-center gap-1.5">
             <span
               className="text-xs font-mono tabular-nums text-[var(--app-text-muted)]"
-              title="Score across checks that produced actionable evidence"
+              title={t("Score across checks that produced actionable evidence")}
             >
               {score}%
             </span>
@@ -122,19 +126,19 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
             {blockers.length > 0 && (
               <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30 gap-1 h-5 rounded-[4px]">
                 <ShieldAlert className="w-3 h-3" />
-                <span className="tabular-nums">{blockers.length}</span> BLOCKERS
+                <span className="tabular-nums">{blockers.length}</span> {t("BLOCKERS")}
               </Badge>
             )}
             {warnings.length > 0 && (
               <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1 h-5 rounded-[4px]">
                 <AlertTriangle className="w-3 h-3" />
-                <span className="tabular-nums">{warnings.length}</span> WARN
+                <span className="tabular-nums">{warnings.length}</span> {t("WARN")}
               </Badge>
             )}
             {blockers.length === 0 && (
               <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 gap-1 h-5 rounded-[4px]">
                 <ShieldCheck className="w-3 h-3" />
-                PRINTABLE
+                {t("PRINTABLE")}
               </Badge>
             )}
           </div>
@@ -149,7 +153,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
               <div className="flex items-center justify-between text-xs font-mono text-rose-600 dark:text-rose-400 uppercase tracking-wider">
                 <span className="flex items-center gap-1.5 font-semibold">
                   <ShieldAlert className="w-3.5 h-3.5" />
-                  Critical Blockers (<span className="tabular-nums">{blockers.length}</span>)
+                  {t("Critical Blockers (")}<span className="tabular-nums">{blockers.length}</span>)
                 </span>
                 {onRepair && (
                   <Button
@@ -159,7 +163,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
                     onClick={() => onRepair(job)}
                   >
                     <Wrench className="w-3 h-3" />
-                    Auto Repair
+                    {t("Auto Repair")}
                   </Button>
                 )}
               </div>
@@ -174,7 +178,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
                         {b.rule_id} · {b.rule_name}
                       </span>
                       <span className="font-mono text-[10px] text-rose-600 dark:text-rose-400 uppercase tracking-wider font-semibold">
-                        BLOCKER
+                        {t("BLOCKER")}
                       </span>
                     </div>
                     <p className="text-[13px] text-[var(--app-text-secondary)] leading-relaxed">
@@ -201,7 +205,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
             <div className="space-y-2">
               <div className="flex items-center gap-1.5 text-xs font-mono text-amber-600 dark:text-amber-400 uppercase tracking-wider font-semibold">
                 <AlertTriangle className="w-3.5 h-3.5" />
-                Process Warnings & Reviews (<span className="tabular-nums">{warnings.length}</span>)
+                {t("Process Warnings & Reviews (")}<span className="tabular-nums">{warnings.length}</span>)
               </div>
               <div className="space-y-1.5">
                 {warnings.map((w) => {
@@ -216,7 +220,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
                           {w.rule_id} · {w.rule_name}
                         </span>
                         <span className="font-mono text-[10px] text-amber-600 dark:text-amber-400 uppercase">
-                          {status || w.status || 'WARN'}
+                          {status || w.status || t("WARN")}
                         </span>
                       </div>
                       <p className="text-[13px] text-[var(--app-text-muted)] leading-relaxed">
@@ -238,39 +242,39 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
           <div className="space-y-2.5">
             <div className="flex items-center gap-1.5 text-xs font-mono text-[var(--app-text-muted)] uppercase tracking-wider font-semibold">
               <Layers className="w-3.5 h-3.5" />
-              Geometric Facts & Telemetry
+              {t("Geometric Facts & Telemetry")}
             </div>
 
             {/* 精密数据度量网格 */}
             <div className="grid grid-cols-2 gap-2">
               <div className="p-2 rounded-[6px] border border-[color:var(--app-border)] bg-[var(--app-surface-raised)]/40">
-                <span className="text-[10px] font-mono text-[var(--app-text-dim)] uppercase block">Bounding Box</span>
+                <span className="text-[10px] font-mono text-[var(--app-text-dim)] uppercase block">{t("Bounding Box")}</span>
                 <span className="text-xs font-mono tabular-nums text-[var(--app-text-primary)] font-medium block truncate">
                   {bboxText}
                 </span>
               </div>
               <div className="p-2 rounded-[6px] border border-[color:var(--app-border)] bg-[var(--app-surface-raised)]/40">
-                <span className="text-[10px] font-mono text-[var(--app-text-dim)] uppercase block">Triangles</span>
+                <span className="text-[10px] font-mono text-[var(--app-text-dim)] uppercase block">{t("Triangles")}</span>
                 <span className="text-xs font-mono tabular-nums text-[var(--app-text-primary)] font-medium block">
-                  {renderLog?.stl_triangles ? renderLog.stl_triangles.toLocaleString() : 'Procedural'}
+                  {renderLog?.stl_triangles ? renderLog.stl_triangles.toLocaleString(locale) : t("Procedural")}
                 </span>
               </div>
               <div className="p-2 rounded-[6px] border border-[color:var(--app-border)] bg-[var(--app-surface-raised)]/40">
-                <span className="text-[10px] font-mono text-[var(--app-text-dim)] uppercase block">Compile Time</span>
+                <span className="text-[10px] font-mono text-[var(--app-text-dim)] uppercase block">{t("Compile Time")}</span>
                 <span className="text-xs font-mono tabular-nums text-[var(--app-text-primary)] font-medium block">
-                  {renderLog?.render_time_ms ? `${renderLog.render_time_ms} ms` : 'Cached'}
+                  {renderLog?.render_time_ms ? `${renderLog.render_time_ms} ms` : t("Cached")}
                 </span>
               </div>
               <div className="p-2 rounded-[6px] border border-[color:var(--app-border)] bg-[var(--app-surface-raised)]/40">
-                <span className="text-[10px] font-mono text-[var(--app-text-dim)] uppercase block">Watertight Mesh</span>
+                <span className="text-[10px] font-mono text-[var(--app-text-dim)] uppercase block">{t("Watertight Mesh")}</span>
                 <span className="text-xs font-mono font-medium flex items-center gap-1">
                   {isWatertight ? (
                     <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> Verified
+                      <CheckCircle2 className="w-3 h-3" /> {t("Verified")}
                     </span>
                   ) : (
                     <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" /> Non-manifold
+                      <AlertTriangle className="w-3 h-3" /> {t("Non-manifold")}
                     </span>
                   )}
                 </span>
@@ -282,7 +286,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
               <div className="pt-1.5 space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-mono text-[var(--app-text-dim)] uppercase">
-                    Verified Rules (<span className="tabular-nums">{passedFacts.length}</span>)
+                    {t("Verified Rules (")}<span className="tabular-nums">{passedFacts.length}</span>)
                   </span>
                   {passedFacts.length > 5 && (
                     <button
@@ -291,9 +295,9 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
                       className="text-[11px] font-mono text-[var(--app-accent)] hover:underline flex items-center gap-0.5"
                     >
                       {showAllPassed ? (
-                        <>Show less <ChevronUp className="w-3 h-3" /></>
+                        <>{t("Show less")} <ChevronUp className="w-3 h-3" /></>
                       ) : (
-                        <>View all ({passedFacts.length}) <ChevronDown className="w-3 h-3" /></>
+                        <>{t("View all (")}{passedFacts.length}) <ChevronDown className="w-3 h-3" /></>
                       )}
                     </button>
                   )}
@@ -311,7 +315,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
                         </span>
                       </div>
                       <span className="text-emerald-600 dark:text-emerald-400 text-[10px] font-mono shrink-0 ml-2">
-                        PASS
+                        {t("PASS")}
                       </span>
                     </div>
                   ))}

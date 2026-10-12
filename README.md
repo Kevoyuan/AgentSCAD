@@ -70,6 +70,8 @@ bun run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+The interface defaults to English. Use **Settings → Language** to switch to **简体中文**; your choice applies immediately and is saved in this browser.
+
 ### 2. Configure Your LLM Provider
 
 Click the **Settings gear (⚙️)** in the top-left status module:

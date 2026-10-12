@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle2, XCircle } from 'lucide-react'
@@ -29,6 +31,8 @@ interface PipelineVisualizationProps {
 }
 
 export function PipelineVisualization({ state, job, onStepClick }: PipelineVisualizationProps) {
+  const { t } = useI18n()
+
   const currentIdx = PIPELINE_STEPS.findIndex(s => s.key === state)
   const failedStates = ['GEOMETRY_FAILED', 'RENDER_FAILED', 'VALIDATION_FAILED']
   const isFailed = failedStates.includes(state)
@@ -185,21 +189,23 @@ export function PipelineVisualization({ state, job, onStepClick }: PipelineVisua
                     </motion.div>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="text-xs max-w-[200px]">
-                    <div className="font-mono font-semibold">{step.label}: {step.key.replace(/_/g, ' ')}</div>
+                    <div className="font-mono font-semibold">{t(step.label)}: {step.key.replace(/_/g, ' ')}
+</div>
                     {duration !== undefined && (
-                      <div className="text-[12px] text-[var(--app-text-muted)] mt-0.5">Duration: {formatDuration(duration)}</div>
+                      <div className="text-[12px] text-[var(--app-text-muted)] mt-0.5">{t("Duration:")} {formatDuration(duration)}
+</div>
                     )}
                     {isCurrent && !isFailed && (
-                      <div className="text-[12px] text-[var(--app-warning)] font-medium mt-0.5">Currently processing</div>
+                      <div className="text-[12px] text-[var(--app-warning)] font-medium mt-0.5">{t("Currently processing")}</div>
                     )}
                     {isFailedStep && (
-                      <div className="text-[12px] text-[var(--app-danger)] font-medium mt-0.5">Validation blocked at this step</div>
+                      <div className="text-[12px] text-[var(--app-danger)] font-medium mt-0.5">{t("Validation blocked at this step")}</div>
                     )}
                     {isCompleted && (
-                      <div className="text-[12px] text-[var(--app-success)] font-medium mt-0.5">Completed</div>
+                      <div className="text-[12px] text-[var(--app-success)] font-medium mt-0.5">{t("Completed")}</div>
                     )}
                     {isClickable && (
-                      <div className="text-[12px] text-[var(--app-text-muted)] mt-1">Click to view in inspector</div>
+                      <div className="text-[12px] text-[var(--app-text-muted)] mt-1">{t("Click to view in inspector")}</div>
                     )}
                   </TooltipContent>
                 </Tooltip>
@@ -269,6 +275,8 @@ export function RunProgress({
   isProcessing?: boolean
   onClick?: () => void
 }) {
+  const { t } = useI18n()
+
   const currentIdx = PIPELINE_STEPS.findIndex(s => s.key === state)
   const isFailed = ['GEOMETRY_FAILED', 'RENDER_FAILED', 'VALIDATION_FAILED'].includes(state)
   const progress = getPipelineProgress(state)
@@ -314,7 +322,7 @@ export function RunProgress({
       type="button"
       onClick={onClick}
       className={`inline-flex items-center gap-2 px-2 py-0.5 rounded-[5px] border ${borderClass} bg-[var(--app-surface-raised)]/60 hover:bg-[var(--app-surface-raised)] transition-all cursor-pointer text-left`}
-      title="Click to view run details"
+      title={t("Click to view run details")}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${dotClass} shrink-0`} />
       <span className={`text-xs font-medium font-mono ${textClass}`}>

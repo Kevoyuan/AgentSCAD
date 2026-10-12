@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
@@ -53,6 +55,8 @@ export function ViewerControls({
   isDownloadingStl = false,
   hasStl = true,
 }: ViewerControlsProps) {
+  const { t } = useI18n()
+
   const toggle = useCallback(
     (key: keyof ViewerControlsState) => {
       onChange({ ...state, [key]: !state[key] })
@@ -67,12 +71,12 @@ export function ViewerControls({
   const navControls = [
     {
       icon: Move3D,
-      label: '重置视角',
+      label: t("Reset view"),
       active: false,
       onClick: onResetCamera,
     },
-    { icon: ZoomIn, label: '放大', active: false, onClick: onZoomIn },
-    { icon: ZoomOut, label: '缩小', active: false, onClick: onZoomOut },
+    { icon: ZoomIn, label: t("Zoom in"), active: false, onClick: onZoomIn },
+    { icon: ZoomOut, label: t("Zoom out"), active: false, onClick: onZoomOut },
   ]
 
   /*
@@ -83,25 +87,25 @@ export function ViewerControls({
   const displayControls = [
     {
       icon: state.wireframe ? Eye : EyeOff,
-      label: '线框',
+      label: t("Wireframe"),
       active: state.wireframe,
       onClick: () => toggle('wireframe'),
     },
     {
       icon: Grid3x3,
-      label: '网格',
+      label: t("Grid"),
       active: state.showGrid,
       onClick: () => toggle('showGrid'),
     },
     {
       icon: Axis3D,
-      label: '坐标轴',
+      label: t("Axes"),
       active: state.showAxes,
       onClick: () => toggle('showAxes'),
     },
     {
       icon: Ruler,
-      label: '标注尺寸',
+      label: t("Dimension labels"),
       active: state.showDimensions,
       onClick: () => toggle('showDimensions'),
     },
@@ -110,7 +114,7 @@ export function ViewerControls({
   const outputControls = [
     {
       icon: Camera,
-      label: '截图',
+      label: t("Screenshot"),
       active: false,
       onClick: handleScreenshot,
     },
@@ -119,7 +123,7 @@ export function ViewerControls({
           {
             icon: isDownloadingStl ? Loader2 : Download,
             iconClassName: isDownloadingStl ? 'animate-spin' : undefined,
-            label: isDownloadingStl ? '正在下载 STL…' : '导出 STL',
+            label: isDownloadingStl ? t("Downloading STL…") : t("Export STL"),
             active: false,
             disabled: !hasStl || isDownloadingStl,
             onClick: onDownloadStl,
@@ -147,7 +151,7 @@ export function ViewerControls({
             disabled={isDisabled}
             aria-label={ctrl.label}
             aria-pressed={ctrl.active}
-            title={isDisabled ? (!hasStl ? '还没有可导出的 STL' : '正在下载…') : `${ctrl.label}${ctrl.active ? ' · 开' : ' · 关'}`}
+            title={isDisabled ? (!hasStl ? t("No STL available to export") : t("Downloading…")) : `${ctrl.label}${ctrl.active ? t(" · On") : t(" · Off")}`}
             className={`
               relative flex items-center justify-center w-7 h-7 rounded-md transition-all active:scale-95
               ${
@@ -201,6 +205,8 @@ export function ViewerControls({
  * The actual Three.js integration is in the parent component.
  */
 export function useViewerControls(defaultState?: Partial<ViewerControlsState>) {
+
+
   const [state, setState] = useState<ViewerControlsState>({
     // DESIGN.md section 4: the part is inspected, not performed at. Auto-rotate
     // also makes the ViewCube's meaning drift, so it defaults off.

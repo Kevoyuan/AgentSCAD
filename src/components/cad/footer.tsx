@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { FileJson, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -38,6 +40,8 @@ export function Footer({
   onExport,
   activeJob,
 }: FooterProps) {
+  const { t } = useI18n()
+
   const versionCount = activeJob ? ((activeJob.retryCount || 0) + 1) : 1
   const isSaved = Boolean(activeJob?.id)
 
@@ -49,12 +53,12 @@ export function Footer({
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="flex items-center gap-1 cursor-default text-[var(--cad-text-secondary)]">
-                <span className="text-[var(--cad-text-muted)]">Units:</span>
+                <span className="text-[var(--cad-text-muted)]">{t("Units:")}</span>
                 <span>mm</span>
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-[11px] font-mono">
-              Base unit for parametric CAD models is millimeters (mm)
+              {t("Base unit for parametric CAD models is millimeters (mm)")}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -65,12 +69,12 @@ export function Footer({
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="flex items-center gap-1 cursor-default">
-                <span className="text-[var(--cad-text-muted)]">Runtime:</span>
+                <span className="text-[var(--cad-text-muted)]">{t("Runtime:")}</span>
                 <span className="text-[var(--cad-text-secondary)]">OpenSCAD WASM</span>
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-[11px] font-mono">
-              Deterministic geometry engine running in isolated WASM child process
+              {t("Deterministic geometry engine running in isolated WASM child process")}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -82,11 +86,11 @@ export function Footer({
             <TooltipTrigger asChild>
               <span className="flex items-center gap-1.5 cursor-default">
                 <span className="w-1.5 h-1.5 rounded-full bg-[var(--cad-success)]" />
-                <span className="text-[var(--cad-text-secondary)]">Provider Ready</span>
+                <span className="text-[var(--cad-text-secondary)]">{t("Provider Ready")}</span>
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-[11px] font-mono">
-              Model provider API connected and responsive
+              {t("Model provider API connected and responsive")}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -98,10 +102,10 @@ export function Footer({
               {isSaved ? (
                 <span className="flex items-center gap-1 text-[var(--cad-text-muted)]">
                   <Check className="w-3 h-3 text-[var(--cad-success)]" />
-                  <span>Saved</span>
+                  <span>{t("Saved")}</span>
                 </span>
               ) : (
-                <span>Draft</span>
+                <span>{t("Draft")}</span>
               )}
             </span>
 
@@ -126,10 +130,10 @@ export function Footer({
           size="sm"
           className="h-5 px-1.5 text-[10px] gap-1 text-[var(--cad-text-muted)] hover:text-[var(--cad-text-primary)] hover:bg-[var(--cad-surface-muted)] transition-colors"
           onClick={onExport}
-          title="Export designs backup as JSON"
+          title={t("Export designs backup as JSON")}
         >
           <FileJson className="w-3 h-3" />
-          <span>Export JSON</span>
+          <span>{t("Export JSON")}</span>
         </Button>
       </div>
     </footer>

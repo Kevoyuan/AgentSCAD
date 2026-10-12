@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useEffect, useSyncExternalStore } from 'react'
 import { useTheme } from 'next-themes'
 import { Sun, Moon, Monitor } from 'lucide-react'
@@ -21,9 +23,9 @@ import { Sun, Moon, Monitor } from 'lucide-react'
  */
 
 const THEME_MODES = [
-  { value: 'light' as const, label: '亮色', icon: Sun },
-  { value: 'dark' as const, label: '暗色', icon: Moon },
-  { value: 'system' as const, label: '跟随系统', icon: Monitor },
+  { value: 'light' as const, label: "Light", icon: Sun },
+  { value: 'dark' as const, label: "Dark", icon: Moon },
+  { value: 'system' as const, label: "System", icon: Monitor },
 ]
 
 const subscribeToNothing = () => () => {}
@@ -31,6 +33,8 @@ const onClient = () => true
 const onServer = () => false
 
 export function ThemePanel() {
+  const { t } = useI18n()
+
   const { theme, setTheme, resolvedTheme } = useTheme()
   const mounted = useSyncExternalStore(subscribeToNothing, onClient, onServer)
 
@@ -51,7 +55,7 @@ export function ThemePanel() {
     <div className="space-y-4 p-1">
       <div>
         <div className="mb-2 font-mono text-[9px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)]">
-          界面主题
+          {t("Interface theme")}
         </div>
         <div className="flex items-center gap-0.5 rounded-[6px] bg-[var(--shell-well)] p-0.5">
           {THEME_MODES.map(mode => {
@@ -74,22 +78,22 @@ export function ThemePanel() {
                 }}
               >
                 <Icon className="w-3 h-3" />
-                <span>{mode.label}</span>
+                <span>{t(mode.label)}
+</span>
               </button>
             )
           })}
         </div>
         {theme === 'system' && (
           <p className="mt-2 font-mono text-[9.5px] text-[var(--shell-text-dim)]">
-            跟随系统:当前 {resolvedTheme === 'dark' ? '暗色' : '亮色'}
+            {t("System theme: currently")}{resolvedTheme === 'dark' ? t("Dark") : t("Light")}
           </p>
         )}
       </div>
 
       <div className="rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] p-2.5">
         <p className="text-[11.5px] leading-[1.6] text-[var(--shell-text-muted)]">
-          配色由设计系统固定:一个信号色加一组语义色(通过 / 需复核 / 失败)。
-          工作台密度在「面板」里切换 —— 全览 / 调参 / 看模型。
+          {t("The design system defines the palette: one accent and semantic colors for pass, review and fail. Change workspace density in Panels: Overview / Tune / Model.")}
         </p>
       </div>
     </div>

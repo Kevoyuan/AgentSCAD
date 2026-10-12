@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { CheckCircle2, FileCode, Copy, Edit3, Save, RotateCcw, Code2 } from 'lucide-react'
@@ -20,6 +22,8 @@ interface ScadEditorProps {
 }
 
 export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
+  const { t } = useI18n()
+
   const [isEditing, setIsEditing] = useState(false)
   const [editSource, setEditSource] = useState(job.scadSource || '')
   const [isSaving, setIsSaving] = useState(false)
@@ -150,7 +154,7 @@ export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
       <div className="w-12 h-12 rounded-xl bg-[var(--app-empty-bg)] flex items-center justify-center">
         <FileCode className="w-6 h-6 opacity-30" />
       </div>
-      <p className="text-sm">No SCAD source</p>
+      <p className="text-sm">{t("No SCAD source")}</p>
     </div>
   )
 
@@ -162,14 +166,14 @@ export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
       <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-[color:var(--app-border)] px-3 py-2">
         <h3 className="flex min-w-0 items-center gap-1.5 truncate text-eyebrow text-[var(--app-text-muted)]">
           <Code2 className="w-3.5 h-3.5" />
-          <span className="truncate">SCAD Source</span>
+          <span className="truncate">{t("SCAD Source")}</span>
           {isEditing && (
             <motion.span
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="text-[var(--shell-warn)] text-[8px] ml-1"
             >
-              EDITING
+              {t("EDITING")}
             </motion.span>
           )}
         </h3>
@@ -181,7 +185,7 @@ export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
             <>
               <Button variant="ghost" size="sm" className="h-5 gap-1 px-1.5 text-xs text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]" onClick={handleCopy}>
                 {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-[var(--shell-ok)]" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? 'Copied!' : 'Copy'}
+                {copied ? t("Copied!") : t("Copy")}
               </Button>
               <Button
                 variant="ghost"
@@ -189,7 +193,7 @@ export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
                 className="h-5 gap-1 px-1.5 text-xs text-[var(--app-accent-text)] hover:text-[var(--app-accent-text)]"
                 onClick={() => { setIsEditing(true); setEditSource(job.scadSource || '') }}
               >
-                <Edit3 className="w-3.5 h-3.5" />Edit
+                <Edit3 className="w-3.5 h-3.5" />{t("Edit")}
               </Button>
             </>
           ) : (
@@ -201,7 +205,7 @@ export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
                 onClick={handleReset}
                 disabled={!hasChanges}
               >
-                <RotateCcw className="w-3.5 h-3.5" />Reset
+                <RotateCcw className="w-3.5 h-3.5" />{t("Reset")}
               </Button>
               <Button
                 variant="ghost"
@@ -211,7 +215,7 @@ export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
                 disabled={!hasChanges || isSaving}
               >
                 {isSaving ? <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity }} className="w-3.5 h-3.5 border border-[color:var(--shell-ok)] border-t-transparent rounded-full" /> : <Save className="w-3.5 h-3.5" />}
-                {isSaving ? (onApply ? 'Applying...' : 'Saving...') : (onApply ? 'Apply' : 'Save')}
+                {isSaving ? (onApply ? t("Applying...") : t("Saving...")) : (onApply ? t("Apply") : t("Save"))}
               </Button>
             </>
           )}
@@ -294,7 +298,7 @@ export function ScadEditor({ job, onUpdate, onApply }: ScadEditorProps) {
         </div>
         <div className="hidden min-w-0 items-center gap-2 truncate font-mono text-xs text-[var(--app-text-dim)] xl:flex">
           {isEditing && (
-            <span>Tab: indent · Enter: auto-indent · Esc: cancel · ⌘S: {onApply ? 'apply' : 'save'}</span>
+            <span>{t("Tab: indent · Enter: auto-indent · Esc: cancel · ⌘S:")} {onApply ? 'apply' : 'save'}</span>
           )}
         </div>
       </div>

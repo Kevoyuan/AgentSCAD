@@ -78,8 +78,8 @@ describe('shell regressions', () => {
 
     // Measured wins; a declared value is dimmed and prefixed 目标; no evidence at all
     // still prints a dash (DESIGN.md section 18, evidence hierarchy).
-    expect(readout).toContain("boxIsMeasured ? '' : '目标 '")
-    expect(readout).toContain("wallIsMeasured ? '壁厚' : '目标 壁厚'")
+    expect(readout).toContain("boxIsMeasured ? '' : t(\"Target \")")
+    expect(readout).toContain("wallIsMeasured ? t(\"Wall thickness\") : t(\"Target wall thickness\")")
     expect(readout).toContain('isDim: !box || !boxIsMeasured')
   })
 
@@ -123,8 +123,8 @@ describe('shell regressions', () => {
     expect(shell).toContain('focus-within:border-[var(--shell-signal)]')
     expect(shell).not.toContain('focus-within:ring-2')
     // The shortcuts stay, as engraved text: only ⌘K is a control in that row.
-    expect(shell).toContain('⌘⏎ 生成')
-    expect(shell).toContain('空格 隐藏面板')
+    expect(shell).toContain("⌘⏎ Generate")
+    expect(shell).toContain("Space Hide panels")
   })
 
   test('a first build leaves a part on the bench', () => {
@@ -134,7 +134,7 @@ describe('shell regressions', () => {
     // DESIGN.md section 17: the loader claims nothing, it only says the machine is
     // working - the four lamps remain the progress display.
     expect(emptyStates).toContain('GeneratingPart')
-    expect(emptyStates).toContain('正在生成几何…')
+    expect(emptyStates).toContain("Generating geometry…")
     expect(part).toContain('--shell-part-face')
     expect(part).toContain("role=\"presentation\"")
 

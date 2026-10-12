@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { AlertTriangle } from 'lucide-react'
@@ -57,6 +59,8 @@ export function ViewerPanel({
   onShowComposer: (presetText?: string) => void
   isFirstLoadComplete: boolean
 }) {
+  const { t } = useI18n()
+
   const [internalDownloadingStl, setInternalDownloadingStl] = useState(false)
 
   const handleDownloadStl = useCallback(async (job: Job) => {
@@ -65,14 +69,14 @@ export function ViewerPanel({
       return
     }
     if (!job.stlPath) {
-      toast.error('STL file has not been generated for this job. Please rebuild.')
+      toast.error(t("STL file has not been generated for this job. Please rebuild."))
       return
     }
     if (internalDownloadingStl) return
 
     setInternalDownloadingStl(true)
     const toastId = `stl-download-${job.id}`
-    toast.loading('Fetching binary STL artifact...', { id: toastId })
+    toast.loading(t("Fetching binary STL artifact..."), { id: toastId })
 
     try {
       const res = await fetch(`/api/jobs/${job.id}/artifacts/stl`, {
@@ -98,13 +102,13 @@ export function ViewerPanel({
       a.click()
       document.body.removeChild(a)
       setTimeout(() => URL.revokeObjectURL(url), 1000)
-      toast.success('STL model downloaded', { id: toastId, description: filename })
+      toast.success(t("STL model downloaded"), { id: toastId, description: filename })
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Download failed', { id: toastId })
+      toast.error(err instanceof Error ? err.message : t("Download failed"), { id: toastId })
     } finally {
       setInternalDownloadingStl(false)
     }
-  }, [onDownloadStl, internalDownloadingStl])
+  }, [onDownloadStl, internalDownloadingStl, t])
 
   const downloading = isDownloadingStl !== undefined ? isDownloadingStl : internalDownloadingStl
 
@@ -126,7 +130,7 @@ export function ViewerPanel({
     // The viewer is no longer a resizable panel (DESIGN.md section 3: the canvas is
     // the application). `cad-viewer-panel` stays as the styling/test hook.
     <div className="cad-viewer-panel min-w-0 overflow-hidden w-full h-full">
-      <PanelErrorBoundary panelName="3D Viewport" resetKey={selectedJob?.id}>
+      <PanelErrorBoundary panelName={t("3D Viewport")} resetKey={selectedJob?.id}>
         <div className="w-full h-full min-w-0 overflow-hidden relative">
           {selectedJob ? (
           <>
@@ -154,7 +158,7 @@ export function ViewerPanel({
                       >
                         <span className="w-1.5 h-1.5 rounded-[1px] bg-[var(--shell-signal)] animate-pulse shrink-0" />
                         <p className="text-[11.5px] text-[var(--shell-text-muted)]">
-                          正在重建 · 下面是上一版几何
+                          {t("Rebuilding · Showing the previous geometry")}
                         </p>
                       </div>
                     )}
@@ -167,8 +171,8 @@ export function ViewerPanel({
                       >
                         <AlertTriangle className="w-4 h-4 text-[var(--shell-warn)] shrink-0" />
                         <div className="min-w-0">
-                          <p className="text-[12.5px] font-medium text-[var(--shell-text)]">几何已生成，检验有拦截项</p>
-                          <p className="text-[11px] text-[var(--shell-text-muted)] truncate">预览和 STL 都在。导出前先在检验里看结论，或按生成重建。</p>
+                          <p className="text-[12.5px] font-medium text-[var(--shell-text)]">{t("Geometry generated with blocking checks")}</p>
+                          <p className="text-[11px] text-[var(--shell-text-muted)] truncate">{t("Preview and STL are available. Review the checks before exporting, or press Generate to rebuild.")}</p>
                         </div>
                       </div>
                     )}
@@ -178,8 +182,8 @@ export function ViewerPanel({
                       >
                         <AlertTriangle className="w-4 h-4 text-[var(--shell-fail)] shrink-0" />
                         <div className="min-w-0">
-                          <p className="text-[12.5px] font-medium text-[var(--shell-text)]">重建没有通过</p>
-                          <p className="text-[11px] text-[var(--shell-text-muted)] truncate">下面是上一版可用的几何。失败原因在检验里，完整记录在记录里。</p>
+                          <p className="text-[12.5px] font-medium text-[var(--shell-text)]">{t("Rebuild failed")}</p>
+                          <p className="text-[11px] text-[var(--shell-text-muted)] truncate">{t("Showing the last available geometry. See Checks for the reason and History for the full log.")}</p>
                         </div>
                       </div>
                     )}
@@ -189,8 +193,8 @@ export function ViewerPanel({
                       >
                         <AlertTriangle className="w-4 h-4 text-[var(--shell-warn)] shrink-0" />
                         <div className="min-w-0">
-                          <p className="text-[12.5px] font-medium text-[var(--shell-text)]">这是参数预览，不是已构建的 STL</p>
-                          <p className="text-[11px] text-[var(--shell-text-muted)] truncate">按生成重建后才会产出可导出的几何。</p>
+                          <p className="text-[12.5px] font-medium text-[var(--shell-text)]">{t("This is a parameter preview, not a built STL")}</p>
+                          <p className="text-[11px] text-[var(--shell-text-muted)] truncate">{t("Press Generate to rebuild and create exportable geometry.")}</p>
                         </div>
                       </div>
                     )}

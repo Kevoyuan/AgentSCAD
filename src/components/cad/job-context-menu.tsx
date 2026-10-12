@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { ReactNode } from 'react'
 import {
   Play, RotateCcw, Copy, Ban, Trash2, Link2, Clipboard, ExternalLink,
@@ -38,6 +40,8 @@ export function JobContextMenu({
   onDelete,
   onLinkParent,
 }: JobContextMenuProps) {
+  const { t } = useI18n()
+
   const isCancelable = CANCELABLE_STATES.includes(job.state)
   const canProcess = job.state === 'NEW' || job.state === 'DELIVERED'
   const isProcessing = ['SCAD_GENERATED', 'RENDERED', 'VALIDATED', 'DEBUGGING', 'REPAIRING', 'HUMAN_REVIEW'].includes(job.state)
@@ -64,7 +68,7 @@ export function JobContextMenu({
             onClick={() => onProcess(job)}
           >
             {job.state === 'DELIVERED' ? <RotateCcw className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-            {job.state === 'DELIVERED' ? 'Reprocess' : 'Process'}
+            {job.state === 'DELIVERED' ? t("Reprocess") : t("Process")}
             <ContextMenuShortcut className="text-xs text-[var(--app-text-dim)]">⌘P</ContextMenuShortcut>
           </ContextMenuItem>
         )}
@@ -75,7 +79,7 @@ export function JobContextMenu({
           onClick={() => onDuplicate(job)}
         >
           <Copy className="w-3.5 h-3.5" />
-          Duplicate
+          {t("Duplicate")}
           <ContextMenuShortcut className="text-xs text-[var(--app-text-dim)]">⌘D</ContextMenuShortcut>
         </ContextMenuItem>
 
@@ -86,7 +90,7 @@ export function JobContextMenu({
             onClick={() => onCancel(job)}
           >
             <Ban className="w-3.5 h-3.5" />
-            Cancel
+            {t("Cancel")}
           </ContextMenuItem>
         )}
 
@@ -97,7 +101,7 @@ export function JobContextMenu({
           onClick={() => onLinkParent(job)}
         >
           <Link2 className="w-3.5 h-3.5" />
-          Link to Parent
+          {t("Link to Parent")}
         </ContextMenuItem>
 
         <ContextMenuSeparator className="bg-[var(--app-surface-hover)]" />
@@ -108,7 +112,7 @@ export function JobContextMenu({
           onClick={handleCopyId}
         >
           <Clipboard className="w-3.5 h-3.5" />
-          Copy Job ID
+          {t("Copy Job ID")}
           <ContextMenuShortcut className="text-xs text-[var(--app-text-dim)]">⌘C</ContextMenuShortcut>
         </ContextMenuItem>
 
@@ -118,7 +122,7 @@ export function JobContextMenu({
           onClick={handleOpenInNewTab}
         >
           <ExternalLink className="w-3.5 h-3.5" />
-          Copy URL
+          {t("Copy URL")}
         </ContextMenuItem>
 
         <ContextMenuSeparator className="bg-[var(--app-surface-hover)]" />
@@ -130,7 +134,7 @@ export function JobContextMenu({
           onClick={() => onDelete(job.id)}
         >
           <Trash2 className="w-3.5 h-3.5" />
-          Delete
+          {t("Delete")}
           <ContextMenuShortcut className="text-xs text-[var(--shell-fail)]">Del</ContextMenuShortcut>
         </ContextMenuItem>
       </ContextMenuContent>

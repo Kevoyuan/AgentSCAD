@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -205,6 +207,8 @@ function ScadCompare({ left, right }: { left: string | null; right: string | nul
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export function JobCompare({ jobs }: JobCompareProps) {
+  const { t } = useI18n()
+
   const [leftId, setLeftId] = useState<string>('')
   const [rightId, setRightId] = useState<string>('')
   const [activeTab, setActiveTab] = useState<TabKey>('parameters')
@@ -289,7 +293,7 @@ export function JobCompare({ jobs }: JobCompareProps) {
         <div className="flex items-center gap-1.5">
           <ArrowLeftRight className="w-4 h-4 text-[var(--app-accent-text)]" />
           <h2 className="text-sm font-semibold text-[var(--app-text-primary)] tracking-wide">
-            Compare Jobs
+            {t("Compare Jobs")}
           </h2>
         </div>
       </div>
@@ -298,7 +302,7 @@ export function JobCompare({ jobs }: JobCompareProps) {
       <div className="grid grid-cols-[1fr_20px_1fr] gap-2 mb-4 items-center">
         <Select value={leftId} onValueChange={setLeftId}>
           <SelectTrigger className="h-7 bg-[var(--app-input-bg)] border-[color:var(--app-border)] text-[var(--app-text-secondary)] text-xs compare-border-left" style={{ borderLeftColor: leftJob ? (borderColorMap[leftJob.state] || '#A79E92') : 'transparent' }}>
-            <SelectValue placeholder="Select job A..." />
+            <SelectValue placeholder={t("Select job A...")} />
           </SelectTrigger>
           <SelectContent className="bg-[var(--app-bg)] border-[color:var(--app-border)]">
             {jobs.map((j) => (
@@ -321,7 +325,7 @@ export function JobCompare({ jobs }: JobCompareProps) {
 
         <Select value={rightId} onValueChange={setRightId}>
           <SelectTrigger className="h-7 bg-[var(--app-input-bg)] border-[color:var(--app-border)] text-[var(--app-text-secondary)] text-xs compare-border-left" style={{ borderLeftColor: rightJob ? (borderColorMap[rightJob.state] || '#A79E92') : 'transparent' }}>
-            <SelectValue placeholder="Select job B..." />
+            <SelectValue placeholder={t("Select job B...")} />
           </SelectTrigger>
           <SelectContent className="bg-[var(--app-bg)] border-[color:var(--app-border)]">
             {jobs.map((j) => (
@@ -369,7 +373,7 @@ export function JobCompare({ jobs }: JobCompareProps) {
             exit={{ opacity: 0 }}
             className="flex items-center justify-center py-12 text-[var(--app-text-dim)] text-xs"
           >
-            Select two jobs to compare
+            {t("Select two jobs to compare")}
           </motion.div>
         ) : (
           <motion.div
@@ -383,14 +387,14 @@ export function JobCompare({ jobs }: JobCompareProps) {
             {/* Column headers */}
             <div className="grid grid-cols-[1fr_100px_20px_100px] items-center gap-1 px-2 py-1.5 bg-[var(--app-empty-bg)] border-b border-[color:var(--app-border)]">
               <span className="text-xs font-mono text-[var(--app-text-dim)] tracking-widest uppercase">
-                {activeTab === 'parameters' ? 'Parameter' : activeTab === 'validation' ? 'Rule' : ''}
+                {activeTab === 'parameters' ? t("Parameter") : activeTab === 'validation' ? t("Rule") : ''}
               </span>
               <span className="text-xs font-mono text-[var(--app-text-dim)] tracking-widest uppercase text-right">
-                Job A
+                {t("Job A")}
               </span>
               <span />
               <span className="text-xs font-mono text-[var(--app-text-dim)] tracking-widest uppercase">
-                Job B
+                {t("Job B")}
               </span>
             </div>
 
@@ -399,7 +403,7 @@ export function JobCompare({ jobs }: JobCompareProps) {
               <div className="max-h-70 overflow-y-auto">
                 {allParams.length === 0 ? (
                   <div className="py-6 text-center text-[13px] text-[var(--app-text-dim)]">
-                    No parameters to compare
+                    {t("No parameters to compare")}
                   </div>
                 ) : (
                   allParams.map((param) => (
@@ -419,7 +423,7 @@ export function JobCompare({ jobs }: JobCompareProps) {
               <div className="max-h-70 overflow-y-auto">
                 {allValidationRules.length === 0 ? (
                   <div className="py-6 text-center text-[13px] text-[var(--app-text-dim)]">
-                    No validation results to compare
+                    {t("No validation results to compare")}
                   </div>
                 ) : (
                   allValidationRules.map(([ruleId, meta]) => {

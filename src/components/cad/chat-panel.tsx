@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Sparkles, MessageSquare, Send, Square, Clock, Copy, Check, ChevronDown, ImagePlus, X, Eye, Brain, Zap, Code2, Star, Wand2, RotateCcw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -12,8 +14,8 @@ import { ChatMessage, Job } from './types'
 import { sendChatMessageStream, fetchModels, ModelInfo } from './api'
 import { copyText } from '@/lib/clipboard'
 
-function formatTimestamp(date: Date): string {
-  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+function formatTimestamp(date: Date, locale: string): string {
+  return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
 }
 
 // Smart suggestions based on partFamily
@@ -34,6 +36,8 @@ function getSmartSuggestions(partFamily: string | null): string[] {
 
 // Copy button for code blocks
 function CodeCopyButton({ text }: { text: string }) {
+  const { t } = useI18n()
+
   const [copied, setCopied] = useState(false)
 
   const handleCopy = useCallback(() => {
@@ -50,7 +54,7 @@ function CodeCopyButton({ text }: { text: string }) {
       className="code-copy-btn text-xs font-mono text-[var(--app-text-muted)] hover:text-[var(--app-text-primary)] bg-[var(--app-surface-raised)] hover:bg-[var(--app-surface-hover)] border border-[color:var(--app-border)] shadow-sm active:scale-[0.97] transition-all cursor-pointer px-2 py-1 rounded flex items-center gap-1.5"
     >
       {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-      {copied ? 'Copied' : 'Copy'}
+      {copied ? t("Copied") : t("Copy")}
     </button>
   )
 }
@@ -195,6 +199,8 @@ function MessagePatchButton({
   onApply: (source: string, mode: 'replace' | 'patch') => Promise<void>
   className?: string
 }) {
+  const { t } = useI18n()
+
   const [isApplying, setIsApplying] = useState(false)
 
   const handleApply = useCallback(async () => {
@@ -213,10 +219,10 @@ function MessagePatchButton({
       onClick={handleApply}
       disabled={isApplying}
       className={`flex items-center gap-1.5 rounded bg-[var(--app-accent-text)] hover:brightness-110 active:brightness-95 px-2 py-1 font-mono text-xs text-white shadow-sm active:scale-[0.97] transition-all disabled:cursor-wait disabled:opacity-60 cursor-pointer border border-transparent ${className}`}
-      title="Apply every SCAD patch block in this assistant message"
+      title={t("Apply every SCAD patch block in this assistant message")}
     >
       <Wand2 className="h-3 w-3" />
-      {isApplying ? 'Rendering...' : 'Apply All & Render'}
+      {isApplying ? t("Rendering...") : t("Apply All & Render")}
     </button>
   )
 }
@@ -230,6 +236,8 @@ function ScadApplyButton({
   onApply: (source: string, mode: 'replace' | 'patch') => Promise<void>
   mode: 'replace' | 'patch'
 }) {
+  const { t } = useI18n()
+
   const [isApplying, setIsApplying] = useState(false)
 
   const handleApply = useCallback(async () => {
@@ -248,7 +256,7 @@ function ScadApplyButton({
       className="text-xs font-mono text-white bg-[var(--app-accent-text)] hover:brightness-110 active:brightness-95 shadow-sm active:scale-[0.97] transition-all px-2 py-1 rounded flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-wait border border-transparent cursor-pointer"
     >
       <Wand2 className="w-3 h-3" />
-      {isApplying ? 'Rendering...' : mode === 'replace' ? 'Apply & Render' : 'Patch & Render'}
+      {isApplying ? t("Rendering...") : mode === 'replace' ? t("Apply & Render") : t("Patch & Render")}
     </button>
   )
 }
@@ -285,6 +293,8 @@ export function ChatPanel({
   job: Job
   onApplyScad: (job: Job, scadSource: string) => Promise<void>
 }) {
+  const { t, locale } = useI18n()
+
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     if (typeof window === 'undefined') return []
     try {
@@ -356,17 +366,17 @@ export function ChatPanel({
     const firstVisionModel = models.find(model => model.multimodal)
     if (firstVisionModel) {
       setSelectedModel(firstVisionModel.id)
-      toast.success('Switched to vision model', {
-        description: `${firstVisionModel.name} can inspect pasted screenshots.`,
+      toast.success(t("Switched to vision model"), {
+        description: t("{0} can inspect pasted screenshots.", { 0: firstVisionModel.name }),
       })
       return true
     }
     setSelectedModel(DEFAULT_VISION_MODEL)
-    toast.success('Switched to vision model', {
-      description: 'MiMo-V2.5 can inspect pasted screenshots.',
+    toast.success(t("Switched to vision model"), {
+      description: t("MiMo-V2.5 can inspect pasted screenshots."),
     })
     return true
-  }, [isMultimodal, models, toast])
+  }, [isMultimodal, models, toast, t])
 
   const canAttachImages = useCallback(() => {
     if (isMultimodal || selectedModel === DEFAULT_VISION_MODEL) return true
@@ -376,11 +386,11 @@ export function ChatPanel({
 
   const ensureImagesCanSend = useCallback(() => {
     if (canAttachImages()) return true
-    toast.error('No vision model available', {
-      description: 'Paste support needs a multimodal model that can read images.',
+    toast.error(t("No vision model available"), {
+      description: t("Paste support needs a multimodal model that can read images."),
     })
     return false
-  }, [canAttachImages, toast])
+  }, [canAttachImages, toast, t])
 
   const addImageFiles = useCallback((files: File[] | FileList, source: 'paste' | 'drop' | 'upload') => {
     const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
@@ -395,11 +405,11 @@ export function ChatPanel({
       }
       reader.readAsDataURL(file)
     })
-    toast.info(`${imageFiles.length} image${imageFiles.length > 1 ? 's' : ''} attached`, {
-      description: source === 'paste' ? 'Screenshot pasted into the AI assistant.' : source === 'drop' ? 'Image dropped into the AI assistant.' : 'Image attached to the prompt.',
+    toast.info(t("{0} image{1} attached", { 0: imageFiles.length, 1: imageFiles.length > 1 ? 's' : '' }), {
+      description: source === 'paste' ? t("Screenshot pasted into the AI assistant.") : source === 'drop' ? t("Image dropped into the AI assistant.") : t("Image attached to the prompt."),
     })
     return true
-  }, [ensureVisionModel, toast])
+  }, [ensureVisionModel, toast, t])
 
   // Handle image upload
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -537,8 +547,8 @@ export function ChatPanel({
       if (mode === 'replace') {
         await onApplyScad(job, scadSource)
         if (previousSource) setLastAppliedSource(previousSource)
-        toast.success('Applied and rendered', {
-          description: 'The current SCAD was applied directly.',
+        toast.success(t("Applied and rendered"), {
+          description: t("The current SCAD was applied directly."),
         })
         return
       }
@@ -546,24 +556,24 @@ export function ChatPanel({
       const currentSource = previousSource
       const patchResult = mergeScadPatch(currentSource, scadSource)
       if (!currentSource || patchResult.changes.length === 0 || patchResult.source === currentSource) {
-        toast.warning('Patch needs context', {
-          description: 'I could not safely match this snippet to the current file. Ask for a full SCAD block or apply it manually in Code.',
+        toast.warning(t("Patch needs context"), {
+          description: t("I could not safely match this snippet to the current file. Ask for a full SCAD block or apply it manually in Code."),
         })
         return
       }
 
       await onApplyScad(job, patchResult.source)
       setLastAppliedSource(currentSource)
-      toast.success('Patched and rendered', {
-        description: `Updated ${patchResult.changes.slice(0, 3).join(', ')}${patchResult.changes.length > 3 ? '...' : ''}. No regeneration step was used.`,
+      toast.success(t("Patched and rendered"), {
+        description: t("Updated {0}{1}. No regeneration step was used.", { 0: patchResult.changes.slice(0, 3).join(', '), 1: patchResult.changes.length > 3 ? '...' : '' }),
       })
     } catch (err) {
       console.error('Failed to apply AI SCAD:', err)
-      toast.error('Apply failed', {
-        description: err instanceof Error ? err.message : 'Failed to apply SCAD to the current job',
+      toast.error(t("Apply failed"), {
+        description: err instanceof Error ? err.message : t("Failed to apply SCAD to the current job"),
       })
     }
-  }, [job, onApplyScad, toast])
+  }, [job, onApplyScad, toast, t])
 
   const handleUndoApply = useCallback(async () => {
     if (!lastAppliedSource) return
@@ -571,15 +581,15 @@ export function ChatPanel({
     try {
       await onApplyScad(job, lastAppliedSource)
       setLastAppliedSource(currentSource || null)
-      toast.success('Apply reverted', {
-        description: 'Restored the previous SCAD source and rendered it again.',
+      toast.success(t("Apply reverted"), {
+        description: t("Restored the previous SCAD source and rendered it again."),
       })
     } catch (err) {
-      toast.error('Undo failed', {
-        description: err instanceof Error ? err.message : 'Could not restore previous SCAD',
+      toast.error(t("Undo failed"), {
+        description: err instanceof Error ? err.message : t("Could not restore previous SCAD"),
       })
     }
-  }, [job, lastAppliedSource, onApplyScad, toast])
+  }, [job, lastAppliedSource, onApplyScad, toast, t])
 
   const createMarkdownComponents = useCallback((enableScadApply: boolean) => ({
     code({ className, children, ...props }: any) {
@@ -643,14 +653,14 @@ export function ChatPanel({
         <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-lg border border-dashed border-[color:var(--app-accent)] bg-[var(--app-accent-bg)]/80 backdrop-blur-sm">
           <div className="rounded-lg border border-[color:var(--app-accent-border)] bg-[var(--app-surface)] px-3 py-2 text-center shadow-lg">
             <ImagePlus className="mx-auto mb-1 h-5 w-5 text-[var(--app-accent-text)]" />
-            <p className="font-mono text-[13px] uppercase tracking-widest text-[var(--app-accent-text)]">Drop screenshot</p>
-            <p className="mt-1 text-[13px] text-[var(--app-text-muted)]">Attach it to this CAD conversation</p>
+            <p className="font-mono text-[13px] uppercase tracking-widest text-[var(--app-accent-text)]">{t("Drop screenshot")}</p>
+            <p className="mt-1 text-[13px] text-[var(--app-text-muted)]">{t("Attach it to this CAD conversation")}</p>
           </div>
         </div>
       )}
       <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-[color:var(--app-border)] px-3 py-2">
         <h3 className="flex min-w-0 items-center gap-1.5 truncate text-eyebrow text-[var(--app-text-muted)]">
-          <Sparkles className="w-3.5 h-3.5 text-[var(--app-accent-text)]" />AI Assistant
+          <Sparkles className="w-3.5 h-3.5 text-[var(--app-accent-text)]" />{t("AI Assistant")}
         </h3>
         <div className="flex min-w-0 shrink-0 items-center gap-1">
           {lastAppliedSource && (
@@ -661,7 +671,7 @@ export function ChatPanel({
               onClick={handleUndoApply}
             >
               <RotateCcw className="h-2.5 w-2.5" />
-              Undo apply
+              {t("Undo apply")}
             </Button>
           )}
           {/* Model Picker */}
@@ -683,7 +693,7 @@ export function ChatPanel({
                     className={`text-[8px] font-mono px-1.5 py-0.5 rounded shrink-0 transition-colors ${!providerFilter ? 'bg-[var(--app-accent-bg)] text-[var(--app-accent-text)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`}
                     onClick={() => setProviderFilter(null)}
                   >
-                    All
+                    {t("All")}
                   </button>
                   {providers.map(p => (
                     <button
@@ -729,7 +739,7 @@ export function ChatPanel({
           </div>
           {messages.length > 0 && (
             <Button variant="ghost" size="sm" className="h-4 text-[8px] text-[var(--app-text-dim)] hover:text-[var(--app-text-muted)]" onClick={() => { setMessages([]); setStreamingContent(''); localStorage.removeItem(`chat-${job.id}`) }}>
-              Clear
+              {t("Clear")}
             </Button>
           )}
         </div>
@@ -741,17 +751,17 @@ export function ChatPanel({
               <MessageSquare className="w-5 h-5 text-[var(--app-accent)]" />
             </div>
             <div className="text-center">
-              <p className="text-xs">Ask about this CAD job</p>
-              <p className="text-[13px] text-[var(--app-text-dim)] mt-1">Using {currentModel?.name || 'MiMo-V2.5-Pro'} by {currentModel?.providerName || 'Xiaomi MiMo'}</p>
+              <p className="text-xs">{t("Ask about this CAD job")}</p>
+              <p className="text-[13px] text-[var(--app-text-dim)] mt-1">{t("Using")} {currentModel?.name || 'MiMo-V2.5-Pro'} {t("by")} {currentModel?.providerName || 'Xiaomi MiMo'}</p>
             </div>
             <div className="mt-1 flex max-w-[280px] flex-wrap justify-center gap-1 px-2">
               {suggestions.map(q => (
                 <button
                   key={q}
                   className="text-xs font-mono text-[var(--app-text-dim)] bg-[var(--app-surface-hover)] px-2 py-1 rounded-md hover:text-[var(--app-text-muted)] hover:bg-[var(--app-surface-raised)] transition-colors"
-                  onClick={() => setInput(q)}
+                  onClick={() => setInput(t(q))}
                 >
-                  {q}
+                  {t(q)}
                 </button>
               ))}
             </div>
@@ -772,14 +782,14 @@ export function ChatPanel({
                   <Sparkles className="w-2.5 h-2.5 text-[var(--app-accent-text)]" />
                   <span className="text-[8px] font-mono text-[var(--app-accent-text)]">AgentSCAD</span>
                   <span className="ml-auto text-[8px] font-mono text-[var(--app-text-dim)] flex items-center gap-0.5">
-                    <Clock className="w-2 h-2" />{formatTimestamp(msg.timestamp)}
+                    <Clock className="w-2 h-2" />{formatTimestamp(msg.timestamp, locale)}
                   </span>
                 </div>
               )}
               {msg.role === 'user' && (
                 <div className="flex items-center justify-end gap-0.5 mb-1">
                   <span className="text-[8px] font-mono text-[var(--app-accent-text)] flex items-center gap-0.5">
-                    <Clock className="w-2 h-2" />{formatTimestamp(msg.timestamp)}
+                    <Clock className="w-2 h-2" />{formatTimestamp(msg.timestamp, locale)}
                   </span>
                 </div>
               )}
@@ -803,11 +813,11 @@ export function ChatPanel({
                           key={`${i}-${imageIndex}`}
                           className="group/image overflow-hidden rounded-md border border-[color:var(--app-accent-border)] bg-[var(--app-surface)] p-0.5"
                           onClick={() => window.open(img, '_blank', 'noopener,noreferrer')}
-                          title="Open attached screenshot"
+                          title={t("Open attached screenshot")}
                         >
                           <img
                             src={img}
-                            alt={`Attached screenshot ${imageIndex + 1}`}
+                            alt={t("Attached screenshot {0}", { 0: imageIndex + 1 })}
                             className="h-20 w-24 rounded object-cover transition-transform group-hover/image:scale-105"
                           />
                         </button>
@@ -827,7 +837,7 @@ export function ChatPanel({
               <div className="flex items-center gap-1 mb-1">
                 <Sparkles className="w-2.5 h-2.5 text-[var(--app-accent-text)] animate-pulse" />
                 <span className="text-[8px] font-mono text-[var(--app-accent-text)]">AgentSCAD</span>
-                <span className="text-[8px] font-mono text-[var(--app-accent-text)] animate-pulse">generating...</span>
+                <span className="text-[8px] font-mono text-[var(--app-accent-text)] animate-pulse">{t("generating...")}</span>
               </div>
               <div className={proseClasses}>
                 <ReactMarkdown components={streamingMarkdownComponents}>
@@ -843,7 +853,7 @@ export function ChatPanel({
             <div className="bg-[var(--app-surface-raised)] border border-[color:var(--app-border)] rounded-lg px-3 py-2">
               <div className="flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 animate-spin text-[var(--app-accent-text)]" />
-                <span className="text-[13px] text-[var(--app-text-muted)]">Thinking...</span>
+                <span className="text-[13px] text-[var(--app-text-muted)]">{t("Thinking...")}</span>
                 <div className="flex gap-1 ml-1">
                   <span className="typing-wave-dot" />
                   <span className="typing-wave-dot" />
@@ -860,7 +870,7 @@ export function ChatPanel({
           <div className="flex gap-1.5 mb-2 flex-wrap">
             {pendingImages.map((img, i) => (
               <div key={i} className="relative group">
-                <img src={img} alt={`Upload ${i + 1}`} className="w-10 h-10 rounded object-cover border border-[color:var(--app-border)]" />
+                <img src={img} alt={t("Upload {0}", { 0: i + 1 })} className="w-10 h-10 rounded object-cover border border-[color:var(--app-border)]" />
                 <button
                   className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={() => removeImage(i)}
@@ -892,7 +902,7 @@ export function ChatPanel({
               fileInputRef.current?.click()
             }}
             disabled={isStreaming}
-            title={isMultimodal ? 'Attach, paste, or drop an image' : 'Switch to a vision model and attach image'}
+            title={isMultimodal ? t("Attach, paste, or drop an image") : t("Switch to a vision model and attach image")}
           >
             <ImagePlus className="w-3.5 h-3.5" />
           </Button>
@@ -900,7 +910,7 @@ export function ChatPanel({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-            placeholder={isMultimodal ? 'Paste screenshot or ask about this CAD...' : 'Ask about this design...'}
+            placeholder={isMultimodal ? t("Paste screenshot or ask about this CAD...") : t("Ask about this design...")}
             className="h-7 min-w-0 bg-[var(--app-bg)] text-sm border-[color:var(--app-border)] placeholder:text-[var(--app-text-dim)]"
             disabled={isStreaming}
           />

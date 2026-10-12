@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { AlertTriangle, Cpu, RotateCcw, Wrench } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Job, parseJSON } from './types'
@@ -15,6 +17,8 @@ export function SpecPanel({
   onProcess: (job: Job) => void
   onRepair: (job: Job) => void
 }) {
+  const { t } = useI18n()
+
   const values = parseJSON<Record<string, number>>(job.parameterValues, {})
   const failed = ['VALIDATION_FAILED', 'GEOMETRY_FAILED', 'RENDER_FAILED'].includes(job.state)
   const stale = job.state === 'DELIVERED' && !job.stlPath
@@ -28,8 +32,8 @@ export function SpecPanel({
      not appear in the interface. What the user needs here is the part family and
      the measured envelope. */
   const chips = [
-    job.partFamily ? getPartFamilyLabel(job.partFamily) : '零件族待定',
-    dimensions.length ? `${dimensions.join(' × ')} mm` : '尺寸待定',
+    job.partFamily ? getPartFamilyLabel(job.partFamily) : t("Part family pending"),
+    dimensions.length ? `${dimensions.join(' × ')} mm` : t("Dimensions pending"),
   ]
 
   return (
@@ -38,7 +42,7 @@ export function SpecPanel({
           sheet is part of the C2 surface and was still painted from the old palette. */}
       <div className="rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] p-3">
         <div className="flex items-center justify-between pb-2 mb-2 border-b border-[color:var(--shell-hairline)]">
-          <span className="text-[9px] font-mono uppercase tracking-[0.16em] text-[var(--shell-text-label)]">零件描述</span>
+          <span className="text-[9px] font-mono uppercase tracking-[0.16em] text-[var(--shell-text-label)]">{t("Part description")}</span>
         </div>
         <p className="text-[12.5px] leading-relaxed text-[var(--shell-text)] font-normal select-text">
           {job.inputRequest}
@@ -48,16 +52,16 @@ export function SpecPanel({
       {/* Engineering Attributes Grid */}
       <div className="rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] overflow-hidden">
         <div className="px-3 py-2 border-b border-[color:var(--shell-hairline)] flex items-center justify-between">
-          <span className="text-[9px] font-mono uppercase tracking-[0.16em] text-[var(--shell-text-label)]">制造规格</span>
-          <span className="text-[9px] font-mono text-[var(--shell-text-dim)]">{job.partFamily || 'Custom'}</span>
+          <span className="text-[9px] font-mono uppercase tracking-[0.16em] text-[var(--shell-text-label)]">{t("Manufacturing specification")}</span>
+          <span className="text-[9px] font-mono text-[var(--shell-text-dim)]">{job.partFamily || t("Custom")}</span>
         </div>
         <div className="divide-y divide-[color:var(--shell-hairline)]">
           <div className="flex items-center justify-between px-3 py-2 text-[12.5px]">
-            <span className="text-[var(--shell-text-muted)]">零件族</span>
-            <span className="font-medium text-[var(--shell-text)]">{job.partFamily ? getPartFamilyLabel(job.partFamily) : '未分类'}</span>
+            <span className="text-[var(--shell-text-muted)]">{t("Part family")}</span>
+            <span className="font-medium text-[var(--shell-text)]">{job.partFamily ? getPartFamilyLabel(job.partFamily) : t("Unclassified")}</span>
           </div>
           <div className="flex items-center justify-between px-3 py-2 text-[12.5px]">
-            <span className="text-[var(--shell-text-muted)]">外形尺寸</span>
+            <span className="text-[var(--shell-text-muted)]">{t("Overall dimensions")}</span>
             <span className="font-mono tabular-nums text-[var(--shell-text)]">{dimensions.length ? `${dimensions.join(' × ')} mm` : '—'}</span>
           </div>
                             </div>
@@ -70,12 +74,12 @@ export function SpecPanel({
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--shell-warn)]" />
             <div className="space-y-0.5">
               <h4 className="text-[12px] font-medium text-[var(--shell-warn)]">
-                {failed ? 'Diagnostic Required' : 'Stale Render'}
+                {failed ? t("Diagnostic Required") : t("Stale Render")}
               </h4>
               <p className="text-[12px] leading-relaxed text-[var(--cad-text-secondary)]">
                 {failed
-                  ? 'If artifacts exist, Auto Repair will restore the run without regenerating geometry. Otherwise retry the pipeline.'
-                  : 'Parameters changed after render. Rebuild STL before export.'}
+                  ? t("If artifacts exist, Auto Repair will restore the run without regenerating geometry. Otherwise retry the pipeline.")
+                  : t("Parameters changed after render. Rebuild STL before export.")}
               </p>
             </div>
           </div>
@@ -87,7 +91,7 @@ export function SpecPanel({
                 onClick={() => onRepair(job)}
               >
                 <Wrench className="h-3 w-3" />
-                Auto Repair
+                {t("Auto Repair")}
               </Button>
             )}
             <Button
@@ -97,7 +101,7 @@ export function SpecPanel({
               onClick={() => onProcess(job)}
             >
               <RotateCcw className="h-3 w-3" />
-              {failed ? 'Retry Pipeline' : 'Rebuild STL'}
+              {failed ? t("Retry Pipeline") : t("Rebuild STL")}
             </Button>
           </div>
         </div>

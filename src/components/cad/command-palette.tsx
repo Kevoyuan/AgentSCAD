@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useEffect, useState, useCallback } from 'react'
 import {
   CommandDialog,
@@ -68,6 +70,8 @@ export function CommandPalette({
   onSelectJob,
   actions,
 }: CommandPaletteProps) {
+  const { t } = useI18n()
+
   const [recentIds] = useState<string[]>(getRecentCommands)
 
   // Filter jobs to show in command palette (max 10 for performance)
@@ -99,16 +103,16 @@ export function CommandPalette({
     <CommandDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Command Palette"
-      description="Search jobs and actions..."
+      title={t("Command Palette")}
+      description={t("Search jobs and actions...")}
       className="bg-[var(--app-surface)] border-[color:var(--app-border)] [&_[cmdk-group-heading]]:text-[var(--app-text-muted)]"
     >
       <CommandInput
-        placeholder="Search jobs, actions, or type a command..."
+        placeholder={t("Search jobs, actions, or type a command...")}
         className="text-[var(--app-text-secondary)] placeholder:text-[var(--app-text-dim)]"
       />
       <CommandList className="max-h-[400px]">
-        <CommandEmpty className="text-[var(--app-text-dim)] text-sm py-6">No results found.</CommandEmpty>
+        <CommandEmpty className="text-[var(--app-text-dim)] text-sm py-6">{t("No results found.")}</CommandEmpty>
 
         {/* Recent Commands */}
         {(recentJobs.length > 0 || recentActions.length > 0) && (
@@ -186,7 +190,7 @@ export function CommandPalette({
 
       {/* Footer */}
       <div className="flex items-center justify-between px-3 py-1.5 border-t border-[color:var(--app-border-separator)]">
-        <span className="text-xs text-[var(--app-text-dim)] font-mono">↑↓ Navigate · ↵ Select · Esc Close</span>
+        <span className="text-xs text-[var(--app-text-dim)] font-mono">{t("↑↓ Navigate · ↵ Select · Esc Close")}</span>
         <span className="text-xs text-[var(--app-text-dim)] font-mono">⌘K</span>
       </div>
     </CommandDialog>
