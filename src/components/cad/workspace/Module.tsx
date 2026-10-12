@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import * as React from 'react'
 import { useRef, useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
@@ -66,6 +68,8 @@ export function Module({
   bottom,
   flow = false,
 }: ModuleProps) {
+  const { t } = useI18n()
+
   const [internalCollapsed, setInternalCollapsed] = useState(defaultCollapsed)
   const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed
 
@@ -304,7 +308,7 @@ export function Module({
               e.stopPropagation()
               toggleCollapse()
             }}
-            aria-label={isCollapsed ? `Expand ${String(title)}` : `Collapse ${String(title)}`}
+            aria-label={isCollapsed ? t("Expand {0}", { 0: String(title) }) : t("Collapse {0}", { 0: String(title) })}
           >
             {isCollapsed ? '＋' : '−'}
           </button>

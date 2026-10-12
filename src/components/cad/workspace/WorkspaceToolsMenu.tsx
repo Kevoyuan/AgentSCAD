@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import React from 'react'
 import {
   MoreHorizontal,
@@ -47,6 +49,8 @@ export function WorkspaceToolsMenu({
   onExportAllData,
   className,
 }: WorkspaceToolsMenuProps) {
+  const { t } = useI18n()
+
   return (
     <DropdownMenu>
       <TooltipProvider>
@@ -57,14 +61,14 @@ export function WorkspaceToolsMenu({
                 variant="ghost"
                 size="sm"
                 className={`h-7 w-7 p-0 text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)] focus-visible:ring-1 focus-visible:ring-[var(--app-focus-ring)] rounded-[6px] transition-colors shrink-0 ${className || ''}`}
-                aria-label="Workspace Tools & Preferences"
+                aria-label={t("Workspace Tools & Preferences")}
               >
                 <MoreHorizontal className="w-3.5 h-3.5" />
               </Button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            <p className="text-xs">Tools & Options</p>
+            <p className="text-xs">{t("Tools & Options")}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -76,51 +80,51 @@ export function WorkspaceToolsMenu({
       >
         {/* Group 1: Analytics & Inspection */}
         <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--app-text-dim)] px-2 py-1">
-          Analytics & Inspection
+          {t("Analytics & Inspection")}
         </DropdownMenuLabel>
         <DropdownMenuItem
           onClick={onOpenStats}
           className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-[4px] text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)] focus:bg-[var(--app-surface-hover)]"
         >
           <BarChart3 className="w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400 shrink-0" />
-          <span className="flex-1 text-xs">Stats Dashboard</span>
+          <span className="flex-1 text-xs">{t("Stats Dashboard")}</span>
           <DropdownMenuShortcut className="font-mono text-[10px] text-[var(--app-text-dim)]">S</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={onOpenCompare}
           className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-[4px] text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)] focus:bg-[var(--app-surface-hover)]"
-          title="Compare Jobs"
+          title={t("Compare Jobs")}
         >
           <GitCompare className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
-          <span className="flex-1 text-xs">Compare Designs</span>
+          <span className="flex-1 text-xs">{t("Compare Designs")}</span>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator className="bg-[var(--app-border-subtle)] my-1" />
 
         {/* Group 2: Configuration & Appearance */}
         <DropdownMenuLabel className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--app-text-dim)] px-2 py-1">
-          Preferences & System
+          {t("Preferences & System")}
         </DropdownMenuLabel>
         <DropdownMenuItem
           onClick={() => onOpenSettings('providers')}
           className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-[4px] text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)] focus:bg-[var(--app-surface-hover)]"
         >
           <Cpu className="w-3.5 h-3.5 text-[var(--app-accent-text)] shrink-0" />
-          <span className="flex-1 text-xs">Model Providers</span>
+          <span className="flex-1 text-xs">{t("Model Providers")}</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => onOpenSettings('theme')}
           className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-[4px] text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)] focus:bg-[var(--app-surface-hover)]"
         >
           <Palette className="w-3.5 h-3.5 text-[var(--app-accent)] shrink-0" />
-          <span className="flex-1 text-xs">Theme & Styling</span>
+          <span className="flex-1 text-xs">{t("Theme & Styling")}</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={onOpenShortcuts}
           className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-[4px] text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)] focus:bg-[var(--app-surface-hover)]"
         >
           <Keyboard className="w-3.5 h-3.5 text-[var(--app-text-muted)] shrink-0" />
-          <span className="flex-1 text-xs">Shortcuts Guide</span>
+          <span className="flex-1 text-xs">{t("Shortcuts Guide")}</span>
           <DropdownMenuShortcut className="font-mono text-[10px] text-[var(--app-text-dim)]">?</DropdownMenuShortcut>
         </DropdownMenuItem>
 
@@ -132,7 +136,7 @@ export function WorkspaceToolsMenu({
           className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-[4px] text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)] focus:bg-[var(--app-surface-hover)]"
         >
           <Zap className="w-3.5 h-3.5 text-yellow-500 dark:text-yellow-400 shrink-0" />
-          <span className="flex-1 text-xs">Command Palette</span>
+          <span className="flex-1 text-xs">{t("Command Palette")}</span>
           <DropdownMenuShortcut className="font-mono text-[10px] text-[var(--app-text-dim)]">⌘K</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -140,7 +144,7 @@ export function WorkspaceToolsMenu({
           className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-[4px] text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)] focus:bg-[var(--app-surface-hover)]"
         >
           <Download className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
-          <span className="flex-1 text-xs">Export All Data</span>
+          <span className="flex-1 text-xs">{t("Export All Data")}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

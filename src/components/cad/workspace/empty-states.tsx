@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import React from 'react'
 import { Plus, RotateCcw, AlertCircle } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -35,6 +37,8 @@ export function JobListEmptyState({
   onResetFilters,
   onShowComposer,
 }: JobListEmptyStateProps) {
+  const { t } = useI18n()
+
   if (!isFirstLoadComplete) {
     return (
       <div className="p-2 space-y-2 min-w-0" data-testid="job-list-loading-skeleton">
@@ -57,7 +61,7 @@ export function JobListEmptyState({
       <div className="p-4 space-y-3" data-testid="job-list-filter-empty">
         <div className="flex items-center gap-2 text-[var(--shell-text-label)]">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-          <span className="font-mono text-[11px]">没有符合条件的零件</span>
+          <span className="font-mono text-[11px]">{t("No parts match your filters")}</span>
         </div>
         <button
           type="button"
@@ -65,7 +69,7 @@ export function JobListEmptyState({
           className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-[4px] border border-[color:var(--shell-border)] font-mono text-[11px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:border-[color:var(--shell-border-strong)] transition-colors"
         >
           <RotateCcw className="w-3 h-3" />
-          清除筛选
+          {t("Clear filters")}
         </button>
       </div>
     )
@@ -75,9 +79,8 @@ export function JobListEmptyState({
   return (
     <div className="p-4 space-y-3" data-testid="job-list-cold-start">
       <p className="text-[11.5px] leading-[1.6] text-[var(--shell-text-dim)]">
-        还没有零件。
-        <br />
-        在下面写一句话就能开始。
+        {t("No parts yet.")}<br />
+        {t("Start with a description below.")}
       </p>
       <button
         type="button"
@@ -85,8 +88,7 @@ export function JobListEmptyState({
         className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-[4px] border border-[color:var(--shell-border)] font-mono text-[11px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:border-[color:var(--shell-border-strong)] transition-colors"
       >
         <Plus className="w-3 h-3" />
-        新零件
-        <span className="text-[var(--shell-text-dim)]">⌘ N</span>
+        {t("New part")}<span className="text-[var(--shell-text-dim)]">⌘ N</span>
       </button>
     </div>
   )
@@ -112,9 +114,9 @@ export interface CadViewportEmptyStateProps {
 }
 
 const FIRST_RUN_EXAMPLES = [
-  '装在 35 mm 导轨上的相机支架，M4 螺孔',
-  '90 × 60 × 25 mm 电子外壳，壁厚 2.5',
-  '模数 2、12 齿的直齿轮',
+  "Camera bracket for a 35 mm DIN rail, M4 screw holes",
+  "90 × 60 × 25 mm electronics enclosure, 2.5 mm walls",
+  "Module 2 spur gear with 12 teeth",
 ] as const
 
 export function CadViewportEmptyState({
@@ -125,6 +127,8 @@ export function CadViewportEmptyState({
   onProcess,
   onShowComposer,
 }: CadViewportEmptyStateProps) {
+  const { t } = useI18n()
+
   if (!isFirstLoadComplete) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-6 h-full w-full min-w-0 overflow-hidden select-none">
@@ -146,9 +150,9 @@ export function CadViewportEmptyState({
       >
         {awaitingDecision ? (
           <>
-            <p className="text-[13px] text-[var(--shell-text-muted)]">这句话还没定下是哪种零件。</p>
+            <p className="text-[13px] text-[var(--shell-text-muted)]">{t("This description needs an interpretation.")}</p>
             <p className="mt-1.5 font-mono text-[10.5px] text-[var(--shell-text-dim)]">
-              在右边的「要你定一下」里选一个解释
+              {t("Choose an interpretation in the panel on the right")}
             </p>
           </>
         ) : isProcessing ? (
@@ -158,20 +162,20 @@ export function CadViewportEmptyState({
                 are the progress display (DESIGN.md section 17) - and it is replaced
                 by the real part the moment geometry lands. */}
             <GeneratingPart className="mb-4" />
-            <p className="text-[13px] text-[var(--shell-text-muted)]">正在生成几何…</p>
+            <p className="text-[13px] text-[var(--shell-text-muted)]">{t("Generating geometry…")}</p>
             <p className="mt-1.5 font-mono text-[10.5px] text-[var(--shell-text-dim)]">
-              进度在上方的四个灯里，停止用输入框右边的按钮
+              {t("Progress appears in the four indicators above. Use the button beside the input to stop.")}
             </p>
           </>
         ) : (
           <>
-            <p className="text-[13px] text-[var(--shell-text-muted)] mb-3">这个零件还没有几何。</p>
+            <p className="text-[13px] text-[var(--shell-text-muted)] mb-3">{t("This part has no geometry yet.")}</p>
             <button
               type="button"
               onClick={() => onProcess?.(selectedJob)}
               className="h-8 px-3.5 rounded-[6px] bg-[var(--shell-signal)] text-[#1A0F08] font-mono text-[12px] font-bold tracking-[0.06em] hover:bg-[#FF6E36] transition-colors"
             >
-              生成几何
+              {t("Generate geometry")}
             </button>
           </>
         )}
@@ -189,22 +193,21 @@ export function CadViewportEmptyState({
     >
       <div className="w-full max-w-[620px] px-6 text-center">
         <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-[var(--shell-text)]">
-          写一句话，描述你要的零件。
+          {t("Describe the part you need.")}
         </h2>
         <p className="mt-2 font-mono text-[10.5px] leading-[1.8] text-[var(--shell-text-dim)]">
-          这句话会成为这个零件的来源。生成之后它的尺寸和检验结论
-          <br />
-          会出现在两侧的模块里，改完再按生成重建。
+          {t("This description will be the source for your part. After generation, its dimensions and check results")}<br />
+          {t("will appear in the side modules. Edit the dimensions and press Generate to rebuild.")}
         </p>
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           {FIRST_RUN_EXAMPLES.map((example) => (
             <button
-              key={example}
+              key={t(example)}
               type="button"
-              onClick={() => onShowComposer?.(example)}
+              onClick={() => onShowComposer?.(t(example))}
               className="rounded-full border border-[color:var(--shell-border)] bg-black/[0.3] px-3 py-1 font-mono text-[10px] text-[var(--shell-text-label)] hover:border-[var(--shell-signal)]/50 hover:text-[var(--shell-signal-soft)] transition-colors"
             >
-              {example}
+              {t(example)}
             </button>
           ))}
         </div>
@@ -227,6 +230,8 @@ export interface InspectorEmptyStateProps {
 export function InspectorEmptyState({
   isFirstLoadComplete,
 }: InspectorEmptyStateProps) {
+  const { t } = useI18n()
+
   if (!isFirstLoadComplete) {
     return (
       <div className="p-4 space-y-3 h-full min-w-0 select-none" data-testid="inspector-loading-skeleton">
@@ -242,9 +247,8 @@ export function InspectorEmptyState({
   return (
     <div className="p-4 select-none" data-testid="inspector-empty">
       <p className="text-[11.5px] leading-[1.6] text-[var(--shell-text-dim)]">
-        还没有选中零件。
-        <br />
-        生成之后，这里会出现它的尺寸、检验和产出。
+        {t("No part selected.")}<br />
+        {t("After generation, its dimensions, checks and outputs will appear here.")}
       </p>
     </div>
   )

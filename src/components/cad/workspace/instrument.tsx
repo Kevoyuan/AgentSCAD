@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 /*
  * Instrument primitives (DESIGN.md section 14).
  *
@@ -40,6 +42,8 @@ export function Stepper({
   /** the same change, persisted */
   onCommit?: (value: number) => void
 }) {
+  const { t } = useI18n()
+
   const precision = getPrecision(step, min, kind)
   const [draft, setDraft] = React.useState(() => value.toFixed(precision))
   const [focused, setFocused] = React.useState(false)
@@ -88,7 +92,7 @@ export function Stepper({
         type="button"
         tabIndex={-1}
         disabled={disabled}
-        aria-label={`${label} 减小`}
+        aria-label={t("Decrease {0}", { 0: label })}
         onClick={() => nudge(-1)}
         className="h-full border-0 bg-transparent font-mono text-[11px] leading-none text-[var(--shell-text-dim)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] disabled:cursor-not-allowed"
       >
@@ -129,7 +133,7 @@ export function Stepper({
         type="button"
         tabIndex={-1}
         disabled={disabled}
-        aria-label={`${label} 增大`}
+        aria-label={t("Increase {0}", { 0: label })}
         onClick={() => nudge(1)}
         className="h-full border-0 bg-transparent font-mono text-[11px] leading-none text-[var(--shell-text-dim)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] disabled:cursor-not-allowed"
       >
@@ -162,17 +166,19 @@ export function Verdict({
   tone: VerdictTone
   title?: string
 }) {
-  const t = VERDICT_TONE[tone]
+
+
+  const toneStyle = VERDICT_TONE[tone]
   return (
     <div
       className="grid grid-cols-[1fr_auto] items-center h-[30px] border-b border-[color:var(--shell-hairline)] last:border-b-0"
       title={title}
     >
       <span className="text-[11.5px] text-[var(--shell-text-muted)] truncate pr-2">{label}</span>
-      <span className={cn('flex items-center gap-[6px] font-mono text-[9.5px] tracking-[0.08em]', t.className)}>
+      <span className={cn('flex items-center gap-[6px] font-mono text-[9.5px] tracking-[0.08em]', toneStyle.className)}>
         <i
-          className={cn('w-2 h-2 rounded-[1px] not-italic', !t.filled && 'border border-current')}
-          style={t.filled ? { background: 'currentColor' } : undefined}
+          className={cn('w-2 h-2 rounded-[1px] not-italic', !toneStyle.filled && 'border border-current')}
+          style={toneStyle.filled ? { background: 'currentColor' } : undefined}
           aria-hidden="true"
         />
         {word}
@@ -196,6 +202,8 @@ export function OutputRow({
   onClick?: () => void
   secondary?: { label: string; onClick: () => void }
 }) {
+
+
   return (
     <div className="flex items-stretch gap-1 mt-[6px]">
       <button
@@ -241,6 +249,8 @@ export function RevCell({
   state: 'built' | 'stale' | 'none'
   dim?: boolean
 }) {
+
+
   return (
     <div
       className={cn(

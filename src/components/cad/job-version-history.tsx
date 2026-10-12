@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { History, Settings, FileCode, StickyNote, ChevronDown, Search, User } from 'lucide-react'
@@ -20,6 +22,8 @@ const FIELD_INFO: Record<string, { label: string; icon: typeof Settings; color: 
 // ─── Diff helper for parameter changes ────────────────────────────────────
 
 function ParameterDiff({ oldValue, newValue }: { oldValue: string | null; newValue: string | null }) {
+  const { t } = useI18n()
+
   const oldParams = parseJSON<Record<string, unknown>>(oldValue, {})
   const newParams = parseJSON<Record<string, unknown>>(newValue, {})
 
@@ -36,7 +40,7 @@ function ParameterDiff({ oldValue, newValue }: { oldValue: string | null; newVal
   }
 
   if (changes.length === 0) {
-    return <span className="text-xs text-[var(--app-text-dim)] italic">No specific changes detected</span>
+    return <span className="text-xs text-[var(--app-text-dim)] italic">{t("No specific changes detected")}</span>
   }
 
   return (
@@ -105,17 +109,19 @@ function ScadDiff({ oldValue, newValue }: { oldValue: string | null; newValue: s
 // ─── Notes diff ──────────────────────────────────────────────────────────
 
 function NotesDiff({ oldValue, newValue }: { oldValue: string | null; newValue: string | null }) {
+  const { t } = useI18n()
+
   return (
     <div className="mt-1 space-y-1">
       {oldValue && (
         <div>
-          <span className="text-[8px] text-[var(--app-text-dim)] uppercase">Before</span>
+          <span className="text-[8px] text-[var(--app-text-dim)] uppercase">{t("Before")}</span>
           <p className="text-[13px] text-rose-300/80 line-through truncate max-w-full">{oldValue.slice(0, 100)}{oldValue.length > 100 ? '...' : ''}</p>
         </div>
       )}
       {newValue && (
         <div>
-          <span className="text-[8px] text-[var(--app-text-dim)] uppercase">After</span>
+          <span className="text-[8px] text-[var(--app-text-dim)] uppercase">{t("After")}</span>
           <p className="text-[13px] text-emerald-300/80 truncate max-w-full">{newValue.slice(0, 100)}{newValue.length > 100 ? '...' : ''}</p>
         </div>
       )}
@@ -130,6 +136,8 @@ interface JobVersionHistoryProps {
 }
 
 export function JobVersionHistory({ job }: JobVersionHistoryProps) {
+  const { t, locale } = useI18n()
+
   const [versions, setVersions] = useState<JobVersion[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -167,7 +175,7 @@ export function JobVersionHistory({ job }: JobVersionHistoryProps) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-[var(--app-text-dim)] gap-3 p-6">
         <div className="w-8 h-7 border-2 border-[color:var(--app-accent)] border-t-transparent rounded-full animate-spin" />
-        <p className="text-[13px]">Loading history...</p>
+        <p className="text-[13px]">{t("Loading history...")}</p>
       </div>
     )
   }
@@ -178,8 +186,8 @@ export function JobVersionHistory({ job }: JobVersionHistoryProps) {
         <div className="w-12 h-12 rounded border border-[color:var(--cad-border-strong)] flex items-center justify-center opacity-40">
           <History className="w-6 h-6" />
         </div>
-        <p className="text-sm">No version history</p>
-        <p className="text-[13px] text-[var(--app-text-dim)]">Changes to parameters, SCAD, and notes will be tracked here</p>
+        <p className="text-sm">{t("No version history")}</p>
+        <p className="text-[13px] text-[var(--app-text-dim)]">{t("Changes to parameters, SCAD, and notes will be tracked here")}</p>
       </div>
     )
   }
@@ -190,10 +198,10 @@ export function JobVersionHistory({ job }: JobVersionHistoryProps) {
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)] shrink-0">
         <h3 className="text-eyebrow text-[var(--app-text-muted)] flex items-center gap-1.5">
           <History className="w-3.5 h-3.5" />
-          Version History
+          {t("Version History")}
         </h3>
         <Badge variant="outline" className="text-xs h-4 bg-[var(--app-surface-raised)] text-[var(--app-text-muted)] border-[color:var(--app-border)]">
-          {versions.length} changes
+          {versions.length} {t("changes")}
         </Badge>
       </div>
 
@@ -212,7 +220,7 @@ export function JobVersionHistory({ job }: JobVersionHistoryProps) {
                 }`}
                 onClick={() => setFilterField(f === 'all' ? null : f)}
               >
-                {f === 'all' ? 'ALL' : (info?.label || f)} {f !== 'all' ? fieldCounts[f] || '' : ''}
+                {f === 'all' ? t("ALL") : (info?.label || f)} {f !== 'all' ? fieldCounts[f] || '' : ''}
               </button>
             )
           })}
@@ -291,7 +299,7 @@ export function JobVersionHistory({ job }: JobVersionHistoryProps) {
                               <NotesDiff oldValue={version.oldValue} newValue={version.newValue} />
                             )}
                             <div className="text-[8px] text-[var(--app-text-dim)] mt-1">
-                              {new Date(version.createdAt).toLocaleString()}
+                              {new Date(version.createdAt).toLocaleString(locale)}
                             </div>
                           </div>
                         </motion.div>

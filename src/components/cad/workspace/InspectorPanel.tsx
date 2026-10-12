@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import * as React from 'react'
 import { ImperativePanelHandle } from 'react-resizable-panels'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -70,6 +72,8 @@ export function InspectorPanel({
   onOpenShortcuts?: () => void
   isFirstLoadComplete: boolean
 }) {
+  const { t } = useI18n()
+
   const normalizeTab = (tab: string) => ({
     PARAMS: 'PARAMETERS',
     RESEARCH: 'MODEL',
@@ -135,7 +139,7 @@ export function InspectorPanel({
       onExpand={() => onCollapseChange?.(false)}
       className="cad-inspector-panel min-w-0 overflow-hidden"
     >
-      <PanelErrorBoundary panelName="Inspector" resetKey={`${selectedJob?.id || 'none'}_${normalizedActiveTab}`}>
+      <PanelErrorBoundary panelName={t("Inspector")} resetKey={`${selectedJob?.id || 'none'}_${normalizedActiveTab}`}>
         {/* The sheet's own plate is the frame (DESIGN.md section 22, one card): the
             docked panel's second border, radius, blur and inset used to stack on top
             of it, which is the nested-card pattern the mechanical scan flags. */}
@@ -161,9 +165,9 @@ export function InspectorPanel({
               </div>
               <TabsList className="w-full justify-start gap-0.5 overflow-x-auto overflow-y-hidden px-2 py-0 bg-transparent border-b border-[color:var(--shell-hairline)] h-8 rounded-none shrink-0 shadow-none">
                 {[
-                  { key: 'SPEC', label: '描述', icon: BoxSelect },
-                  { key: 'CODE', label: '源码', icon: FileCode },
-                  { key: 'HISTORY', label: '记录', icon: History },
+                  { key: t("SPEC"), label: t("Description"), icon: BoxSelect },
+                  { key: t("CODE"), label: t("Code"), icon: FileCode },
+                  { key: t("HISTORY"), label: t("History"), icon: History },
                 ].map(tab => (
                   <TabsTrigger
                     key={tab.key}

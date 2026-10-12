@@ -58,7 +58,7 @@ describe('PanelErrorBoundary — Fault Isolation & UI Resilience', () => {
 
     // Isolation badge and panel name
     expect(html.toUpperCase()).toContain('INSPECTOR FAULT ISOLATED')
-    expect(html).toContain('面板子系统已隔离')
+    expect(html).toContain("Panel error isolated")
 
     // Accessibility contracts
     expect(html).toContain('role="alert"')
@@ -69,8 +69,8 @@ describe('PanelErrorBoundary — Fault Isolation & UI Resilience', () => {
     expect(html).toContain('initEditor')
 
     // Action buttons
-    expect(html).toContain('重试面板 (Retry)')
-    expect(html).toContain('复制诊断')
+    expect(html).toContain("Retry panel")
+    expect(html).toContain("Copy diagnostics")
   })
 
   test('supports custom fallback as a ReactNode or a function', () => {
@@ -346,8 +346,8 @@ describe('JobListEmptyState — Boundary Conditions', () => {
     // DESIGN.md section 6: the slots rail states what will appear, in one line.
     // No preset grid and no onboarding copy - the composer owns creation.
     expect(html).toContain('data-testid="job-list-cold-start"')
-    expect(html).toContain('还没有零件')
-    expect(html).toContain('新零件')
+    expect(html).toContain('No parts yet')
+    expect(html).toContain("New part")
     expect(html).not.toContain('WORKSPACE INITIALIZED')
     expect(html).not.toContain('ENGINEERING PRESETS')
     expect(html).not.toContain('Spur Gear')
@@ -366,11 +366,11 @@ describe('JobListEmptyState — Boundary Conditions', () => {
     )
 
     expect(html).toContain('data-testid="job-list-filter-empty"')
-    expect(html).toContain('没有符合条件的零件')
-    expect(html).toContain('清除筛选')
+    expect(html).toContain("No parts match your filters")
+    expect(html).toContain("Clear filters")
 
     // the cold-start copy must not leak into the filter mismatch state
-    expect(html).not.toContain('还没有零件。')
+    expect(html).not.toContain("No parts yet.")
     expect(html).not.toContain('WORKSPACE INITIALIZED')
   })
 
@@ -404,8 +404,8 @@ describe('CadViewportEmptyState — Boundary Conditions', () => {
 
     // DESIGN.md section 9: answer four questions, nothing else
     expect(html).toContain('data-testid="viewport-cold-start"')
-    expect(html).toContain('写一句话，描述你要的零件。')
-    expect(html).toContain('装在 35 mm 导轨上的相机支架，M4 螺孔')
+    expect(html).toContain("Describe the part you need.")
+    expect(html).toContain("Camera bracket for a 35 mm DIN rail, M4 screw holes")
 
     // DESIGN.md section 18: no engine internals reach the user
     expect(html).not.toContain('SYS: STANDBY')
@@ -444,8 +444,8 @@ describe('CadViewportEmptyState — Boundary Conditions', () => {
     )
 
     expect(html).toContain('data-testid="viewport-pending-geometry"')
-    expect(html).toContain('这个零件还没有几何。')
-    expect(html).toContain('生成几何')
+    expect(html).toContain("This part has no geometry yet.")
+    expect(html).toContain("Generate geometry")
 
     // job id, family and pipeline vocabulary are internals, not user content
     expect(html).not.toContain('JOB: job-9999')
@@ -482,7 +482,7 @@ describe('InspectorEmptyState — Boundary Conditions', () => {
 
     // DESIGN.md section 19: never explain the application's own architecture
     expect(html).toContain('data-testid="inspector-empty"')
-    expect(html).toContain('还没有选中零件')
+    expect(html).toContain("No part selected")
     expect(html).not.toContain('INSPECTOR ARCHITECTURE')
     expect(html).not.toContain('No Design Selected')
     expect(html).not.toContain('STANDBY')

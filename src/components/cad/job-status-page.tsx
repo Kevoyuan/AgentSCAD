@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useMemo, useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -111,6 +113,8 @@ function IntentClarificationCard({
   job: Job
   onResolveIntent?: (selectedInterpretationId: string) => Promise<void>
 }) {
+  const { t } = useI18n()
+
   const [submittingId, setSubmittingId] = useState<string | null>(null)
   const intent = parseJSON<IntentClarification>(job.intentResult, {})
   const interpretations = Array.isArray(intent.interpretations) ? intent.interpretations : []
@@ -135,10 +139,10 @@ function IntentClarificationCard({
             <GitBranch className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-mono uppercase tracking-widest text-amber-300">Clarification required</p>
+            <p className="text-xs font-mono uppercase tracking-widest text-amber-300">{t("Clarification required")}</p>
             <h3 className="mt-2 text-lg font-semibold leading-snug text-[var(--app-text-primary)]">{question}</h3>
             <p className="mt-2 text-sm leading-relaxed text-[var(--app-text-muted)]">
-              No model has been generated yet. Your choice is stored locally as explicit input and can be audited later.
+              {t("No model has been generated yet. Your choice is stored locally as explicit input and can be audited later.")}
             </p>
           </div>
         </div>
@@ -174,7 +178,7 @@ function IntentClarificationCard({
 
         {interpretations.length === 0 && (
           <p className="mt-5 rounded-lg border border-rose-500/20 bg-rose-500/5 p-3 text-sm text-rose-300">
-            Clarification options are unavailable. Re-run intake or create a new job with a more specific request.
+            {t("Clarification options are unavailable. Re-run intake or create a new job with a more specific request.")}
           </p>
         )}
       </div>
@@ -198,6 +202,8 @@ function LiveElapsed({ createdAt }: { createdAt: string }) {
 }
 
 function FailureDiagnostics({ job }: { job: Job }) {
+  const { t, locale } = useI18n()
+
   const logs = parseJSON<ExecutionLog[]>(job.executionLogs, [])
   const validationResults = parseJSON<ValidationResult[]>(job.validationResults, [])
   const renderLog = parseJSON<{ warnings?: string[]; errors?: string[]; render_time_ms?: number } | null>(job.renderLog, null)
@@ -216,10 +222,10 @@ function FailureDiagnostics({ job }: { job: Job }) {
       <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
         <div className="flex items-center gap-2 text-amber-300">
           <AlertCircle className="h-4 w-4" />
-          <span className="text-[13px] font-mono uppercase tracking-widest">No diagnostic payload</span>
+          <span className="text-[13px] font-mono uppercase tracking-widest">{t("No diagnostic payload")}</span>
         </div>
         <p className="mt-2 text-sm leading-relaxed text-[var(--cad-text-muted)]">
-          This job is failed, but no execution log, validation result, or render warning was returned with the job.
+          {t("This job is failed, but no execution log, validation result, or render warning was returned with the job.")}
         </p>
       </div>
     )
@@ -230,7 +236,7 @@ function FailureDiagnostics({ job }: { job: Job }) {
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-rose-300">
           <AlertCircle className="h-4 w-4" />
-          <span className="text-[13px] font-mono uppercase tracking-widest">Error diagnostics</span>
+          <span className="text-[13px] font-mono uppercase tracking-widest">{t("Error diagnostics")}</span>
         </div>
         <span className="text-xs font-mono text-[var(--cad-text-muted)]">
           {failedLogs.length + failedValidation.length + renderMessages.length} items
@@ -241,7 +247,7 @@ function FailureDiagnostics({ job }: { job: Job }) {
           <div key={`log-${idx}`} className="rounded border border-rose-500/15 bg-black/15 px-2 py-1.5">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-mono text-rose-300">{log.event}</span>
-              <span className="text-[8px] font-mono text-[var(--cad-text-muted)]">{new Date(log.timestamp).toLocaleTimeString()}</span>
+              <span className="text-[8px] font-mono text-[var(--cad-text-muted)]">{new Date(log.timestamp).toLocaleTimeString(locale)}</span>
             </div>
             <p className="mt-1 text-[13px] leading-relaxed text-[var(--cad-text-secondary)]">{log.message}</p>
           </div>
@@ -274,6 +280,8 @@ function GenerationEvidence({
   job: Job
   streamEvents: Array<{ step: string; state: string; message: string; timestamp: string }>
 }) {
+  const { t, locale } = useI18n()
+
   const logs = parseJSON<ExecutionLog[]>(job.executionLogs, [])
   const designResult = parseObject(job.designResult)
   const researchResult = parseObject(job.researchResult)
@@ -302,7 +310,7 @@ function GenerationEvidence({
       {/* Inference Stream */}
       <div className="flex flex-1 flex-col min-w-0 2xl:border-r border-[color:var(--app-border)]">
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[color:var(--app-border)] px-6 py-3 bg-[var(--app-surface-raised)]/30">
-          <span className="text-xs font-mono uppercase tracking-widest text-[var(--app-text-primary)]">Inference Stream</span>
+          <span className="text-xs font-mono uppercase tracking-widest text-[var(--app-text-primary)]">{t("Inference Stream")}</span>
           <span className="online-dot" />
         </div>
         {inferenceFacts.length > 0 && (
@@ -316,7 +324,7 @@ function GenerationEvidence({
         )}
         <div className="flex-1 overflow-y-auto px-4 py-2">
           <div className="divide-y divide-[color:var(--app-border)]">
-            {(traceEvents.length ? traceEvents : [{ step: 'waiting', state: job.state, message: 'Waiting for inference stream...', timestamp: job.updatedAt || job.createdAt }]).map((event, idx) => (
+            {(traceEvents.length ? traceEvents : [{ step: 'waiting', state: job.state, message: t("Waiting for inference stream..."), timestamp: job.updatedAt || job.createdAt }]).map((event, idx) => (
               <motion.div
                 key={`${event.timestamp}-${idx}`}
                 initial={{ opacity: 0, y: 4 }}
@@ -325,7 +333,7 @@ function GenerationEvidence({
               >
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="truncate text-xs font-mono font-medium text-[var(--app-accent-text)]">{event.step}</span>
-                  <span className="shrink-0 text-[10px] font-mono text-[var(--app-text-dim)] group-hover:text-[var(--app-text-muted)] transition-colors">{new Date(event.timestamp).toLocaleTimeString()}</span>
+                  <span className="shrink-0 text-[10px] font-mono text-[var(--app-text-dim)] group-hover:text-[var(--app-text-muted)] transition-colors">{new Date(event.timestamp).toLocaleTimeString(locale)}</span>
                 </div>
                 <p className="text-[13px] leading-relaxed text-[var(--app-text-secondary)]">{event.message}</p>
               </motion.div>
@@ -337,9 +345,9 @@ function GenerationEvidence({
       {/* SCAD Code */}
       <div className="flex flex-1 flex-col min-w-0 border-t 2xl:border-t-0 border-[color:var(--app-border)] bg-[var(--app-code-bg)]">
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[color:var(--app-border)] px-6 py-3 bg-[var(--app-surface-raised)]/30">
-          <span className="text-xs font-mono uppercase tracking-widest text-[var(--app-text-primary)]">SCAD Code</span>
+          <span className="text-xs font-mono uppercase tracking-widest text-[var(--app-text-primary)]">{t("SCAD Code")}</span>
           <span className="rounded bg-[var(--app-surface-hover)] px-2 py-0.5 text-[10px] font-mono text-[var(--app-text-muted)]">
-            {lineCount ? `${lineCount} lines` : 'pending'}
+            {lineCount ? t("{0} lines", { 0: lineCount }) : 'pending'}
           </span>
         </div>
         {scadSource ? (
@@ -348,7 +356,7 @@ function GenerationEvidence({
           </pre>
         ) : (
           <div className="flex flex-1 items-center justify-center px-6 text-center text-[13px] leading-relaxed text-[var(--app-text-dim)]">
-            SCAD source will appear as soon as generation completes.
+            {t("SCAD source will appear as soon as generation completes.")}
           </div>
         )}
       </div>
@@ -359,6 +367,8 @@ function GenerationEvidence({
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export function JobStatusPage({ job, streamEvents = [], onViewLogs, onViewError, onCancel, onResolveIntent, isCancelable }: JobStatusPageProps) {
+  const { t, locale } = useI18n()
+
   const state = job.state
   const progress = getPipelineProgress(state)
   const currentIdx = PIPELINE_STEPS.findIndex(s => s.key === state)
@@ -436,13 +446,13 @@ export function JobStatusPage({ job, streamEvents = [], onViewLogs, onViewError,
                   {approvedInterpretation && (
                     <span
                       className="max-w-[260px] truncate rounded border border-cyan-500/20 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-medium text-cyan-300"
-                      title={`Approved interpretation: ${approvedInterpretation.label}. Create a new job to choose a different interpretation.`}
+                      title={t("Approved interpretation: {0}. Create a new job to choose a different interpretation.", { 0: approvedInterpretation.label })}
                     >
-                      Approved: {approvedInterpretation.label}
+                      {t("Approved:")} {approvedInterpretation.label}
                     </span>
                   )}
                   <span className="truncate text-xs text-[var(--app-text-muted)]">
-                    {latestEvent?.message || 'Queued CAD generation pipeline...'}
+                    {latestEvent?.message || t("Queued CAD generation pipeline...")}
                   </span>
                   {job.builderName && (
                     <>
@@ -488,7 +498,7 @@ export function JobStatusPage({ job, streamEvents = [], onViewLogs, onViewError,
                   onClick={onViewLogs}
                 >
                   <FileText className="w-3.5 h-3.5 text-[var(--app-text-muted)]" />
-                  Logs
+                  {t("Logs")}
                 </Button>
 
                 {isCancelable && (
@@ -499,7 +509,7 @@ export function JobStatusPage({ job, streamEvents = [], onViewLogs, onViewError,
                     onClick={() => onCancel(job)}
                   >
                     <Ban className="w-3.5 h-3.5" />
-                    Cancel
+                    {t("Cancel")}
                   </Button>
                 )}
 
@@ -511,7 +521,7 @@ export function JobStatusPage({ job, streamEvents = [], onViewLogs, onViewError,
                     onClick={onViewError || onViewLogs}
                   >
                     <AlertCircle className="w-3.5 h-3.5" />
-                    Error Details
+                    {t("Error Details")}
                   </Button>
                 )}
               </div>
@@ -523,9 +533,9 @@ export function JobStatusPage({ job, streamEvents = [], onViewLogs, onViewError,
             {/* Sidebar (Run Steps) */}
             <div className="w-64 shrink-0 flex flex-col border-r border-[color:var(--app-border)] bg-[var(--app-surface-raised)]/20">
               <div className="flex items-center justify-between gap-2 border-b border-[color:var(--app-border)] px-6 py-3">
-                <span className="text-xs font-mono uppercase tracking-widest text-[var(--app-text-muted)]">Run steps</span>
+                <span className="text-xs font-mono uppercase tracking-widest text-[var(--app-text-muted)]">{t("Run steps")}</span>
                 <span className="text-xs font-mono text-[var(--app-text-dim)]">
-                  {latestEvent ? new Date(latestEvent.timestamp).toLocaleTimeString() : 'waiting'}
+                  {latestEvent ? new Date(latestEvent.timestamp).toLocaleTimeString(locale) : 'waiting'}
                 </span>
               </div>
               <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
@@ -573,7 +583,7 @@ export function JobStatusPage({ job, streamEvents = [], onViewLogs, onViewError,
                       </div>
                       <div className="shrink-0 text-[10px] font-mono text-[var(--app-text-dim)]">
                         {isCurrent ? (
-                          <span className="text-[var(--app-accent-text)]">Running</span>
+                          <span className="text-[var(--app-accent-text)]">{t("Running")}</span>
                         ) : isCompleted && duration ? (
                           <span className="text-[var(--app-text-muted)]">{formatDuration(duration)}</span>
                         ) : !isCompleted && !isFailedStep ? (

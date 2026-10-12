@@ -3,6 +3,20 @@
 All notable changes to AgentSCAD are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.6.0.0] - 2026-10-12
+
+### Added
+- Switch between English and Simplified Chinese in Settings → Language, with immediate updates and a saved browser preference
+- Synchronize interface language across browser tabs and keep language switching available when browser storage is blocked
+
+### Changed
+- Use English by default throughout the workspace, settings, notifications, tooltips, and empty states
+- Format displayed dates and times using the selected interface language
+
+### Fixed
+- Preserve composer and unsaved provider drafts while switching languages and settings tabs
+- Include the required `.env` setup before database initialization in both quick-start guides (#18)
+
 ## [0.5.0.0] - 2026-08-13
 
 ### Added

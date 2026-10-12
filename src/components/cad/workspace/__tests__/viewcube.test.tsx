@@ -78,23 +78,23 @@ describe('ViewCube region picking', () => {
  */
 describe('ViewCube stop labels', () => {
   test('the clamped top/bottom stops report 上 / 下, not 自由视角', () => {
-    expect(labelFor(89.8, 0)).toBe('上')
-    expect(labelFor(-89.8, 0)).toBe('下')
+    expect(labelFor(89.8, 0)).toBe("Top")
+    expect(labelFor(-89.8, 0)).toBe("Bottom")
     // Whatever azimuth the top stop was reached from, it is still 上.
-    expect(labelFor(89.8, 90)).toBe('上')
+    expect(labelFor(89.8, 90)).toBe("Top")
   })
 
   test('the exact stops keep their names', () => {
-    expect(labelFor(0, 0)).toBe('前')
-    expect(labelFor(0, 90)).toBe('右')
-    expect(labelFor(0, 180)).toBe('后')
-    expect(labelFor(0, -90)).toBe('左')
-    expect(labelFor(45, 45)).toBe('等轴 · 前上右')
+    expect(labelFor(0, 0)).toBe("Front")
+    expect(labelFor(0, 90)).toBe("Right")
+    expect(labelFor(0, 180)).toBe("Back")
+    expect(labelFor(0, -90)).toBe("Left")
+    expect(labelFor(45, 45)).toBe("Isometric · Top front right")
   })
 
   test('an angle between stops still says so', () => {
     // 40° azimuth sits between 前 (0°) and 前右 (45°), and must not claim either.
-    expect(labelFor(0, 40)).toBe('自由视角 · 前右')
-    expect(labelFor(70, 12)).toBe('自由视角 · 上')
+    expect(labelFor(0, 40)).toBe("Free view · Front / Right")
+    expect(labelFor(70, 12)).toBe("Free view · Top")
   })
 })

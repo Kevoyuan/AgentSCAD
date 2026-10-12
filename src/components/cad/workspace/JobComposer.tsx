@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useEffect, useState } from 'react'
 import {
   Play, Loader2, Sparkles, Tag, Ruler, Hammer, BoxSelect, Gauge, Cpu, Clock, X, Wand2, LayoutTemplate, SlidersHorizontal,
@@ -19,7 +21,7 @@ import { fetchModels, type ModelInfo } from '@/components/cad/api'
 
 // Sample prompt for immediate first-time exploration. Same voice and family as the
 // examples the empty canvas offers (DESIGN.md section 9).
-const EXAMPLE_PROMPT = '装在 35 mm 导轨上的相机支架,M4 螺孔,壁厚 3 mm' as const
+const EXAMPLE_PROMPT = "Camera bracket for a 35 mm DIN rail, M4 screw holes, 3 mm walls" as const
 
 export function JobComposer({
   showComposer,
@@ -54,6 +56,8 @@ export function JobComposer({
   onAiEnhance: () => void
   onAddProvider: () => void
 }) {
+  const { t } = useI18n()
+
   const [generationModels, setGenerationModels] = useState<Array<Pick<ModelInfo, 'id' | 'name' | 'providerName' | 'description'>>>([])
   const [isLoadingModels, setIsLoadingModels] = useState(true)
   const [activeAssistantTab, setActiveAssistantTab] = useState<'modifiers' | 'templates' | 'recent'>('modifiers')
@@ -87,22 +91,22 @@ export function JobComposer({
 
   const specGroups = [
     {
-      label: '尺寸',
+      label: t("Dimensions"),
       icon: Ruler,
       values: ['120x80x32mm', '2.5mm walls', '6mm radius', 'M3 posts'],
     },
     {
-      label: '材料',
+      label: t("Material"),
       icon: BoxSelect,
       values: ['PLA', 'PETG', 'Aluminum', 'ABS'],
     },
     {
-      label: '工艺',
+      label: t("Process"),
       icon: Hammer,
       values: ['FDM', 'CNC-ready', 'Laser cut', 'Prototype'],
     },
     {
-      label: '公差',
+      label: t("Tolerance"),
       icon: Gauge,
       values: ['0.2mm', 'Snap-fit', 'Inserts', 'Clearance'],
     },
@@ -142,8 +146,8 @@ export function JobComposer({
         aria-describedby="composer-description"
       >
         <DialogHeader className="sr-only">
-          <DialogTitle>新零件</DialogTitle>
-          <DialogDescription id="composer-description">描述你要的零件和参数约束</DialogDescription>
+          <DialogTitle>{t("New part")}</DialogTitle>
+          <DialogDescription id="composer-description">{t("Describe the part and its constraints")}</DialogDescription>
         </DialogHeader>
 
         <div className="flex max-h-[calc(100dvh-32px)] flex-col">
@@ -154,15 +158,15 @@ export function JobComposer({
                 <BoxSelect className="h-3.5 w-3.5" />
               </div>
               <div>
-                <h2 className="text-[13px] font-semibold text-[var(--shell-text)]">新零件</h2>
-                <p className="text-[11.5px] text-[var(--shell-text-muted)]">用一句话描述几何和参数约束,生成后可以改数字重建。</p>
+                <h2 className="text-[13px] font-semibold text-[var(--shell-text)]">{t("New part")}</h2>
+                <p className="text-[11.5px] text-[var(--shell-text-muted)]">{t("Describe the geometry and constraints. After generation, edit the dimensions and rebuild.")}</p>
               </div>
             </div>
             <button
               type="button"
               className="flex h-6 w-6 items-center justify-center rounded-[4px] text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-well)] transition-colors"
               onClick={() => onShowComposerChange(false)}
-              aria-label="关闭"
+              aria-label={t("Close")}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -174,7 +178,7 @@ export function JobComposer({
             <div className="rounded-[9px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] overflow-hidden focus-within:border-[var(--shell-signal)] transition-colors">
               <div className="flex items-center justify-between border-b border-[color:var(--shell-hairline)] px-3 py-1.5">
                 <span className="font-mono text-[9px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)]">
-                  零件描述
+                  {t("Part description")}
                 </span>
                 <div className="flex items-center gap-1">
                   {!newJobText.trim() && (
@@ -182,10 +186,10 @@ export function JobComposer({
                       variant="ghost"
                       size="sm"
                       className="h-6 px-2 font-mono text-[10.5px] text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] hover:bg-transparent"
-                      onClick={() => onNewJobTextChange(EXAMPLE_PROMPT)}
+                      onClick={() => onNewJobTextChange(t(EXAMPLE_PROMPT))}
                     >
                       <Wand2 className="mr-1 h-3 w-3" />
-                      试试例子
+                      {t("Try an example")}
                     </Button>
                   )}
                   <Button
@@ -198,7 +202,7 @@ export function JobComposer({
                     disabled={!newJobText.trim() || isAiEnhancing}
                   >
                     {isAiEnhancing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
-                    {isAiEnhancing ? '润色中…' : 'AI 润色'}
+                    {isAiEnhancing ? t("Refining…") : t("Refine with AI")}
                   </Button>
                 </div>
               </div>
@@ -206,7 +210,7 @@ export function JobComposer({
                 <Textarea
                   value={newJobText}
                   onChange={e => onNewJobTextChange(e.target.value)}
-                  placeholder="例如:一个卡扣式电子外壳,壁厚 2.5 mm,M3 螺柱,USB-C 开口…"
+                  placeholder={t("For example: a snap-fit electronics enclosure, 2.5 mm walls, M3 standoffs and a USB-C opening…")}
                   /* `shell-field` hands focus to this block's own amber border instead of
                      drawing a second ring inside it (the composer does the same). */
                   className="shell-field h-[130px] min-h-[130px] w-full resize-none border-0 bg-transparent p-3 text-[12.5px] leading-relaxed text-[var(--shell-text)] placeholder:text-[var(--shell-text-dim)] focus-visible:ring-0"
@@ -224,18 +228,18 @@ export function JobComposer({
               <div className="rounded-[9px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] p-2.5 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 font-mono text-[9px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)]">
-                    <Cpu className="h-3 w-3" /> 模型引擎
+                    <Cpu className="h-3 w-3" /> {t("Model engine")}
                   </span>
                   <button
                     onClick={onAddProvider}
                     className="font-mono text-[10px] text-[var(--shell-signal-soft)] hover:text-[var(--shell-signal)] transition-colors"
                   >
-                    设置
+                    {t("Settings")}
                   </button>
                 </div>
                 {isLoadingModels ? (
                   <div className="h-8 flex items-center px-2 font-mono text-[10.5px] text-[var(--shell-text-dim)]">
-                    <Loader2 className="mr-2 h-3 w-3 animate-spin" /> 读取模型…
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" /> {t("Loading models…")}
                   </div>
                 ) : (
                   <select
@@ -243,7 +247,7 @@ export function JobComposer({
                     onChange={(e) => onNewJobModelIdChange(e.target.value)}
                     className="shell-field h-8 w-full cursor-pointer rounded-[4px] border border-[color:var(--shell-border)] bg-[var(--shell-module-solid)] px-2 font-mono text-[11.5px] text-[var(--shell-text)] outline-none transition-colors hover:border-[color:var(--shell-border-strong)] focus:border-[var(--shell-signal)]"
                   >
-                    {generationModels.length === 0 && <option value="">还没有配置模型</option>}
+                    {generationModels.length === 0 && <option value="">{t("No model configured")}</option>}
                     {generationModels.map(model => (
                       <option key={model.id} value={model.id}>
                         {model.name}
@@ -255,12 +259,12 @@ export function JobComposer({
 
               <div className="rounded-[9px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] p-2.5 space-y-1.5">
                 <div className="flex items-center gap-1.5 font-mono text-[9px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)]">
-                  <Tag className="h-3 w-3" /> 标签(可选)
+                  <Tag className="h-3 w-3" /> {t("Tags (optional)")}
                 </div>
                 <Input
                   value={newJobTags}
                   onChange={e => onNewJobTagsChange(e.target.value)}
-                  placeholder="例如:支架、原型、ABS"
+                  placeholder={t("For example: bracket, prototype, ABS")}
                   className="shell-field h-8 rounded-[4px] border-[color:var(--shell-border)] bg-[var(--shell-module-solid)] font-mono text-[11.5px] text-[var(--shell-text)] placeholder:text-[var(--shell-text-dim)] focus:border-[var(--shell-signal)] focus-visible:ring-0"
                 />
               </div>
@@ -272,9 +276,9 @@ export function JobComposer({
                   segment carries the signal fill (DESIGN.md section 11, the active state). */}
               <div className="flex items-center gap-0.5 border-b border-[color:var(--shell-hairline)] px-2 py-1.5">
                 {([
-                  { key: 'modifiers' as const, label: '修饰', icon: SlidersHorizontal },
-                  { key: 'templates' as const, label: '模板', icon: LayoutTemplate },
-                  ...(recentRequests.length > 0 ? [{ key: 'recent' as const, label: '最近', icon: Clock }] : []),
+                  { key: 'modifiers' as const, label: t("Refine"), icon: SlidersHorizontal },
+                  { key: 'templates' as const, label: t("Templates"), icon: LayoutTemplate },
+                  ...(recentRequests.length > 0 ? [{ key: 'recent' as const, label: t("Recent"), icon: Clock }] : []),
                 ]).map(({ key, label, icon: Icon }) => (
                   <button
                     key={key}
@@ -348,7 +352,7 @@ export function JobComposer({
                 <CaseMemory
                   searchQuery={newJobText}
                   onSuggestionClick={(job) => {
-                    toast.info('Similar design found', { description: job.inputRequest.slice(0, 60) })
+                    toast.info(t("Similar design found"), { description: job.inputRequest.slice(0, 60) })
                   }}
                 />
               </div>
@@ -358,7 +362,7 @@ export function JobComposer({
           {/* Footer Bar */}
           <div className="shrink-0 border-t border-[color:var(--shell-hairline)] px-4 py-2.5 flex items-center justify-between">
             <div className="hidden sm:flex items-center gap-1.5 font-mono text-[10px] text-[var(--shell-text-dim)]">
-              <span>⌘⏎ 生成</span>
+              <span>{t("⌘⏎ Generate")}</span>
             </div>
 
             <div className="flex items-center gap-2 ml-auto">
@@ -368,7 +372,7 @@ export function JobComposer({
                 className="h-7 px-3 font-mono text-[11.5px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-transparent"
                 onClick={() => onShowComposerChange(false)}
               >
-                取消
+                {t("Cancel")}
               </Button>
               <Button
                 size="sm"
@@ -378,7 +382,7 @@ export function JobComposer({
                 disabled={!newJobText.trim() || !newJobModelId || isCreating}
               >
                 {isCreating ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : <Play className="mr-1.5 h-3 w-3" />}
-                <span>生成</span>
+                <span>{t("Generate")}</span>
               </Button>
             </div>
           </div>

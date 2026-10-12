@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link2, Unlink, ChevronDown, ChevronRight, FileCode, GitBranch, Search } from 'lucide-react'
@@ -26,6 +28,8 @@ interface JobDependenciesProps {
 }
 
 export function JobDependencies({ job, allJobs, onUpdate, onNavigateToJob }: JobDependenciesProps) {
+  const { t } = useI18n()
+
   const [isLinking, setIsLinking] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -96,7 +100,7 @@ export function JobDependencies({ job, allJobs, onUpdate, onNavigateToJob }: Job
       <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-[color:var(--app-border)] px-3 py-1.5">
         <h3 className="text-eyebrow text-[var(--app-text-muted)] flex items-center gap-2">
           <GitBranch className="w-3.5 h-3.5" />
-          Dependencies
+          {t("Dependencies")}
         </h3>
         <div className="flex shrink-0 items-center gap-2">
           <Badge variant="outline" className="text-xs h-4 bg-[var(--app-surface-raised)] text-[var(--app-text-muted)] border-[color:var(--app-border)]">
@@ -110,7 +114,7 @@ export function JobDependencies({ job, allJobs, onUpdate, onNavigateToJob }: Job
               onClick={() => setIsLinking(true)}
               disabled={isSaving}
             >
-              <Link2 className="w-3.5 h-3.5" />Link
+              <Link2 className="w-3.5 h-3.5" />{t("Link")}
             </Button>
           ) : (
             <Button
@@ -119,7 +123,7 @@ export function JobDependencies({ job, allJobs, onUpdate, onNavigateToJob }: Job
               className="h-5 text-xs gap-1 text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]"
               onClick={() => { setIsLinking(false); setSearchQuery('') }}
             >
-              Cancel
+              {t("Cancel")}
             </Button>
           )}
         </div>
@@ -142,7 +146,7 @@ export function JobDependencies({ job, allJobs, onUpdate, onNavigateToJob }: Job
                     <Input
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
-                      placeholder="Search for parent job..."
+                      placeholder={t("Search for parent job...")}
                       className="h-6 text-sm bg-[var(--app-bg)] border-[color:var(--app-border)] placeholder:text-[var(--app-text-dim)]"
                       autoFocus
                     />
@@ -170,7 +174,7 @@ export function JobDependencies({ job, allJobs, onUpdate, onNavigateToJob }: Job
                       ))}
                     </div>
                   ) : (
-                    <p className="text-[13px] text-[var(--app-text-dim)] text-center py-2">No jobs found</p>
+                    <p className="text-[13px] text-[var(--app-text-dim)] text-center py-2">{t("No jobs found")}</p>
                   )}
                 </div>
               </motion.div>
@@ -187,7 +191,7 @@ export function JobDependencies({ job, allJobs, onUpdate, onNavigateToJob }: Job
                 className="space-y-1"
               >
                 <div className="text-xs font-mono text-[var(--app-text-dim)] uppercase tracking-wider flex items-center gap-1">
-                  <ChevronDown className="w-3.5 h-3.5" />Parent
+                  <ChevronDown className="w-3.5 h-3.5" />{t("Parent")}
                 </div>
                 <div className="relative ml-2">
                   {/* Connecting line */}
@@ -221,14 +225,14 @@ export function JobDependencies({ job, allJobs, onUpdate, onNavigateToJob }: Job
               </motion.div>
             ) : !isLinking && (
               <div className="text-center py-3">
-                <p className="text-[13px] text-[var(--app-text-dim)]">No parent linked</p>
+                <p className="text-[13px] text-[var(--app-text-dim)]">{t("No parent linked")}</p>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-5 text-xs gap-1 text-[var(--app-accent-text)] hover:text-[var(--app-accent-text)] mt-1"
                   onClick={() => setIsLinking(true)}
                 >
-                  <Link2 className="w-3.5 h-3.5" />Link to parent
+                  <Link2 className="w-3.5 h-3.5" />{t("Link to parent")}
                 </Button>
               </div>
             )}
@@ -257,7 +261,7 @@ export function JobDependencies({ job, allJobs, onUpdate, onNavigateToJob }: Job
             {childJobs.length > 0 && (
               <div className="space-y-1">
                 <div className="text-xs font-mono text-[var(--app-text-dim)] uppercase tracking-wider flex items-center gap-1">
-                  <ChevronRight className="w-3.5 h-3.5" />Children ({childJobs.length})
+                  <ChevronRight className="w-3.5 h-3.5" />{t("Children (")}{childJobs.length})
                 </div>
                 {childJobs.map((child, idx) => (
                   <motion.div
@@ -293,7 +297,7 @@ export function JobDependencies({ job, allJobs, onUpdate, onNavigateToJob }: Job
             {/* Empty state for children */}
             {childJobs.length === 0 && !isLinking && job.parentId && (
               <div className="text-center py-2">
-                <p className="text-[13px] text-[var(--app-text-dim)]">No child jobs</p>
+                <p className="text-[13px] text-[var(--app-text-dim)]">{t("No child jobs")}</p>
               </div>
             )}
           </div>
@@ -302,15 +306,15 @@ export function JobDependencies({ job, allJobs, onUpdate, onNavigateToJob }: Job
           {!job.parentId && childJobs.length === 0 && !isLinking && (
             <div className="rounded-lg border border-[color:var(--app-border)] bg-[var(--app-empty-bg)] p-3 text-center">
               <GitBranch className="w-8 h-7 text-[var(--app-text-dim)] mx-auto mb-2" />
-              <p className="text-sm text-[var(--app-text-muted)] mb-1">No dependencies</p>
-              <p className="text-xs text-[var(--app-text-dim)] mb-2">Link this job to a parent to build relationships between jobs</p>
+              <p className="text-sm text-[var(--app-text-muted)] mb-1">{t("No dependencies")}</p>
+              <p className="text-xs text-[var(--app-text-dim)] mb-2">{t("Link this job to a parent to build relationships between jobs")}</p>
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-5 text-xs gap-1 text-[var(--app-accent-text)] hover:text-[var(--app-accent-text)]"
                 onClick={() => setIsLinking(true)}
               >
-                <Link2 className="w-3.5 h-3.5" />Link to Parent
+                <Link2 className="w-3.5 h-3.5" />{t("Link to Parent")}
               </Button>
             </div>
           )}

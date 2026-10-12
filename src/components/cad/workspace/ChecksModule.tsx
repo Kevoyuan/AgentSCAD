@@ -1,5 +1,8 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+import { englishTranslator, type Translator } from '@/lib/i18n'
+
 /*
  * 检验 — DESIGN.md section 6, "Checks", and section 18, "Honesty rules".
  *
@@ -22,20 +25,20 @@ import { Verdict, OutputRow, RevCell, formatBytes, VerdictTone } from './instrum
 
 /** rule_name -> the words a machinist would use. Unknown rules keep their own name. */
 const RULE_LABELS: Record<string, string> = {
-  'OpenSCAD Compile': 'OpenSCAD 可编译',
-  'Bounding Box Match': '外形尺寸符合意图',
-  'Connected Components': '零件连成一体',
-  'Manifold Geometry': '流形几何',
-  'Minimum Wall Thickness': '最小壁厚',
-  'Maximum Dimensions': '最大外形',
-  'Through-Hole Count': '通孔数量',
-  'Semantic Geometry Match': '几何符合描述',
-  'Design Intent Preservation': '设计意图保持',
-  'Visual Design Intent Match': '外观符合描述',
-  'Wall Thickness': '壁厚',
-  'Semantic': '语义检查',
-  'Visual': '外观检查',
-  'Size': '尺寸检查',
+  'OpenSCAD Compile': "OpenSCAD compiles",
+  'Bounding Box Match': "Dimensions match intent",
+  'Connected Components': "Connected part",
+  'Manifold Geometry': "Manifold geometry",
+  'Minimum Wall Thickness': "Minimum wall thickness",
+  'Maximum Dimensions': "Maximum dimensions",
+  'Through-Hole Count': "Through-hole count",
+  'Semantic Geometry Match': "Geometry matches description",
+  'Design Intent Preservation': "Design intent preserved",
+  'Visual Design Intent Match': "Appearance matches description",
+  'Wall Thickness': "Wall thickness",
+  'Semantic': "Semantic check",
+  'Visual': "Visual check",
+  'Size': "Dimension check",
 }
 
 /** Rules that only a human or a model can decide — not a geometry failure. */
@@ -54,15 +57,15 @@ function classify(result: ValidationResult): VerdictRow {
   const label = RULE_LABELS[result.rule_name] || result.rule_name
   const detail = result.message
 
-  if (status === 'PASS') return { key: result.rule_id, label, word: '通过', tone: 'pass', detail }
-  if (status === 'WARN') return { key: result.rule_id, label, word: '注意', tone: 'warn', detail }
+  if (status === 'PASS') return { key: result.rule_id, label, word: "Pass", tone: 'pass', detail }
+  if (status === 'WARN') return { key: result.rule_id, label, word: "Review", tone: 'warn', detail }
 
   // FAIL / ERROR. A critical geometry failure is a real failure; an advisory rule
   // that merely disagrees is a warning, not a red light on a manufacturable part.
   if (result.is_critical && !ADVISORY_RULES.has(result.rule_name)) {
-    return { key: result.rule_id, label, word: '未通过', tone: 'fail', detail }
+    return { key: result.rule_id, label, word: "Fail", tone: 'fail', detail }
   }
-  return { key: result.rule_id, label, word: '注意', tone: 'warn', detail }
+  return { key: result.rule_id, label, word: "Review", tone: 'warn', detail }
 }
 
 export function ChecksModule({
@@ -84,6 +87,8 @@ export function ChecksModule({
   /** the separate user-triggered VLM path */
   onVisualRepair?: () => void
 }) {
+  const { t } = useI18n()
+
   const results = React.useMemo(
     () => parseJSON<ValidationResult[]>(job.validationResults, []),
     [job.validationResults]
@@ -117,12 +122,12 @@ export function ChecksModule({
   const built = Boolean(job.stlPath)
 
   const hintText = isProcessing
-    ? '排队中'
+    ? t("Queued")
     : results.length === 0
-      ? '未检验'
+      ? t("Not checked")
       : unrun > 0
-        ? `${passed} / ${verdicts.length} 通过 · ${unrun} 项未运行`
-        : `${passed} / ${verdicts.length} 通过`
+        ? t("{0} / {1} passed · {2} not run", { 0: passed, 1: verdicts.length, 2: unrun })
+        : t("{0} / {1} passed", { 0: passed, 1: verdicts.length })
 
   return (
     <div className="px-[11px] pb-[11px]">
@@ -130,11 +135,11 @@ export function ChecksModule({
       <div className="pt-[3px]">
         {verdicts.length === 0 ? (
           <p className="py-2 text-[11.5px] text-[var(--shell-text-dim)]">
-            {isProcessing ? '检验正在排队，几何渲染完成后开始。' : '还没有检验结论。生成一次后会出现在这里。'}
+            {isProcessing ? t("Checks are queued and will start after rendering.") : t("No check results yet. Generate a part to see them here.")}
           </p>
         ) : (
           verdicts.map(v => (
-            <Verdict key={v.key} label={v.label} word={v.word} tone={v.tone} title={v.detail} />
+            <Verdict key={v.key} label={t(v.label)} word={t(v.word)} tone={v.tone} title={v.detail} />
           ))
         )}
       </div>
@@ -142,7 +147,7 @@ export function ChecksModule({
       {/* A check that cannot run gets one quiet line, never an alarm row. */}
       {unrun > 0 && (
         <p className="mt-[6px] font-mono text-[9px] tracking-[0.06em] text-[var(--shell-text-dim)]">
-          {unrun} 项检验未运行 · 不计入通过
+          {unrun} {t("checks not run · excluded from passes")}
         </p>
       )}
 
@@ -152,7 +157,7 @@ export function ChecksModule({
       {hasBlocker && (onRepair || onVisualRepair) && (
         <div className="mt-[9px] pt-[9px] border-t border-[color:var(--shell-hairline)]">
           <div className="font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--shell-text-label)] mb-[5px]">
-            可以做什么
+            {t("Available actions")}
           </div>
           <div className="flex items-stretch gap-1">
             {onRepair && (
@@ -168,7 +173,7 @@ export function ChecksModule({
                 )}
                 style={{ background: 'var(--shell-well)' }}
               >
-                自动修复
+                {t("Automatic repair")}
               </button>
             )}
             {onVisualRepair && (
@@ -184,7 +189,7 @@ export function ChecksModule({
                 )}
                 style={{ background: 'var(--shell-well)' }}
               >
-                看图修复
+                {t("Visual repair")}
               </button>
             )}
           </div>
@@ -194,27 +199,27 @@ export function ChecksModule({
       {/* ── Outputs ──────────────────────────────────────────────────────── */}
       <div className="mt-[10px] pt-[9px] border-t border-[color:var(--shell-hairline)]">
         <div className="font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--shell-text-label)] mb-[3px]">
-          产出
+          {t("Outputs")}
         </div>
         <OutputRow
-          label="导出 STL"
+          label={t("Export STL")}
           meta={stlSize ? formatBytes(stlSize) : undefined}
           disabled={!built}
-          onClick={() => void downloadArtifact(job, 'stl')}
+          onClick={() => void downloadArtifact(job, 'stl', t)}
         />
         <OutputRow
-          label="导出 OpenSCAD"
-          meta={scadLines ? `${scadLines} 行` : undefined}
+          label={t("Export OpenSCAD")}
+          meta={scadLines ? t("{0} lines", { 0: scadLines }) : undefined}
           disabled={!hasScad}
-          onClick={() => void downloadArtifact(job, 'scad')}
-          secondary={onOpenVersions ? { label: '记录', onClick: onOpenVersions } : undefined}
+          onClick={() => void downloadArtifact(job, 'scad', t)}
+          secondary={onOpenVersions ? { label: t("History"), onClick: onOpenVersions } : undefined}
         />
 
         {/* ── Revision flip-dot pair ─────────────────────────────────────── */}
         <div className="flex gap-[6px] mt-[9px]">
           <RevCell
             dots={3}
-            text={built ? `REV ${revision} · 已构建` : 'REV — · 无'}
+            text={built ? t("REV {0} · Built", { 0: revision }) : t("REV — · None")}
             state={built ? 'built' : 'none'}
             dim={!built}
           />
@@ -222,12 +227,12 @@ export function ChecksModule({
             dots={3}
             text={
               !built
-                ? 'REV — · 待生成'
+                ? t("REV — · Awaiting generation")
                 : isProcessing
-                  ? `REV ${revision + 1} · 重建中`
+                  ? t("REV {0} · Rebuilding", { 0: revision + 1 })
                   : hasDraftChanges
-                    ? `REV ${revision + 1} · 待构建`
-                    : `REV ${revision} · 当前`
+                    ? t("REV {0} · Awaiting build", { 0: revision + 1 })
+                    : t("REV {0} · Current", { 0: revision })
             }
             state={built && (hasDraftChanges || isProcessing) ? 'stale' : 'none'}
             dim={!built || (!hasDraftChanges && !isProcessing)}
@@ -238,14 +243,14 @@ export function ChecksModule({
   )
 }
 
-export function checksModuleHint(job: Job, isProcessing: boolean): string {
-  if (isProcessing) return '排队中'
+export function checksModuleHint(job: Job, isProcessing: boolean, t: Translator = englishTranslator): string {
+  if (isProcessing) return t("Queued")
   const results = parseJSON<ValidationResult[]>(job.validationResults, [])
   const ran = results.filter(r => {
     const s = getValidationEvidenceStatus(r)
     return s !== 'SKIP' && s !== 'NOT_RUN'
   })
-  if (ran.length === 0) return '未检验'
+  if (ran.length === 0) return t("Not checked")
   const passed = ran.filter(r => getValidationEvidenceStatus(r) === 'PASS').length
-  return `${passed} / ${ran.length} 通过`
+  return t("{0} / {1} passed", { 0: passed, 1: ran.length })
 }

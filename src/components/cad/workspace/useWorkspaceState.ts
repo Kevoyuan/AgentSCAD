@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   useSensor, useSensors, PointerSensor, KeyboardSensor,
@@ -27,6 +29,8 @@ import { ActivityEvent, ActivityEventType } from '@/components/cad/job-activity-
 import { copyText } from '@/lib/clipboard'
 
 export function useWorkspaceState() {
+  const { t } = useI18n()
+
   const { theme, setTheme, resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [jobs, setJobs] = useState<Job[]>([])
@@ -257,8 +261,8 @@ export function useWorkspaceState() {
     try {
       const tagsCustomerId = newJobTags.trim() ? buildCustomerId(newJobTags.split(',').map(t => t.trim()).filter(t => t)) : undefined
       const { job } = await createJob(request, tagsCustomerId, newJobModelId)
-      toast.success('CAD generation started', { description: newJobModelId })
-      addNotification('parameter_updated', 'CAD generation started', request.slice(0, 60))
+      toast.success(t("CAD generation started"), { description: newJobModelId })
+      addNotification('parameter_updated', t("CAD generation started"), request.slice(0, 60))
       addActivityEvent('created', request.slice(0, 30), job.id.slice(0, 8), 'Created and started')
       setNewJobText('')
       setNewJobModelId('')
@@ -268,7 +272,7 @@ export function useWorkspaceState() {
       setSelectedJob(job)
       void handleProcess(job)
     } catch {
-      toast.error('Failed to create job')
+      toast.error(t("Failed to create job"))
     } finally {
       setIsCreating(false)
     }
@@ -326,25 +330,25 @@ export function useWorkspaceState() {
         })
         const step = data.step as string
         if (step === 'scad_generated') {
-          toast.success('SCAD Generated', { description: 'Code generated successfully' })
-          addNotification('scad_updated', 'SCAD Generated', `Job ${job.id.slice(0, 8)} - Code generated`)
+          toast.success(t("SCAD Generated"), { description: t("Code generated successfully") })
+          addNotification('scad_updated', t("SCAD Generated"), t("Job {0} - Code generated", { 0: job.id.slice(0, 8) }))
           addActivityEvent('processed', job.inputRequest.slice(0, 30), job.id.slice(0, 8), 'SCAD Generated')
         } else if (step === 'rendered') {
-          toast.success('Rendered', { description: '3D model rendered' })
+          toast.success(t("Rendered"), { description: t("3D model rendered") })
         } else if (step === 'validated') {
-          toast.success('Validated', { description: 'Quality checks passed' })
+          toast.success(t("Validated"), { description: t("Quality checks passed") })
         } else if (step === 'delivered') {
-          toast.success('Delivered!', { description: 'All deliverables ready' })
-          addNotification('job_completed', 'Job Delivered', `Job ${job.id.slice(0, 8)} - All deliverables ready`)
+          toast.success(t("Delivered!"), { description: t("All deliverables ready") })
+          addNotification('job_completed', t("Job Delivered"), t("Job {0} - All deliverables ready", { 0: job.id.slice(0, 8) }))
           addActivityEvent('delivered', job.inputRequest.slice(0, 30), job.id.slice(0, 8), 'Delivered')
         } else if (step === 'validation_failed') {
-          toast.warning('Rendered for review', { description: 'Preview available; checks failed' })
+          toast.warning(t("Rendered for review"), { description: t("Preview available; checks failed") })
         }
       })
       await loadJobs()
     } catch {
-      toast.error('Processing failed')
-      addNotification('job_failed', 'Processing Failed', `Job ${job.id.slice(0, 8)} - An error occurred`)
+      toast.error(t("Processing failed"))
+      addNotification('job_failed', t("Processing Failed"), t("Job {0} - An error occurred", { 0: job.id.slice(0, 8) }))
       addActivityEvent('failed', job.inputRequest.slice(0, 30), job.id.slice(0, 8), 'Processing Failed')
     } finally {
       activeOperationRef.current = null
@@ -358,11 +362,11 @@ export function useWorkspaceState() {
     try {
       const { job: approvedJob } = await resolveJobIntent(job.id, selectedInterpretationId)
       setSelectedJob(prev => prev?.id === job.id ? approvedJob : prev)
-      toast.success('Interpretation confirmed', { description: 'Starting CAD generation with the approved meaning.' })
+      toast.success(t("Interpretation confirmed"), { description: t("Starting CAD generation with the approved meaning.") })
       await handleProcess(approvedJob)
     } catch (error) {
-      toast.error('Could not confirm interpretation', {
-        description: error instanceof Error ? error.message : 'Please try again',
+      toast.error(t("Could not confirm interpretation"), {
+        description: error instanceof Error ? error.message : t("Please try again"),
       })
     }
   }
@@ -395,63 +399,63 @@ export function useWorkspaceState() {
 
         const step = data.step as string
         if (step === 'scad_applied') {
-          toast.success('SCAD applied', { description: 'Rebuilding render...' })
+          toast.success(t("SCAD applied"), { description: t("Rebuilding render...") })
         } else if (step === 'rendered') {
-          toast.success('Rendered', { description: 'Preview updated' })
+          toast.success(t("Rendered"), { description: t("Preview updated") })
         } else if (step === 'validated') {
-          toast.success('Validated', { description: 'Checks passed' })
+          toast.success(t("Validated"), { description: t("Checks passed") })
         } else if (step === 'delivered') {
-          toast.success('Apply complete')
+          toast.success(t("Apply complete"))
         } else if (step === 'validation_failed') {
-          toast.warning('Rendered for review', { description: 'Validation blockers remain' })
+          toast.warning(t("Rendered for review"), { description: t("Validation blockers remain") })
         } else if (step === 'render_failed') {
-          toast.error('Render failed', { description: String(data.error || 'Check SCAD syntax') })
+          toast.error(t("Render failed"), { description: String(data.error || t("Check SCAD syntax")) })
         }
       })
 
       await loadJobs()
     } catch (error) {
-      toast.error('Apply failed', { description: error instanceof Error ? error.message : 'Failed' })
+      toast.error(t("Apply failed"), { description: error instanceof Error ? error.message : t("Failed") })
     } finally {
       activeOperationRef.current = null
       setIsProcessing(false)
       setProcessingJobId(null)
     }
-  }, [loadJobs, toast])
+  }, [loadJobs, toast, t])
 
   const handleDelete = async (id: string) => {
     try {
       await deleteJob(id)
       setSelectedJob(prev => prev?.id === id ? null : prev)
       setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next })
-      toast.success('Job deleted')
+      toast.success(t("Job deleted"))
       await loadJobs()
     } catch {
-      toast.error('Delete failed')
+      toast.error(t("Delete failed"))
     }
   }
 
   const handleDuplicate = async (job: Job) => {
     try {
       const { job: newJob } = await createJob(job.inputRequest, job.customerId ?? undefined, job.modelId ?? undefined)
-      toast.success('Job duplicated')
+      toast.success(t("Job duplicated"))
       await loadJobs()
       setSelectedJob(newJob)
     } catch {
-      toast.error('Duplicate failed')
+      toast.error(t("Duplicate failed"))
     }
   }
 
   const handleCancel = async (job: Job) => {
     try {
       await cancelJob(job.id)
-      toast.success('Job cancelled')
-      addNotification('job_cancelled', 'Job Cancelled', `Job ${job.id.slice(0, 8)} - Cancelled by user`)
+      toast.success(t("Job cancelled"))
+      addNotification('job_cancelled', t("Job Cancelled"), t("Job {0} - Cancelled by user", { 0: job.id.slice(0, 8) }))
       addActivityEvent('failed', job.inputRequest.slice(0, 30), job.id.slice(0, 8), 'Cancelled')
       setCancelTarget(null)
       await loadJobs()
     } catch {
-      toast.error('Cancel failed')
+      toast.error(t("Cancel failed"))
     }
   }
 
@@ -464,17 +468,17 @@ export function useWorkspaceState() {
       const result = await repairJob(job.id)
       setSelectedJob(prev => prev?.id === job.id ? result.job : prev)
       if (result.repaired) {
-        toast.success('Job repaired', { description: result.reason })
-        addNotification('job_completed', 'Auto Repair Complete', `Job ${job.id.slice(0, 8)} restored to delivered`)
+        toast.success(t("Job repaired"), { description: result.reason })
+        addNotification('job_completed', t("Auto Repair Complete"), t("Job {0} restored to delivered", { 0: job.id.slice(0, 8) }))
         addActivityEvent('delivered', job.inputRequest.slice(0, 30), job.id.slice(0, 8), 'Auto repaired')
       } else if (result.recommendation === 'retry') {
-        toast.info('Retry recommended', { description: result.reason })
+        toast.info(t("Retry recommended"), { description: result.reason })
       } else {
-        toast.info('No repair needed', { description: result.reason })
+        toast.info(t("No repair needed"), { description: result.reason })
       }
       await loadJobs()
     } catch (error) {
-      toast.error('Auto repair failed', { description: error instanceof Error ? error.message : 'Failed' })
+      toast.error(t("Auto repair failed"), { description: error instanceof Error ? error.message : t("Failed") })
       await loadJobs()
     } finally {
       activeOperationRef.current = null
@@ -489,27 +493,27 @@ export function useWorkspaceState() {
     setIsProcessing(true)
     setProcessingJobId(job.id)
     try {
-      toast.info('Running visual repair...', { description: 'Analyzing preview image with VLM' })
+      toast.info(t("Running visual repair..."), { description: t("Analyzing preview image with VLM") })
       const result = await visualRepairJob(job.id)
       setSelectedJob(prev => prev?.id === job.id ? result.job : prev)
       if (result.repaired) {
-        toast.success('Visual repair complete', {
-          description: result.repairSummary || `Match: ${((result.visualReport?.overall_visual_match ?? 0) * 100).toFixed(0)}%`,
+        toast.success(t("Visual repair complete"), {
+          description: result.repairSummary || t("Match: {0}%", { 0: ((result.visualReport?.overall_visual_match ?? 0) * 100).toFixed(0) }),
         })
-        addNotification('job_completed', 'Visual Repair Complete', result.repairSummary || '')
+        addNotification('job_completed', t("Visual Repair Complete"), result.repairSummary || '')
         addActivityEvent('delivered', job.inputRequest.slice(0, 30), job.id.slice(0, 8), 'Visually repaired')
       } else if (result.job?.state === 'HUMAN_REVIEW') {
-        toast.warning('Visual repair needs review', {
-          description: result.repairSummary || result.error || 'Rendered artifacts are available, but validation still has blockers.',
+        toast.warning(t("Visual repair needs review"), {
+          description: result.repairSummary || result.error || t("Rendered artifacts are available, but validation still has blockers."),
         })
-        addNotification('job_review', 'Visual Repair Needs Review', result.repairSummary || 'Validation blockers remain')
+        addNotification('job_review', t("Visual Repair Needs Review"), result.repairSummary || t("Validation blockers remain"))
         addActivityEvent('review', job.inputRequest.slice(0, 30), job.id.slice(0, 8), 'Visual repair rendered')
       } else {
-        toast.error('Visual repair failed', { description: result.error || 'Unknown error' })
+        toast.error(t("Visual repair failed"), { description: result.error || t("Unknown error") })
       }
       await loadJobs()
     } catch (error) {
-      toast.error('Visual repair failed', { description: error instanceof Error ? error.message : 'Failed' })
+      toast.error(t("Visual repair failed"), { description: error instanceof Error ? error.message : t("Failed") })
     } finally {
       activeOperationRef.current = null
       setIsProcessing(false)
@@ -526,11 +530,11 @@ export function useWorkspaceState() {
     try {
       const ids = Array.from(selectedIds)
       const { results } = await batchOperation(action, ids)
-      toast.success(`Batch ${action}: ${results.success.length} succeeded${results.failed.length > 0 ? `, ${results.failed.length} failed` : ''}`)
+      toast.success(t("Batch {0}: {1} succeeded{2}", { 0: t(action === 'delete' ? 'Delete' : action === 'cancel' ? 'Cancel' : 'Reprocess'), 1: results.success.length, 2: results.failed.length > 0 ? t(", {0} failed", { 0: results.failed.length }) : '' }))
       setSelectedIds(new Set())
       await loadJobs()
     } catch {
-      toast.error(`Batch ${action} failed`)
+      toast.error(t("Batch {0} failed", { 0: t(action === 'delete' ? 'Delete' : action === 'cancel' ? 'Cancel' : 'Reprocess') }))
     } finally {
       if (action === 'reprocess') {
         activeOperationRef.current = null
@@ -574,18 +578,18 @@ export function useWorkspaceState() {
   }, [selectJob])
 
   const handleQuickView3D = useCallback(() => {
-    toast.info('3D viewer active')
-  }, [])
+    toast.info(t("3D viewer active"))
+  }, [t])
 
   const handleQuickShare = useCallback((job: Job) => {
     const url = `${window.location.origin}?job=${job.id}`
     copyText(url).then((ok) => {
       if (!ok) throw new Error('Clipboard unavailable')
-      toast.success('Link copied to clipboard', { description: `Share link for job ${job.id.slice(0, 8)}` })
+      toast.success(t("Link copied to clipboard"), { description: t("Share link for job {0}", { 0: job.id.slice(0, 8) }) })
     }).catch(() => {
-      toast.error('Failed to copy link')
+      toast.error(t("Failed to copy link"))
     })
-  }, [])
+  }, [t])
 
   // ── Computed Values ───────────────────────────────────────────────────────
 
@@ -638,14 +642,14 @@ export function useWorkspaceState() {
 
   const downloadStl = async (job: Job) => {
     if (!job.stlPath) {
-      toast.error('STL file has not been generated for this job. Please rebuild.')
+      toast.error(t("STL file has not been generated for this job. Please rebuild."))
       return
     }
     if (downloadingStlJobId === job.id) return
 
     setDownloadingStlJobId(job.id)
     const toastId = `stl-download-${job.id}`
-    toast.loading('Fetching binary STL artifact...', { id: toastId })
+    toast.loading(t("Fetching binary STL artifact..."), { id: toastId })
 
     try {
       const res = await fetch(`/api/jobs/${job.id}/artifacts/stl`, {
@@ -671,9 +675,9 @@ export function useWorkspaceState() {
       a.click()
       document.body.removeChild(a)
       setTimeout(() => URL.revokeObjectURL(url), 1000)
-      toast.success('STL model downloaded', { id: toastId, description: filename })
+      toast.success(t("STL model downloaded"), { id: toastId, description: filename })
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Download failed', { id: toastId })
+      toast.error(err instanceof Error ? err.message : t("Download failed"), { id: toastId })
     } finally {
       setDownloadingStlJobId(null)
     }
@@ -690,7 +694,7 @@ export function useWorkspaceState() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    toast.success('SCAD file downloaded')
+    toast.success(t("SCAD file downloaded"))
   }
 
   const exportAllData = () => {
@@ -709,7 +713,7 @@ export function useWorkspaceState() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    toast.success('Data exported', { description: `${allJobs.length} jobs` })
+    toast.success(t("Data exported"), { description: t("{0} jobs", { 0: allJobs.length }) })
   }
 
   const formatUptime = (s: number) => {
@@ -748,10 +752,10 @@ export function useWorkspaceState() {
       undefined,
       (token) => { enhanced += token; setNewJobText(enhanced) },
       () => { setIsAiEnhancing(false) },
-      () => { setIsAiEnhancing(false); toast.error('AI enhancement failed') }
+      () => { setIsAiEnhancing(false); toast.error(t("AI enhancement failed")) }
     )
     setTimeout(() => { if (isAiEnhancing) abort() }, 15000)
-  }, [newJobText, isAiEnhancing])
+  }, [newJobText, isAiEnhancing, t])
 
   // ── Return all state and handlers ─────────────────────────────────────
   return {

@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { StickyNote, Save, Loader2, Eye, EyeOff } from 'lucide-react'
@@ -13,6 +15,8 @@ import { toast } from 'sonner'
 const MAX_CHARS = 2000
 
 export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }) {
+  const { t } = useI18n()
+
   const [notes, setNotes] = useState(job.notes || '')
   const [isSaving, setIsSaving] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
@@ -31,9 +35,9 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
       onUpdate()
       setJustSaved(true)
       setTimeout(() => setJustSaved(false), 2000)
-      toast.success('Notes saved')
+      toast.success(t("Notes saved"))
     } catch {
-      toast.error('Failed to save notes')
+      toast.error(t("Failed to save notes"))
     } finally {
       setIsSaving(false)
     }
@@ -82,7 +86,7 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)]">
         <h3 className="text-eyebrow text-[var(--app-text-muted)] flex items-center gap-1.5">
-          <StickyNote className="w-3.5 h-3.5 text-amber-400" />Notes
+          <StickyNote className="w-3.5 h-3.5 text-amber-400" />{t("Notes")}
         </h3>
         <div className="flex items-center gap-2">
           <span className={`text-xs font-mono tabular-nums ${charColor}`}>
@@ -96,7 +100,7 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.5 }}
                 className="w-1.5 h-1.5 rounded-full bg-emerald-400"
-                title="Auto-saved"
+                title={t("Auto-saved")}
               />
             )}
           </AnimatePresence>
@@ -108,10 +112,10 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
             onClick={() => setShowPreview(!showPreview)}
           >
             {showPreview ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            {showPreview ? 'Edit' : 'Preview'}
+            {showPreview ? t("Edit") : t("Preview")}
           </Button>
           <Button variant="ghost" size="sm" className="h-5 text-xs gap-1 text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]" onClick={handleSave}>
-            <Save className="w-3.5 h-3.5" />Save
+            <Save className="w-3.5 h-3.5" />{t("Save")}
           </Button>
         </div>
       </div>
@@ -139,7 +143,7 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
                 <Textarea
                   value={notes}
                   onChange={(e) => handleChange(e.target.value.slice(0, MAX_CHARS))}
-                  placeholder="Add notes about this job...&#10;&#10;Supports **bold**, *italic*, `code`, and # headers."
+                  placeholder={t("Add notes about this job...\n\nSupports **bold**, *italic*, `code`, and # headers.")}
                   className="min-h-[200px] bg-[var(--app-bg)] border-[color:var(--app-border)] text-xs text-[var(--app-text-secondary)] placeholder:text-[var(--app-text-dim)] resize-y focus:border-amber-500/40"
                 />
               </motion.div>
@@ -148,8 +152,8 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
           {!showPreview && notes.length > 0 && (
             <div className="mt-3 space-y-2">
               <div className="text-xs font-mono tracking-widest text-[var(--app-text-dim)] uppercase flex items-center justify-between">
-                <span>Preview</span>
-                <span className="text-[8px] text-[var(--app-text-dim)]">Supports **bold**, *italic*, `code`</span>
+                <span>{t("Preview")}</span>
+                <span className="text-[8px] text-[var(--app-text-dim)]">{t("Supports **bold**, *italic*, `code`")}</span>
               </div>
               <div
                 className="text-sm text-[var(--app-text-muted)] leading-relaxed whitespace-pre-wrap bg-[var(--app-surface)] rounded-lg p-3 border border-[color:var(--app-border)] max-h-40 overflow-y-auto"

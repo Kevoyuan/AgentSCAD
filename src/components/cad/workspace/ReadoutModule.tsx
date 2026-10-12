@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 /*
  * 读数 — DESIGN.md section 6, "Readout".
  *
@@ -31,6 +33,8 @@ export function ReadoutModule({
   declaredBoundingBox: [number, number, number] | null
   declaredWallThickness: number | null
 }) {
+  const { t, locale } = useI18n()
+
   const render = readRenderLog(job)
   const measuredBox = measuredBoundingBox(job)
   const measuredWall = measuredWallThickness(job)
@@ -42,29 +46,29 @@ export function ReadoutModule({
   const hasGeometry = Boolean(job?.stlPath)
 
   const dims = box
-    ? `${boxIsMeasured ? '' : '目标 '}${formatMeasure(box[0])} × ${formatMeasure(box[1])} × ${formatMeasure(box[2])}`
+    ? `${boxIsMeasured ? '' : t("Target ")}${formatMeasure(box[0])} × ${formatMeasure(box[1])} × ${formatMeasure(box[2])}`
     : '—'
 
   const artifactState = !job
     ? ''
     : hasGeometry
-      ? '已构建'
-      : '待构建'
+      ? t("Built")
+      : t("Awaiting build")
 
   const rows: Array<{ value: string; unit: string; isDim: boolean }> = [
     { value: dims, unit: 'mm', isDim: !box || !boxIsMeasured },
     {
       value: wall !== null
-        ? `${wallIsMeasured ? '壁厚' : '目标 壁厚'} ${formatMeasure(wall)}`
-        : '壁厚 —',
+        ? `${wallIsMeasured ? t("Wall thickness") : t("Target wall thickness")} ${formatMeasure(wall)}`
+        : t("Wall thickness —"),
       unit: 'mm',
       isDim: wall === null || !wallIsMeasured,
     },
     {
       value:
         render.triangles !== null
-          ? `面片 ${render.triangles.toLocaleString('en-US').replace(/,/g, ' ')}`
-          : '面片 —',
+          ? t("Triangles {0}", { 0: render.triangles.toLocaleString(locale).replace(/,/g, ' ') })
+          : t("Triangles —"),
       unit: artifactState,
       isDim: render.triangles === null,
     },

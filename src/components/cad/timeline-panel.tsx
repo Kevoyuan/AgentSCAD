@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { motion } from 'framer-motion'
 import { Clock } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -8,12 +10,14 @@ import { Job, ExecutionLog, parseJSON, formatTime } from './types'
 import { slideInLeft, slideInLeftTransition, staggerContainer, staggerChild, staggerTransition } from './motion-presets'
 
 export function TimelinePanel({ job }: { job: Job }) {
+  const { t, locale } = useI18n()
+
   const logs = parseJSON<ExecutionLog[]>(job.executionLogs, [])
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)]">
-        <h3 className="text-eyebrow text-[var(--app-text-muted)]">Timeline</h3>
+        <h3 className="text-eyebrow text-[var(--app-text-muted)]">{t("Timeline")}</h3>
         <Badge variant="outline" className="text-xs h-4 bg-[var(--app-surface-raised)] text-[var(--app-text-muted)] border-[color:var(--app-border)]">
           {logs.length} events
         </Badge>
@@ -33,7 +37,7 @@ export function TimelinePanel({ job }: { job: Job }) {
               transition={{ ...slideInLeftTransition, delay: i * 0.03 }}
               className="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-[var(--app-hover-subtle)] linear-transition group"
             >
-              <span className="text-[8px] font-mono text-[var(--app-text-dim)] mt-0.5 whitespace-nowrap">{formatTime(log.timestamp)}</span>
+              <span className="text-[8px] font-mono text-[var(--app-text-dim)] mt-0.5 whitespace-nowrap">{formatTime(log.timestamp, locale)}</span>
               <span className={`text-[8px] font-mono px-1 py-0.5 rounded shrink-0 ${
                 log.event.includes('FAILED') ? 'bg-rose-500/10 text-rose-400' :
                 log.event === 'DELIVERED' ? 'bg-lime-500/10 text-lime-400' :
@@ -48,7 +52,7 @@ export function TimelinePanel({ job }: { job: Job }) {
           {logs.length === 0 && (
             <div className="flex flex-col items-center justify-center py-8 text-[var(--app-text-dim)] gap-2">
               <Clock className="w-6 h-6 opacity-30" />
-              <span className="text-xs">No events yet</span>
+              <span className="text-xs">{t("No events yet")}</span>
             </div>
           )}
         </motion.div>

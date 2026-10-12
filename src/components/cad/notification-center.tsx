@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useRef, useEffect, useSyncExternalStore } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createPortal } from 'react-dom'
@@ -78,6 +80,8 @@ function NotificationItem({
   notification: Notification
   onMarkRead: (id: string) => void
 }) {
+
+
   const config = NOTIFICATION_CONFIG[notification.type]
   const Icon = config.icon
 
@@ -132,6 +136,8 @@ export function NotificationCenter({
   onClearActivity,
   onActivityClick,
 }: NotificationCenterProps) {
+  const { t } = useI18n()
+
   const [isOpen, setIsOpen] = useState(false)
   const [activeView, setActiveView] = useState<'notifications' | 'activity'>('notifications')
   const panelRef = useRef<HTMLDivElement>(null)
@@ -168,8 +174,8 @@ export function NotificationCenter({
         variant="ghost"
         size="sm"
         /* DESIGN.md section 21: an icon-only control carries an accessible name. */
-        aria-label={unreadCount > 0 ? `通知，${unreadCount} 条未读` : '通知'}
-        title="通知"
+        aria-label={unreadCount > 0 ? t("Notifications, {0} unread", { 0: unreadCount }) : t("Notifications")}
+        title={t("Notifications")}
         className="h-6 w-6 p-0 rounded-[4px] text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] relative"
         onClick={() => {
           setActiveView(unreadCount > 0 || notifications.length > 0 ? 'notifications' : 'activity')
@@ -209,7 +215,7 @@ export function NotificationCenter({
           <motion.aside
             key="drawer"
             role="dialog"
-            aria-label="通知"
+            aria-label={t("Notifications")}
             initial={{ x: 28, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: 28, opacity: 0 }}
@@ -220,7 +226,7 @@ export function NotificationCenter({
             <div className="flex items-center justify-between px-3 py-2 border-b border-[color:var(--app-border)]">
               <div className="flex items-center gap-2">
                 <Bell className="w-3.5 h-3.5 text-[var(--app-accent-text)]" />
-                <span className="text-sm font-medium text-[var(--app-text-secondary)]">通知</span>
+                <span className="text-sm font-medium text-[var(--app-text-secondary)]">{t("Notifications")} </span>
                 {unreadCount > 0 && (
                   <span className="text-[8px] font-mono px-1.5 py-0.5 rounded-full bg-[var(--app-accent-bg)] text-[var(--app-accent-text)] border border-[color:var(--app-accent-border)]">
                     {unreadCount} new
@@ -235,7 +241,7 @@ export function NotificationCenter({
                     className="h-5 text-[8px] gap-0.5 text-[var(--app-accent-text)] hover:text-[var(--app-accent-text)] px-1"
                     onClick={onMarkAllRead}
                   >
-                    <CheckCheck className="w-2.5 h-2.5" />全部已读
+                    <CheckCheck className="w-2.5 h-2.5" />{t("Mark all as read")}
                   </Button>
                 )}
                 {notifications.length > 0 && (
@@ -245,7 +251,7 @@ export function NotificationCenter({
                     className="h-5 text-[8px] gap-0.5 text-[var(--app-text-muted)] hover:text-[var(--app-text-muted)] px-1"
                     onClick={onClearAll}
                   >
-                    <Trash2 className="w-2.5 h-2.5" />Clear
+                    <Trash2 className="w-2.5 h-2.5" />{t("Clear")}
                   </Button>
                 )}
                 <Button
@@ -268,7 +274,7 @@ export function NotificationCenter({
                 }`}
                 onClick={() => setActiveView('notifications')}
               >
-                通知 {notifications.length > 0 ? notifications.length : ''}
+                {t("Notifications")}{notifications.length > 0 ? notifications.length : ''}
               </button>
               <button
                 className={`h-6 rounded-md px-2 text-[11px] font-medium transition-colors ${
@@ -278,7 +284,7 @@ export function NotificationCenter({
                 }`}
                 onClick={() => setActiveView('activity')}
               >
-                动态 {activityEvents.length > 0 ? activityEvents.length : ''}
+                {t("Activity")}{activityEvents.length > 0 ? activityEvents.length : ''}
               </button>
             </div>
 
@@ -290,8 +296,9 @@ export function NotificationCenter({
                     <div className="w-10 h-10 rounded border border-[color:var(--cad-border-strong)] flex items-center justify-center opacity-40">
                       <Activity className="w-5 h-5 text-[var(--cad-text-muted)]" />
                     </div>
-                    <p className="text-sm text-[var(--app-text-dim)]">No notifications</p>
-                    <p className="text-xs text-[var(--app-text-dim)]">You&apos;re all caught up</p>
+                    <p className="text-sm text-[var(--app-text-dim)]">{t("No notifications")}</p>
+                    <p className="text-xs text-[var(--app-text-dim)]">{t("You're all caught up")}
+</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-[color:var(--app-border)]">

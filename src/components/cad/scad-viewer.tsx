@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useMemo } from 'react'
 import { CheckCircle2, FileCode, Copy, Box } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -9,6 +11,8 @@ import { highlightScad } from '@/lib/scad-highlight'
 import { copyText } from '@/lib/clipboard'
 
 export function ScadViewer({ code }: { code: string | null }) {
+  const { t } = useI18n()
+
   const [copied, setCopied] = useState(false)
 
   const lineCount = useMemo(() => {
@@ -26,7 +30,7 @@ export function ScadViewer({ code }: { code: string | null }) {
       <div className="w-12 h-12 rounded border border-[color:var(--cad-border-strong)] flex items-center justify-center opacity-40">
         <Box className="w-6 h-6" />
       </div>
-      <p className="text-sm">No SCAD source</p>
+      <p className="text-sm">{t("No SCAD source")}</p>
     </div>
   )
 
@@ -43,14 +47,14 @@ export function ScadViewer({ code }: { code: string | null }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)]">
-        <h3 className="text-eyebrow text-[var(--app-text-muted)]">SCAD Source</h3>
+        <h3 className="text-eyebrow text-[var(--app-text-muted)]">{t("SCAD Source")}</h3>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs h-4 bg-[var(--app-surface-raised)] text-[var(--app-text-muted)] border-[color:var(--app-border)]">
             {lineCount} lines
           </Badge>
           <Button variant="ghost" size="sm" className="h-5 text-xs gap-1 text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]" onClick={handleCopy}>
             {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            {copied ? 'Copied!' : 'Copy'}
+            {copied ? t("Copied!") : t("Copy")}
           </Button>
         </div>
       </div>

@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 /*
  * 尺寸 — DESIGN.md section 6, "Dimensions".
  *
@@ -27,12 +29,14 @@ export function DimensionsModule({
   onDraft: (key: string, value: number) => void
   onReset: () => void
 }) {
+  const { t } = useI18n()
+
   const schema = resolveParameterSchema(job)
 
   if (!schema) {
     return (
       <p className="px-[11px] pb-[11px] text-[11.5px] text-[var(--shell-text-dim)]">
-        这个零件还没有尺寸。先生成一次，尺寸会出现在这里。
+        {t("No dimensions yet. Generate this part to see them here.")}
       </p>
     )
   }
@@ -54,7 +58,7 @@ export function DimensionsModule({
         >
           {schema.groups.length > 1 && (
             <div className="font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--shell-text-label)] mb-1">
-              {group.label}
+              {t(group.label)}
             </div>
           )}
           {group.parameters.map(param => {
@@ -98,7 +102,7 @@ export function DimensionsModule({
           onClick={onReset}
           className="mt-[8px] w-full h-[26px] rounded-[4px] border border-dashed border-[color:var(--shell-border)] font-mono text-[9.5px] tracking-[0.1em] text-[var(--shell-text-dim)] hover:text-[var(--shell-signal-soft)] hover:border-[var(--shell-signal)]/50 transition-colors"
         >
-          ↺ 撤销 {changed.size} 项改动
+          {t("↺ Undo")}{changed.size} {t("changes")}
         </button>
       )}
     </div>

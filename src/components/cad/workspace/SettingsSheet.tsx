@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import * as React from 'react'
 import { X } from 'lucide-react'
 import {
@@ -12,21 +14,22 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProviderSettingsPanel } from '@/components/cad/provider-settings-panel'
 import { ThemePanel } from '@/components/cad/theme-panel'
+import { LanguagePanel } from '@/components/cad/language-panel'
 
 /*
  * Settings, per DESIGN.md "Secondary surfaces".
  *
  * The v1 shell spread eight unrelated things across one "Workspace Tools &
  * Preferences" dropdown. Settings now has a single named entry point (the gear
- * on the brand module) and owns exactly two things: which model answers, and
- * how the workspace looks. Export-all lives at the bottom because it is a
+ * on the brand module) and owns model configuration, appearance, and interface
+ * language. Export-all lives at the bottom because it is a
  * maintenance action, not a daily one.
  *
  * The sheet must never clear the composer draft - it renders above the shell
  * and takes no part in the composer's state.
  */
 
-export type SettingsTab = 'providers' | 'theme'
+export type SettingsTab = 'providers' | 'theme' | 'language'
 
 export function SettingsSheet({
   open,
@@ -43,6 +46,8 @@ export function SettingsSheet({
   onProvidersChanged?: () => void
   onExportAllData?: () => void
 }) {
+  const { t } = useI18n()
+
   const [tab, setTab] = React.useState<SettingsTab>(initialTab)
 
   // Opening from a specific entry point (e.g. the first-run provider link)
@@ -64,19 +69,19 @@ export function SettingsSheet({
         <SheetHeader className="px-5 pt-4 pb-3 border-b border-[color:var(--shell-border)]">
           <div className="flex items-center justify-between">
             <SheetTitle className="font-mono text-[10px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)]">
-              设置
+              {t("Settings")}
             </SheetTitle>
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              aria-label="关闭设置"
+              aria-label={t("Close settings")}
               className="w-6 h-6 grid place-items-center rounded-[4px] text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
           <SheetDescription className="font-mono text-[10.5px] text-[var(--shell-text-dim)] leading-[1.6]">
-            哪个模型来回答，以及工作台长什么样。
+            {t("Configure your model, appearance and interface language.")}
           </SheetDescription>
         </SheetHeader>
 
@@ -90,22 +95,31 @@ export function SettingsSheet({
               value="providers"
               className="h-6 px-3 rounded-[4px] font-mono text-[10px] tracking-[0.1em] text-[var(--shell-text-dim)] data-[state=active]:bg-[var(--shell-signal)] data-[state=active]:text-[#1A0F08] data-[state=active]:font-bold"
             >
-              提供方
+              {t("Providers")}
             </TabsTrigger>
             <TabsTrigger
               value="theme"
               className="h-6 px-3 rounded-[4px] font-mono text-[10px] tracking-[0.1em] text-[var(--shell-text-dim)] data-[state=active]:bg-[var(--shell-signal)] data-[state=active]:text-[#1A0F08] data-[state=active]:font-bold"
             >
-              外观
+              {t("Appearance")}
+            </TabsTrigger>
+            <TabsTrigger
+              value="language"
+              className="h-6 px-3 rounded-[4px] font-mono text-[10px] tracking-[0.1em] text-[var(--shell-text-dim)] data-[state=active]:bg-[var(--shell-signal)] data-[state=active]:text-[#1A0F08] data-[state=active]:font-bold"
+            >
+              {t('Language')}
             </TabsTrigger>
           </TabsList>
 
           <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-5 pb-5 pt-3">
-            <TabsContent value="providers" className="mt-0">
+            <TabsContent value="providers" forceMount className="mt-0 data-[state=inactive]:hidden">
               <ProviderSettingsPanel key={providerRevision} onProvidersChanged={onProvidersChanged} />
             </TabsContent>
-            <TabsContent value="theme" className="mt-0">
+            <TabsContent value="theme" forceMount className="mt-0 data-[state=inactive]:hidden">
               <ThemePanel />
+            </TabsContent>
+            <TabsContent value="language" forceMount className="mt-0 data-[state=inactive]:hidden">
+              <LanguagePanel />
             </TabsContent>
           </div>
         </Tabs>
@@ -117,7 +131,7 @@ export function SettingsSheet({
               onClick={onExportAllData}
               className="font-mono text-[10px] tracking-[0.1em] text-[var(--shell-text-dim)] hover:text-[var(--shell-text-muted)] transition-colors"
             >
-              导出全部工作区数据
+              {t("Export all workspace data")}
             </button>
           </div>
         )}

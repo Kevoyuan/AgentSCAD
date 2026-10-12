@@ -142,14 +142,14 @@ export const CANCELABLE_STATES = ['NEW', 'SCAD_GENERATED', 'RENDERED', 'VALIDATE
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 
-export function formatTime(iso: string) {
+export function formatTime(iso: string, locale = 'en') {
   const d = new Date(iso)
-  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
-export function formatDate(iso: string) {
+export function formatDate(iso: string, locale = 'en') {
   const d = new Date(iso)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString(locale, { month: 'short', day: 'numeric' })
 }
 
 export function timeAgo(iso: string) {

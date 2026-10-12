@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { motion } from 'framer-motion'
 import { Beaker, Lightbulb, Globe, Target, Cpu, Layers, Info, Sparkles } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -8,6 +10,8 @@ import { SchemaInfoPanel } from './parameter-panel'
 import { fadeInUp, fadeInUpTransition, staggerContainer, staggerChild, staggerTransition, scaleIn, scaleInTransition } from './motion-presets'
 
 export function ResearchPanel({ job }: { job: Job }) {
+  const { t } = useI18n()
+
   const research = parseJSON<Record<string, unknown> | null>(job.researchResult, null)
   const intent = parseJSON<Record<string, unknown> | null>(job.intentResult, null)
   const design = parseJSON<Record<string, unknown> | null>(job.designResult, null)
@@ -20,8 +24,8 @@ export function ResearchPanel({ job }: { job: Job }) {
         <Sparkles className="w-6 h-6" />
       </div>
       <div className="text-center">
-        <p className="text-sm">No research data yet</p>
-        <p className="text-[13px] text-[var(--app-text-dim)] mt-1">Process a job to generate research</p>
+        <p className="text-sm">{t("No research data yet")}</p>
+        <p className="text-[13px] text-[var(--app-text-dim)] mt-1">{t("Process a job to generate research")}</p>
       </div>
     </div>
   )
@@ -35,7 +39,7 @@ export function ResearchPanel({ job }: { job: Job }) {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-[color:var(--app-border)] px-3 py-1.5">
-        <h3 className="text-eyebrow text-[var(--app-text-muted)]">Research & Intent</h3>
+        <h3 className="text-eyebrow text-[var(--app-text-muted)]">{t("Research & Intent")}</h3>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <motion.div
@@ -113,7 +117,7 @@ export function ResearchPanel({ job }: { job: Job }) {
             >
               <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--app-empty-bg)] border-b border-[color:var(--app-border)]">
                 <Info className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-xs font-mono tracking-wider text-emerald-400 uppercase">Schema Info</span>
+                <span className="text-xs font-mono tracking-wider text-emerald-400 uppercase">{t("Schema Info")}</span>
               </div>
               <div className="p-2.5">
                 <SchemaInfoPanel schemaStr={job.parameterSchema} />

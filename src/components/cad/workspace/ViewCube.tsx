@@ -1,5 +1,8 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+import { englishTranslator, type Translator } from '@/lib/i18n'
+
 import * as React from 'react'
 
 /*
@@ -21,12 +24,12 @@ const FACE_T = 0.62
 const AZ: Record<string, number> = { front: 0, right: 90, back: 180, left: -90 }
 
 const CUBE: Record<string, { label: string; css: string }> = {
-  front: { label: '前', css: 'translateZ(HALFpx)' },
-  back: { label: '后', css: 'rotateY(180deg) translateZ(HALFpx)' },
-  right: { label: '右', css: 'rotateY(90deg) translateZ(HALFpx)' },
-  left: { label: '左', css: 'rotateY(-90deg) translateZ(HALFpx)' },
-  top: { label: '上', css: 'rotateX(90deg) translateZ(HALFpx)' },
-  bottom: { label: '下', css: 'rotateX(-90deg) translateZ(HALFpx)' },
+  front: { label: "Front", css: 'translateZ(HALFpx)' },
+  back: { label: "Back", css: 'rotateY(180deg) translateZ(HALFpx)' },
+  right: { label: "Right", css: 'rotateY(90deg) translateZ(HALFpx)' },
+  left: { label: "Left", css: 'rotateY(-90deg) translateZ(HALFpx)' },
+  top: { label: "Top", css: 'rotateX(90deg) translateZ(HALFpx)' },
+  bottom: { label: "Bottom", css: 'rotateX(-90deg) translateZ(HALFpx)' },
 }
 
 const VIEW_TABLE: Array<[string, number, number]> = [
@@ -40,13 +43,13 @@ const VIEW_TABLE: Array<[string, number, number]> = [
 ]
 
 const VIEW_LABEL: Record<string, string> = {
-  front: '前', back: '后', right: '右', left: '左', top: '上', bottom: '下',
-  'top-front': '前上', 'top-right': '右上', 'top-back': '后上', 'top-left': '左上',
-  'bottom-front': '前下', 'bottom-right': '右下', 'bottom-back': '后下', 'bottom-left': '左下',
-  'front-right': '前右', 'back-right': '后右', 'back-left': '后左', 'front-left': '前左',
-  'tf-right': '等轴 · 前上右', 'tb-right': '等轴 · 后上右',
-  'tb-left': '等轴 · 后上左', 'tf-left': '等轴 · 前上左',
-  'bf-right': '前下右', 'bb-right': '后下右', 'bb-left': '后下左', 'bf-left': '前下左',
+  front: "Front", back: "Back", right: "Right", left: "Left", top: "Top", bottom: "Bottom",
+  'top-front': "Top front", 'top-right': "Top right", 'top-back': "Top back", 'top-left': "Top left",
+  'bottom-front': "Bottom front", 'bottom-right': "Bottom right", 'bottom-back': "Bottom back", 'bottom-left': "Bottom left",
+  'front-right': "Front right", 'back-right': "Back right", 'back-left': "Back left", 'front-left': "Front left",
+  'tf-right': "Isometric · Top front right", 'tb-right': "Isometric · Top back right",
+  'tb-left': "Isometric · Top back left", 'tf-left': "Isometric · Top front left",
+  'bf-right': "Bottom front right", 'bb-right': "Bottom back right", 'bb-left': "Bottom back left", 'bf-left': "Bottom front left",
 }
 
 const norm = (a: number) => ((a % 360) + 360) % 360
@@ -85,20 +88,20 @@ function resolveView(faces: string[]): { rx: number; az: number; name?: string }
  */
 const VERTICAL_STOP_TOLERANCE = 0.25
 
-export function labelFor(rx: number, az: number): string {
+export function labelFor(rx: number, az: number, t: Translator = englishTranslator): string {
   const rxRounded = +rx.toFixed(2)
   const hit =
     byAngle.get(`${rxRounded}|${+norm(az).toFixed(2)}`) ??
     (Math.abs(rxRounded) >= 90 - VERTICAL_STOP_TOLERANCE
       ? byAngle.get(`${rxRounded > 0 ? 90 : -90}|0`)
       : undefined)
-  if (hit) return VIEW_LABEL[hit]
+  if (hit) return t(VIEW_LABEL[hit])
   const d = dirOf(rx, az)
   const parts: string[] = []
-  if (Math.abs(d[2]) > FACE_T) parts.push(d[2] > 0 ? '前' : '后')
-  if (Math.abs(d[0]) > FACE_T) parts.push(d[0] > 0 ? '右' : '左')
-  if (Math.abs(d[1]) > FACE_T) parts.push(d[1] > 0 ? '下' : '上')
-  return '自由视角' + (parts.length ? ' · ' + parts.join('') : '')
+  if (Math.abs(d[2]) > FACE_T) parts.push(d[2] > 0 ? "Front" : "Back")
+  if (Math.abs(d[0]) > FACE_T) parts.push(d[0] > 0 ? "Right" : "Left")
+  if (Math.abs(d[1]) > FACE_T) parts.push(d[1] > 0 ? "Bottom" : "Top")
+  return t("Free view") + (parts.length ? ' · ' + parts.map(part => t(part)).join(' / ') : '')
 }
 
 function rot(v: [number, number, number], rx: number, az: number): [number, number, number] {
@@ -179,6 +182,8 @@ export function ViewCube({
   /** free orbit from dragging the cube itself */
   onChange?: (view: { azimuth: number; elevation: number }) => void
 }) {
+  const { t } = useI18n()
+
   const hostRef = React.useRef<HTMLDivElement>(null)
   const [perspective, setPerspective] = React.useState(400)
   const dragRef = React.useRef({ moved: false })
@@ -286,7 +291,7 @@ export function ViewCube({
         onPointerDown={handlePointerDown}
         onClick={handleClick}
         role="group"
-        aria-label="视角立方体"
+        aria-label={t("View cube")}
       >
         <div
           className="relative"
@@ -327,13 +332,13 @@ export function ViewCube({
                 boxShadow: 'var(--shell-cube-shadow)',
               }}
             >
-              {def.label}
+              {t(def.label)}
             </div>
           ))}
         </div>
       </div>
       <div data-testid="view-cube-label" className="mt-0.5 text-center font-mono text-[8.5px] text-[var(--shell-text-label)]">
-        {labelFor(elevation, azimuth)}
+        {labelFor(elevation, azimuth, t)}
       </div>
     </div>
   )

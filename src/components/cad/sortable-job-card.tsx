@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { CSSProperties, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -36,19 +38,19 @@ interface SortableJobCardProps {
  * HUMAN_REVIEW, and so on. Colour is a secondary signal; the word is primary.
  */
 const STATE_TEXT: Record<string, string> = {
-  NEW: '待生成',
-  SCAD_GENERATED: '待渲染',
-  RENDERED: '已渲染',
-  VALIDATED: '校验通过',
-  DELIVERED: '可导出',
-  DEBUGGING: '修复中',
-  REPAIRING: '修复中',
-  VALIDATION_FAILED: '校验未通过',
-  GEOMETRY_FAILED: '几何失败',
-  RENDER_FAILED: '渲染失败',
-  HUMAN_REVIEW: '待确认',
-  CANCELLED: '已取消',
-  DELETING: '删除中',
+  NEW: "Awaiting generation",
+  SCAD_GENERATED: "Awaiting render",
+  RENDERED: "Rendered",
+  VALIDATED: "Validation passed",
+  DELIVERED: "Ready to export",
+  DEBUGGING: "Repairing",
+  REPAIRING: "Repairing",
+  VALIDATION_FAILED: "Validation failed",
+  GEOMETRY_FAILED: "Geometry failed",
+  RENDER_FAILED: "Render failed",
+  HUMAN_REVIEW: "Needs confirmation",
+  CANCELLED: "Canceled",
+  DELETING: "Deleting",
 }
 const PASS_STATES = ['DELIVERED', 'VALIDATED', 'RENDERED']
 const WARN_STATES = ['HUMAN_REVIEW', 'DEBUGGING', 'REPAIRING', 'SCAD_GENERATED']
@@ -114,6 +116,8 @@ export function SortableJobCard({
   onDuplicate,
   onDelete,
 }: SortableJobCardProps) {
+  const { t } = useI18n()
+
   const {
     attributes,
     listeners,
@@ -150,7 +154,7 @@ export function SortableJobCard({
       role="option"
       aria-selected={isSelected}
       tabIndex={0}
-      aria-label={`${job.inputRequest}，${STATE_TEXT[job.state] ?? job.state}`}
+      aria-label={`${job.inputRequest}, ${t(STATE_TEXT[job.state] ?? job.state)}`}
       className={[
         'group/row relative cursor-pointer border-b border-[color:var(--shell-hairline)] pl-2 pr-2.5 py-2 transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--shell-signal)] focus-visible:ring-inset',
@@ -177,14 +181,14 @@ export function SortableJobCard({
           {...attributes}
           {...listeners}
           onClick={(e) => e.stopPropagation()}
-          aria-label="拖动排序"
+          aria-label={t("Drag to reorder")}
           className="h-5 w-4 grid place-items-center rounded-[3px] cursor-grab text-[var(--shell-text-dim)] hover:text-[var(--shell-text-muted)] active:cursor-grabbing"
         >
           <GripVertical className="w-3 h-3" />
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onToggleSelect(job.id) }}
-          aria-label={isChecked ? '取消选择' : '选择零件'}
+          aria-label={isChecked ? t("Deselect") : t("Select part")}
           className={[
             'h-5 w-5 grid place-items-center rounded-[3px] transition-colors',
             isChecked ? 'text-[var(--shell-signal)]' : 'text-[var(--shell-text-dim)] hover:text-[var(--shell-text-muted)]',
@@ -224,7 +228,7 @@ export function SortableJobCard({
                 ? 'text-[var(--shell-warn)]'
                 : 'text-[var(--shell-text-dim)]'}
             >
-              {STATE_TEXT[job.state] ?? job.state}
+              {t(STATE_TEXT[job.state] ?? job.state)}
             </span>
             {keyDimensions && <span className="truncate text-[var(--shell-text-dim)]">{keyDimensions}</span>}
             <span className="ml-auto shrink-0 tabular-nums text-[var(--shell-text-dim)]">
@@ -269,6 +273,8 @@ export function SortableJobCard({
 // ─── Drag Overlay Card (rendered while dragging) ────────────────────────────
 
 export function DragOverlayCard({ job }: { job: Job }) {
+  const { t } = useI18n()
+
   const keyDimensions = extractKeyDimensions(job)
   return (
     <div className="rounded-[9px] border border-[var(--shell-signal)]/40 bg-[var(--shell-module-solid)] px-3 py-2.5 shadow-[0_22px_46px_-12px_rgba(0,0,0,0.7)]">
@@ -276,7 +282,8 @@ export function DragOverlayCard({ job }: { job: Job }) {
         {job.inputRequest}
       </p>
       <div className="mt-1 flex items-center gap-2 font-mono text-[9.5px] text-[var(--shell-text-dim)]">
-        <span>{STATE_TEXT[job.state] ?? job.state}</span>
+        <span>{t(STATE_TEXT[job.state] ?? job.state)}
+</span>
         {keyDimensions && <span>{keyDimensions}</span>}
       </div>
     </div>

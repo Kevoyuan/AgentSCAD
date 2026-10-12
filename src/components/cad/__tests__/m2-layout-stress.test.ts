@@ -191,7 +191,7 @@ describe("M2 Layout & Zero Horizontal Overflow Stress Tests", () => {
       // notifications are the only two utility entry points, and the seven-item
       // tools dropdown is gone.
       expect(content).toContain("SettingsSheet");
-      expect(content).toContain('aria-label="设置"');
+      expect(content).toContain("aria-label={t(\"Settings\")}");
       expect(content).not.toContain("WorkspaceToolsMenu");
     });
 
@@ -205,7 +205,7 @@ describe("M2 Layout & Zero Horizontal Overflow Stress Tests", () => {
       expect(content).toContain('className="cad-left-panel min-w-0 overflow-hidden"');
 
       // Wraps with PanelErrorBoundary
-      expect(content).toContain('<PanelErrorBoundary panelName="Job List"');
+      expect(content).toContain("<PanelErrorBoundary panelName={t(\"Job List\")}");
 
       // Batch action bar: quiet ruled strip, wraps, and carries the contextual
       // statistics/comparison actions from DESIGN.md "Secondary surfaces".
@@ -219,7 +219,7 @@ describe("M2 Layout & Zero Horizontal Overflow Stress Tests", () => {
 
       // Labels are always visible now: the bar is a quiet strip of small mono
       // actions, not a toolbar that has to shed text on narrow widths.
-      expect(content).toContain("已选");
+      expect(content).toContain("selected");
     });
 
     test("ViewerPanel declares min-w-0 and isolated PanelErrorBoundary", () => {
@@ -237,7 +237,7 @@ describe("M2 Layout & Zero Horizontal Overflow Stress Tests", () => {
       expect(content).toContain("overflow-hidden");
 
       // Wraps with PanelErrorBoundary
-      expect(content).toContain('<PanelErrorBoundary panelName="3D Viewport"');
+      expect(content).toContain("<PanelErrorBoundary panelName={t(\"3D Viewport\")}");
 
       // Replaces QuickStartDashboard with CadViewportEmptyState
       expect(content).not.toContain("<QuickStartDashboard");
@@ -259,7 +259,7 @@ describe("M2 Layout & Zero Horizontal Overflow Stress Tests", () => {
       expect(content).toContain('className="cad-inspector-panel min-w-0 overflow-hidden"');
 
       // Wraps with PanelErrorBoundary
-      expect(content).toContain('<PanelErrorBoundary panelName="Inspector"');
+      expect(content).toContain("<PanelErrorBoundary panelName={t(\"Inspector\")}");
 
       // TabsList has overflow-x-auto to prevent tab explosion on narrow inspector
       expect(content).toContain("overflow-x-auto overflow-y-hidden");
@@ -308,7 +308,7 @@ describe("M2 Layout & Zero Horizontal Overflow Stress Tests", () => {
       // utility entry points. Statistics and comparison are contextual to a
       // multi-select in the slots rail; the rest are keystrokes.
       expect(shell).toContain("SettingsSheet");
-      expect(shell).toContain('aria-label="设置"');
+      expect(shell).toContain("aria-label={t(\"Settings\")}");
       expect(shell).not.toContain("WorkspaceToolsMenu");
 
       const list = readFileSync(resolve(srcDir, "workspace/JobListPanel.tsx"), "utf-8");

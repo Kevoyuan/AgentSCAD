@@ -1,5 +1,7 @@
 'use client'
 
+import { useI18n } from '@/components/i18n-provider'
+
 import { useState, useCallback, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -215,6 +217,8 @@ export function SearchFilterPanel({
   allJobs,
   stateCounts,
 }: SearchFilterPanelProps) {
+  const { t } = useI18n()
+
   const [expanded, setExpanded] = useState(false)
   const activeCount = countActiveFilters(filters)
 
@@ -261,7 +265,7 @@ export function SearchFilterPanel({
           <Input
             value={filters.search}
             onChange={e => updateFilter('search', e.target.value)}
-            placeholder="Search designs..."
+            placeholder={t("Search designs...")}
             /* `shell-field`: focus is this border turning amber, not a ring inside it. */
             className="shell-field h-8 min-w-0 rounded-[7px] border-[var(--app-border-subtle)] bg-[var(--app-input-bg)] pl-8 pr-7 text-xs placeholder:text-[var(--app-text-dim)] focus:border-[var(--shell-signal)]"
             suppressHydrationWarning
@@ -283,7 +287,7 @@ export function SearchFilterPanel({
                 size="sm"
                 className={`h-8 w-8 shrink-0 rounded-[7px] p-0 relative border transition-all active:scale-[0.98] ${expanded ? 'border-[color:var(--app-accent-border)] bg-[var(--app-accent-bg)] text-[var(--app-accent-text)] shadow-[0_0_0_3px_var(--app-focus-ring)]' : 'border-[color:var(--app-border-subtle)] text-[var(--app-text-muted)] hover:border-[color:var(--app-border)] hover:bg-[var(--app-surface-hover)] hover:text-[var(--app-text-secondary)]'}`}
                 onClick={() => setExpanded(!expanded)}
-                aria-label="Filter and sort"
+                aria-label={t("Filter and sort")}
                 aria-expanded={expanded}
               >
                 <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -294,7 +298,7 @@ export function SearchFilterPanel({
                 )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent><p className="text-xs">Filter & Sort</p></TooltipContent>
+            <TooltipContent><p className="text-xs">{t("Filter & Sort")}</p></TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
@@ -313,7 +317,7 @@ export function SearchFilterPanel({
               <div className="space-y-3">
                 {/* Status lives in here. DESIGN.md section 6: filters open from one
                     action rather than permanently consuming module height. */}
-                <FilterSection label="Status">
+                <FilterSection label={t("Status")}>
                   <div className="flex flex-wrap items-center gap-1 rounded-[7px] bg-[var(--app-bg)] p-1">
                     {FILTER_STATES.map(f => {
                       const totalFiltered = Object.values(stateCounts).reduce((a, b) => a + b, 0)
@@ -336,7 +340,7 @@ export function SearchFilterPanel({
                           aria-pressed={isOn}
                         >
                           <span className="block truncate">
-                            {f.label}
+                            {t(f.label)}
                             {count > 0 ? ` ${count}` : ''}
                           </span>
                         </button>
@@ -345,7 +349,7 @@ export function SearchFilterPanel({
                   </div>
                 </FilterSection>
 
-                <FilterSection label="Date range">
+                <FilterSection label={t("Date range")}>
                   <div className="grid grid-cols-2 gap-1 rounded-[7px] bg-[var(--app-bg)] p-1">
                     {DATE_OPTIONS.map(opt => (
                       <button
@@ -353,7 +357,8 @@ export function SearchFilterPanel({
                         className={chipClass(filters.dateRange === opt.key)}
                         onClick={() => updateFilter('dateRange', opt.key as FilterState['dateRange'])}
                       >
-                        <span className="block truncate">{opt.label}</span>
+                        <span className="block truncate">{t(opt.label)}
+</span>
                       </button>
                     ))}
                   </div>
@@ -365,7 +370,7 @@ export function SearchFilterPanel({
                         onChange={e => updateFilter('dateFrom', e.target.value || null)}
                         className="h-8 min-w-0 rounded-[7px] border-[color:var(--app-border-subtle)] bg-[var(--app-input-bg)] text-[12px] text-[var(--app-text-secondary)]"
                       />
-                      <span className="sr-only">to</span>
+                      <span className="sr-only">{t("to")}</span>
                       <Input
                         type="date"
                         value={filters.dateTo || ''}
@@ -377,13 +382,13 @@ export function SearchFilterPanel({
                 </FilterSection>
 
                 {/* Part Family */}
-                <FilterSection label="Part family">
+                <FilterSection label={t("Part family")}>
                   <div className="flex items-center gap-1 flex-wrap rounded-[7px] bg-[var(--app-bg)] p-1">
                     <button
                       className={chipClass(!filters.partFamily)}
                       onClick={() => updateFilter('partFamily', null)}
                     >
-                      All
+                      {t("All")}
                     </button>
                     {partFamilies.map(pf => (
                       <button
@@ -399,13 +404,13 @@ export function SearchFilterPanel({
                 </FilterSection>
 
                 {/* Builder Name */}
-                <FilterSection label="Builder">
+                <FilterSection label={t("Builder")}>
                   <div className="flex items-center gap-1 flex-wrap rounded-[7px] bg-[var(--app-bg)] p-1">
                     <button
                       className={chipClass(!filters.builderName)}
                       onClick={() => updateFilter('builderName', null)}
                     >
-                      All
+                      {t("All")}
                     </button>
                     {builderNames.map(bn => (
                       <button
@@ -421,7 +426,7 @@ export function SearchFilterPanel({
                 </FilterSection>
 
                 {/* Sort */}
-                <FilterSection label="Sort by">
+                <FilterSection label={t("Sort by")}>
                   <div className="flex flex-wrap items-center gap-1 rounded-[7px] bg-[var(--app-bg)] p-1">
                     {SORT_OPTIONS.map(opt => (
                       <button
@@ -429,13 +434,14 @@ export function SearchFilterPanel({
                         className={chipClass(filters.sortBy === opt.key)}
                         onClick={() => updateFilter('sortBy', opt.key as FilterState['sortBy'])}
                       >
-                        <span className="block truncate">{opt.label}</span>
+                        <span className="block truncate">{t(opt.label)}
+</span>
                       </button>
                     ))}
                     <button
                       className="h-7 w-7 rounded-[6px] text-[var(--app-text-muted)] hover:bg-[var(--app-surface-hover)] hover:text-[var(--app-text-secondary)] transition-all active:scale-[0.98] flex items-center justify-center"
                       onClick={() => updateFilter('sortOrder', filters.sortOrder === 'asc' ? 'desc' : 'asc')}
-                      title={filters.sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+                      title={filters.sortOrder === 'asc' ? t("Ascending") : t("Descending")}
                     >
                       <ArrowUpDown className={`w-3.5 h-3.5 transition-transform ${filters.sortOrder === 'asc' ? 'rotate-180' : ''}`} />
                     </button>
@@ -456,7 +462,7 @@ export function SearchFilterPanel({
                     onClick={clearAll}
                   >
                     <RotateCcw className="w-3 h-3" />
-                    <span>Clear filters</span>
+                    <span>{t("Clear filters")}</span>
                   </Button>
                 </div>
               )}
