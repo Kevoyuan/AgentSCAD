@@ -2,7 +2,8 @@
 // H001 — Through-Hole Count Check
 //
 // Estimates the number of through-holes in a watertight mesh using the
-// Euler characteristic: genus = (2 - euler) / 2.
+// Euler characteristic: total genus = (2 * componentCount - euler) / 2.
+// This estimates topological handles, not hole diameter, placement, or fit.
 //
 // Only meaningful for watertight meshes. For non-watertight meshes,
 // the check is skipped with an explanation.
@@ -27,8 +28,7 @@ export function checkHoleCount(
     };
   }
 
-  const { genus, vertices, faces, edges } = meshData;
-  const euler = vertices - edges + faces;
+  const { genus, vertices, faces, edges, eulerCharacteristic: euler } = meshData;
 
   if (genus === 0) {
     const hasExpectation = expectedMinHoles !== undefined;

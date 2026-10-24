@@ -95,17 +95,18 @@ def validate_stl(stl_path: str, max_dim: float = 300.0, min_wall: float = 1.2) -
     # ─── Component count ─────────────────────────────────────────────────
     try:
         components = mesh.split(only_watertight=False)
-        component_count = len(components) if components else 1
-    except Exception:
-        component_count = 1
+        component_count = len(components)
+    except Exception as e:
+        return make_error_result(f"Component analysis failed: {e}")
 
     # ─── Euler characteristic ─────────────────────────────────────────────
     try:
-        euler = len(mesh.vertices) - len(mesh.edges) + len(mesh.faces)
-        genus = (2 - euler) // 2 if mesh.is_watertight else 0
-    except Exception:
-        euler = 0
-        genus = 0
+        # mesh.edges contains three directed edges per triangle, not unique edges.
+        # Euler characteristic is additive: chi = 2*C - 2*sum(genus).
+        euler = len(mesh.vertices) - len(mesh.edges_unique) + len(mesh.faces)
+        genus = (2 * component_count - euler) // 2 if mesh.is_watertight else 0
+    except Exception as e:
+        return make_error_result(f"Topology analysis failed: {e}")
 
     # ─── Summary ─────────────────────────────────────────────────────────
     bb = mesh.bounding_box.extents
@@ -308,7 +309,7 @@ def check_manifold(mesh) -> dict:
 
     n_vertices = int(len(mesh.vertices))
     n_faces = int(len(mesh.faces))
-    n_edges = int(len(mesh.edges))
+    n_edges = int(len(mesh.edges_unique))
 
     issues = []
     if not is_watertight:
