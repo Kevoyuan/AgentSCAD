@@ -18,7 +18,7 @@ import { isEphemeralRuntime } from "@/lib/runtime-environment";
 const execAsync = promisify(exec);
 const INSTALL_TIMEOUT_MS = 180_000;
 const VALIDATION_TIMEOUT_MS = 30_000;
-const REQUIRED_PACKAGES = ["trimesh>=4,<5", "numpy>=1.24", "scipy>=1.10", "rtree>=1.2"];
+const REQUIRED_PACKAGES = ["trimesh>=4,<5", "numpy>=1.24", "scipy>=1.10", "rtree>=1.2", "networkx>=3"];
 
 /** Minimum wall thickness for FDM 3D printing (mm). */
 const FDM_MIN_WALL_MM = 1.2;
@@ -163,10 +163,10 @@ function extractAndCacheMeshData(pyOutput: PythonOutput, jobId: string): void {
   // Use Python-computed values when available, otherwise compute from mesh data
   const eulerCharacteristic =
     pyOutput.summary.eulerCharacteristic ?? (vertices - edges + faces);
-  const genus = isWatertight
-    ? (pyOutput.summary.genus ?? Math.max(0, (2 - eulerCharacteristic) / 2))
-    : 0;
   const componentCount = pyOutput.summary.componentCount ?? 1;
+  const genus = isWatertight
+    ? (pyOutput.summary.genus ?? Math.max(0, (2 * componentCount - eulerCharacteristic) / 2))
+    : 0;
 
   const data: RawMeshData = {
     bbox: bbox ? { ...bbox } : null,
@@ -287,7 +287,7 @@ async function pathExists(filePath: string): Promise<boolean> {
 async function pythonHasMeshDependencies(pythonPath: string): Promise<boolean> {
   try {
     await execAsync(
-      `${shellQuote(pythonPath)} -c "import trimesh, numpy, rtree; print(trimesh.__version__)"`,
+      `${shellQuote(pythonPath)} -c "import trimesh, numpy, scipy, rtree, networkx; print(trimesh.__version__)"`,
       { timeout: 10_000 }
     );
     return true;
@@ -344,6 +344,7 @@ async function installManagedMeshValidator(): Promise<MeshValidatorStatus> {
         "- numpy: BSD-3-Clause License",
         "- scipy: BSD-3-Clause License",
         "- rtree: MIT License",
+        "- networkx: BSD-3-Clause License",
         "",
         "These packages are installed in a managed virtual environment and do not modify system Python.",
         "",
