@@ -65,6 +65,7 @@ interface PythonOutput {
     componentCount?: number;
     eulerCharacteristic?: number;
     genus?: number;
+    volume?: number | null;
   };
 }
 
@@ -170,6 +171,7 @@ function extractAndCacheMeshData(pyOutput: PythonOutput, jobId: string): void {
   const genus = isWatertight
     ? (pyOutput.summary.genus ?? Math.max(0, (2 * componentCount - eulerCharacteristic) / 2))
     : 0;
+  const volume = pyOutput.summary.volume ?? null;
 
   const data: RawMeshData = {
     bbox: bbox ? { ...bbox } : null,
@@ -181,6 +183,7 @@ function extractAndCacheMeshData(pyOutput: PythonOutput, jobId: string): void {
     componentCount,
     eulerCharacteristic,
     genus,
+    volume,
   };
 
   meshDataCache.set(jobId, data);
