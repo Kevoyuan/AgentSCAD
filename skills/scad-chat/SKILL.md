@@ -28,7 +28,9 @@ When proposing a full replacement SCAD file or an editable SCAD patch, wrap the 
 
 ## Engineering Reference
 
-- FDM minimum wall thickness: 1.2 mm (structural: 2-3 mm)
+- FDM default wall/feature width: 1.2 mm (structural: 2-3 mm). Preserve specified thin sheet/washer gauge; its printability depends on orientation, layer settings, material and load.
+- For circular mating bores of every diameter (including below 3 mm), use `fit_hole(d, h, center=true, diametral_tolerance=0.02)` from agentscad_std.scad or equivalent local geometry. It uses at least 24 segments, increases resolution to bound polygon oversize, and compensates `d / cos(180/n)` so the minimum clear diameter equals `d`. Keep a local `$fn`; a coarse global `$fn` must not control fitting surfaces. If the library is unavailable, choose `n = max(24, 4*ceil(180/acos(d/(d+0.02))/4))` and subtract `cylinder(d=d/cos(180/n), h=h, center=true, $fn=n)`. Add any requested manufacturing clearance to `d` separately; polygon compensation is not printer shrinkage compensation. Preserve intentional polygon sockets. H001 counts topology only and does not certify diameter or fit.
+- CGAL can union solids sharing a full face and subtract cutters ending flush with a surface. Coplanarity alone is not a defect. Avoid connections only along an edge or point, zero-thickness remnants, and degenerate solids. Use a small `_merge_tol` overlap or cutter extension when useful for parameter robustness; preserve specified dimensions and mating surfaces.
 - Spur gear teeth minimum: 8 for proper meshing
 - Standard pressure angle: 20 degrees
 - FDM clearance: 0.2 mm tight fit, 0.4 mm loose fit

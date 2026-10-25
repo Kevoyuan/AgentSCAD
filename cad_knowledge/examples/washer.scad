@@ -11,7 +11,7 @@ thickness = 2;
 module generated_part() {
   difference() {
     cylinder(h = thickness, d = outer_diameter, center = true, $fn = 64);
-    cylinder(h = thickness + 1, d = inner_diameter, center = true, $fn = 64);
+    fit_hole(h = thickness + 1, d = inner_diameter);
   }
 }
 

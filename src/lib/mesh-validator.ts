@@ -14,6 +14,7 @@ import os from "os";
 import path from "path";
 import type { RawMeshData } from "@/lib/validation/validation-types";
 import { isEphemeralRuntime } from "@/lib/runtime-environment";
+import { parseValidationEvidenceStatus } from "@/lib/validation/evidence-status";
 
 const execAsync = promisify(exec);
 const INSTALL_TIMEOUT_MS = 180_000;
@@ -41,7 +42,7 @@ export interface ValidationResult {
 interface PythonRule {
   id: string;
   name: string;
-  status: "pass" | "warn" | "fail";
+  status: "pass" | "warn" | "fail" | "skip" | "error";
   message: string;
   details: Record<string, unknown>;
 }
@@ -103,6 +104,8 @@ function transformPythonResults(pyOutput: PythonOutput, jobId?: string): Validat
   const results: ValidationResult[] = [];
 
   for (const rule of pyOutput.rules) {
+    const parsedStatus = parseValidationEvidenceStatus(rule.status);
+    const status = parsedStatus ?? "ERROR";
     const meta = RULE_META[rule.id] ?? {
       level: "ENGINEERING",
       is_critical: false,
@@ -112,10 +115,10 @@ function transformPythonResults(pyOutput: PythonOutput, jobId?: string): Validat
       rule_id: rule.id,
       rule_name: rule.name,
       level: meta.level,
-      passed: rule.status !== "fail",
-      status: rule.status === "pass" ? "PASS" : rule.status === "warn" ? "WARN" : "FAIL",
+      passed: status === "PASS" || status === "WARN",
+      status,
       is_critical: meta.is_critical,
-      message: rule.message,
+      message: parsedStatus ? rule.message : `Invalid validator status: ${String(rule.status)}`,
     });
   }
 
@@ -401,9 +404,9 @@ export async function getMeshValidatorStatus(): Promise<MeshValidatorStatus> {
 /**
  * Validate an STL file using real mesh analysis.
  *
- * Uses a fixed manufacturing threshold (FDM_MIN_WALL_MM) for wall thickness,
- * independent of any design-level wall_thickness parameter. The design
- * parameter informs the generator, not the validator.
+ * Uses a fixed manufacturing threshold (FDM_MIN_WALL_MM) for wall/feature
+ * width, independent of the design wall_thickness parameter. The Python
+ * analyzer reports confirmed planar sheet gauge separately as a warning.
  *
  * @param stlPath - Absolute path to the STL file on disk
  * @returns Array of ValidationResult objects matching the frontend interface
@@ -430,8 +433,7 @@ export async function validateStl(
   }
 
   try {
-    // Wall thickness validation uses the FDM manufacturing minimum,
-    // not the design-level wall_thickness parameter.
+    // Pass the wall/feature-width default; Python distinguishes planar sheet gauge.
     const { stdout, stderr } = await execAsync(
       `${shellQuote(validator.pythonPath)} ${shellQuote(scriptPath)} ${shellQuote(stlPath)} --min-wall ${shellQuote(String(FDM_MIN_WALL_MM))}`,
       { timeout: VALIDATION_TIMEOUT_MS }

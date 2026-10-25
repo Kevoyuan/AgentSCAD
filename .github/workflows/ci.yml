@@ -50,7 +50,12 @@ jobs:
         run: bun run typecheck
 
       - name: Unit tests
-        run: bun run test:unit
+        env:
+          AGENTSCAD_MESH_VALIDATOR_PYTHON: /tmp/agentscad-mesh-ci/bin/python
+        run: |
+          python3 -m venv /tmp/agentscad-mesh-ci
+          /tmp/agentscad-mesh-ci/bin/python -m pip install 'trimesh>=4,<5' numpy scipy rtree 'networkx>=3'
+          bun run test:unit
 
       - name: License audit
         run: bun run runtime:openscad:install && bun run license:audit
@@ -81,8 +86,6 @@ jobs:
   openscad-integration:
     name: OpenSCAD Integration
     runs-on: ubuntu-latest
-    continue-on-error: true
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
 
     env:
       NEXT_TELEMETRY_DISABLED: 1
@@ -99,7 +102,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y openscad xvfb python3 python3-pip
-          python3 -m pip install --break-system-packages trimesh numpy scipy rtree
+          python3 -m pip install --break-system-packages 'trimesh>=4,<5' numpy scipy rtree 'networkx>=3'
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2

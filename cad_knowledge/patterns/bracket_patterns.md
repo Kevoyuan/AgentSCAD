@@ -11,7 +11,7 @@ Key parameters:
 - `thickness`: uniform wall thickness
 - `rib_count`: number of triangular support ribs (0 = no ribs)
 
-Ribs should penetrate both the base and vertical face by at least `_merge_tol` (0.2 mm) for watertight union.
+Ribs must connect to the base and vertical face over a finite area. Full-face contact can union correctly; `_merge_tol` (0.2 mm) overlap is an optional robustness allowance.
 
 ## Mounting Bracket Pattern
 
@@ -32,7 +32,7 @@ Any bracket with triangular ribs for structural reinforcement.
 Rules:
 - Rib thickness ≥ wall thickness × 0.8
 - Ribs should extend at least 60% of the face height
-- Ribs must overlap both faces by `_merge_tol`
+- Ribs must meet both faces over a finite area; use `_merge_tol` only when needed to preserve connectivity under parameter edits
 - Maximum rib spacing: ~10x wall thickness
 
 ## Design Rules

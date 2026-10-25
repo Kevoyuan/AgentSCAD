@@ -12,7 +12,7 @@
     "doctor": "bun scripts/doctor.ts",
     "test": "bun run test:unit",
     "test:unit": "bun test --timeout 10000 --path-ignore-patterns='**/*.openscad.test.ts' --path-ignore-patterns='**/*.wasm.test.ts'",
-    "test:openscad": "bun test --timeout 60000 src/lib/tools/__tests__/scad-renderer.openscad.test.ts",
+    "test:openscad": "bun test --timeout 60000 src/lib/tools/__tests__/scad-renderer.openscad.test.ts src/lib/tools/__tests__/cad-manufacturing.openscad.test.ts",
     "test:wasm": "bun run runtime:openscad:install && bun test --timeout 180000 src/lib/tools/__tests__/scad-renderer.wasm.test.ts",
     "test:all": "bun test --timeout 30000",
     "typecheck": "next typegen && tsc --noEmit",

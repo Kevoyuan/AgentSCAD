@@ -33,19 +33,8 @@ export interface ValidationResult {
   status?: 'PASS' | 'WARN' | 'FAIL' | 'SKIP' | 'ERROR' | 'NOT_RUN'
 }
 
-export type ValidationEvidenceStatus = NonNullable<ValidationResult['status']>
-
-const VALIDATION_EVIDENCE_STATUSES = new Set<ValidationEvidenceStatus>([
-  'PASS', 'WARN', 'FAIL', 'SKIP', 'ERROR', 'NOT_RUN',
-])
-
-/** Normalize new status-aware payloads while preserving legacy stored jobs. */
-export function getValidationEvidenceStatus(result: ValidationResult): ValidationEvidenceStatus {
-  const explicit = result.status?.toUpperCase() as ValidationEvidenceStatus | undefined
-  if (explicit && VALIDATION_EVIDENCE_STATUSES.has(explicit)) return explicit
-  if (/^skipped\b/i.test(result.message.trim())) return 'SKIP'
-  return result.passed ? 'PASS' : 'FAIL'
-}
+export { getValidationEvidenceStatus } from '@/lib/validation/evidence-status'
+export type { ValidationEvidenceStatus } from '@/lib/validation/evidence-status'
 
 export interface ExecutionLog {
   timestamp: string
