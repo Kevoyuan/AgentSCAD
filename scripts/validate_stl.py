@@ -110,6 +110,12 @@ def validate_stl(stl_path: str, max_dim: float = 300.0, min_wall: float = 1.2) -
     except Exception as e:
         return make_error_result(f"Topology analysis failed: {e}")
 
+    # ─── Enclosed volume (watertight solids only) ─────────────────────────
+    # A watertight closed solid has a well-defined volume. Open or non-watertight
+    # meshes have no reliable enclosed volume, so we leave it None and let the
+    # manifold check (R003) and the downstream degenerate check skip accordingly.
+    volume = float(mesh.volume) if mesh.is_watertight else None
+
     # ─── Summary ─────────────────────────────────────────────────────────
     bb = mesh.bounding_box.extents
     passed = sum(1 for r in rules if r["status"] == "pass")
@@ -134,6 +140,7 @@ def validate_stl(stl_path: str, max_dim: float = 300.0, min_wall: float = 1.2) -
     summary["componentCount"] = component_count
     summary["eulerCharacteristic"] = euler
     summary["genus"] = genus
+    summary["volume"] = round(volume, 6) if volume is not None else None
 
     return {"rules": rules, "summary": summary}
 

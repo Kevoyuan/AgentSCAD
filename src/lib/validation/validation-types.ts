@@ -41,4 +41,6 @@ export interface RawMeshData {
   componentCount: number;
   eulerCharacteristic: number;
   genus: number; // through-hole count estimate (only valid if watertight)
+  /** Enclosed volume in mm³. Only populated for watertight solids; null otherwise. */
+  volume?: number | null;
 }

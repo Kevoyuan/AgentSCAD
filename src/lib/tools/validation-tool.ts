@@ -8,6 +8,7 @@ import { validatePreviewAgainstRequest } from "@/lib/visual-validator";
 import { checkCompile } from "@/lib/validation/compile-check";
 import { checkBoundingBox } from "@/lib/validation/bbox-check";
 import { checkComponents } from "@/lib/validation/component-check";
+import { checkDegenerateGeometry } from "@/lib/validation/degeneracy-check";
 import { checkHoleCount, inferExpectedMinimumHoleCount } from "@/lib/validation/hole-check";
 import { computeReport } from "@/lib/validation/report";
 import type { ValidationCheck, ValidationReport } from "@/lib/validation/validation-types";
@@ -46,6 +47,7 @@ export interface ValidateRenderedInput {
  * - Compile check (C001 — render log analysis)
  * - Bounding box check (B001 — vs validation_targets.expected_bbox)
  * - Component check (C002 — floating parts detection)
+ * - Degenerate geometry check (B002 — zero-material / near-zero-thickness hull)
  * - Hole count check (H001 — Euler characteristic genus estimate)
  */
 export async function validateRenderedArtifacts(
@@ -93,6 +95,7 @@ async function runRenderedValidation(
       checkBoundingBox(meshData, input.validationTargets?.expected_bbox)
     );
     additionalChecks.push(checkComponents(meshData, input.validationTargets));
+    additionalChecks.push(checkDegenerateGeometry(meshData));
 
     // Estimate required holes from validation targets
     const expectedMinHoles = inferExpectedMinimumHoleCount(
