@@ -52,7 +52,7 @@ Prefer library modules over raw `cube()`/`cylinder()`/`difference()` chains. The
 | Module | Parameters | Description |
 |---|---|---|
 | `fit_hole(d, h, center, diametral_tolerance)` | `d` (minimum clear diameter), `h` (cutter height), `center` (default true), `diametral_tolerance` (default 0.02 mm) | Compensated round bore cutter, local adaptive resolution ≥24; no automatic height extension |
-| `screw_hole(d, h, countersink, csink_d, csink_angle, center)` | `d` (hole diameter), `h` (depth through part), `countersink` (default false), `csink_d` (default `d*2`), `csink_angle` (default 90), `center` (default true) | Nominal depth `h` spans `[-h/2,h/2]`; set `center=false` for `[0,h]`. Cutter extends beyond both ends; optional countersink at the upper face |
+| `screw_hole(d, h, countersink, csink_d, csink_angle, center)` | `d` (hole diameter), `h` (depth through part), `countersink` (default false), `csink_d` (default `d*2`), `csink_angle` (default 90), `center` (default true) | Nominal depth `h` spans `[-h/2,h/2]`; set `center=false` for `[0,h]`. Cutter extends beyond both ends; optional countersink at the upper face: `csink_d` is its minimum clear opening and `csink_angle` is the included angle in degrees (0 < angle < 180, `csink_d > d`) |
 | `bolt_pattern_rect(width, height, hole_d, margin, thickness, center)` | `width`, `height`, `hole_d`, `margin`, `thickness`, `center` (default true) | Four compensated through-hole cutters without children; optional children replace each cutter. With `center=false`, positions are measured from the plate minimum x/y corner and the cutter spans `[0,thickness]` |
 
 ### Brackets

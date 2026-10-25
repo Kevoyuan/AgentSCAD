@@ -14,6 +14,10 @@ const mesh = (overrides: Partial<RawMeshData> = {}): RawMeshData => ({
   eulerCharacteristic: 2,
   genus: 0,
   volume: 12500,
+  componentGeometry: [{
+    minExtent: overrides.bbox ? Math.min(overrides.bbox.length, overrides.bbox.width, overrides.bbox.height) : 5,
+    volume: overrides.volume !== undefined ? overrides.volume : 12500,
+  }],
   ...overrides,
 });
 
@@ -51,8 +55,8 @@ describe("B002 degenerate geometry sanity", () => {
     expect(result.status).toBe("SKIP");
   });
 
-  test("skips when no bounding box is present", () => {
-    const result = checkDegenerateGeometry(mesh({ bbox: null }));
+  test("skips legacy mesh summaries without oriented component evidence", () => {
+    const result = checkDegenerateGeometry(mesh({ componentGeometry: undefined }));
     expect(result.status).toBe("SKIP");
   });
 
@@ -76,4 +80,17 @@ describe("B002 degenerate geometry sanity", () => {
     );
     expect(result.status).toBe("PASS");
   });
+});
+
+
+test("B002 cannot hide a sliver beside a healthy component", () => {
+  const result = checkDegenerateGeometry(mesh({ componentCount: 2, componentGeometry: [
+    { minExtent: 5, volume: 12500 }, { minExtent: 0.0001, volume: 0.12 },
+  ] }));
+  expect(result.status).toBe("FAIL");
+});
+
+test("B002 does not label partial or invalid measurements as passing", () => {
+  expect(checkDegenerateGeometry(mesh({ componentCount: 2 })).status).toBe("SKIP");
+  expect(checkDegenerateGeometry(mesh({ componentGeometry: [{ minExtent: NaN, volume: 1 }] })).status).toBe("SKIP");
 });

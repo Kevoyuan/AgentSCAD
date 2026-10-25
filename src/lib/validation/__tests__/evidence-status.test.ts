@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { getValidationEvidenceStatus, parseValidationEvidenceStatus } from "@/lib/validation/evidence-status";
 import { getValidationEvidenceStatus as clientEvidenceStatus } from "@/components/cad/types";
-import { inferExpectedMinimumHoleCount } from "@/lib/validation/hole-check";
+import { checkHoleTargets, checkHoleCount, inferExpectedMinimumHoleCount } from "@/lib/validation/hole-check";
 import { computeReport } from "@/lib/validation/report";
 
 describe("validation evidence status", () => {
@@ -57,4 +57,50 @@ describe("hole expectation parsing", () => {
     expect(inferExpectedMinimumHoleCount(["两个通孔"])).toBe(2);
     expect(inferExpectedMinimumHoleCount(["single connected body"])).toBeUndefined();
   });
+});
+
+
+describe("hole acceptance regressions", () => {
+  test("parses Chinese counts and rejects an actual one-hole part", () => {
+    for (const check of ["4个通孔", "四个安装孔", "十二个通孔", "12个通孔"]) {
+      const expected = inferExpectedMinimumHoleCount([check]);
+      expect(expected).toBe(check.includes("十二") || check.includes("12") ? 12 : 4);
+      expect(checkHoleCount({ isWatertight: true, genus: 1 } as any, expected).status).toBe("FAIL");
+    }
+  });
+  test("does not turn absent, blind, or unspecified holes into required through holes", () => {
+    expect(inferExpectedMinimumHoleCount(["no holes"])).toBe(0);
+    for (const check of ["无孔", "0个通孔", "零个通孔", "0 holes"]) {
+      expect(inferExpectedMinimumHoleCount([check])).toBe(0);
+    }
+    expect(inferExpectedMinimumHoleCount(["four blind holes"])).toBeUndefined();
+    expect(inferExpectedMinimumHoleCount(["四个盲孔"])).toBeUndefined();
+    expect(inferExpectedMinimumHoleCount(["holes are unobstructed"])).toBeUndefined();
+  });
+  test("does not add repeated descriptions of the same hole group", () => {
+    expect(inferExpectedMinimumHoleCount(["four through holes", "all four holes unobstructed"])).toBe(4);
+    expect(inferExpectedMinimumHoleCount(["4 mounting holes", "four mounting holes unobstructed", "one central hole"])).toBe(5);
+  });
+  test("enforces exact zero and rejects malformed count contracts", () => {
+    const data = { isWatertight: true, genus: 1 } as any;
+    expect(checkHoleCount(data, 0, 0).status).toBe("FAIL");
+    expect(checkHoleCount(data, 4, 4).status).toBe("FAIL");
+    expect(checkHoleCount(data, -1).status).toBe("ERROR");
+    expect(checkHoleCount(data, "4" as any).status).toBe("ERROR");
+  });
+});
+
+
+test("structured hole targets override prose and validate untrusted numbers", () => {
+  const data = { isWatertight: true, genus: 1 } as any;
+  const target = { expected_bbox: [], required_feature_checks: ["one hole"], forbidden_failure_modes: [] };
+  expect(checkHoleTargets(data, { ...target, expected_through_holes: 4 }).status).toBe("FAIL");
+  expect(checkHoleTargets(data, { ...target, expected_through_holes: 1 }).status).toBe("PASS");
+  expect(checkHoleTargets(data, { ...target, expected_through_holes: 0 }).status).toBe("FAIL");
+  expect(checkHoleTargets({ ...data, genus: 0 }, { ...target, expected_through_holes: 0 }).status).toBe("PASS");
+  expect(checkHoleTargets({ ...data, genus: 5 }, { ...target, expected_through_holes: 4 }).status).toBe("FAIL");
+  for (const invalid of [null, "4", 1.5, -1, Infinity]) {
+    expect(checkHoleTargets(data, { ...target, expected_through_holes: invalid as any }).status).toBe("ERROR");
+  }
+  expect(inferExpectedMinimumHoleCount(["四个盲孔和两个通孔"])).toBe(2);
 });

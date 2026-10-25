@@ -41,6 +41,8 @@ export interface CadConstraints {
 
 export interface CadValidationTargets {
   expected_bbox: number[];
+  /** Exact topological through-hole count; omit for blind holes or unknown intent. */
+  expected_through_holes?: number;
   required_feature_checks: string[];
   forbidden_failure_modes: string[];
   allow_multiple_components?: boolean;

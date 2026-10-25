@@ -141,6 +141,20 @@ def validate_stl(stl_path: str, max_dim: float = 300.0, min_wall: float = 1.2) -
     summary["eulerCharacteristic"] = euler
     summary["genus"] = genus
     summary["volume"] = round(volume, 6) if volume is not None else None
+    # Preserve full precision and measure each connected shell independently.
+    # A world-axis AABB changes under rotation and a large neighbor can mask a
+    # sliver's volume. Unavailable oriented bounds must not become PASS evidence.
+    geometry = []
+    for component in components:
+        entry = {"minExtent": None, "volume": None}
+        if component.is_watertight:
+            entry["volume"] = abs(float(component.volume))
+            try:
+                entry["minExtent"] = float(min(component.bounding_box_oriented.primitive.extents))
+            except Exception:
+                pass
+        geometry.append(entry)
+    summary["componentGeometry"] = geometry
 
     return {"rules": rules, "summary": summary}
 

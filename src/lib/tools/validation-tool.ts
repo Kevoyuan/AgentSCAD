@@ -9,7 +9,7 @@ import { checkCompile } from "@/lib/validation/compile-check";
 import { checkBoundingBox } from "@/lib/validation/bbox-check";
 import { checkComponents } from "@/lib/validation/component-check";
 import { checkDegenerateGeometry } from "@/lib/validation/degeneracy-check";
-import { checkHoleCount, inferExpectedMinimumHoleCount } from "@/lib/validation/hole-check";
+import { checkHoleTargets } from "@/lib/validation/hole-check";
 import { computeReport } from "@/lib/validation/report";
 import type { ValidationCheck, ValidationReport } from "@/lib/validation/validation-types";
 import type { CadValidationTargets } from "@/lib/harness/types";
@@ -97,11 +97,7 @@ async function runRenderedValidation(
     additionalChecks.push(checkComponents(meshData, input.validationTargets));
     additionalChecks.push(checkDegenerateGeometry(meshData));
 
-    // Estimate required holes from validation targets
-    const expectedMinHoles = inferExpectedMinimumHoleCount(
-      input.validationTargets?.required_feature_checks,
-    );
-    additionalChecks.push(checkHoleCount(meshData, expectedMinHoles));
+    additionalChecks.push(checkHoleTargets(meshData, input.validationTargets));
   }
 
   // Convert ValidationCheck → ValidationResult for backward compat

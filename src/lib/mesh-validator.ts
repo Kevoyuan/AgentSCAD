@@ -66,6 +66,7 @@ interface PythonOutput {
     eulerCharacteristic?: number;
     genus?: number;
     volume?: number | null;
+    componentGeometry?: RawMeshData["componentGeometry"];
   };
 }
 
@@ -184,6 +185,7 @@ function extractAndCacheMeshData(pyOutput: PythonOutput, jobId: string): void {
     eulerCharacteristic,
     genus,
     volume,
+    componentGeometry: pyOutput.summary.componentGeometry,
   };
 
   meshDataCache.set(jobId, data);

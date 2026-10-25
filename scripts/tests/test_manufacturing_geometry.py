@@ -165,6 +165,23 @@ class OpenScadGeometryTests(unittest.TestCase):
                 self.assertEqual(mesh.euler_number, 0)
                 self.assert_through_points(mesh, [(0,0) if centered else (20,15)], 10)
 
+    def test_countersink_opening_and_angle_in_both_coordinate_frames(self):
+        for centered in [True, False]:
+            for angle in [60, 90, 120]:
+                with self.subTest(center=centered, angle=angle):
+                    flag = str(centered).lower()
+                    # Shift a non-centered cube in x/y only, keeping the bore axis at zero.
+                    body = 'cube([20,20,10],center=true)' if centered else 'translate([-10,-10,0]) cube([20,20,10])'
+                    mesh = self.library(f'$fn=6; difference(){{{body}; screw_hole(d=4,h=10,countersink=true,csink_d=8,csink_angle={angle},center={flag});}}')
+                    top = 5 if centered else 10
+                    for depth in [0.001, 0.5]:
+                        theta = np.pi / 32
+                        hits, _, _ = mesh.ray.intersects_location([[0,0,top-depth]], [[np.cos(theta),np.sin(theta),0]])
+                        clear_diameter = 2 * np.min(np.linalg.norm(hits-[0,0,top-depth],axis=1))
+                        expected = 8 - 2 * depth * np.tan(np.radians(angle/2))
+                        self.assertAlmostEqual(clear_diameter, expected, delta=0.025)
+                    self.assert_through_points(mesh, [(0,0)], top)
+
     def test_enclosure_matches_requested_floor_and_cavity_height(self):
         for centered in [True, False]:
             for radius in [0, 3]:

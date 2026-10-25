@@ -43,4 +43,6 @@ export interface RawMeshData {
   genus: number; // through-hole count estimate (only valid if watertight)
   /** Enclosed volume in mm³. Only populated for watertight solids; null otherwise. */
   volume?: number | null;
+  /** Rotation-independent oriented bounds and volume for each connected shell. */
+  componentGeometry?: Array<{ minExtent: number | null; volume: number | null }>;
 }
