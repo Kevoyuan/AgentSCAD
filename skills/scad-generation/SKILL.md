@@ -133,8 +133,8 @@ You have access to `agentscad_std.scad`. Prefer these modules over raw `cube()`/
 | `rounded_box(size, r, center)` | Box with rounded corners |
 | `cylinder_boss(diameter, height, hole_d, center)` | Cylinder with optional bore |
 | `mounting_plate(width, height, thickness, hole_d, margin, corner_r, center)` | Rectangular plate with 4 corner holes |
-| `screw_hole(d, h, countersink, csink_d, csink_angle)` | Through-hole with optional countersink |
-| `bolt_pattern_rect(width, height, hole_d, margin, thickness)` | 4-hole bolt pattern |
+| `screw_hole(d, h, countersink, csink_d, csink_angle, center)` | Through-hole with optional countersink; default z range is `[-h/2,h/2]`, use `center=false` for a plate starting at z=0 |
+| `bolt_pattern_rect(width, height, hole_d, margin, thickness, center)` | Four through-cutters without children; custom children replace each cutter. Default is centered; use `center=false` for a plate with minimum corner at the origin |
 | `l_bracket(width, height, depth, thickness, rib_count, center)` | L-shaped bracket with optional ribs |
 | `triangular_rib(width, height, thickness)` | Single triangular support rib |
 | `enclosure_box(width, depth, height, wall, corner_r, center)` | Electronics enclosure bottom shell |
@@ -142,7 +142,7 @@ You have access to `agentscad_std.scad`. Prefer these modules over raw `cube()`/
 | `linear_array_x(count, spacing)` | Linear array along X axis |
 | `circular_array(count, radius, start_angle)` | Circular array around Z axis |
 
-Use `_merge_tol = 0.2` for watertight boolean union overlaps.
+Use `_merge_tol = 0.2` as an optional modeling tolerance, not as a requirement for valid coplanar booleans.
 
 ## SCAD Source Rules
 
@@ -156,16 +156,16 @@ Use `_merge_tol = 0.2` for watertight boolean union overlaps.
 8. Use descriptive `snake_case` names; never use one-letter parameter names for user-editable dimensions.
 9. Use `color()` calls on major subassemblies so the preview is visually readable, but keep the model printable and connected.
 10. Prefer composed modules for distinct features. Choose a single body or a multi-part assembly according to the user's request.
-11. Never rely on zero-overlap face contact to connect solids. Parts intended as one printable body must overlap by `_merge_tol` (0.2 mm), or be modeled as one boolean solid. Feet, lips, ribs, brackets, and support posts must penetrate the base by that tolerance rather than merely touching its surface.
-12. Avoid coincident coplanar solids inside `union()`. If two components share a plane or occupy the same volume boundary, offset or overlap them deliberately so OpenSCAD exports a watertight manifold STL.
+11. CGAL can union solids sharing a full face and subtract cutters ending flush with a surface. Coplanarity alone is not a defect. Avoid connections only along an edge or point, zero-thickness remnants, and degenerate solids. Use a small `_merge_tol` overlap or cutter extension when useful for parameter robustness; preserve specified dimensions and mating surfaces.
+12. For circular mating bores of every diameter (including below 3 mm), use `fit_hole(d, h, center=true, diametral_tolerance=0.02)` from agentscad_std.scad or equivalent local geometry. It uses at least 24 segments, increases resolution to bound polygon oversize, and compensates `d / cos(180/n)` so the minimum clear diameter equals `d`. Keep a local `$fn`; a coarse global `$fn` must not control fitting surfaces. If the library is unavailable, choose `n = max(24, 4*ceil(180/acos(d/(d+0.02))/4))` and subtract `cylinder(d=d/cos(180/n), h=h, center=true, $fn=n)`. Add any requested manufacturing clearance to `d` separately; polygon compensation is not printer shrinkage compensation. Preserve intentional polygon sockets. H001 counts topology only and does not certify diameter or fit.
 13. All geometry must be inside a single `module generated_part() { ... }` and called once at the top level with `generated_part();`.
 
 ## Engineering Constraints
 
-- When FDM printing is intended, minimum wall thickness is 1.2 mm.
-- Every FDM printable local feature must be at least 1.2 mm thick/wide, including decorative ribs, relief lines, scrollwork, rims, lips, bridges around holes, nose ridges, tabs, bosses, and connectors.
+- The 1.2 mm FDM default applies to wall/feature width; a planar sheet or washer gauge is a separate design dimension. Preserve an explicitly requested thin gauge, and report the need to review orientation, layer height, material and load. Do not thicken a sheet to silence R001 WARN. Narrow in-plane webs and enclosure walls still require wall-width checks.
+- Use 1.2 mm as the default minimum width for FDM walls, ribs, rims, bridges around holes, tabs and connectors; distinguish width from specified sheet gauge.
 - Prefer 1.6 mm or thicker for decorative details and 2.0 mm or thicker for structural/support features unless the user explicitly asks for a non-printable display-only model.
-- Do not create knife-edge, hairline, zero-thickness, or sub-1.2 mm features. If a requested visual detail would be too thin, simplify, merge, emboss, or thicken it while preserving the design intent.
+- Avoid knife-edge, hairline and zero-thickness features. Review undersized wall/feature widths while preserving explicit sheet dimensions and user intent.
 - Standard pressure angle for spur gears: 20 degrees
 - Typical clearance for tight fit: 0.2 mm; for loose fit: 0.4 mm
 - Corner radii should be at least 2 mm to avoid stress concentrations

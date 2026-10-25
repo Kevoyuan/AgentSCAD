@@ -63,14 +63,15 @@ generated_part();
 7. Fall back to built-in OpenSCAD primitives only when no library module fits.
 8. Avoid reserved keyword variable names, especially `module`, `function`, `if`, `else`, `for`, `let`, `use`, `include`.
 9. Keep dimensions in millimeters unless the input clearly says otherwise.
-10. Maintain FDM-safe defaults: wall thickness at least 1.2 mm, typical fit clearance 0.2-0.4 mm.
+10. The 1.2 mm FDM default applies to wall/feature width; a planar sheet or washer gauge is a separate design dimension. Preserve an explicitly requested thin gauge, and report the need to review orientation, layer height, material and load. Do not thicken a sheet to silence R001 WARN. Narrow in-plane webs and enclosure walls still require wall-width checks. Typical fit clearance is 0.2-0.4 mm when appropriate to the request.
 11. Do not invent new artifact paths, state strings, step strings, or validation result fields.
 12. Do not loosen validation constraints or remove required geometry to fake success.
-13. Overlap unioned solids by `_merge_tol` (0.2 mm) — never rely on coplanar face contact.
+13. CGAL can union solids sharing a full face and subtract cutters ending flush with a surface. Coplanarity alone is not a defect. Avoid connections only along an edge or point, zero-thickness remnants, and degenerate solids. Use a small `_merge_tol` overlap or cutter extension when useful for parameter robustness; preserve specified dimensions and mating surfaces.
 14. For `C001` CGAL `applyHull()` / `convex_hull_3.h` failures, inspect every `hull()` child. Remove empty loop branches and zero-size primitives; ensure each child is a real 3D solid with non-zero volume and that the hull receives enough distinct, non-coplanar geometry. Prefer a simpler union or explicit profile extrusion when a 3D hull remains degenerate.
 15. `Current top level object is empty` means the repaired program must end with at least one unconditional, non-zero-volume top-level solid. Do not merely suppress the failing module call.
-16. Extend subtracted volumes past part surfaces by ≥ 0.5 mm for clean boolean cuts.
-17. All geometry inside `module generated_part() { ... }` called once with `generated_part();`.
+16. Extend through-cutters when needed to remain through-cuts under parameter edits; a flush cutter is not inherently invalid.
+17. For circular mating bores of every diameter (including below 3 mm), use `fit_hole(d, h, center=true, diametral_tolerance=0.02)` from agentscad_std.scad or equivalent local geometry. It uses at least 24 segments, increases resolution to bound polygon oversize, and compensates `d / cos(180/n)` so the minimum clear diameter equals `d`. Keep a local `$fn`; a coarse global `$fn` must not control fitting surfaces. If the library is unavailable, choose `n = max(24, 4*ceil(180/acos(d/(d+0.02))/4))` and subtract `cylinder(d=d/cos(180/n), h=h, center=true, $fn=n)`. Add any requested manufacturing clearance to `d` separately; polygon compensation is not printer shrinkage compensation. Preserve intentional polygon sockets. H001 counts topology only and does not certify diameter or fit.
+18. All geometry inside `module generated_part() { ... }` called once with `generated_part();`.
 
 ## Validation Awareness
 
@@ -89,7 +90,7 @@ AgentSCAD validation results have this shape:
 
 Common rules:
 - C001: OpenSCAD Compile (critical) — syntax errors, empty mesh
-- R001: Minimum Wall Thickness (critical) — walls below 1.2 mm
+- R001: Minimum Wall Thickness — sampled wall/feature width below 1.2 mm is FAIL; confirmed planar sheet gauge below this default is WARN, not an instruction to thicken it. SKIP/ERROR is unavailable measurement.
 - R003: Manifold Geometry (critical) — non-watertight, degenerate faces
 - B001: Bounding Box Match (critical) — size mismatch
 - C002: Connected Components (critical) — floating/disconnected parts
@@ -102,3 +103,12 @@ Repair critical failures first. Each failure message includes a repair hint — 
 - The harness will render with OpenSCAD and re-validate after repair.
 - This skill must not emit SSE, write files, or modify the database.
 - Return only the structured JSON + SCAD code fence.
+
+## Standard Library Coordinate Contract
+
+`screw_hole` and `bolt_pattern_rect` default to `center=true` for compatibility.
+Pass `center=false` to cut through a plate starting at z=0; `h` / `thickness`
+then denotes the full positive-z depth. A bolt pattern without children produces
+four round cutters; supplied children override their shape. Keep cutter and body
+coordinate frames consistent. For `enclosure_box`, `height` is usable internal
+height and `wall` is both the nominal side and bottom thickness.

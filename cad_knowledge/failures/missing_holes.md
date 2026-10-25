@@ -1,26 +1,19 @@
-# Missing Holes
+# Missing or Undersized Holes
 
-## Symptom
-Validation detects fewer holes than expected (hole_count check fails). The user requested N holes but only M < N appear in the rendered part.
+## Symptoms
 
-## Common Causes
+H001 reports fewer topological handles than the required through-hole minimum. Separately, a hole can exist and pass H001 but still be too small for its mating part. H001 does not measure diameter, position, clearance or blind-hole depth.
 
-1. **Hole pattern uses wrong coordinates.** The `for` loop positions holes outside the part body. Check that hole positions are within the part bounds.
-2. **Boolean subtraction order.** Holes are subtracted from the wrong parent solid. Ensure `difference()` wraps the part body AND the holes subtract from it.
-3. **Insufficient deviation (circle resolution).** Low `$fn` values make circular holes look like polygons. Use `$fn = max(32, d * 4)` for clean holes.
-4. **Hole depth too shallow.** The subtracted cylinder doesn't fully penetrate the part. Add `+ 1` or `+ _merge_tol * 2` to hole cylinder height.
+## Causes and Repairs
 
-## Repair Strategy
+1. **Wrong coordinates or subtraction parent.** Verify that the evaluated cutter intersects the intended body. Counting cylinder calls is insufficient: loops, modules and conditional branches change the actual geometry.
+2. **Insufficient depth.** Check that a through-cutter spans both surfaces. A flush cut is valid; extension is a useful allowance for parameter changes, not a mathematical requirement.
+3. **Faceting undersize.** For an even-sided inscribed cylinder, minimum clear diameter is `d*cos(180/n)`. A nominal 6 mm hole with `$fn=6` clears only about 5.196 mm. Increasing resolution and compensating the cutter are fit measures, not missing-hole repairs.
 
-1. Count holes in generated SCAD — count `cylinder` calls inside `difference()` blocks
-2. Verify hole coordinates are inside part bounding box
-3. Verify hole height > part thickness at hole location
-4. Add missing holes at correct positions
-5. Re-validate with hole_count check
+## Circular Mating Holes
 
-## Prevention
+Use `fit_hole(d, h, center=true, diametral_tolerance=0.02)` from agentscad_std.scad. It selects at least 24 segments for all diameters, increases resolution as needed, and uses `d/cos(180/n)` so the minimum clear opening is `d`. Its vertex-to-vertex oversize is bounded by the supplied diametral tolerance. Set resolution locally so a coarse global `$fn` cannot degrade the bore. Keep deliberate hexagonal sockets polygonal.
 
-When generating parts with holes:
-- Use `bolt_pattern_rect()` or `circular_array()` from agentscad_std.scad
-- Always extend hole height past part surface: `h = thickness + 1`
-- Verify `margin` is large enough that holes don't break through edges
+Add requested printer/fit clearance to `d` separately. Polygon compensation does not predict shrinkage or printed fit. Verify rendered hole dimensions or perform a fit test when required; manifold and H001 PASS alone are insufficient.
+
+Reference: [OpenSCAD manual: undersized holes](https://files.openscad.org/documentation/manual/The_OpenSCAD_Language.html).

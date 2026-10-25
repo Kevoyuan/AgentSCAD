@@ -2,6 +2,28 @@ import { afterAll, beforeAll, beforeEach, describe, expect, mock, spyOn, test } 
 import { ModelRequestError } from "@/lib/model-runtime";
 import { GeneratedScadCompileError } from "@/lib/harness/generation-errors";
 
+import { spawnSync } from "node:child_process";
+
+// Bun module replacements survive mock.restore(). Keep all pipeline mocks in
+// a child runner so other suites always import the real modules, in any order.
+if (process.env.AGENTSCAD_PIPELINE_TEST_CHILD === "1") {
+  registerPipelineTests();
+} else {
+  test("executeCadJob regression suite runs with isolated module mocks", () => {
+    const result = spawnSync(process.execPath, ["test", "--timeout", "10000", import.meta.path], {
+      encoding: "utf8",
+      timeout: 30_000,
+      env: {
+        ...process.env,
+        AGENTSCAD_PIPELINE_TEST_CHILD: "1",
+        AGENTSCAD_WEB_RESEARCH: "off",
+      },
+    });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+  }, 30_000);
+}
+
+function registerPipelineTests() {
 const updates: Array<{ where: { id: string }; data: Record<string, unknown> }> = [];
 let currentJob: Record<string, unknown>;
 let generationCalls = 0;
@@ -396,7 +418,7 @@ describe("executeCadJob", () => {
     expect(renderCalls).toBe(0);
     expect(intakeCalls).toBe(0);
     // Research runs before clarification and records its own status on the job (here:
-    // DISABLED, because the test environment has no search backend configured).
+    // DISABLED, explicitly configured by this isolated test runner).
     expect(updates).toHaveLength(2);
     expect(updates[0]?.data).toHaveProperty("researchResult");
     expect(JSON.parse(updates[0]?.data.researchResult as string)).toMatchObject({
@@ -882,3 +904,5 @@ describe("executeCadJob", () => {
     expect(updates.some((update) => update.data.generationPath === "intent_clarification")).toBe(false);
   });
 });
+
+}

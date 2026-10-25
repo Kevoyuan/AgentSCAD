@@ -20,6 +20,6 @@ The generated part contains disconnected components. Validation detects floating
 ## Prevention
 
 - All geometry must be inside a single `union()` in `generated_part()`
-- Features (ribs, bosses, standoffs) must penetrate the base by `_merge_tol`
+- Features (ribs, bosses, standoffs) must connect over a finite face or volume; `_merge_tol` overlap is optional. Distinguish a real gap from valid full-face contact.
 - Use `cylinder_boss()` instead of raw `cylinder()` for standoffs
 - Verify translations are within expected body bounds

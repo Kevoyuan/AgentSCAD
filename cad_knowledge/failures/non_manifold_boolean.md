@@ -1,25 +1,27 @@
 # Non-Manifold Boolean Operations
 
 ## Symptom
-OpenSCAD renders the part but mesh validation reports non-manifold geometry (R003 failure). The STL contains holes, self-intersections, or degenerate triangles.
 
-## Common Causes
+R003 reports a non-watertight mesh, degenerate faces, or a surface that does not enclose a valid volume. Locate the actual defect before changing dimensions.
 
-1. **Coincident faces.** Two solids share exactly the same surface plane. OpenSCAD can't determine inside/outside at the boundary. Fix: overlap solids by `_merge_tol` (0.2 mm).
-2. **Zero-thickness geometry.** A `difference()` creates an infinitely thin wall where two subtracted volumes meet. Fix: avoid subtracting volumes that touch each other inside the part.
-3. **Degenerate triangles.** Extremely narrow faces from minkowski sums with tiny radii. Fix: use `hull()` instead of `minkowski()` for simple roundings, or increase `$fn`.
-4. **Non-closed polyhedron.** Custom polyhedron faces don't form a closed solid. Fix: verify all edges are shared by exactly 2 faces.
+## Causes to Investigate
+
+1. **Edge/point-only connection.** Bodies touching only along an edge or at a point can produce a non-manifold boundary. Provide finite-area contact or a deliberate volume overlap if one solid is intended.
+2. **Zero-thickness remnant.** A cut can leave a sheet or knife edge with no solid thickness. Inspect the resulting geometry; touching cutters do not by themselves prove this defect.
+3. **Degenerate geometry.** Zero-size primitives, collapsed profiles and insufficient non-coplanar points in a 3D `hull()` can fail. Use valid 3D inputs; changing `$fn` is not a universal remedy.
+4. **Invalid polyhedron.** Check face winding, boundary edges, non-manifold vertices, duplicate/zero-area faces and self-intersections.
+
+## Coplanarity Is Not a Diagnosis
+
+CGAL boolean operations can correctly merge solids sharing a full planar face. A through-cutter ending exactly at the two plate surfaces can produce the same volume and triangulation as an extended cutter. Do not claim that OpenSCAD cannot determine inside/outside merely because faces are coplanar. Preview artifacts are not proof that the rendered STL is invalid.
+
+A `_merge_tol` overlap or cutter extension can be useful when computed coordinates or parameter changes introduce a real gap or leave material uncut. It is a modeling allowance, not a requirement for every valid boolean. Do not shift mating surfaces or nominal dimensions without evidence.
 
 ## Repair Strategy
 
-1. Identify the non-manifold location from the validation report
-2. Add `_merge_tol` overlaps between unioned solids
-3. Extend subtracted volumes past part boundaries
-4. Replace problematic geometry patterns: `minkowski` → `hull`, coplanar faces → offset by 0.2 mm
+1. Read the compile log and inspect the exported mesh, not just the preview.
+2. Distinguish a gap, edge/point contact, zero-thickness remnant, self-intersection, and a valid face union.
+3. Repair the identified defect with the smallest change that preserves dimensions and intent.
+4. Render and recheck topology, dimensions and required features. A manifold result alone does not prove fit.
 
-## Prevention
-
-- Always use `_merge_tol = 0.2` for boolean union overlaps
-- Extend subtracted cylinders/cubes past part surfaces by ≥ 0.5 mm
-- Prefer `rounded_box()` and `cylinder_boss()` from agentscad_std.scad
-- Never position two cubes/cylinders with exact face contact inside a `union()`
+Executable counterexamples live in `scripts/tests/test_manufacturing_geometry.py`: a full-face union and flush versus extended through-hole cutters.

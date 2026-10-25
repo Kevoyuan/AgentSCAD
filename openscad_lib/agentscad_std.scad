@@ -21,12 +21,14 @@ _merge_tol = 0.2;
 module rounded_box(size, r = 1, center = true) {
   sx = size[0]; sy = size[1]; sz = size[2];
   rr = max(0.01, min(r, min(sx, min(sy, sz)) / 2));
-  translate(center ? [0, 0, 0] : [sx/2, sy/2, sz/2])
+  translate(center ? [-sx/2, -sy/2, -sz/2] : [0, 0, 0])
   hull() {
     for (x = [rr, sx - rr]) {
       for (y = [rr, sy - rr]) {
         for (z = [rr, sz - rr]) {
-          translate([x, y, z]) sphere(r = rr, $fn = max(16, rr * 8));
+          // Keep nominal extents despite the sphere's faceted extrema.
+          translate([x, y, z]) resize([2*rr, 2*rr, 2*rr])
+            sphere(r = rr, $fn = max(16, rr * 8));
         }
       }
     }
@@ -38,7 +40,8 @@ module cylinder_boss(diameter, height, hole_d = 0, center = true) {
   difference() {
     cylinder(h = height, d = diameter, center = center, $fn = max(32, diameter * 4));
     if (hole_d > 0) {
-      cylinder(h = height + _merge_tol * 2, d = hole_d, center = center, $fn = max(32, hole_d * 4));
+      translate([0, 0, center ? 0 : -_merge_tol])
+        fit_hole(h = height + _merge_tol * 2, d = hole_d, center = center);
     }
   }
 }
@@ -52,19 +55,20 @@ module cylinder_boss(diameter, height, hole_d = 0, center = true) {
 module mounting_plate(width, height, thickness, hole_d = 0, margin = 8, corner_r = 3, center = true) {
   module body() {
     if (corner_r > 0) {
-      rounded_box([width, height, thickness], r = corner_r, center = center);
+      rounded_box([width, height, thickness], r = corner_r, center = true);
     } else {
-      cube([width, height, thickness], center = center);
+      cube([width, height, thickness], center = true);
     }
   }
 
+  translate(center ? [0, 0, 0] : [width/2, height/2, thickness/2])
   if (hole_d > 0) {
     difference() {
       body();
       for (x = [-1, 1]) {
         for (y = [-1, 1]) {
           translate([x * (width/2 - margin), y * (height/2 - margin), 0])
-            cylinder(h = thickness + _merge_tol * 2, d = hole_d, center = true, $fn = max(32, hole_d * 4));
+            fit_hole(h = thickness + _merge_tol * 2, d = hole_d);
         }
       }
     }
@@ -77,10 +81,26 @@ module mounting_plate(width, height, thickness, hole_d = 0, margin = 8, corner_r
 // Fasteners & Holes
 // ---------------------------------------------------------------------------
 
-// Through-hole or countersunk screw hole.
-module screw_hole(d, h, countersink = false, csink_d = 0, csink_angle = 90) {
+// A round mating hole uses d as its minimum clear diameter (across facets).
+// Limit polygon oversize to diametral_tolerance, separately from fit clearance.
+// Multiples of four keep opposite facets symmetric. Local $fn overrides coarse
+// global preview settings; deliberate polygon sockets should use cylinder().
+// OpenSCAD acos/cos use degrees. A JS port must convert radians explicitly.
+function fit_hole_segments(d, diametral_tolerance = 0.02) =
+  assert(d > 0 && diametral_tolerance > 0, "Hole diameter and tolerance must be positive")
+  max(24, 4 * ceil(180 / acos(d / (d + diametral_tolerance)) / 4));
+
+module fit_hole(d, h, center = true, diametral_tolerance = 0.02) {
+  n = fit_hole_segments(d, diametral_tolerance);
+  cylinder(h = h, d = d / cos(180 / n), center = center, $fn = n);
+}
+
+// Through-hole or countersunk screw hole. Nominal z interval is [-h/2,h/2]
+// by default, or [0,h] with center=false. Extend both ends by _merge_tol.
+module screw_hole(d, h, countersink = false, csink_d = 0, csink_angle = 90, center = true) {
+  translate([0, 0, center ? 0 : h/2])
   union() {
-    cylinder(h = h + _merge_tol * 2, d = d, center = true, $fn = max(32, d * 4));
+    fit_hole(d = d, h = h + _merge_tol * 2);
     if (countersink) {
       cs_d = csink_d > 0 ? csink_d : d * 2;
       translate([0, 0, h/2 - cs_d/4])
@@ -89,12 +109,17 @@ module screw_hole(d, h, countersink = false, csink_d = 0, csink_angle = 90) {
   }
 }
 
-// Rectangular bolt pattern with holes at corners.
-module bolt_pattern_rect(width, height, hole_d, margin, thickness) {
+// Four through-cutters by default; supplied children replace each cutter.
+// center=false anchors x/y to the plate's minimum corner and nominal z to 0.
+module bolt_pattern_rect(width, height, hole_d, margin, thickness, center = true) {
   for (x = [margin, width - margin]) {
     for (y = [margin, height - margin]) {
-      translate([x - width/2, y - height/2, 0])
-      children();
+      translate([x - (center ? width/2 : 0), y - (center ? height/2 : 0), 0])
+        if ($children > 0) {
+          children();
+        } else {
+          screw_hole(d = hole_d, h = thickness, center = center);
+        }
     }
   }
 }
@@ -105,7 +130,7 @@ module bolt_pattern_rect(width, height, hole_d, margin, thickness) {
 
 // L-shaped bracket with configurable dimensions.
 module l_bracket(width, height, depth, thickness, rib_count = 0, center = true) {
-  translate(center ? [0, 0, 0] : [depth/2, 0, height/2])
+  translate(center ? [0, 0, 0] : [depth/2, width-thickness/2, height/2])
   union() {
     // Vertical face
     cube([depth, thickness, height], center = true);
@@ -142,17 +167,28 @@ module enclosure_box(width, depth, height, wall, corner_r = 3, center = true) {
   outer_w = width + 2 * wall;
   outer_d = depth + 2 * wall;
   outer_h = height + wall;
+  outer_r = min(max(0, corner_r), min(width, depth) / 2);
+  inner_r = max(0, outer_r - wall);
+
+  // Round only vertical corners. Rounding the top/bottom edges before a
+  // cavity cut can lower the rim and consume the requested usable height.
+  module profile(w, d, r) {
+    if (r > 0) {
+      offset(r = r, $fn = 64)
+        square([w - 2*r, d - 2*r], center = true);
+    } else {
+      square([w, d], center = true);
+    }
+  }
 
   translate(center ? [0, 0, 0] : [outer_w/2, outer_d/2, outer_h/2])
   difference() {
-    if (corner_r > 0) {
-      rounded_box([outer_w, outer_d, outer_h], r = corner_r, center = true);
-    } else {
-      cube([outer_w, outer_d, outer_h], center = true);
-    }
+    linear_extrude(height = outer_h, center = true)
+      profile(outer_w, outer_d, outer_r);
     // Inner cavity
-    translate([0, 0, wall])
-      cube([width, depth, height + _merge_tol], center = true);
+    translate([0, 0, -outer_h/2 + wall])
+      linear_extrude(height = height + _merge_tol)
+        profile(width, depth, inner_r);
   }
 }
 

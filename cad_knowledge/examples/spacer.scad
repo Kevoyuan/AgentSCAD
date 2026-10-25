@@ -11,7 +11,7 @@ height = 15;
 module generated_part() {
   difference() {
     cylinder(h = height, d = outer_diameter, center = true, $fn = 64);
-    cylinder(h = height + 1, d = inner_diameter, center = true, $fn = 64);
+    fit_hole(h = height + 1, d = inner_diameter);
   }
 }
 

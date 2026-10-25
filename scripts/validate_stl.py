@@ -17,7 +17,9 @@ Limitations:
     points inward to estimate minimum wall thickness. This works well
     for convex and simple concave shapes but may overestimate thickness
     for complex internal geometries (e.g., lattice structures, thin
-    internal ribs). For production use, consider dedicated tools like
+    internal ribs). Straight planar sheet gauge is reported separately
+    from wall/feature width; sheet suitability still requires review.
+    For production use, consider dedicated tools like
     Materialise Magics or Netfabb.
   - The script assumes units are millimeters. OpenSCAD exports STL in mm.
 
@@ -119,6 +121,8 @@ def validate_stl(stl_path: str, max_dim: float = 300.0, min_wall: float = 1.2) -
         "passed": passed,
         "warnings": warnings,
         "failures": failures,
+        "skipped": sum(1 for r in rules if r["status"] == "skip"),
+        "errors": sum(1 for r in rules if r["status"] == "error"),
         "boundingBox": {
             "length": round(float(bb[0]), 2),
             "width": round(float(bb[1]), 2),
@@ -134,130 +138,125 @@ def validate_stl(stl_path: str, max_dim: float = 300.0, min_wall: float = 1.2) -
     return {"rules": rules, "summary": summary}
 
 
-def check_wall_thickness(mesh, min_wall: float) -> dict:
-    """
-    Estimate minimum wall thickness using ray casting.
+def planar_sheet_axis(mesh):
+    """Conservatively recognize a thin, straight extrusion, including rotated washers.
 
-    Strategy:
-      1. Sample points on the mesh surface (up to 2000 for performance).
-      2. Cast rays inward (along inverted normals) from each surface point.
-      3. The distance from the surface point to the nearest opposite
-         surface intersection approximates the local wall thickness.
-      4. Report the minimum and average thickness found.
-
-    Limitations:
-      - Only detects walls accessible via straight-line ray from the
-        exterior surface. Internal channels or complex undercuts may
-        not be measured accurately.
-      - For non-watertight meshes, ray casting may miss intersections,
-        leading to overestimated thickness values.
-      - Sampling is stochastic; very thin features smaller than the
-        sampling density may be missed.
+    This is a geometry classification, not proof of printability or load capacity.
+    Require a closed volume, two vertex planes, and only axial/perpendicular
+    face normals. Bevels, bent sheets, and hollow shells remain unclassified.
     """
     import numpy as np
 
+    if not mesh.is_volume:
+        return None
     try:
-        # Sample surface points and their normals
+        box = mesh.bounding_box_oriented
+        extents = box.primitive.extents
+        order = np.argsort(extents)
+        thickness = float(extents[order[0]])
+        if thickness <= 0 or thickness > float(extents[order[1]]) * 0.1:
+            return None
+        axis = box.primitive.transform[:3, order[0]]
+        projected = mesh.vertices @ axis
+        tolerance = max(1e-6, thickness * 1e-4)
+        on_caps = ((abs(projected - projected.min()) < tolerance)
+                   | (abs(projected - projected.max()) < tolerance))
+        alignment = abs(mesh.face_normals @ axis)
+        if np.all(on_caps) and np.all((alignment < 1e-4) | (alignment > 1 - 1e-4)):
+            return axis, thickness
+    except Exception:
+        # Classification is optional; uncertainty must not relax the wall check.
+        pass
+    return None
+
+
+def check_wall_thickness(mesh, min_wall: float) -> dict:
+    """Sample local material thickness; distinguish sheet gauge from wall width.
+
+    Face-normal rays estimate local thickness, not manufacturing suitability.
+    At most 2000 deterministic face samples are used. Small unsampled features,
+    curved walls, print orientation, nozzle/layer settings, and strength still
+    need review. Only a confirmed straight thin extrusion gets sheet treatment;
+    narrow in-plane features retain the normal wall threshold.
+    """
+    import numpy as np
+
+    def result(status, message, **details):
+        return {
+            "id": "R001", "name": "Minimum Wall Thickness",
+            "status": status, "message": message,
+            "details": {"threshold": min_wall, "unit": "mm", **details},
+        }
+
+    if not mesh.is_volume:
+        return result("skip", "Skipped — thickness requires a watertight, consistently oriented volume",
+                      minThickness=None, method="unavailable")
+
+    try:
         n_samples = min(2000, len(mesh.faces))
-        face_indices = np.random.choice(len(mesh.faces), size=n_samples, replace=False)
+        face_indices = np.linspace(0, len(mesh.faces) - 1, n_samples, dtype=int)
         points = mesh.triangles_center[face_indices]
         normals = mesh.face_normals[face_indices]
-
-        # Cast rays inward from surface points
-        ray_origins = points + normals * 0.01  # offset slightly outward to avoid self-intersection
-        ray_directions = -normals  # point inward
-
-        locations, index_ray, index_tri = mesh.ray.intersects_location(
-            ray_origins, ray_directions, multiple_hits=True
+        # Start on the surface and exclude only numerical self-hits. The old
+        # 0.3 mm cutoff hid very thin walls; the 0.01 mm offset inflated results.
+        epsilon = max(1e-8, float(mesh.scale) * 1e-9)
+        locations, index_ray, _ = mesh.ray.intersects_location(
+            points, -normals, multiple_hits=True
         )
-
-        thicknesses = []
+        sheet = planar_sheet_axis(mesh)
+        thicknesses, wall_widths, sheet_gauges = [], [], []
         for i in range(n_samples):
-            # Find all intersections for this ray
-            mask = index_ray == i
-            hit_points = locations[mask]
-            if len(hit_points) == 0:
+            hits = locations[index_ray == i]
+            distances = (hits - points[i]) @ (-normals[i])
+            valid = distances[distances > epsilon]
+            if len(valid) == 0:
                 continue
-            # Distance from ray origin to each hit
-            dists = np.linalg.norm(hit_points - ray_origins[i], axis=1)
-            # The nearest hit after the offset is the opposite wall
-            valid_dists = dists[dists > 0.3]  # filter out near-zero hits (self-intersection and grazing rays)
-            if len(valid_dists) > 0:
-                thicknesses.append(float(np.min(valid_dists)))
+            thickness = float(np.min(valid))
+            thicknesses.append(thickness)
+            if (sheet is not None and abs(float(normals[i] @ sheet[0])) > 1 - 1e-4
+                    and abs(thickness - sheet[1]) < max(1e-6, sheet[1] * 1e-4)):
+                sheet_gauges.append(thickness)
+            else:
+                wall_widths.append(thickness)
 
-        if len(thicknesses) == 0:
-            # Fallback: use a heuristic based on bounding box and volume
-            bb = mesh.bounding_box.extents
-            min_dim = float(np.min(bb))
-            # Estimate: for a solid object, minimum wall ~ min_dim / 10
-            estimated_thickness = min_dim / 10.0
-            return {
-                "id": "R001",
-                "name": "Minimum Wall Thickness",
-                "status": "warn",
-                "message": (
-                    f"Wall thickness could not be measured directly "
-                    f"(estimated ~{estimated_thickness:.1f}mm, threshold: {min_wall}mm). "
-                    f"Mesh may not be watertight."
-                ),
-                "details": {
-                    "minThickness": round(estimated_thickness, 2),
-                    "threshold": min_wall,
-                    "unit": "mm",
-                    "method": "estimated",
-                },
-            }
+        if not thicknesses:
+            return result("error", "Thickness measurement unavailable — no opposing surface intersections",
+                          minThickness=None, method="ray_casting")
 
-        min_thickness = float(np.min(thicknesses))
-        avg_thickness = float(np.mean(thicknesses))
-
-        if min_thickness < min_wall:
+        minimum = float(np.min(thicknesses))
+        average = float(np.mean(thicknesses))
+        wall_minimum = min(wall_widths) if wall_widths else None
+        sheet_minimum = min(sheet_gauges) if sheet_gauges else None
+        missing = n_samples - len(thicknesses)
+        # Compare with a tiny numerical tolerance, not a manufacturing allowance.
+        below = lambda value: value is not None and value < min_wall - epsilon
+        if below(wall_minimum):
             status = "fail"
-            message = (
-                f"Min wall: {min_thickness:.2f}mm is below threshold {min_wall}mm "
-                f"(avg: {avg_thickness:.2f}mm)"
-            )
-        elif min_thickness < min_wall * 1.25:
+            message = f"Min local wall/feature width: {wall_minimum:.2f}mm is below threshold {min_wall}mm"
+        elif below(sheet_minimum):
             status = "warn"
-            message = (
-                f"Min wall: {min_thickness:.2f}mm is close to threshold {min_wall}mm "
-                f"(avg: {avg_thickness:.2f}mm)"
-            )
+            message = (f"Planar sheet material thickness: {sheet_minimum:.2f}mm; "
+                       f"the {min_wall}mm wall-width default does not determine sheet suitability. "
+                       "Review print orientation, layer height, material and load; preserve the requested gauge.")
+        elif missing:
+            status = "warn"
+            message = f"Thickness sampling incomplete: {missing}/{n_samples} rays had no opposing hit"
+        elif minimum < min_wall * 1.25:
+            status = "warn"
+            message = f"Min sampled material thickness: {minimum:.2f}mm is close to threshold {min_wall}mm"
         else:
             status = "pass"
-            message = (
-                f"Min wall: {min_thickness:.2f}mm (threshold: {min_wall}mm, "
-                f"avg: {avg_thickness:.2f}mm)"
-            )
+            message = f"Min sampled material thickness: {minimum:.2f}mm (threshold: {min_wall}mm)"
 
-        return {
-            "id": "R001",
-            "name": "Minimum Wall Thickness",
-            "status": status,
-            "message": message,
-            "details": {
-                "minThickness": round(min_thickness, 2),
-                "avgThickness": round(avg_thickness, 2),
-                "threshold": min_wall,
-                "unit": "mm",
-                "method": "ray_casting",
-                "samplesUsed": len(thicknesses),
-            },
-        }
-
+        return result(status, message, minThickness=round(minimum, 4),
+                      avgThickness=round(average, 4),
+                      minWallWidth=round(wall_minimum, 4) if wall_minimum is not None else None,
+                      sheetThickness=round(sheet_minimum, 4) if sheet_minimum is not None else None,
+                      geometryClass="planar_sheet" if sheet is not None else "unclassified_solid",
+                      method="ray_casting", samplesUsed=len(thicknesses), samplesMissing=missing)
     except Exception as e:
-        return {
-            "id": "R001",
-            "name": "Minimum Wall Thickness",
-            "status": "warn",
-            "message": f"Wall thickness check failed: {e}",
-            "details": {
-                "minThickness": None,
-                "threshold": min_wall,
-                "unit": "mm",
-                "error": str(e),
-            },
-        }
+        return result("error", f"Wall thickness measurement failed: {e}",
+                      minThickness=None, method="unavailable", error=str(e))
 
 
 def check_max_dimensions(mesh, max_dim: float) -> dict:

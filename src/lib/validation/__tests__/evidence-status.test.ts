@@ -1,10 +1,20 @@
 import { describe, expect, test } from "bun:test";
 
-import { getValidationEvidenceStatus } from "@/lib/validation/evidence-status";
+import { getValidationEvidenceStatus, parseValidationEvidenceStatus } from "@/lib/validation/evidence-status";
+import { getValidationEvidenceStatus as clientEvidenceStatus } from "@/components/cad/types";
 import { inferExpectedMinimumHoleCount } from "@/lib/validation/hole-check";
 import { computeReport } from "@/lib/validation/report";
 
 describe("validation evidence status", () => {
+  test("shares one parser across server and client, rejecting unknown tool statuses", () => {
+    expect(clientEvidenceStatus).toBe(getValidationEvidenceStatus);
+    expect(parseValidationEvidenceStatus("warn")).toBe("WARN");
+    for (const value of ["success", "", null, 42, {}]) {
+      expect(parseValidationEvidenceStatus(value)).toBeUndefined();
+    }
+    expect(getValidationEvidenceStatus({ status: "success", passed: true, message: "ok" })).toBe("ERROR");
+    expect(getValidationEvidenceStatus({ passed: true, message: "legacy" })).toBe("PASS");
+  });
   test("keeps legacy skipped results out of passed counts", () => {
     const skipped = {
       rule_id: "S001",
