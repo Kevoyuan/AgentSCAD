@@ -103,8 +103,17 @@ module screw_hole(d, h, countersink = false, csink_d = 0, csink_angle = 90, cent
     fit_hole(d = d, h = h + _merge_tol * 2);
     if (countersink) {
       cs_d = csink_d > 0 ? csink_d : d * 2;
-      translate([0, 0, h/2 - cs_d/4])
-        cylinder(h = cs_d/2, d1 = d, d2 = cs_d, center = false, $fn = max(32, cs_d * 4));
+      assert(cs_d > d, "Countersink diameter must exceed bore diameter");
+      assert(csink_angle > 0 && csink_angle < 180, "Countersink angle must be between 0 and 180 degrees");
+      slope = tan(csink_angle / 2);
+      cs_depth = (cs_d - d) / (2 * slope);
+      n = fit_hole_segments(cs_d);
+      // The specified opening lies on the nominal top face. Extend the cone
+      // along its slope above that face so Boolean overlap does not shrink it.
+      // Compensate both cone diameters for the minimum clearance across facets.
+      translate([0, 0, h/2 - cs_depth])
+        cylinder(h = cs_depth + _merge_tol, d1 = d / cos(180/n),
+                 d2 = (cs_d + 2*_merge_tol*slope) / cos(180/n), $fn = n);
     }
   }
 }

@@ -72,6 +72,7 @@ You MUST respond in two parts:
   ],
   "validation_targets": {
     "expected_bbox": [80, 50, 6],
+    "expected_through_holes": 4,
     "required_feature_checks": [
       "single connected body",
       "four through holes",
@@ -209,3 +210,5 @@ Current parameter values:
 {parameterValues}
 
 Follow the two-part output format: JSON object first, then SCAD code fence.
+
+For `validation_targets.expected_through_holes`, use an exact non-negative integer only when the request establishes a through-hole count (0 forbids through holes). Omit it when unknown. Blind holes, recesses and countersinks do not add topological through holes. Required feature prose may describe the same group repeatedly; never add those repetitions to the count.
