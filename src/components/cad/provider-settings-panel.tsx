@@ -382,7 +382,7 @@ export function ProviderSettingsPanel({
           />
         </div>
         <div className="space-y-1.5">
-          <Label className={LABEL} htmlFor="provider-model">{t("Model")}</Label>
+          <Label className={LABEL} htmlFor="provider-model">{t("Model ID")}</Label>
           <Input id="provider-model" value={form.defaultModel} onChange={event => updateForm({ defaultModel: event.target.value })} className={FIELD} />
           {selectedPreset && selectedPreset.recommendedModels.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-0.5">
