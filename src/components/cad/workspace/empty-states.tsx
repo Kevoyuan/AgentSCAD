@@ -243,8 +243,7 @@ export function CadViewportEmptyState({
           {t("Describe the part you need.")}
         </h2>
         <p className="mx-auto mt-2 max-w-[460px] text-[12px] leading-[1.7] text-[var(--shell-text-muted)]">
-          {t("This description will be the source for your part. After generation, its dimensions and check results")}{' '}
-          {t("will appear in the side modules. Edit the dimensions and press Generate to rebuild.")}
+          {t("Describe the shape and dimensions, then generate a part you can edit.")}
         </p>
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           {FIRST_RUN_EXAMPLES.map((example) => (
