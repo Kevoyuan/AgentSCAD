@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { ReadoutModule } from '../ReadoutModule'
+import type { Job } from '../../types'
 
 /*
  * Regressions found by reviewing the C2 shell against the running app with real
@@ -37,10 +41,20 @@ describe('shell regressions', () => {
   })
 
   test('the focus colour is the shell signal, not the old amber', () => {
-    // `--ring` is what shadcn focus-visible rings resolve to; the input rule uses it
-    // too, so both stay on the shell accent in either theme.
+    // `--ring` is what shadcn focus-visible rings resolve to, so it stays on the
+    // shell accent in either theme.
     expect(globals).not.toContain('--ring: #F59E0B')
-    expect(globals).toContain('box-shadow: 0 0 0 2px var(--ring)')
+
+    /*
+     * 2026-10-27 (UI-12): the field rule used to paint
+     * `box-shadow: 0 0 0 2px var(--ring)` inside an element whose border had
+     * already turned amber - a ring inside a ring, which reads as a validation
+     * error rather than as focus. DESIGN.md section 21 asks for one amber edge, so
+     * the assertion is now "one outline, no ring", not "a 2px shadow".
+     */
+    expect(globals).not.toContain('box-shadow: 0 0 0 2px var(--ring)')
+    expect(globals).toMatch(/outline:\s*1px solid var\(--shell-signal\)/)
+    expect(globals).toContain('outline-offset: -1px')
   })
 
   test('Space and the digits have exactly one owner', () => {
@@ -74,13 +88,48 @@ describe('shell regressions', () => {
   })
 
   test('读数 never dresses a declared parameter as a measurement', () => {
-    const readout = read('src/components/cad/workspace/ReadoutModule.tsx')
+    const render = (job: Job | null, box: [number, number, number] | null, wall: number | null) =>
+      renderToStaticMarkup(React.createElement(ReadoutModule, {
+        job, declaredBoundingBox: box, declaredWallThickness: wall,
+      }))
+    /*
+     * 2026-10-27: the envelope moved onto its own 16px line with the evidence
+     * state spelled out in words above it (UI-09), so the assertions follow the
+     * structure rather than the old single-line "Target 15 × 40 × 30". What must
+     * not change is the contract: a declared parameter never arrives looking like
+     * a measured one.
+     */
+    const target = render(null, [15, 40, 30], 2)
+    expect(target).toContain('>Target<')
+    expect(target).toContain('15 × 40 × 30')
+    /*
+     * 2026-10-27: the note was "Target values are not measured geometry.", which
+     * asked the reader to know what a "target" and a "geometry" were before they
+     * could act. It now says the same thing in the product's own words - the
+     * numbers are computed from the parameters, they are not a measurement - and
+     * the contract it protects is unchanged: a declared parameter never arrives
+     * looking like a measured one.
+     */
+    expect(target).toContain('From parameters · not measured')
+    expect(target).not.toContain('Target values are not measured geometry.')
 
-    // Measured wins; a declared value is dimmed and prefixed 目标; no evidence at all
-    // still prints a dash (DESIGN.md section 18, evidence hierarchy).
-    expect(readout).toContain("boxIsMeasured ? '' : t(\"Target \")")
-    expect(readout).toContain("wallIsMeasured ? t(\"Wall thickness\") : t(\"Target wall thickness\")")
-    expect(readout).toContain('isDim: !box || !boxIsMeasured')
+    const measured = render({
+      stlPath: '/artifacts/test/model.stl',
+      validationResults: JSON.stringify([
+        { rule_name: 'Dimensions', message: 'Within bounds: 16.0x41.0x31.0mm' },
+        { rule_name: 'Wall thickness', message: 'min wall: 2.1mm' },
+      ]),
+    } as Job, [15, 40, 30], 2)
+    expect(measured).toContain('16.0 × 41.0 × 31.0')
+    expect(measured).toContain('>Measured<')
+    expect(measured).not.toContain('>Target<')
+    expect(measured).toContain('2.10')
+
+    const absent = render(null, null, null)
+    expect(absent).toContain('—')
+    expect(absent).not.toContain('>Target<')
+    expect(absent).toContain('>Not measured<')
+
   })
 
   test('the cube drives the part through one command path', () => {
@@ -103,8 +152,9 @@ describe('shell regressions', () => {
     // The 0.34s eased transition is for a commanded view (watching the cube travel to
     // a standard angle is how the mapping is learned). On while dragging it makes the
     // cube trail the pointer, which is the lag the C5 iteration removed from the
-    // prototype - so it is tied to the drag state.
-    expect(cube).toContain("transition: isDragging ? 'none' : 'transform .34s")
+    // prototype - so it is tied to the drag state. Since 2026-10-26 it is also off
+    // under reduced motion: the view change is the information, the journey is not.
+    expect(cube).toContain("isDragging || reducedMotion ? 'none' : 'transform .34s")
 
     // One update per frame, not one per pointer event: a trackpad reports at 120Hz and
     // each update re-renders the workspace.

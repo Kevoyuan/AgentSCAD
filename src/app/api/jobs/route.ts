@@ -144,79 +144,6 @@ export async function POST(request: NextRequest) {
         ? modelId.trim()
         : process.env.MIMO_MODEL || "mimo-v2.5-pro";
 
-    // Generate a neutral default parameter schema. The processing pipeline owns
-    // part-family detection; new generic jobs should not look like enclosures.
-    const defaultParameterSchema = JSON.stringify({
-      part_family: "unknown",
-      design_summary: "Custom part based on user request",
-      parameters: [
-        {
-          key: "width",
-          label: "Width",
-          kind: "number",
-          unit: "mm",
-          value: 40,
-          min: 10,
-          max: 200,
-          step: 1,
-          source: "user",
-          editable: true,
-          description: "Outer width",
-          group: "dimensions",
-        },
-        {
-          key: "depth",
-          label: "Depth",
-          kind: "number",
-          unit: "mm",
-          value: 30,
-          min: 10,
-          max: 200,
-          step: 1,
-          source: "user",
-          editable: true,
-          description: "Outer depth",
-          group: "dimensions",
-        },
-        {
-          key: "height",
-          label: "Height",
-          kind: "number",
-          unit: "mm",
-          value: 15,
-          min: 5,
-          max: 100,
-          step: 1,
-          source: "inferred",
-          editable: true,
-          description: "Outer height",
-          group: "dimensions",
-        },
-        {
-          key: "wall_thickness",
-          label: "Wall Thickness",
-          kind: "number",
-          unit: "mm",
-          value: 2.0,
-          min: 1.2,
-          max: 5,
-          step: 0.1,
-          source: "design_derived",
-          editable: true,
-          description: "Wall thickness",
-          group: "fit",
-        },
-      ],
-    });
-
-    // Default parameter values derived from the schema
-    const defaultParameterValues = JSON.stringify({
-      width: 40,
-      depth: 30,
-      height: 15,
-      wall_thickness: 2.0,
-    });
-
     const job = await db.job.create({
       data: {
         browserSessionId:
@@ -225,8 +152,6 @@ export async function POST(request: NextRequest) {
         customerId: customerId || null,
         modelId: selectedModelId,
         state: "NEW",
-        parameterSchema: defaultParameterSchema,
-        parameterValues: defaultParameterValues,
         executionLogs: JSON.stringify([
           {
             timestamp: new Date().toISOString(),

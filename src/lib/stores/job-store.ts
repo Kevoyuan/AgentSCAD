@@ -139,11 +139,3 @@ export async function incrementRetryCount(id: string): Promise<number> {
   });
   return next;
 }
-
-export async function incrementLlmCallCount(id: string): Promise<number> {
-  const job = await db.job.findUnique({ where: { id } });
-  if (!job) throw new Error(`Job not found: ${id}`);
-  // llmCallCount is tracked via cadIntentJson parsing or a separate field
-  // For now, use a simple approach: read current executionLogs to count calls
-  return 0; // placeholder — actual counting happens in the pipeline
-}

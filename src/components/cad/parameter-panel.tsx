@@ -14,6 +14,7 @@ import { Job, ParameterDef, ParameterSchema, parseJSON, safeNum } from './types'
 import { updateParameters } from './api'
 import { staggerContainer, staggerChild, staggerTransition, slideInLeft, slideInLeftTransition } from './motion-presets'
 import { extractParameterDefsFromScad } from '@/lib/tools/scad-parameter-extractor'
+import { parameterUnit } from './workspace/parameter-schema'
 
 // ─── Precision & Alignment Utilities ─────────────────────────────────────────
 
@@ -226,19 +227,10 @@ function ParameterRow({
     onCommit(param.key, finalVal)
   }
 
-  const isDimensionless =
-    param.key.startsWith('$') ||
-    param.key.toLowerCase().includes('fn') ||
-    param.key.toLowerCase().includes('count') ||
-    param.key.toLowerCase().includes('teeth') ||
-    param.key.toLowerCase().includes('segments') ||
-    param.key.toLowerCase().includes('facets') ||
-    param.key.toLowerCase().includes('steps') ||
-    param.key.toLowerCase().includes('qty') ||
-    param.key.toLowerCase().includes('num') ||
-    param.key.toLowerCase().includes('ratio') ||
-    param.key.toLowerCase().includes('scale')
-  const displayUnit = isDimensionless ? '' : param.unit
+  /* One rule for "does this number have a unit", shared with 尺寸 (parameter-schema).
+     The local version matched `fn` anywhere in the key, so `flange_width` lost its
+     millimetres because it happens to contain those two letters. */
+  const displayUnit = parameterUnit(param)
 
   return (
     <motion.div
@@ -265,7 +257,7 @@ function ParameterRow({
           </span>
           {showSourceBadges && param.source !== 'artifact' && (
             <span
-              className={`rounded bg-[var(--app-surface-raised)] px-1 py-0.2 text-[9px] font-mono uppercase ${
+              className={`rounded bg-[var(--app-surface-raised)] px-1 py-0.2 text-[10px] font-mono uppercase ${
                 sourceColor[param.source] || 'text-[var(--app-text-muted)]'
               }`}
               title={t("Source: {0}", { 0: sourceLabel[param.source] || param.source.replace('_', ' ') })}
@@ -278,7 +270,7 @@ function ParameterRow({
         <div className="flex shrink-0 items-center gap-1.5">
           {isChanged && (
             <>
-              <span className="rounded bg-[var(--cad-accent-soft)] px-1.5 py-0.5 text-[9px] font-mono font-medium text-[var(--cad-accent)] tabular-nums">
+              <span className="rounded bg-[var(--cad-accent-soft)] px-1.5 py-0.5 text-[10px] font-mono font-medium text-[var(--cad-accent)] tabular-nums">
                 {delta > 0 ? `+${delta.toFixed(precision)}` : delta.toFixed(precision)}
               </span>
               <button
@@ -329,7 +321,7 @@ function ParameterRow({
       {/* Line 2: Precision Slider with Inline Min and Max */}
       {isNumeric && (
         <div className="mt-1 flex items-center gap-2">
-          <span className="w-6 shrink-0 text-right font-mono text-[9px] text-[var(--app-text-dim)] tabular-nums">
+          <span className="w-6 shrink-0 text-right font-mono text-[10px] text-[var(--app-text-dim)] tabular-nums">
             {min}
           </span>
           <div className="relative min-w-0 flex-1">
@@ -344,7 +336,7 @@ function ParameterRow({
               className="cursor-pointer"
             />
           </div>
-          <span className="w-12 shrink-0 truncate font-mono text-[9px] text-[var(--app-text-dim)] tabular-nums">
+          <span className="w-12 shrink-0 truncate font-mono text-[10px] text-[var(--app-text-dim)] tabular-nums">
             {max}{displayUnit ? ` ${displayUnit}` : ''}
           </span>
         </div>
@@ -434,7 +426,7 @@ export function ParameterPanel({
         <Wrench className="w-6 h-6" />
       </div>
       <div className="text-center">
-        <p className="text-sm font-medium">{t("No parameters available")}</p>
+        <p className="text-[13px] font-medium">{t("No parameters available")}</p>
         <p className="text-[13px] text-[var(--cad-text-muted)] mt-1">{t("Process a job to generate parameters")}</p>
       </div>
     </div>
@@ -528,7 +520,7 @@ export function ParameterPanel({
       {/* Sleek Parameter Header */}
       <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-[var(--app-border)] px-3 py-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wider font-mono text-[var(--app-text-primary)]">
+          <h3 className="text-[12px] font-semibold uppercase tracking-wider font-mono text-[var(--app-text-primary)]">
             {t("Parameters")}
           </h3>
           <span className="rounded-[4px] bg-[var(--app-surface-raised)] border border-[var(--app-border)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--app-text-muted)] tabular-nums">
@@ -562,7 +554,7 @@ export function ParameterPanel({
 
       {/* Stale Artifact Status Alert */}
       {changedCount > 0 && (
-        <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--app-warning-bg)] border-b border-[var(--app-warning)]/20 text-xs text-[var(--app-status-warning-text)] shrink-0">
+        <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--app-warning-bg)] border-b border-[var(--app-warning)]/20 text-[12px] text-[var(--app-status-warning-text)] shrink-0">
           <span className="font-mono text-[11px]">
             {t("Preview updated · Rebuild required for STL")}
           </span>
@@ -634,7 +626,7 @@ export function SchemaInfoPanel({ schemaStr }: { schemaStr: string }) {
       schema = rawSchema as ParameterSchema
     }
   }
-  if (!schema) return <span className="text-[var(--app-text-dim)] text-xs">{t("Invalid schema")}</span>
+  if (!schema) return <span className="text-[var(--app-text-dim)] text-[12px]">{t("Invalid schema")}</span>
 
   const sourceCounts: Record<string, number> = {}
   for (const p of schema.parameters) {
@@ -652,14 +644,14 @@ export function SchemaInfoPanel({ schemaStr }: { schemaStr: string }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-1.5 flex-wrap">
-        <Badge variant="outline" className="text-[8px] h-4 bg-[var(--app-surface-raised)] text-[var(--app-text-muted)] border-[color:var(--app-border)]">
+        <Badge variant="outline" className="text-[10px] h-4 bg-[var(--app-surface-raised)] text-[var(--app-text-muted)] border-[color:var(--app-border)]">
           {schema.part_family || 'unknown'}
         </Badge>
-        <Badge variant="outline" className="text-[8px] h-4 bg-[var(--app-surface-raised)] text-[var(--app-text-muted)] border-[color:var(--app-border)]">
+        <Badge variant="outline" className="text-[10px] h-4 bg-[var(--app-surface-raised)] text-[var(--app-text-muted)] border-[color:var(--app-border)]">
           {schema.parameters.length} params
         </Badge>
         {Object.entries(sourceCounts).map(([source, count]) => (
-          <Badge key={source} variant="outline" className={`text-[8px] h-4 ${sourceColor[source] || 'bg-[var(--app-surface-raised)] text-[var(--app-text-muted)] border-[color:var(--app-border)]'}`}>
+          <Badge key={source} variant="outline" className={`text-[10px] h-4 ${sourceColor[source] || 'bg-[var(--app-surface-raised)] text-[var(--app-text-muted)] border-[color:var(--app-border)]'}`}>
             {count} {source.replace('_', ' ')}
           </Badge>
         ))}

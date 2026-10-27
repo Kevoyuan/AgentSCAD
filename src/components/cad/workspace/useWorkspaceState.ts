@@ -172,6 +172,12 @@ export function useWorkspaceState() {
       setSelectedJob(prev => prev?.id === job.id ? fullJob : prev)
     } catch (err) {
       console.error('Failed to fetch job details:', err)
+      /*
+       * A failed detail load is a third state, not "still loading": leaving the
+       * record flagged as a summary would keep every panel drawing loading bars
+       * for a part that is never going to arrive (DESIGN.md section 17).
+       */
+      setSelectedJob(prev => prev?.id === job.id ? { ...prev, summaryOnly: false, detailFailed: true } : prev)
     }
   }, [])
 
@@ -194,7 +200,7 @@ export function useWorkspaceState() {
       const currentSelected = selectedJobRef.current
       if (currentSelected) {
         const updated = data.jobs.find(j => j.id === currentSelected.id)
-        if (updated && (updated.state !== currentSelected.state || updated.updatedAt !== currentSelected.updatedAt)) {
+        if (updated && (CANCELABLE_STATES.includes(updated.state) || updated.state !== currentSelected.state || updated.updatedAt !== currentSelected.updatedAt)) {
           try {
             const { job: fullJob } = await fetchJob(updated.id)
             setSelectedJob(prev => prev?.id === updated.id ? fullJob : prev)
@@ -215,7 +221,7 @@ export function useWorkspaceState() {
     loadJobs().finally(() => {
       if (!cancelled) setFirstLoadComplete(true)
     })
-    const interval = setInterval(loadJobs, 15000)
+    const interval = setInterval(loadJobs, 5000)
 
     return () => {
       cancelled = true
@@ -254,25 +260,55 @@ export function useWorkspaceState() {
 
   // ── Job Actions ───────────────────────────────────────────────────────────
 
-  const handleCreate = async () => {
-    if (!newJobText.trim() || activeOperationRef.current) return
+  /*
+   * `text` lets the inline composer create a part without going through the
+   * New-part dialog. DESIGN.md section 7 makes the composer the agent surface and
+   * section 10 makes 生成 its action, so a submitted brief must be able to create a
+   * job directly; the dialog stays for templates, case memory and an explicit model
+   * choice. Passing the text in avoids a state round-trip, because `newJobText` is
+   * React state and would still hold the old value in the same tick.
+   */
+  const handleCreate = async (text?: string): Promise<boolean> => {
+    const request = (text ?? newJobText).trim()
+    if (!request || activeOperationRef.current) return false
+    /*
+     * The dialog already refuses to submit without an engine
+     * (`generateDisabledReason` in JobComposer), and the inline path must not be the
+     * weaker one: without this guard the request goes out with an empty modelId, the
+     * server substitutes MIMO_MODEL, and the failure surfaces later inside the
+     * pipeline instead of here. The engine chip sits in the same field, so the fix
+     * is one click away - say so instead of spending a generation to find out.
+     */
+    if (!newJobModelId) {
+      toast.error(t("Choose a model engine"), {
+        description: t("Pick an engine in the composer, or add a provider in Settings."),
+      })
+      return false
+    }
     setIsCreating(true)
-    const request = newJobText.trim()
     try {
       const tagsCustomerId = newJobTags.trim() ? buildCustomerId(newJobTags.split(',').map(t => t.trim()).filter(t => t)) : undefined
       const { job } = await createJob(request, tagsCustomerId, newJobModelId)
-      toast.success(t("CAD generation started"), { description: newJobModelId })
+      toast.success(t("CAD generation started"))
       addNotification('parameter_updated', t("CAD generation started"), request.slice(0, 60))
       addActivityEvent('created', request.slice(0, 30), job.id.slice(0, 8), 'Created and started')
       setNewJobText('')
-      setNewJobModelId('')
+      /*
+       * The engine is NOT cleared. It used to be, which made the chip read "Choose
+       * model" after every creation and sent an empty modelId on the next one - the
+       * server then substituted its default, so the user's choice silently stopped
+       * applying after the first part. DESIGN.md section 8 wants the last healthy
+       * model to stay selected.
+       */
       setNewJobTags('')
       setShowComposer(false)
       await loadJobs()
       setSelectedJob(job)
       void handleProcess(job)
+      return true
     } catch {
       toast.error(t("Failed to create job"))
+      return false
     } finally {
       setIsCreating(false)
     }
@@ -289,7 +325,7 @@ export function useWorkspaceState() {
       message: 'Queued CAD generation pipeline...',
       timestamp: new Date().toISOString(),
     }])
-    setSelectedJob(job)
+    setSelectedJob({ ...job, executionProgress: null })
     try {
       await processJob(job.id, (data) => {
         if (data.message || data.step || data.state) {
@@ -311,7 +347,9 @@ export function useWorkspaceState() {
           if (data.job) return (data.job as Job).id === job.id ? data.job as Job : prev
 
           const next = { ...prev }
+          if (data.executionProgress) next.executionProgress = data.executionProgress as Job["executionProgress"]
           if (data.state) next.state = data.state as string
+          if (typeof data.executionLogs === 'string') next.executionLogs = data.executionLogs
           if ('scadSource' in data) next.scadSource = data.scadSource as string | null
           if (data.parameterSchema) next.parameterSchema = typeof data.parameterSchema === 'string' ? data.parameterSchema : JSON.stringify(data.parameterSchema)
           if (data.parameters) next.parameterSchema = typeof data.parameters === 'string' ? data.parameters : JSON.stringify(data.parameters)
@@ -329,7 +367,12 @@ export function useWorkspaceState() {
           return next
         })
         const step = data.step as string
-        if (step === 'scad_generated') {
+        if (step === 'error') {
+          const message = String(data.message || t('Processing failed'))
+          toast.error(t('Processing failed'), { description: message })
+          addNotification('job_failed', t('Processing Failed'), message)
+          addActivityEvent('failed', job.inputRequest.slice(0, 30), job.id.slice(0, 8), message)
+        } else if (step === 'scad_generated') {
           toast.success(t("SCAD Generated"), { description: t("Code generated successfully") })
           addNotification('scad_updated', t("SCAD Generated"), t("Job {0} - Code generated", { 0: job.id.slice(0, 8) }))
           addActivityEvent('processed', job.inputRequest.slice(0, 30), job.id.slice(0, 8), 'SCAD Generated')
@@ -346,8 +389,8 @@ export function useWorkspaceState() {
         }
       })
       await loadJobs()
-    } catch {
-      toast.error(t("Processing failed"))
+    } catch (error) {
+      toast.error(t("Processing failed"), { description: error instanceof Error ? error.message : t("Unknown error") })
       addNotification('job_failed', t("Processing Failed"), t("Job {0} - An error occurred", { 0: job.id.slice(0, 8) }))
       addActivityEvent('failed', job.inputRequest.slice(0, 30), job.id.slice(0, 8), 'Processing Failed')
     } finally {
@@ -386,6 +429,7 @@ export function useWorkspaceState() {
 
           const next = { ...prev }
           if (data.state) next.state = data.state as string
+          if (typeof data.executionLogs === 'string') next.executionLogs = data.executionLogs
           if ('scadSource' in data) next.scadSource = data.scadSource as string | null
           if (data.parameterSchema) next.parameterSchema = typeof data.parameterSchema === 'string' ? data.parameterSchema : JSON.stringify(data.parameterSchema)
           if (data.parameterValues) next.parameterValues = typeof data.parameterValues === 'string' ? data.parameterValues : JSON.stringify(data.parameterValues)

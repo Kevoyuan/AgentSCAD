@@ -24,16 +24,22 @@ export function ResearchPanel({ job }: { job: Job }) {
         <Sparkles className="w-6 h-6" />
       </div>
       <div className="text-center">
-        <p className="text-sm">{t("No research data yet")}</p>
+        <p className="text-[13px]">{t("No research data yet")}</p>
         <p className="text-[13px] text-[var(--app-text-dim)] mt-1">{t("Process a job to generate research")}</p>
       </div>
     </div>
   )
 
+  /*
+   * Three section markers. They used to be sky / amber / accent - three hues
+   * for three labels, which is decoration pretending to be meaning. The three
+   * sections are stages of the same pipeline, not different kinds of thing, so
+   * they wear the same neutral.
+   */
   const sections = [
-    { data: research, icon: Globe, label: 'Research', color: 'text-sky-400' },
-    { data: intent, icon: Lightbulb, label: 'Intent', color: 'text-amber-400' },
-    { data: design, icon: Beaker, label: 'Design', color: 'text-[var(--app-accent-text)]' },
+    { data: research, icon: Globe, label: 'Research', color: 'text-[var(--shell-text-muted)]' },
+    { data: intent, icon: Lightbulb, label: 'Intent', color: 'text-[var(--shell-text-muted)]' },
+    { data: design, icon: Beaker, label: 'Design', color: 'text-[var(--shell-text-muted)]' },
   ]
 
   return (
@@ -56,7 +62,7 @@ export function ResearchPanel({ job }: { job: Job }) {
                 variants={scaleIn}
                 transition={scaleInTransition}
               >
-                <Badge variant="outline" className="text-xs h-5 bg-[var(--app-accent-bg)] text-[var(--app-accent-text)] border-[color:var(--app-accent-border)] gap-1">
+                <Badge variant="outline" className="text-[12px] h-5 bg-[var(--app-accent-bg)] text-[var(--app-accent-text)] border-[color:var(--app-accent-border)] gap-1">
                   <Target className="w-2.5 h-2.5" />{job.partFamily.replace(/_/g, ' ')}
                 </Badge>
               </motion.div>
@@ -66,7 +72,7 @@ export function ResearchPanel({ job }: { job: Job }) {
                 variants={scaleIn}
                 transition={scaleInTransition}
               >
-                <Badge variant="outline" className="text-xs h-5 bg-cyan-500/10 text-cyan-400 border-cyan-500/20 gap-1">
+                <Badge variant="outline" className="text-[12px] h-5 bg-[var(--shell-well)] text-[var(--shell-text-muted)] border-[color:var(--shell-border)] gap-1">
                   <Cpu className="w-2.5 h-2.5" />{job.builderName}
                 </Badge>
               </motion.div>
@@ -76,7 +82,7 @@ export function ResearchPanel({ job }: { job: Job }) {
                 variants={scaleIn}
                 transition={scaleInTransition}
               >
-                <Badge variant="outline" className="text-xs h-5 bg-emerald-500/10 text-emerald-400 border-emerald-500/20 gap-1">
+                <Badge variant="outline" className="text-[12px] h-5 bg-[var(--shell-well)] text-[var(--shell-text-muted)] border-[color:var(--shell-border)] gap-1">
                   <Layers className="w-2.5 h-2.5" />{job.generationPath.replace(/_/g, ' ')}
                 </Badge>
               </motion.div>
@@ -93,12 +99,12 @@ export function ResearchPanel({ job }: { job: Job }) {
             >
               <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--app-empty-bg)] border-b border-[color:var(--app-border)]">
                 <Icon className={`w-3.5 h-3.5 ${color}`} />
-                <span className={`text-xs font-mono tracking-wider ${color} uppercase`}>{label}</span>
+                <span className={`text-[12px] font-mono tracking-wider ${color} uppercase`}>{label}</span>
               </div>
               <div className="p-2.5 space-y-1.5">
                 {Object.entries(data).map(([key, value]) => (
                   <div key={key} className="flex items-start gap-2">
-                    <span className="text-xs font-mono text-[var(--app-text-dim)] min-w-[90px] shrink-0">{key}</span>
+                    <span className="text-[12px] font-mono text-[var(--app-text-dim)] min-w-[90px] shrink-0">{key}</span>
                     <span className="text-[13px] text-[var(--app-text-muted)] flex-1">
                       {Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value, null, 0) : String(value)}
                     </span>
@@ -116,8 +122,8 @@ export function ResearchPanel({ job }: { job: Job }) {
               className="rounded-lg linear-surface linear-border overflow-hidden"
             >
               <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--app-empty-bg)] border-b border-[color:var(--app-border)]">
-                <Info className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-xs font-mono tracking-wider text-emerald-400 uppercase">{t("Schema Info")}</span>
+                <Info className="w-3.5 h-3.5 text-[var(--shell-text-muted)]" />
+                <span className="text-[12px] font-mono tracking-wider text-[var(--shell-text-muted)] uppercase">{t("Schema Info")}</span>
               </div>
               <div className="p-2.5">
                 <SchemaInfoPanel schemaStr={job.parameterSchema} />

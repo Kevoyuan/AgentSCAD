@@ -4,15 +4,29 @@ import { useI18n } from '@/components/i18n-provider'
 
 import { useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
-import { AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { Job, CANCELABLE_STATES } from '@/components/cad/types'
+import { cn } from '@/lib/utils'
 import { PanelErrorBoundary } from './PanelErrorBoundary'
+import { JobRunProgress } from './JobRunProgress'
+import { JobCancelledNotice, JobFailureNotice } from './JobFailureNotice'
 import { CadViewportEmptyState } from './empty-states'
 
-const ThreeDViewer = dynamic(() => import('@/components/cad/three-d-viewer').then(m => ({ default: m.ThreeDViewer })), { ssr: false, loading: () => <div className="flex items-center justify-center h-full p-4"><Skeleton className="h-full w-full rounded-[6px]" /></div> })
+/*
+ * The 3D chunk is loaded on demand, so for the first moments of a cold start
+ * the viewport had nothing at all in it - and the part's PNG render was sitting
+ * on disk the whole time, reachable in one request.
+ *
+ * The fallback is therefore empty on purpose: the still frame behind it is the
+ * content. A skeleton here would cover the very thing that makes the wait
+ * short.
+ */
+const ThreeDViewer = dynamic(() => import('@/components/cad/three-d-viewer').then(m => ({ default: m.ThreeDViewer })), {
+  ssr: false,
+  loading: () => null,
+})
 
 export function ViewerPanel({
   viewCommand,
@@ -36,6 +50,9 @@ export function ViewerPanel({
   onSetActiveTab,
   onShowComposer,
   isFirstLoadComplete,
+  hasParts,
+  partsCount,
+  failureActionIsSolid = false,
 }: {
   viewCommand?: import('@/components/cad/three-d-viewer').ViewCommand | null
   onViewChange?: (camera: { azimuth: number; elevation: number }) => void
@@ -58,6 +75,19 @@ export function ViewerPanel({
   onSetActiveTab: (tab: string) => void
   onShowComposer: (presetText?: string) => void
   isFirstLoadComplete: boolean
+  /** the rail already holds parts, so the empty canvas points at it (optional) */
+  hasParts?: boolean
+  partsCount?: number
+  /**
+   * Whether the failure card's action owns the accent.
+   *
+   * The composer's circular action is the workspace's one solid lit control
+   * (DESIGN.md section 5), so the failure card only takes the solid form while
+   * the composer is dim - that is, while the failure card is the one action the
+   * screen offers. The moment the user types a brief or edits a parameter the
+   * composer is armed, and the card drops back to the accent's soft form.
+   */
+  failureActionIsSolid?: boolean
 }) {
   const { t } = useI18n()
 
@@ -131,75 +161,106 @@ export function ViewerPanel({
     // the application). `cad-viewer-panel` stays as the styling/test hook.
     <div className="cad-viewer-panel min-w-0 overflow-hidden w-full h-full">
       <PanelErrorBoundary panelName={t("3D Viewport")} resetKey={selectedJob?.id}>
-        <div className="w-full h-full min-w-0 overflow-hidden relative">
+        {/*
+          `aria-busy` is the only way assistive technology can tell "this region
+          is still being worked out" from "this region is finished and empty".
+          Without it, a viewport mid-generation and a viewport with nothing in it
+          read identically - the very distinction the whole loading state exists
+          to make. It sits on the stable wrapper so the flag survives the branch
+          below swapping the contents.
+        */}
+        <div
+          className="w-full h-full min-w-0 overflow-hidden relative"
+          aria-busy={isSelectedProcessing}
+        >
           {selectedJob ? (
           <>
-            {/* Center Content: Conditional based on job state.
-                DESIGN.md sections 3 and 7: the canvas is the application, and during
-                a run "the previous geometry stays visible, dimmed, and labelled with
-                its revision". Progress is reported by the four-lamp strip; failures
-                are reported as verdicts in 检验; the trace log is the 记录 sheet. So
-                the viewport never replaces the part with a status page, and never
-                prints provider ids, generation paths or step names at user level. */}
+            {/* Keep existing geometry visible during rebuilds. A failed run
+                exposes its stage and diagnostic message here, with a direct
+                route to the persisted execution timeline. */}
             {(() => {
               const hasGeometry = Boolean(selectedJob.stlPath)
               const isRunning = isSelectedProcessing ||
                 (!['NEW', 'DELIVERED', 'CANCELLED', 'HUMAN_REVIEW',
                    'VALIDATION_FAILED', 'GEOMETRY_FAILED', 'RENDER_FAILED'].includes(selectedJob.state))
               const isFailed = ['VALIDATION_FAILED', 'GEOMETRY_FAILED', 'RENDER_FAILED'].includes(selectedJob.state)
+              // A cancellation is its own thing, not a failure: it belongs in a
+              // calmer card, and it used to belong in no card at all.
+              const isCancelled = selectedJob.state === 'CANCELLED'
 
               // A run or a failure with geometry on disk: keep the part on screen.
               if (hasGeometry) {
+                const showNotice = isRunning || isFailed || isCancelled
                 return (
                   <div className="w-full h-full min-h-0 relative">
-                    {isRunning && (
-                      <div className="absolute top-4 left-2 z-10 rounded-[9px] border border-[var(--shell-border)] px-3 py-2 flex items-center gap-2 backdrop-blur-md"
-                        style={{ background: 'var(--shell-module)', boxShadow: 'var(--shell-shadow)' }}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-[1px] bg-[var(--shell-signal)] animate-pulse shrink-0" />
-                        <p className="text-[11.5px] text-[var(--shell-text-muted)]">
-                          {t("Rebuilding · Showing the previous geometry")}
-                        </p>
+                    {/*
+                     * Every status card shares one top strip. On the stacked layout the
+                     * fit control floats at the top-right of the viewport, so below
+                     * 960px the strip starts under it instead of running beneath it -
+                     * the audit caught the review notice clipped by that button.
+                     */}
+                    {showNotice && (
+                      <div data-testid="viewer-status-notice" className="pointer-events-none absolute inset-x-2 top-[70px] z-10 flex flex-col items-center gap-2 min-[960px]:left-[300px] min-[960px]:right-[290px] max-[959px]:top-[68px]">
+                        {isRunning && (
+                          <div className="pointer-events-auto w-full max-w-[460px]">
+                            <JobRunProgress job={selectedJob} onCancel={() => onCancel(selectedJob)} onViewCode={() => onSetActiveTab('CODE')} onViewLog={() => onViewLog(selectedJob)} />
+                          </div>
+                        )}
+
+                        {/* A HUMAN_REVIEW notice used to sit here: a 460px card pinned
+                            over the top of the model for as long as the part was
+                            selected, with no close control and no action. It duplicated
+                            the verdict 检验 already prints - and that is the only place
+                            with the repair buttons - while its copy contradicted the
+                            state machine: on a part waiting for a decision it told the
+                            user to "press Generate to rebuild" instead of answering the
+                            question. The plate that owns the facts owns the sentence. */}
+                        {!isRunning && isFailed && (
+                          <div className="pointer-events-auto w-full max-w-[460px]">
+                            <JobFailureNotice job={selectedJob} onViewLog={onViewLog} onProcess={onProcess} onRepair={onRepair} solid={failureActionIsSolid} />
+                          </div>
+                        )}
+                        {isCancelled && (
+                          <div className="pointer-events-auto w-full max-w-[460px]">
+                            <JobCancelledNotice job={selectedJob} onViewLog={onViewLog} onProcess={onProcess} />
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    {/* Informational notices only. The composer owns the single
-                        action (section 5); what can be repaired is answered in 检验. */}
-                    {!isRunning && selectedJob.state === 'HUMAN_REVIEW' && (
-                      <div className="absolute top-4 left-2 z-10 rounded-[9px] border border-[var(--shell-border)] px-3 py-2 flex items-center gap-2 max-w-[420px] backdrop-blur-md"
-                        style={{ background: 'var(--shell-module)', boxShadow: 'var(--shell-shadow)' }}
-                      >
-                        <AlertTriangle className="w-4 h-4 text-[var(--shell-warn)] shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-[12.5px] font-medium text-[var(--shell-text)]">{t("Geometry generated with blocking checks")}</p>
-                          <p className="text-[11px] text-[var(--shell-text-muted)] truncate">{t("Preview and STL are available. Review the checks before exporting, or press Generate to rebuild.")}</p>
-                        </div>
+                    {/*
+                     * The still frame, laid down before the viewport exists.
+                     *
+                     * The 3D chunk is fetched on demand and the geometry is fetched
+                     * after it, so the viewport is empty for two windows: while the
+                     * chunk is in flight (up to 6.5s on a cold start) and while the
+                     * mesh is loading. The part's PNG render answers both. It sits
+                     * at z-0 and the canvas at z-1; the canvas is opaque once it
+                     * paints, so the still frame disappears by itself the moment the
+                     * real viewport is ready.
+                     *
+                     * A job with no render on disk gets a skeleton instead, because
+                     * there is genuinely nothing to show.
+                     */}
+                    {selectedJob.pngPath ? (
+                      <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
+                        <img
+                          src={selectedJob.pngPath}
+                          alt=""
+                          aria-hidden="true"
+                          className="h-full w-full object-contain"
+                        />
                       </div>
-                    )}
-                    {!isRunning && isFailed && (
-                      <div className="absolute top-4 left-2 z-10 rounded-[9px] border border-[var(--shell-border)] px-3 py-2 flex items-center gap-2 max-w-[420px] backdrop-blur-md"
-                        style={{ background: 'var(--shell-module)', boxShadow: 'var(--shell-shadow)' }}
-                      >
-                        <AlertTriangle className="w-4 h-4 text-[var(--shell-fail)] shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-[12.5px] font-medium text-[var(--shell-text)]">{t("Rebuild failed")}</p>
-                          <p className="text-[11px] text-[var(--shell-text-muted)] truncate">{t("Showing the last available geometry. See Checks for the reason and History for the full log.")}</p>
-                        </div>
-                      </div>
-                    )}
-                    {!isRunning && !isFailed && !selectedJob.stlPath && (
-                      <div className="absolute top-4 left-2 z-10 rounded-[9px] border border-[var(--shell-border)] px-3 py-2 flex items-center gap-2 max-w-[420px] backdrop-blur-md"
-                        style={{ background: 'var(--shell-module)', boxShadow: 'var(--shell-shadow)' }}
-                      >
-                        <AlertTriangle className="w-4 h-4 text-[var(--shell-warn)] shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-[12.5px] font-medium text-[var(--shell-text)]">{t("This is a parameter preview, not a built STL")}</p>
-                          <p className="text-[11px] text-[var(--shell-text-muted)] truncate">{t("Press Generate to rebuild and create exportable geometry.")}</p>
+                    ) : (
+                      <div className="absolute inset-0 z-0 flex items-center justify-center p-4">
+                        <div className="flex w-full max-w-xs flex-col items-center gap-3">
+                          <Skeleton className="h-40 w-full rounded-[6px]" />
+                          <Skeleton className="h-2.5 w-28 rounded" />
                         </div>
                       </div>
                     )}
 
-                    <div className={isRunning ? 'w-full h-full opacity-[0.42] transition-opacity' : 'w-full h-full'}>
+                    <div className={cn('relative z-[1] h-full', isRunning && 'opacity-[0.42] transition-opacity')}>
                       <ThreeDViewer
                         job={selectedJob}
                         onDownloadStl={() => handleDownloadStl(selectedJob)}
@@ -213,6 +274,30 @@ export function ViewerPanel({
                 )
               }
 
+              if (isFailed && !isRunning) {
+                return (
+                  <div className="h-full flex items-center justify-center px-4">
+                    <JobFailureNotice job={selectedJob} onViewLog={onViewLog} onProcess={onProcess} onRepair={onRepair} solid={failureActionIsSolid} />
+                  </div>
+                )
+              }
+
+              // Nothing to show in the viewport, but the run was stopped on
+              // purpose - say so, and say how to start over.
+              if (isCancelled) {
+                return (
+                  <div className="h-full flex items-center justify-center px-4">
+                    <JobCancelledNotice job={selectedJob} onViewLog={onViewLog} onProcess={onProcess} />
+                  </div>
+                )
+              }
+
+              if (isRunning) return (
+                <div className="flex h-full items-center justify-center overflow-auto px-4 py-6">
+                  <JobRunProgress job={selectedJob} onCancel={() => onCancel(selectedJob)} onViewCode={() => onSetActiveTab('CODE')} onViewLog={() => onViewLog(selectedJob)} />
+                </div>
+              )
+
               // No geometry yet: the invitation, with the run reported by the lamps.
               return (
                 <CadViewportEmptyState
@@ -225,6 +310,8 @@ export function ViewerPanel({
                   onProcess={onProcess}
                   onShowComposer={onShowComposer}
                   onSetActiveTab={onSetActiveTab}
+                  hasParts={hasParts}
+                  partsCount={partsCount}
                 />
               )
             })()}
@@ -232,6 +319,8 @@ export function ViewerPanel({
         ) : (
           <CadViewportEmptyState
             isFirstLoadComplete={isFirstLoadComplete}
+            hasParts={hasParts}
+            partsCount={partsCount}
             onShowComposer={onShowComposer}
           />
         )}

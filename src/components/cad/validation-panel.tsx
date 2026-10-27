@@ -38,7 +38,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
         <div className="w-12 h-12 rounded-xl bg-[var(--app-empty-bg)] flex items-center justify-center">
           <Shield className="w-6 h-6 opacity-30" />
         </div>
-        <p className="text-sm">{t("No validation results")}</p>
+        <p className="text-[13px]">{t("No validation results")}</p>
       </div>
     )
   }
@@ -101,12 +101,12 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-eyebrow text-[var(--app-text-muted)] font-mono text-[10px] uppercase tracking-wider">{t("MANUFACTURING AUDIT")}</span>
           {blockers.length === 0 ? (
-            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+            <span className="text-[12px] font-semibold text-[var(--shell-ok)] flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>{t("Ready to export")}</span>
             </span>
           ) : (
-            <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+            <span className="text-[12px] font-semibold text-[var(--shell-fail)] flex items-center gap-1">
               <ShieldAlert className="w-3.5 h-3.5" />
               <span>{t("Validation blocked")}</span>
             </span>
@@ -115,28 +115,28 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">
             <span
-              className="text-xs font-mono tabular-nums text-[var(--app-text-muted)]"
+              className="text-[12px] font-mono tabular-nums text-[var(--app-text-muted)]"
               title={t("Score across checks that produced actionable evidence")}
             >
               {score}%
             </span>
           </div>
 
-          <div className="flex items-center gap-1 font-mono text-xs">
+          <div className="flex items-center gap-1 font-mono text-[12px]">
             {blockers.length > 0 && (
-              <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30 gap-1 h-5 rounded-[4px]">
+              <Badge className="bg-[color-mix(in_srgb,var(--shell-fail)_15%,transparent)] text-[var(--shell-fail)] border-[color-mix(in_srgb,var(--shell-fail)_30%,transparent)] gap-1 h-5 rounded-[4px]">
                 <ShieldAlert className="w-3 h-3" />
                 <span className="tabular-nums">{blockers.length}</span> {t("BLOCKERS")}
               </Badge>
             )}
             {warnings.length > 0 && (
-              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1 h-5 rounded-[4px]">
+              <Badge className="bg-[color-mix(in_srgb,var(--shell-warn)_15%,transparent)] text-[var(--shell-warn)] border-[color-mix(in_srgb,var(--shell-warn)_30%,transparent)] gap-1 h-5 rounded-[4px]">
                 <AlertTriangle className="w-3 h-3" />
                 <span className="tabular-nums">{warnings.length}</span> {t("WARN")}
               </Badge>
             )}
             {blockers.length === 0 && (
-              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 gap-1 h-5 rounded-[4px]">
+              <Badge className="bg-[color-mix(in_srgb,var(--shell-ok)_15%,transparent)] text-[var(--shell-ok)] border-[color-mix(in_srgb,var(--shell-ok)_30%,transparent)] gap-1 h-5 rounded-[4px]">
                 <ShieldCheck className="w-3 h-3" />
                 {t("PRINTABLE")}
               </Badge>
@@ -150,7 +150,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
           {/* SECTION 1: BLOCKERS (致命阻塞) */}
           {blockers.length > 0 && (
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-mono text-rose-600 dark:text-rose-400 uppercase tracking-wider">
+              <div className="flex items-center justify-between text-[12px] font-mono text-[var(--shell-fail)] uppercase tracking-wider">
                 <span className="flex items-center gap-1.5 font-semibold">
                   <ShieldAlert className="w-3.5 h-3.5" />
                   {t("Critical Blockers (")}<span className="tabular-nums">{blockers.length}</span>)
@@ -159,7 +159,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-6 text-[11px] gap-1 border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 active:scale-[0.98]"
+                    className="h-6 text-[11px] gap-1 border-[color-mix(in_srgb,var(--shell-fail)_30%,transparent)] text-[var(--shell-fail)] hover:bg-[color-mix(in_srgb,var(--shell-fail)_10%,transparent)] active:scale-[0.98]"
                     onClick={() => onRepair(job)}
                   >
                     <Wrench className="w-3 h-3" />
@@ -171,13 +171,13 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
                 {blockers.map((b) => (
                   <div
                     key={b.rule_id}
-                    className="p-2.5 rounded-[6px] border border-rose-500/30 bg-rose-500/[0.06] text-xs space-y-1"
+                    className="p-2.5 rounded-[6px] border border-[color-mix(in_srgb,var(--shell-fail)_30%,transparent)] bg-[color-mix(in_srgb,var(--shell-fail)_6%,transparent)] text-[12px] space-y-1"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono font-semibold text-rose-700 dark:text-rose-300">
+                      <span className="font-mono font-semibold text-[var(--shell-fail)]">
                         {b.rule_id} · {b.rule_name}
                       </span>
-                      <span className="font-mono text-[10px] text-rose-600 dark:text-rose-400 uppercase tracking-wider font-semibold">
+                      <span className="font-mono text-[10px] text-[var(--shell-fail)] uppercase tracking-wider font-semibold">
                         {t("BLOCKER")}
                       </span>
                     </div>
@@ -185,11 +185,11 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
                       {b.message}
                     </p>
                     <div className="flex items-center gap-1.5 pt-0.5">
-                      <Badge variant="outline" className="text-[9px] h-4 px-1 border-rose-500/30 text-rose-600 dark:text-rose-400 font-mono">
+                      <Badge variant="outline" className="text-[10px] h-4 px-1 border-[color-mix(in_srgb,var(--shell-fail)_30%,transparent)] text-[var(--shell-fail)] font-mono">
                         {b.level}
                       </Badge>
                       {b.status && (
-                        <span className="text-[10px] font-mono text-rose-500">
+                        <span className="text-[10px] font-mono text-[var(--shell-fail)]">
                           {b.status}
                         </span>
                       )}
@@ -203,7 +203,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
           {/* SECTION 2: WARNINGS (制造审查与建议) */}
           {warnings.length > 0 && (
             <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-xs font-mono text-amber-600 dark:text-amber-400 uppercase tracking-wider font-semibold">
+              <div className="flex items-center gap-1.5 text-[12px] font-mono text-[var(--shell-warn)] uppercase tracking-wider font-semibold">
                 <AlertTriangle className="w-3.5 h-3.5" />
                 {t("Process Warnings & Reviews (")}<span className="tabular-nums">{warnings.length}</span>)
               </div>
@@ -213,13 +213,13 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
                   return (
                     <div
                       key={w.rule_id}
-                      className="p-2.5 rounded-[6px] border border-amber-500/25 bg-amber-500/[0.04] text-xs space-y-1"
+                      className="p-2.5 rounded-[6px] border border-[color-mix(in_srgb,var(--shell-warn)_25%,transparent)] bg-[color-mix(in_srgb,var(--shell-warn)_4%,transparent)] text-[12px] space-y-1"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-mono font-medium text-amber-700 dark:text-amber-300">
+                        <span className="font-mono font-medium text-[var(--shell-warn)]">
                           {w.rule_id} · {w.rule_name}
                         </span>
-                        <span className="font-mono text-[10px] text-amber-600 dark:text-amber-400 uppercase">
+                        <span className="font-mono text-[10px] text-[var(--shell-warn)] uppercase">
                           {status || w.status || t("WARN")}
                         </span>
                       </div>
@@ -227,7 +227,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
                         {w.message}
                       </p>
                       <div className="flex items-center gap-1.5 pt-0.5">
-                        <Badge variant="outline" className="text-[9px] h-4 px-1 border-amber-500/30 text-amber-600 dark:text-amber-400 font-mono">
+                        <Badge variant="outline" className="text-[10px] h-4 px-1 border-[color-mix(in_srgb,var(--shell-warn)_30%,transparent)] text-[var(--shell-warn)] font-mono">
                           {w.level}
                         </Badge>
                       </div>
@@ -240,7 +240,7 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
 
           {/* SECTION 3: FACTS (客观几何指标事实) */}
           <div className="space-y-2.5">
-            <div className="flex items-center gap-1.5 text-xs font-mono text-[var(--app-text-muted)] uppercase tracking-wider font-semibold">
+            <div className="flex items-center gap-1.5 text-[12px] font-mono text-[var(--app-text-muted)] uppercase tracking-wider font-semibold">
               <Layers className="w-3.5 h-3.5" />
               {t("Geometric Facts & Telemetry")}
             </div>
@@ -249,31 +249,31 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
             <div className="grid grid-cols-2 gap-2">
               <div className="p-2 rounded-[6px] border border-[color:var(--app-border)] bg-[var(--app-surface-raised)]/40">
                 <span className="text-[10px] font-mono text-[var(--app-text-dim)] uppercase block">{t("Bounding Box")}</span>
-                <span className="text-xs font-mono tabular-nums text-[var(--app-text-primary)] font-medium block truncate">
+                <span className="text-[12px] font-mono tabular-nums text-[var(--app-text-primary)] font-medium block truncate">
                   {bboxText}
                 </span>
               </div>
               <div className="p-2 rounded-[6px] border border-[color:var(--app-border)] bg-[var(--app-surface-raised)]/40">
                 <span className="text-[10px] font-mono text-[var(--app-text-dim)] uppercase block">{t("Triangles")}</span>
-                <span className="text-xs font-mono tabular-nums text-[var(--app-text-primary)] font-medium block">
+                <span className="text-[12px] font-mono tabular-nums text-[var(--app-text-primary)] font-medium block">
                   {renderLog?.stl_triangles ? renderLog.stl_triangles.toLocaleString(locale) : t("Procedural")}
                 </span>
               </div>
               <div className="p-2 rounded-[6px] border border-[color:var(--app-border)] bg-[var(--app-surface-raised)]/40">
                 <span className="text-[10px] font-mono text-[var(--app-text-dim)] uppercase block">{t("Compile Time")}</span>
-                <span className="text-xs font-mono tabular-nums text-[var(--app-text-primary)] font-medium block">
+                <span className="text-[12px] font-mono tabular-nums text-[var(--app-text-primary)] font-medium block">
                   {renderLog?.render_time_ms ? `${renderLog.render_time_ms} ms` : t("Cached")}
                 </span>
               </div>
               <div className="p-2 rounded-[6px] border border-[color:var(--app-border)] bg-[var(--app-surface-raised)]/40">
                 <span className="text-[10px] font-mono text-[var(--app-text-dim)] uppercase block">{t("Watertight Mesh")}</span>
-                <span className="text-xs font-mono font-medium flex items-center gap-1">
+                <span className="text-[12px] font-mono font-medium flex items-center gap-1">
                   {isWatertight ? (
-                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <span className="text-[var(--shell-ok)] flex items-center gap-1">
                       <CheckCircle2 className="w-3 h-3" /> {t("Verified")}
                     </span>
                   ) : (
-                    <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                    <span className="text-[var(--shell-fail)] flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" /> {t("Non-manifold")}
                     </span>
                   )}
@@ -306,15 +306,15 @@ export function ValidationPanel({ job, onRepair }: ValidationPanelProps) {
                   {displayedPassed.map((p) => (
                     <div
                       key={p.rule_id}
-                      className="flex items-center justify-between px-2.5 py-1.5 rounded-[4px] bg-[var(--app-surface-raised)]/20 border border-[color:var(--app-border)]/50 text-xs"
+                      className="flex items-center justify-between px-2.5 py-1.5 rounded-[4px] bg-[var(--app-surface-raised)]/20 border border-[color:var(--app-border)]/50 text-[12px]"
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                        <CheckCircle2 className="w-3 h-3 text-[var(--shell-ok)] shrink-0" />
                         <span className="font-mono text-[var(--app-text-secondary)] truncate">
                           {p.rule_id} · {p.rule_name}
                         </span>
                       </div>
-                      <span className="text-emerald-600 dark:text-emerald-400 text-[10px] font-mono shrink-0 ml-2">
+                      <span className="text-[var(--shell-ok)] text-[10px] font-mono shrink-0 ml-2">
                         {t("PASS")}
                       </span>
                     </div>

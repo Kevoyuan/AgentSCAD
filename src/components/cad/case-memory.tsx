@@ -120,10 +120,10 @@ export function CaseMemory({ searchQuery, onSuggestionClick }: CaseMemoryProps) 
     <div className="mt-0">
       <div className="mb-2 flex h-4 items-center gap-1.5">
         <Brain className="w-3.5 h-3.5 text-[var(--shell-text-label)]" />
-        <span className="font-mono text-[9px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)]">
+        <span className="font-mono text-[10px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)]">
           {t("Case memory")}
         </span>
-        <span className={`font-mono text-[9px] text-[var(--shell-signal-soft)] transition-opacity ${(isSearching || isWaitingForDebounce) ? 'opacity-100' : 'opacity-0'}`}>
+        <span className={`font-mono text-[10px] text-[var(--shell-signal-soft)] transition-opacity ${(isSearching || isWaitingForDebounce) ? 'opacity-100' : 'opacity-0'}`}>
           {t("Searching…")}
         </span>
       </div>
@@ -147,23 +147,23 @@ export function CaseMemory({ searchQuery, onSuggestionClick }: CaseMemoryProps) 
                 <div className="flex items-start gap-2">
                   <PartFamilyIcon family={job.partFamily || 'unknown'} size={16} animate={false} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[12.5px] text-[var(--shell-text)] leading-tight line-clamp-2">
+                    <p className="text-[13px] text-[var(--shell-text)] leading-tight line-clamp-2">
                       {job.inputRequest}
                     </p>
                     <div className="flex items-center gap-1.5 mt-1">
                       <StateBadge state={job.state} />
                       {job.partFamily && (
-                        <span className="font-mono text-[9px] text-[var(--shell-text-dim)]">
+                        <span className="font-mono text-[10px] text-[var(--shell-text-dim)]">
                           {getPartFamilyLabel(job.partFamily)}
                         </span>
                       )}
-                      <span className="font-mono text-[9px] text-[var(--shell-text-dim)]">
+                      <span className="font-mono text-[10px] text-[var(--shell-text-dim)]">
                         {timeAgo(job.createdAt)}
                       </span>
                     </div>
                   </div>
                   <button
-                    className="shrink-0 flex items-center gap-0.5 font-mono text-[9px] text-[var(--shell-signal-soft)] opacity-0 group-hover/suggestion:opacity-100 focus-visible:opacity-100 transition-opacity duration-200 hover:text-[var(--shell-signal)] border border-[color:var(--shell-border)] px-1.5 py-1 rounded-[4px]"
+                    className="shrink-0 flex items-center gap-0.5 font-mono text-[10px] text-[var(--shell-signal-soft)] opacity-0 group-hover/suggestion:opacity-100 focus-visible:opacity-100 transition-opacity duration-200 hover:text-[var(--shell-signal)] border border-[color:var(--shell-border)] px-1.5 py-1 rounded-[4px]"
                     onClick={(e) => {
                       e.stopPropagation()
                       onSuggestionClick?.(job)
@@ -176,7 +176,7 @@ export function CaseMemory({ searchQuery, onSuggestionClick }: CaseMemoryProps) 
             ))}
           </motion.div>
         ) : (
-          <div className="flex min-h-10 items-center justify-center text-[12.5px] text-[var(--shell-text-dim)]">
+          <div className="flex min-h-10 items-center justify-center text-[13px] text-[var(--shell-text-dim)]">
             {isSearching || isWaitingForDebounce ? t("Searching previous parts…") : t("No similar previous parts")}
           </div>
         )}

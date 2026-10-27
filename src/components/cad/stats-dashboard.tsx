@@ -114,7 +114,7 @@ function ProgressRing({
   value,
   size = 80,
   strokeWidth = 5,
-  color = '#FF5A1F',
+  color = 'var(--shell-signal)',
   label,
   sublabel,
 }: {
@@ -132,13 +132,16 @@ function ProgressRing({
   return (
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90" role="img" aria-label={label ? `${label}: ${Math.round(value)}%` : `${Math.round(value)}%`}>
-        {/* Background ring with rotating dash pattern */}
+        {/* Background ring with rotating dash pattern. The track is a token, not
+            a literal: rgba(63,63,70,.3) is the dark theme's zinc, so on the light
+            theme the track vanished into the plate and the ring read as a
+            half-drawn arc with no denominator. */}
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="rgba(63, 63, 70, 0.3)"
+          stroke="var(--shell-border)"
           strokeWidth={strokeWidth}
           strokeDasharray="4 6"
           className=""
@@ -159,18 +162,18 @@ function ProgressRing({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-lg font-semibold font-mono text-[var(--app-text-primary)] tabular-nums">
+        <span className="text-[16px] font-semibold font-mono text-[var(--app-text-primary)] tabular-nums">
           <AnimatedCounter value={value} decimals={0} />
-          <span className="text-xs text-[var(--app-text-muted)]">%</span>
+          <span className="text-[12px] text-[var(--app-text-muted)]">%</span>
         </span>
         {label && (
-          <span className="text-xs font-mono text-[var(--app-text-muted)] tracking-wider uppercase mt-0.5">
+          <span className="text-[12px] font-mono text-[var(--app-text-muted)] tracking-wider uppercase mt-0.5">
             {label}
           </span>
         )}
       </div>
       {sublabel && (
-        <span className="absolute -bottom-4 text-xs font-mono text-[var(--app-text-dim)] tracking-wider">
+        <span className="absolute -bottom-4 text-[12px] font-mono text-[var(--app-text-dim)] tracking-wider">
           {sublabel}
         </span>
       )}
@@ -184,7 +187,7 @@ function Sparkline({
   data,
   width = 200,
   height = 40,
-  color = '#FFB597',
+  color = 'var(--shell-signal-soft)',
 }: {
   data: Array<{ hour: number; count: number }>
   width?: number
@@ -286,28 +289,15 @@ function StateDistributionBar({ jobsByState }: { jobsByState: Record<string, num
       state,
       count: jobsByState[state] || 0,
       pct: ((jobsByState[state] || 0) / total) * 100,
-      color: STATE_COLORS[state]?.dot || 'bg-[var(--app-state-neutral-dot)]',
+      /* The token itself, not a utility class to be parsed back into a colour. */
+      color: STATE_COLORS[state]?.hex || 'var(--shell-text-dim)',
     }))
 
   return (
     <div className="space-y-2">
       <div className="h-2 rounded-full overflow-hidden flex bg-[var(--app-surface-hover)]">
         {segments.map((seg) => {
-          const colorClass = seg.color.replace('bg-', '')
-          const colorMap: Record<string, string> = {
-            'slate-400': '#A79E92',
-            'amber-400': '#E8B84B',
-            'cyan-400': '#FFB597',
-            'emerald-400': '#7BD68A',
-            'lime-400': '#7BD68A',
-            'orange-400': '#E8B84B',
-            'rose-400': '#E8583F',
-            'red-400': '#E8583F',
-            'yellow-400': '#E8B84B',
-            'zinc-500': '#A79E92',
-            '[var(--app-state-neutral-dot)]': 'var(--app-state-neutral-dot)',
-          }
-          const hex = colorMap[colorClass] || 'var(--app-state-neutral-dot)'
+          const hex = seg.color
           return (
             <motion.div
               key={seg.state}
@@ -323,28 +313,14 @@ function StateDistributionBar({ jobsByState }: { jobsByState: Record<string, num
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1">
         {segments.map((seg) => {
-          const colorClass = seg.color.replace('bg-', '')
-          const colorMap: Record<string, string> = {
-            'slate-400': '#A79E92',
-            'amber-400': '#E8B84B',
-            'cyan-400': '#FFB597',
-            'emerald-400': '#7BD68A',
-            'lime-400': '#7BD68A',
-            'orange-400': '#E8B84B',
-            'rose-400': '#E8583F',
-            'red-400': '#E8583F',
-            'yellow-400': '#E8B84B',
-            'zinc-500': '#A79E92',
-            '[var(--app-state-neutral-dot)]': 'var(--app-state-neutral-dot)',
-          }
-          const hex = colorMap[colorClass] || 'var(--app-state-neutral-dot)'
+          const hex = seg.color
           return (
             <div key={seg.state} className="flex items-center gap-1">
               <span
                 className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                 style={{ backgroundColor: hex }}
               />
-              <span className="text-xs font-mono text-[var(--app-text-muted)] tracking-wider uppercase">
+              <span className="text-[12px] font-mono text-[var(--app-text-muted)] tracking-wider uppercase">
                 {seg.state.replace(/_/g, ' ')}
               </span>
               <span className="text-[13px] font-mono text-[var(--app-text-muted)] tabular-nums">{seg.count}</span>
@@ -374,7 +350,7 @@ function StatCard({
     >
       <div className="flex items-center gap-1.5 mb-2">
         <Icon className="w-3.5 h-3.5 text-[var(--app-text-dim)]" />
-        <span className="text-xs font-mono text-[var(--app-text-muted)] tracking-widest uppercase">
+        <span className="text-[12px] font-mono text-[var(--app-text-muted)] tracking-widest uppercase">
           {label}
         </span>
       </div>
@@ -521,7 +497,7 @@ function ActivityTimeline({ jobs }: { jobs: Job[] }) {
     <div className="max-h-70 overflow-y-auto pr-1">
       {groupedEvents.map((group) => (
         <div key={group.label} className="mb-3 last:mb-0">
-          <span className="text-[8px] font-mono text-[var(--app-text-dim)] tracking-widest uppercase block mb-1.5 sticky top-0 bg-[var(--app-surface)] py-0.5 z-10">
+          <span className="text-[10px] font-mono text-[var(--app-text-dim)] tracking-widest uppercase block mb-1.5 sticky top-0 bg-[var(--app-surface)] py-0.5 z-10">
             {group.label}
           </span>
           <motion.div
@@ -548,7 +524,7 @@ function ActivityTimeline({ jobs }: { jobs: Job[] }) {
                       <p className="text-[13px] text-[var(--app-text-secondary)] truncate flex-1">
                         {event.jobName.slice(0, 50)}
                       </p>
-                      <span className={`text-[8px] font-mono px-1 py-0.5 rounded ${
+                      <span className={`text-[10px] font-mono px-1 py-0.5 rounded ${
                         STATE_COLORS[event.state]?.bg || 'bg-[var(--app-state-neutral-bg)]'
                       } ${
                         STATE_COLORS[event.state]?.text || 'text-[var(--app-text-muted)]'
@@ -557,7 +533,7 @@ function ActivityTimeline({ jobs }: { jobs: Job[] }) {
                       </span>
                     </div>
                   </div>
-                  <span className="text-[8px] text-[var(--app-text-dim)] font-mono shrink-0">
+                  <span className="text-[10px] text-[var(--app-text-dim)] font-mono shrink-0">
                     {timeAgo(event.timestamp)}
                   </span>
                 </motion.div>
@@ -681,7 +657,7 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
       <motion.div variants={staggerChild} className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4 text-[var(--app-accent-text)]" />
-          <h2 className="text-sm font-semibold text-[var(--app-text-primary)] tracking-wide">
+          <h2 className="text-[13px] font-semibold text-[var(--app-text-primary)] tracking-wide">
             {t("System Analytics")}
           </h2>
         </div>
@@ -698,7 +674,7 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
       {/* Top row: Key metrics */}
       <motion.div variants={staggerContainer} className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
         <StatCard icon={Layers} label={t("Total Jobs")}>
-          <div className="text-2xl font-mono font-bold tracking-tighter text-[var(--app-text-primary)] tabular-nums">
+          <div className="text-[16px] font-mono font-bold tracking-tighter text-[var(--app-text-primary)] tabular-nums">
             <AnimatedCounter value={stats.totalJobs} />
           </div>
           <div className="text-[13px] font-mono text-[var(--app-text-dim)] mt-0.5 tabular-nums">
@@ -707,7 +683,7 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
         </StatCard>
 
         <StatCard icon={Clock} label={t("Avg Time")}>
-          <div className="text-xl font-mono font-bold tracking-tighter text-[var(--shell-signal-soft)] tabular-nums">
+          <div className="text-[16px] font-mono font-bold tracking-tighter text-[var(--shell-signal-soft)] tabular-nums">
             {formatDuration(stats.avgProcessingTimeMs)}
           </div>
           <div className="text-[13px] text-[var(--app-text-dim)] mt-0.5">
@@ -721,13 +697,13 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
               value={stats.successRate}
               size={56}
               strokeWidth={4}
-              color="#7BD68A"
+              color="var(--shell-ok)"
             />
           </div>
         </StatCard>
 
         <StatCard icon={Zap} label={t("Top Family")}>
-          <div className="text-sm font-mono font-semibold tracking-tight text-[var(--app-accent-text)] truncate">
+          <div className="text-[13px] font-mono font-semibold tracking-tight text-[var(--app-accent-text)] truncate">
             {stats.mostCommonPartFamily.replace(/_/g, ' ')}
           </div>
           <div className="text-[13px] text-[var(--app-text-dim)] mt-0.5">{t("most common")}</div>
@@ -741,7 +717,7 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
       >
         <div className="flex items-center gap-1.5 mb-3">
           <TrendingUp className="w-3.5 h-3.5 text-[var(--app-text-dim)]" />
-          <span className="text-xs font-mono text-[var(--app-text-muted)] tracking-widest uppercase">
+          <span className="text-[12px] font-mono text-[var(--app-text-muted)] tracking-widest uppercase">
             {t("Jobs by State")}
           </span>
         </div>
@@ -756,7 +732,7 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5">
             <Activity className="w-3.5 h-3.5 text-[var(--app-text-dim)]" />
-            <span className="text-xs font-mono text-[var(--app-text-muted)] tracking-widest uppercase">
+            <span className="text-[12px] font-mono text-[var(--app-text-muted)] tracking-widest uppercase">
               {t("Activity (24h)")}
             </span>
           </div>
@@ -777,11 +753,11 @@ export function StatsDashboard({ jobs, onClose }: StatsDashboardProps) {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-[var(--app-text-dim)]" />
-            <span className="text-xs font-mono text-[var(--app-text-muted)] tracking-widest uppercase">
+            <span className="text-[12px] font-mono text-[var(--app-text-muted)] tracking-widest uppercase">
               {t("Recent Activity")}
             </span>
           </div>
-          <span className="text-xs font-mono text-[var(--app-text-dim)]">
+          <span className="text-[12px] font-mono text-[var(--app-text-dim)]">
             {t("Last 10 events")}
           </span>
         </div>

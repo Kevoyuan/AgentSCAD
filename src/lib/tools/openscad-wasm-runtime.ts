@@ -198,7 +198,8 @@ export async function prepareScadForWasm(scadSource: string): Promise<string> {
   return prepared;
 }
 
-async function withWasmSlot<T>(operation: () => Promise<T>): Promise<T> {
+async function withWasmSlot<T>(operation: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  signal?.throwIfAborted();
   if (pendingWasmRenders >= MAX_PENDING_WASM_RENDERS) {
     throw new Error("OpenSCAD WASM renderer is busy; retry this render shortly");
   }
@@ -211,8 +212,14 @@ async function withWasmSlot<T>(operation: () => Promise<T>): Promise<T> {
   wasmQueue = previous.then(() => current);
   try {
     let queueTimer: ReturnType<typeof setTimeout> | undefined;
+    let onAbort: (() => void) | undefined;
     await Promise.race([
       previous,
+      new Promise<never>((_, reject) => {
+        onAbort = () => reject(signal?.reason ?? new Error("Render cancelled"));
+        signal?.addEventListener("abort", onAbort, { once: true });
+        if (signal?.aborted) onAbort();
+      }),
       new Promise<never>((_, reject) => {
         queueTimer = setTimeout(
           () =>
@@ -226,7 +233,9 @@ async function withWasmSlot<T>(operation: () => Promise<T>): Promise<T> {
       }),
     ]).finally(() => {
       if (queueTimer) clearTimeout(queueTimer);
+      if (onAbort) signal?.removeEventListener("abort", onAbort);
     });
+    signal?.throwIfAborted();
     return await operation();
   } finally {
     release();
@@ -236,12 +245,15 @@ async function withWasmSlot<T>(operation: () => Promise<T>): Promise<T> {
 
 async function executeWasm(
   scadSource: string,
-  definitions?: Record<string, unknown>
+  definitions?: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<Buffer> {
+  signal?.throwIfAborted();
   const executable = await ensureVerifiedRuntime();
   const prepared = await prepareScadForWasm(scadSource);
 
   return withWasmSlot(async () => {
+    signal?.throwIfAborted();
     await enforceServerlessRenderCapacity();
     const sandboxRoot = await fs.mkdtemp(
       path.join(os.tmpdir(), "agentscad-openscad-sandbox-")
@@ -268,6 +280,7 @@ async function executeWasm(
             cwd: sandboxRoot,
             env: buildOpenScadWasmEnv(sandboxRoot),
             stdio: ["pipe", "pipe", "pipe"],
+            signal,
           }
         );
         const stdout: Buffer[] = [];
@@ -336,14 +349,16 @@ async function executeWasm(
     } finally {
       await fs.rm(sandboxRoot, { recursive: true, force: true });
     }
-  });
+  }, signal);
 }
 
 export async function renderScadToStlWasm(
   scadSource: string,
-  definitions?: Record<string, unknown>
+  definitions?: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<Buffer> {
-  return executeWasm(scadSource, definitions);
+  signal?.throwIfAborted();
+  return executeWasm(scadSource, definitions, signal);
 }
 
 export function resetOpenScadWasmRuntimeForTests(): void {

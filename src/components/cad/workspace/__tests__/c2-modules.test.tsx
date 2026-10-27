@@ -174,7 +174,14 @@ describe('C2 · instrument primitives', () => {
         <div>verdicts</div>
       </Module>
     )
-    expect(html).toContain('relative shrink-0')
+    /*
+     * 2026-10-27 (UI-01): `shrink-0` was what let the right column overflow -
+     * three modules with fixed natural heights (754px) inside a 702px column, so
+     * the last one was cut off with no visible scrollbar. A flow module now
+     * yields to its column (`min-h-0`) and scrolls its own body instead.
+     */
+    expect(html).toContain('relative min-h-0')
+    expect(html).not.toContain('relative shrink-0')
     expect(html).not.toContain('class="mod group select-none transition-[box-shadow,border-color] duration-200 pointer-events-auto absolute')
   })
 })

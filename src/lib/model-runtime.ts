@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 export const MIN_MODEL_REQUEST_TIMEOUT_MS = 5_000;
 export const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
@@ -11,6 +13,8 @@ export type ModelErrorCode =
   | "LLM_EMPTY_RESPONSE";
 
 export interface ModelErrorEvidence {
+  transportCode?: string;
+  elapsedMs?: number;
   model?: string;
   provider?: string;
   finishReason?: string;
@@ -136,10 +140,96 @@ export function normalizeModelRequestError(
     );
   }
 
+  // Node fetch may wrap ECONNRESET inside TypeError("terminated"). Preserve
+  // only known transport codes, never arbitrary cause text containing secrets.
+  const transportCodes = new Set(["ECONNRESET", "ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "UND_ERR_SOCKET", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT"]);
+  // undici sometimes drops the code and only leaves a socket text on the caused
+  // TypeError ("The socket connection was closed unexpectedly..."). Classify the
+  // shape, then report a fixed transport code rather than echoing raw cause text.
+  const transportMessagePattern = /(?:socket connection was closed|other side closed|fetch failed|connection reset|network error|terminated)/i;
+  const chain: Array<Record<string, unknown>> = [];
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  for (let depth = 0; depth < 8 && current && typeof current === "object" && !seen.has(current); depth++) {
+    seen.add(current);
+    const nested = current as Record<string, unknown>;
+    chain.push(nested);
+    current = nested.cause;
+  }
+
+  for (const nested of chain) {
+    if (typeof nested.code === "string" && transportCodes.has(nested.code)) {
+      return new ModelRequestError(
+        "LLM_UNAVAILABLE",
+        `The connection to the model provider was interrupted (${nested.code}) before generation completed. Check the connection or retry the request.`,
+        true,
+        { cause, evidence: { transportCode: nested.code } },
+      );
+    }
+  }
+  for (const nested of chain) {
+    if (typeof nested.message === "string" && transportMessagePattern.test(nested.message)) {
+      return new ModelRequestError(
+        "LLM_UNAVAILABLE",
+        "The connection to the model provider was interrupted (UND_ERR_SOCKET) before generation completed. Check the connection or retry the request.",
+        true,
+        { cause, evidence: { transportCode: "UND_ERR_SOCKET" } },
+      );
+    }
+  }
+
   return new ModelRequestError(
     "LLM_UNAVAILABLE",
     "The model provider could not generate OpenSCAD for this request. Test the provider or select another model, then retry.",
     true,
     { cause },
   );
+}
+
+// ---------------------------------------------------------------------------
+// LLM call accounting
+//
+// `Job.llmCallCount` is only meaningful if *every* model call is counted from
+// one place. `createChatCompletionDetailed` in `lib/tools/model-router.ts` is
+// that place: intake, request research, generation, compile repair and visual
+// repair all funnel through it. Counting here means a new call site is counted
+// automatically instead of being silently missed.
+//
+// The counter is scoped to one async execution (one job run) because a Node
+// process serves many jobs at once. Calls made outside a run scope are simply
+// not counted — losing a count must never break generation.
+//
+// Attempts are counted when the request starts, not when it succeeds: a retry
+// costs the same budget as the call that finally worked, so cost attribution
+// has to see both.
+// ---------------------------------------------------------------------------
+
+interface LlmCallMeter {
+  calls: number;
+}
+
+const llmCallMeterStorage = new AsyncLocalStorage<LlmCallMeter>();
+
+/**
+ * Runs `fn` with a fresh counter bound to that execution. Everything `fn`
+ * awaits shares the counter; concurrent runs keep theirs separate.
+ *
+ * Scoped with `run` rather than `enterWith` on purpose: `enterWith` mutates the
+ * store of the *current* async resource, so the counter would leak back into
+ * the caller and any sibling job the caller starts afterwards. That is exactly
+ * the contamination this metric is meant to avoid.
+ */
+export function withLlmCallMeter<T>(fn: () => Promise<T>): Promise<T> {
+  return llmCallMeterStorage.run({ calls: 0 }, fn);
+}
+
+/** Records one model call into the current run scope, if there is one. */
+export function countLlmCall(): void {
+  const meter = llmCallMeterStorage.getStore();
+  if (meter) meter.calls += 1;
+}
+
+/** Model calls recorded so far in the current run scope. 0 outside a scope. */
+export function llmCallsThisRun(): number {
+  return llmCallMeterStorage.getStore()?.calls ?? 0;
 }

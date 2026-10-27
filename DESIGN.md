@@ -15,31 +15,34 @@ colors:
   module-dark: "rgba(34,31,28,0.90)"
   module-solid-dark: "#26231F"
   inner-dark: "#211F1C"
-  border-dark: "rgba(255,255,255,0.075)"
-  border-strong-dark: "rgba(255,255,255,0.17)"
+  border-dark: "rgba(255,255,255,0.10)"
+  border-strong-dark: "rgba(255,255,255,0.21)"
   foreground-dark: "#EDE8E0"
-  foreground-muted-dark: "#BEB6AC"
+  foreground-muted-dark: "#D2CABF"
   # The four text steps, darkest surface to quietest. Every step clears 4.5:1 on the
   # module plate, which is what section 21 requires of the dim values too.
-  foreground-label-dark: "#A79E92"
-  foreground-dim-dark: "#92897E"
+  foreground-label-dark: "#BDB4A7"
+  foreground-dim-dark: "#B0A79B"
   # light workspace
   canvas-light: "#F4F2EE"
   canvas-deep-light: "#EDE9E1"
   field-grid-light: "#E0DCD5"
   field-grid-strong-light: "#D5D2CB"
   module-light: "rgba(255,255,255,0.92)"
-  border-light: "#D9D3C9"
+  border-light: "rgba(13,13,14,0.12)"
   foreground-light: "#1B1917"
-  foreground-muted-light: "#5C564D"
-  foreground-label-light: "#6B6459"
-  foreground-dim-light: "#7C7468"
+  foreground-muted-light: "#45403A"
+  foreground-label-light: "#4C463F"
+  foreground-dim-light: "#5F584E"
   # semantic accents (budgeted — see Colors)
   signal: "#FF5A1F"
   signal-soft: "#FFB597"
   pass: "#7BD68A"
   warn: "#E8B84B"
-  fail: "#E8583F"
+  fail: "#FF8A73"
+  pass-light: "#237A46"
+  warn-light: "#8A6410"
+  fail-light: "#C0392B"
   # 3D material
   model-face: "#9BA6B2"
   model-face-shaded: "#77828E"
@@ -54,7 +57,7 @@ typography:
     lineHeight: "1.45"
   engraved:
     fontFamily: "'Geist Mono', Geist Mono Fallback, ui-monospace, Menlo, monospace"
-    fontSize: "9px"
+    fontSize: "10px"
     letterSpacing: "0.16em"
 rounded:
   hotspot: "3px"
@@ -91,7 +94,7 @@ Appendix A.
 | "New Design" modal with tags, model picker, template grid | One composer. The same input creates and refines |
 | Build action as a separate keycap module | A circular action inside the composer |
 | 3D viewport with no orientation aid | Live WebGL viewport + a 56px ViewCube with 26 selectable regions |
-| "Do not use text below 11px" | Reading text stays ≥ 11px. Engraved module labels are 9px mono (see Typography) |
+| "Do not use text below 11px" | Reading text stays ≥ 11px. Engraved module labels are 10px mono (see Typography) |
 
 ---
 
@@ -390,11 +393,33 @@ value will drift the moment the CSS changes — that failure has already shipped
   shell's `canvas-deep` and `field-grid` tokens. No radial glow sits behind the part: a
   zero-offset coloured halo is decoration, not depth, and it fights the part for
   attention. The lights that shape the part ride with the camera (above).
+- **The origin triad belongs to the part, and it is engraved.** (2026-10-27) The axes
+  are not a decorative prop floating in empty space: they are anchored to the part's
+  own bounding-box corner, scaled to the part's own extent, and painted in the field's
+  neutral tokens (`--shell-field-grid-strong`, `--shell-text-dim`) — never in the RGB
+  primaries an `AxesHelper` ships with. A red/green/blue triad is a fourth expressive
+  palette in a screen that already has an accent and three semantic colours.
+  The triad is also **not independent of the grid**: with the grid off, the axes are off
+  too, and the axes toggle reports that it needs the grid rather than sitting dead.
 
 ### Failure mode
 
 If WebGL is unavailable, show the last known render plus a quiet line naming the reason.
 Never show an empty viewport with no explanation.
+
+### The first frame is never empty
+
+(2026-10-27) A part that has been rendered has a still frame (`pngPath`), and that still
+frame is laid down **underneath** the canvas as soon as the panel opens, before the
+three.js chunk has loaded and before the mesh has parsed. Two gaps existed and both are
+now covered:
+
+- the chunk-load window — the dynamic import's fallback is `null`, so nothing covers the
+  still frame with a skeleton;
+- the mesh-load window — the viewer draws its own still frame while the geometry loads.
+
+The window between "the user clicked the part" and "the geometry is on screen" is the
+first thing a person sees of the product, and it used to be 6.5 seconds of empty canvas.
 
 ---
 
@@ -426,16 +451,34 @@ The composer field owns its focus state. Inside the shell, `.shell-field` turns 
 
 ### One action per state
 
-| State | Action | Button |
-| --- | --- | --- |
-| Nothing to do | — | dim |
-| A prompt is typed | 生成 | lit |
-| Parameters changed | 重建 | lit |
-| Running | 停止 | lit, square glyph |
-| A decision is pending | 确认并生成 | lit |
+| State | Action | Button | Owner |
+| --- | --- | --- | --- |
+| Nothing to do | — | dim | — |
+| A prompt is typed | 生成 | lit | composer |
+| Parameters changed | 重建 | lit | composer |
+| Running | 停止 | lit, square glyph | composer |
+| A decision is pending | 确认并生成 | lit | composer |
+| The build failed | 重试 | lit, **solid** | failure card |
 
 **Lighting rule: the action is lit only when pressing it would do something.** It is not
 a permanent call to action competing with the part.
+
+**Failure ownership (2026-10-27).** A failed build has exactly one lit action, and it is
+the failure card's, not the composer's. The composer used to light up whenever the
+selected part had no STL, because the shell treated "no STL" as "never generated" — but a
+failed run also has no STL. The consequence was two lit actions on one screen (the
+composer's 生成 and the failure card's 重试) and an emphasised control that would regenerate
+the same broken design.
+
+The rule is therefore:
+
+- The composer lights only when **pressing it would do something the user asked for**: a
+  prompt is typed, a parameter changed, a decision is pending, or a build is running.
+- "The selected part has no artifact" is **not** a reason to light the composer. It is a
+  fact about the part, and the part's own surface is where it is reported.
+- A failed build therefore hands the solid accent to the failure card. When the composer
+  *is* legitimately armed (the user typed something new), the failure card falls back to
+  the soft form — there is still exactly one solid lit control on the screen.
 
 ### The staleness line
 
@@ -458,6 +501,23 @@ single easiest way to make a CAD tool untrustworthy.
 Chinese-language product, and an IME uses Enter to commit candidate words. No shortcut
 may fire while the user is composing text.
 
+The shell owns the global keys, and each key has exactly one owner:
+
+| Key | Owner | Action |
+| --- | --- | --- |
+| `Space` | shell | hide / show every module |
+| `1`–`6`, `0`, `F` | viewport | standard views, isometric, fit |
+| `E` | inspector | open 源码 (CODE) |
+| `H` | inspector | open 记录 (HISTORY) |
+| `S` / `T` | shell | statistics / theme |
+| `⌘K` | shell | command palette |
+
+**The shortcuts sheet is a contract, not a summary.** It must list only keys the app
+binds and surfaces the real tab set. A sheet that advertises a key scheme the shell
+removed teaches the user to distrust every other row on it: the digits are the camera's,
+and the inspector sheet is 描述 / 源码 / 记录, not six tabs. If a key is retired, the row
+goes; if a key is promised, it is bound.
+
 ---
 
 ## 6. Modules: what lives where
@@ -477,7 +537,7 @@ The design list is a numbered rail, not a table and not a card grid.
 01  手机壳                          ← active, signal bar on the left edge
     17 Pro Max · 可导出
 02  六角螺栓 M3
-    待确认
+    待复核
 03  齿轮 模数 2
     3 天前
 ```
@@ -521,6 +581,27 @@ Conclusions first, then telemetry.
   (not implemented)" and "API key not configured" must not be rendered in the same amber
   alarm style as a real geometry problem. If a check cannot run, it is absent from the
   verdict list with a quiet one-line note, not a warning badge.
+
+### Delivery verdict `验收结论`
+
+An inspection ends in a verdict. When the part is built and nothing blocks it, the checks
+module carries the user's own decision about the result:
+
+```text
+验收结论
+[ 采纳这个零件 ]   [ 这个零件不合格 ]
+```
+
+- The verdict is a **product event, not a local flag**. It is written to the append-only
+  outcome ledger as `accepted` or `rejected`, and it is the only record in the system that
+  says a generation actually worked. `DELIVERED` proves the artifacts exist; an export
+  proves the user wanted the file; only a verdict proves the part was right.
+- A part that is still blocked is **not judged**. Recording a verdict on geometry the
+  checks already rejected would poison the only trustworthy number in the product.
+- The ledger is append-only, so a later decision supersedes an earlier one and the most
+  recent decision wins. The buttons stay available to overrule it.
+- The two actions are not the composer's action. The composer owns "generate"; the
+  verdict answers a different question and belongs to the module that asked it.
 
 ### Output and revisions
 
@@ -598,7 +679,7 @@ menu nobody opens.
 | Statistics | modal from the tools menu | No permanent entry point. Summarise in the slots rail when several designs are selected |
 | Compare designs | modal from the tools menu | Contextual: appears in the slots rail action bar once 2+ designs are selected |
 | Notifications + activity | popover in the app bar | Bell in the brand module → right drawer. Semantic colors from shell palette (`--shell-ok`, `--shell-warn`, `--shell-fail`, `--shell-signal-soft`, `--shell-text-label`) |
-| Command palette / shortcuts | menu items and keys | Keys only (`⌘K` / `⌘/`). Never a menu row |
+| Command palette / shortcuts | menu items and keys | Keys only (`⌘K` / `?`). Never a menu row |
 | Export all data | menu item | Bottom of the Settings sheet. It is a maintenance action, not a daily one |
 | Case memory (记忆) | tab inside the creation modal | **Folded into composer recall.** As the user types, previously accepted briefs surface as suggestions. Currently still bundled in the creation modal (`JobComposer.tsx`) |
 | Templates | tab inside the creation modal | Same: intended as examples under the composer; currently still bundled in the creation modal (`JobComposer.tsx`) |
@@ -752,13 +833,13 @@ Canvas edge        #0E0D0C
 Module             rgba(34,31,28,0.90)  + 16px backdrop blur
 Module solid       #26231F
 Inner well         #211F1C
-Border             rgba(255,255,255,0.075)
-Border (emphasis)  rgba(255,255,255,0.17)
+Border             rgba(255,255,255,0.10)
+Border (emphasis)  rgba(255,255,255,0.21)
 Text               #EDE8E0
-Muted text         #BEB6AC
-Label              #A79E92
-Dim                #92897E
-Placeholder        #92897E
+Muted text         #D2CABF
+Label              #BDB4A7
+Dim                #B0A79B
+Placeholder        #B0A79B
 ```
 
 #### Light
@@ -771,16 +852,16 @@ Field grid strong  #D5D2CB
 Module             rgba(255,255,255,0.92)
 Module solid       #FFFFFF
 Inner well         #EDF1F5
-Border             #D9D3C9
-Border (emphasis)  rgba(13,13,14,0.20)
+Border             rgba(13,13,14,0.12)
+Border (emphasis)  rgba(13,13,14,0.24)
 Text               #1B1917
-Muted text         #5C564D
-Label              #6B6459
-Dim                #7C7468
-Placeholder        #7C7468
+Muted text         #45403A
+Label              #4C463F
+Dim                #5F584E
+Placeholder        #5F584E
 ```
 
-**Text ladder contrast.** The `label`, `dim`, and `placeholder` steps were raised so that every step clears 4.5:1 on the module plate in both themes (dark label: 6.0:1, dark dim: 4.6:1; light label: 5.2:1, light dim: 4.6:1). This fixed real contrast failures where dark dim measured 2.95:1, dark placeholder 2.53:1, light composer hint 3.11:1, and light cube label 4.24:1.
+**Text ladder contrast.** The 2026-10-26 readability pass raises the dark muted / label / dim ladder to `#D2CABF` / `#BDB4A7` / `#B0A79B`, and the light ladder to `#45403A` / `#4C463F` / `#5F584E`. On the solid module surface, dark label / dim measure approximately 7.6:1 / 6.6:1; light label / dim measure approximately 9.3:1 / 7.0:1. Actual contrast varies with the translucent plate background; rendered checks must clear 4.5:1, with a 7:1 target for small metadata. Light semantic text uses `#237A46` (pass), `#8A6410` (warn), and `#C0392B` (fail).
 
 ### Accent roles
 
@@ -789,7 +870,7 @@ Placeholder        #7C7468
 #FFB597   the action's softer text form (stale status, hover)
 #7BD68A   verified / passed
 #E8B84B   caution / needs review
-#E8583F   failed / blocked / destructive
+#FF8A73   failed / blocked / destructive
 #9BA6B2   the part's material
 ```
 
@@ -818,7 +899,23 @@ second solid orange group, and it is the same soft role the stale status line us
 
 A repeatable scan reports zero out-of-palette colours on every reachable surface:
 
-- **State colours**: Every runtime state (`NEW`, `SCAD_GENERATED`, `RENDERED`, `VALIDATED`, `DELIVERED`, `DEBUGGING`, `REPAIRING`, `VALIDATION_FAILED`, `GEOMETRY_FAILED`, `RENDER_FAILED`, `HUMAN_REVIEW`, `CANCELLED`) resolves strictly to pass (`--shell-ok` / `#7BD68A`), warn (`--shell-warn` / `#E8B84B`), fail (`--shell-fail` / `#E8583F`), soft signal (`--shell-signal-soft` / `#FFB597`), or label/neutral (`--shell-text-label` / `--app-state-neutral-*` / `#A79E92`).
+- **The palette is tokenised, not named.** No component in `src/components/**` may use a
+  Tailwind palette utility (`text-slate-400`, `bg-emerald-500`, `border-cyan-300`, …).
+  Every colour comes from a shell token: `--shell-signal` / `--shell-signal-soft` /
+  `--shell-signal-ink` for the accent, `--shell-ok` / `--shell-warn` / `--shell-fail` for
+  semantic state, `--shell-text` / `--shell-text-muted` / `--shell-text-label` /
+  `--shell-text-dim` for the text ladder, `--shell-border` / `--shell-border-strong` /
+  `--shell-hairline` for edges, `--shell-well` / `--shell-inner` / `--shell-hover` for
+  surfaces. This is enforced by an ESLint `no-restricted-syntax` rule over
+  `src/components/**/*.{ts,tsx}` — a palette class is a lint error, not a review comment.
+  The reason is not aesthetic: a palette class is a colour that no theme can retune, and
+  it is the one way a dark-theme-only decision leaks into the light theme.
+- **Semantic colour is reserved for semantic state.** A decorative icon is never green
+  because it belongs to a model, a pipeline stage, or a research section. Model categories,
+  pipeline stage badges, and section icons render in `--shell-text-muted`. Only an
+  outcome (passed / failed / needs review) may wear `--shell-ok` / `--shell-warn` /
+  `--shell-fail`.
+- **State colours**: Every runtime state (`NEW`, `SCAD_GENERATED`, `RENDERED`, `VALIDATED`, `DELIVERED`, `DEBUGGING`, `REPAIRING`, `VALIDATION_FAILED`, `GEOMETRY_FAILED`, `RENDER_FAILED`, `HUMAN_REVIEW`, `CANCELLED`) resolves strictly to pass (`--shell-ok` / `#7BD68A`), warn (`--shell-warn` / `#E8B84B`), fail (`--shell-fail` / `#FF8A73`), soft signal (`--shell-signal-soft` / `#FFB597`), or label/neutral (`--shell-text-label` / `--app-state-neutral-*` / `#BDB4A7`).
 - **Activity feed and notification maps**: Use the exact same semantic palette tokens (`--shell-ok`, `--shell-warn`, `--shell-fail`, `--shell-signal-soft`, `--shell-text-label`), never arbitrary Tailwind steps.
 - **Part-family icons**: No longer paint a hue per family (the previous multi-hue rainbow of amber, teal, emerald, rose, and stone was removed). Icons render engraved in `text-[var(--shell-text-label)]` alongside the family name.
 - **SCAD syntax highlighter** (`src/lib/scad-highlight.ts`): Uses semantic roles instead of a seven-hue rainbow:
@@ -858,9 +955,9 @@ Module titles and grouped field labels use a small engraved style:
 
 ```css
 font-family: 'Geist Mono', monospace;
-font-size: 9px;
+font-size: 10px;
 letter-spacing: 0.16em;
-color: #A79E92;
+color: #BDB4A7;
 ```
 
 This is a **deliberate exception** to the old "no text below 11px" rule. The exception is
@@ -868,18 +965,34 @@ narrow: it applies to non-reading labels that name a module or a group, where th
 content carries the meaning.
 
 The rule that still holds absolutely: **no body, label, value, or instruction the user
-must read to act may be below 11px.** If a 9px label is the only thing telling the user
+must read to act may be below 11px.** If a small label is the only thing telling the user
 what a control does, it is too small — that is a design bug, not a typography bug.
+
+The workspace enforces a 10px floor for legacy 8–9.5px utility classes. Module titles and compact metadata use this floor; body copy and editable values remain 11px or larger.
+
+**Where the 10px exception ends (2026-10-27).** The 2026-10-27 review found 10px used
+where the text was a *sentence*, not a chrome label. The boundary is now drawn by what
+the text does:
+
+| 10px is allowed | 10px is not allowed |
+| --- | --- |
+| A chrome / engraved label that names a module, a group, or a metric | Any sentence the user reads to decide what to do |
+| A unit, a count, a tab, a badge | A state word (`待确认`, `需复核`, `失败`) |
+| A count column (`3 / 12`) | An instruction (`拖动模块标题移动`) |
+| A scale label on a ruler (`mm · 0 — 200`) | Any explanation of what a number means or is not |
+
+A **state word is a sentence**: it tells the user what the system thinks of their work,
+so it is 11px. A **count is a number**: it is 10px. That is the whole rule.
 
 ### Scale
 
 ```text
 Design name          12.5px / 600
-Module title         9px mono, engraved
+Module title         10px mono, engraved
 Body                 12.5px / 400
 Control              11.5–12.5px
 Value (mono)         11–12px, tabular figures
-Engraved label       9px mono
+Engraved label       10px mono
 ```
 
 ### Casing
@@ -1049,6 +1162,41 @@ Rules learned the hard way:
 Honor `prefers-reduced-motion`: remove the camera tween and status pulses; keep the
 state change legible without animation.
 
+### How it is enforced (2026-10-26)
+
+This rule existed in this document before it existed in the product: the tree runs
+19 `animate-spin` and 8 `animate-pulse`, and global CSS defines eight `… infinite`
+animations, but reduced motion was only ever handled for whoever remembered to add
+a `motion-reduce:` variant — one call site out of twenty-seven, and four of this
+stylesheet's own animations with no counterpart at all.
+
+- **Motion is handled globally, not per call site.** One consolidated block at the
+  end of `globals.css` covers the Tailwind utilities and the custom looping classes.
+  Correct behaviour is the default; a call site cannot forget to opt in.
+- **It sits last and unlayered.** The file already recorded an earlier
+  reduced-motion block losing the cascade, and Tailwind v4 emits utilities inside
+  `@layer`, which unlayered rules beat. Position is what makes it work, so it needs
+  no `!important` — and a regression test fails if one ever appears.
+- **A new looping animation cannot land unhandled.** A test scans the stylesheet for
+  `animation: … infinite` and fails when any of them is missing from a
+  reduced-motion block. It found a fifth one (`.typing-wave-dot`) the moment it ran.
+- **Specificity has to be matched.** The typing wave animates through
+  `.typing-wave-dot:nth-child(1..3)`, so it is stopped with
+  `.typing-wave-dot:nth-child(n)`, not the bare class, which would be outranked.
+- **Motion is never the only signal.** Every looping element states the same thing in
+  words or by its plain presence, so stopping the motion does not take the
+  information with it. If you add a loop that is the *only* signal for its state,
+  that is the defect — not the missing reduced-motion rule.
+- **Inline styles are asked, not styled.** A stylesheet media query cannot reach an
+  inline style, and an inline style outranks every stylesheet rule short of
+  `!important`. The view cube animates its own rotation inline, so it asks
+  `useReducedMotion()` (a `useSyncExternalStore` over the media query) and drops
+  the travel while keeping the arrival: the view change is the information, the
+  journey is not.
+- **Not every transition is motion.** A 10% hover scale on a slider thumb is a direct
+  answer to the user's own pointer and is deliberate feedback, so it is kept.
+  Reduced motion is about unsolicited movement, not about removing affordances.
+
 ---
 
 ## 17. Loading & Async Behavior
@@ -1068,6 +1216,38 @@ state change legible without animation.
   display, and this only says the machine is working. A rebuild keeps the previous
   revision on screen instead.
 - SSE payloads keep the existing contract (`data: ${JSON.stringify(payload)}\n\n`).
+- **A loading region says it is loading, in markup as well as in shape.** The job-list
+  skeleton is `role="status" aria-busy="true"` and carries an sr-only line; the
+  viewport flags itself with `aria-busy` while a part is being built. Without this,
+  "still working" and "finished but empty" are the same subtree to assistive
+  technology, and once reduced motion stops a skeleton pulsing, they are very nearly
+  the same thing to everyone else. The flag has to come off when the wait ends, or
+  every empty state reads as still loading.
+
+### Three states, not two (2026-10-27)
+
+A detail panel that reads from a record has **three** possible states, and the 2026-10-27
+review found the shell collapsing two of them. The distinction is not pedantry: the
+collapsed pair produced a sentence that was false in the most expensive direction —
+"Generate this part to see them here", printed for one to two seconds on every part the
+user had *already* generated.
+
+| State | The fact | What the panel shows |
+| --- | --- | --- |
+| **Pending** | The record is in flight | The **shape** of the content — skeleton rows, `role="status" aria-busy="true"`, sr-only line. **No sentence.** |
+| **Empty** | The record arrived and there is genuinely nothing | One true sentence (`这个设计没有可调尺寸`) |
+| **Failed** | The request failed | One sentence saying it failed (`无法加载这个零件的尺寸`) |
+
+The rule that makes this work: **while the record is in flight, a panel draws shapes and
+says nothing.** A sentence during that window is a claim about a fact nobody has yet.
+
+Implementation: the list payload marks its records as summary-only (`Job.summaryOnly`);
+the detail fetch clears it. A failed detail fetch sets `Job.detailFailed` — a **third**
+state, because leaving the record flagged as a summary would spin the skeleton forever
+for a part that is never going to arrive.
+
+The panels that consume this share one module (`workspace/job-detail-state.ts`) so the
+three states cannot drift apart between 尺寸, 检验 and 读数.
 
 ---
 
@@ -1104,6 +1284,50 @@ validation.
   without an alarm colour: `本机没有配置视觉复核，已跳过`.
 - Never show a rule id to a user. `R001 · Minimum Wall Thickness` is internal.
 - Artifact staleness is stated once, in the composer's staleness line, not in three places.
+- **One fact, one writer.** (2026-10-27) A screen that answers the same question in two
+  places is not redundant — it is contradictory the moment the two disagree. The
+  dimensions module once derived its own "has this changed?" set by comparing the draft
+  against the schema's *declared defaults*, while the composer compared the draft against
+  the values the part was **actually built with**. On a part whose build overrode its
+  declared default, the module said "1 parameter changed" while the composer said
+  "无需重建", on the same screen, at the same moment.
+
+  The fix is structural, not cosmetic: the shell computes the baseline
+  (`builtParameterValues`) and the changed-key set **once**, and hands the set to the
+  module. The module reports *the edit* ("2 changed", with undo); the composer owns
+  *artifact staleness*. Neither derives it.
+
+- **No internal identifier reaches the screen.** The boundary is precise, because
+  "engine name" means two different things:
+
+  | Thing | On screen? |
+  | --- | --- |
+  | The engine's **internal id** (`deepseek-v4-flash`, `provider:abc:model`) | **Never.** Not in the readout, not in a tooltip, not as a fallback |
+  | The engine's **display name** for a *configured* engine (`DeepSeek V4`) | Yes — it is the same label the user picked in Settings |
+  | A rule id (`R001`), a file path, a compile time, a triangle count | **Never.** They stay in 源码 / 记录 |
+
+  An engine that is no longer configured has **no name at all** — the readout shows
+  nothing where it would have shown a name. Peeling a raw id apart to manufacture a label
+  is not a fallback, it is the defect. The old `modelId.split(':').pop()` fallback is
+  exactly how `deepseek-v4-flash` reached the screen.
+
+- **A declared parameter is not a measurement.** (2026-10-27) The readout says
+  `按参数推算 · 非实测` — "computed from parameters, not measured". The old copy,
+  "Target values are not measured geometry", was both 10px and jargon; the new copy says
+  the same true thing in the user's language. A number that came from a parameter is not
+  a number that came from the mesh, and the label has to say which one it is.
+
+- **A check tells the user what the system measured; only the user tells the system
+  whether it was right.** The two are separate facts and live in separate places: the
+  checks module reports evidence, the outcome ledger records the decision. A product
+  that cannot be told "this part was wrong" cannot measure its own success rate.
+- **A validation target is a claim about what the part is supposed to be, so it dies with
+  the interpretation it came from.** Whenever the meaning of the request changes — the
+  ambiguous-intent branch is the clearest case — the stored targets are cleared along
+  with the source and the results. Keeping them is not a harmless leftover: the next part
+  would be measured against the rejected interpretation, and a PASS against the wrong
+  target is worse than an honest skip. Targets are kept when only the *geometry* changed
+  and the intent did not, which is why the repair branches keep theirs.
 
 ---
 
@@ -1134,14 +1358,14 @@ Full floating layout as specified. This is the reference size.
 ### 960–1279px
 
 Modules shrink but keep their positions. The dimensions module drops its second
-parameter group behind a disclosure. The canvas is never shrunk to make room.
+parameter group behind a disclosure. The canvas is never shrunk to make room. The ViewCube sits in the gutter at 292px from the left, clear of the parts rail; the right column ends above the composer. The brand plate has a viewport-dependent width cap to clear the Panels plate.
 
 ### < 960px
 
-The docked-position metaphor stops working. The intended stacked layout is:
+The docked-position metaphor stops working. The implemented sheet layout is:
 
 ```text
-3D viewport (fixed 45vh)
+3D viewport (available space below compact header)
 composer (pinned)
 modules as full-width sheets, summoned one at a time
 ```
@@ -1149,14 +1373,15 @@ modules as full-width sheets, summoned one at a time
 Do not compress floating modules into a grid. Do not keep five floating plates on a
 tablet-sized canvas.
 
-**Current implementation reality:** The slots rail is no longer hidden (the legacy docked-layout media queries that forced `display: none !important` on `.cad-left-panel` below 1024px were removed from `globals.css`), but the Section 20 stacked layout is not yet built; plates still overlap each other at 375px.
+**Implemented (2026-10-26):** Below 960px, a compact header sits above the canvas. Parts, Dimensions, Checks, and Readouts open as full-width sheets, one at a time, above the pinned sheet bar and composer. Sheet bodies scroll within their height cap. The desktop toolbar and ViewCube are hidden; a 44px Fit control remains available.
 
 ### Touch
 
 Hit targets are at least 44px, with no hover-only discoverability, and the ViewCube regions are reachable by tap. Orbit uses a single-finger drag, zoom uses pinch.
 
 Under `@media (pointer: coarse)`:
-- Module collapse buttons (`.mod-h button`), brand controls (`#brand button`), density and command buttons (`#controls button`, `#cmd button`), ViewCube buttons (`#view-cube button`), and design row controls (`[data-testid="design-row"] button`) expand to 44px tall hit areas via vertical pseudo-element expansion (`::after`). Expansion is strictly vertical so adjacent controls sitting shoulder-to-shoulder horizontally do not steal taps from each other.
+- Brand controls (`#brand button`), density and command buttons (`#controls button`, `#cmd button`), ViewCube buttons (`#view-cube button`), and design row controls (`[data-testid="design-row"] button`) expand to 44px tall hit areas via vertical pseudo-element expansion (`::after`). Expansion is strictly vertical so adjacent controls sitting shoulder-to-shoulder horizontally do not steal taps from each other.
+- Module collapse controls and numeric steppers use physical 44px touch targets. The narrow composer action is also 44px.
 - Interactive fields and chips that cannot use pseudo-elements (`#cmd input`, `#slots input`, `#slots button`, empty-state preset buttons) enforce a physical minimum height of 44px (and minimum width of 44px for buttons).
 
 ---
@@ -1172,7 +1397,7 @@ Mandatory:
 - keyboard access to every operation;
 - **visible focus is one amber border rather than a ring inside a ring**: inputs and fields inside the shell use `.shell-field` which states focus through their own 1px border turning amber (`focus-within:border-[var(--shell-signal)]`) and suppresses generic focus rings (`box-shadow: none`), while `--ring` resolves to the shell signal;
 - text alternatives for every state colour;
-- **sufficient contrast across the entire text ladder**: every step (`foreground`, `muted`, `label`, `dim`, `placeholder`) clears 4.5:1 against the module plate and canvas in both dark and light themes (dark label: 6.0:1, dark dim: 4.6:1; light label: 5.2:1, light dim: 4.6:1);
+- **sufficient contrast across the entire text ladder**: every step (`foreground`, `muted`, `label`, `dim`, `placeholder`) clears 4.5:1 against the module plate and canvas in both dark and light themes (see section 11 for tokens and the distinction between solid-surface and rendered contrast);
 - **browser surfaces owned by shell palette**: scrollbars (`scrollbar-color: var(--shell-scroll-thumb) transparent` and webkit scrollbar rules) and text selection (`::selection` using a 30% signal mix) come strictly from the shell tokens rather than browser defaults or legacy purple/zinc styles;
 - error text associated with its field;
 - reduced-motion behavior (`part-tumble` loader halts on `prefers-reduced-motion: reduce` and holds a still isometric angle);
@@ -1184,6 +1409,20 @@ Mandatory:
 For the viewport specifically: standard views (front / back / left / right / top / bottom /
 isometric), fit, and zoom must be reachable from the keyboard (`1`–`6`, `0`, `f`). A precision drag must
 never be the only way to answer "show me the front".
+
+**A status that changes over time is announced, not just coloured.** The run lamp strip
+prints four fixed words — 解读 / 写 SCAD / 渲染 / 检验 — and the stage was carried by the
+dot's colour alone, so a screen reader heard nothing and the stage was unreadable
+without colour vision. Every lamp therefore carries a state word (已完成 / 运行中 /
+待执行) for assistive technology, the current lamp carries `aria-current="step"`, and the
+strip is a polite live region so a stage change is spoken. The notification list is a
+`role="log"` live region for the same reason: a finished run, a failed part or a
+returned decision must not arrive silently in a panel nobody had open.
+
+**Every job state the API can write has a label.** A state missing from the display table
+falls through to the default, and the default reads as 草稿 — so a job being deleted, or
+one stuck in any other state, would look like a brand new empty part. The table in
+`types.tsx` must cover every state in the API's `VALID_STATES` list.
 
 ---
 
@@ -1339,6 +1578,28 @@ below was reproduced before it was changed.
 | Touch targets & accessibility | module titles are `h2` headings (brand plate stays a wordmark); module collapse and row controls expand to 44px tall hit areas under `(pointer: coarse)`; scrollbars and `::selection` come from the shell palette |
 | `bun run lint` is green | the notification drawer detects the client with `useSyncExternalStore` instead of `setState` in an effect |
 
+**Fixed after the second review round (2026-10-27)**
+
+The second round scored 3.8/5 and found all seventeen round-one defects still held. Its
+entire deduction came from one class: **the interface was saying things that were not
+true.** Twelve items (N1–N12), each with an automated assertion in
+`src/components/cad/__tests__/ux-round2-acceptance.test.tsx`.
+
+| Item | Evidence |
+| --- | --- |
+| N1 · staleness has one writer | the dimensions module no longer derives a changed-set; the shell computes `builtParameterValues` + `changedKeys` once and hands them over. The module reports "2 changed", the composer owns "需重建" |
+| N2 · a loading screen never lies | `workspace/job-detail-state.ts` gives the panels three states (pending / empty / failed). Pending draws skeleton rows with `role="status" aria-busy="true"` and says nothing; a failed fetch says it failed instead of spinning forever (`Job.detailFailed`) |
+| N3 · no internal identifier | `engineLabel()` returns `null` for an unconfigured engine. The `modelId.split(':').pop()` fallback — the one path that produced `deepseek-v4-flash` on screen — is gone |
+| N4 · no Tailwind palette | 94 palette utilities across 9 files replaced by shell tokens, plus an ESLint `no-restricted-syntax` rule over `src/components/**` so it cannot come back. Decorative icons (model categories, pipeline stages, research sections) were pulled back to neutral |
+| N5 · the first frame has content | the rendered still frame is laid down under the canvas immediately; the dynamic import's fallback is `null` so no skeleton covers it. The 6.5s empty window is closed at both the chunk boundary and the mesh boundary |
+| N6 · the mobile sheet bar | `aria-pressed` + `.shell-tab-active` (a 2px signal underline) were already present at 12:36 — verified, no change needed |
+| N7 · 10px body text | the four sentences the review named are 11px. 10px remains only for chrome and engraved labels (§12) |
+| N8 · internal vocabulary | `Target values are not measured geometry.` → `按参数推算 · 非实测` |
+| N9 · failure emphasis | the composer used to light whenever the part had no STL — which is also true of a *failed* run. `isFailedJob` now separates the two; the failure card takes the solid accent and the composer stays dim (§5) |
+| N10 · the origin triad | the axes are anchored to the part's bounding-box corner, scaled to the part, painted in field tokens instead of RGB primaries, and switch off with the grid |
+| N11 · the floating plate | the slots rail's ceiling is now `ResizeObserver`-measured from the readout plate instead of a hardcoded `calc(100vh - 280px)` |
+| N12 · the truncated subtitle | the brand plate and the narrow header subtitle wrap to two lines (`line-clamp-2`) |
+
 **Not done**
 
 | Item | Note |
@@ -1402,7 +1663,9 @@ The redesign is not complete because it uses the new colours. It is complete whe
 5. Parameter edits clearly distinguish preview state from rebuilt artifact state.
 6. Deterministic validation and model interpretation are visually distinguishable.
 7. A check that cannot run is not rendered as a warning.
-8. No rule id, engine name, file path or compile time is visible anywhere in the UI.
+8. No rule id, file path or compile time is visible anywhere in the UI. (2026-10-27:
+   see §18 — an engine's *internal id* is also invisible; the *display name* of a
+   configured engine is visible, because it is the label the user chose in Settings.)
 9. The 3D viewport reaches any orientation by drag and any standard orientation by click.
 10. Releasing a drag never moves the camera.
 11. Light and dark themes preserve the same hierarchy.
@@ -1411,6 +1674,35 @@ The redesign is not complete because it uses the new colours. It is complete whe
 14. Loading never moves or resizes a module.
 15. Shared components own their visual state instead of screens overriding colour.
 16. A screenshot with the logo removed is still recognisably AgentSCAD.
+
+### 26.1 Truth (2026-10-27)
+
+These are the criteria the second review round added, because the first round's seventeen
+were all still held and the entire remaining deduction came from here: **the interface
+was saying things that were not true.**
+
+17. **One fact, one writer.** A screen never answers the same question in two places.
+    Artifact staleness is stated by the composer alone; the parameters module reports
+    the edit, not the artifact's freshness.
+18. **A loading panel draws shapes, not sentences.** While a record is in flight the
+    panel shows the *shape* of the content and says nothing. Only an arrived record may
+    produce a sentence — and an arrived record that is empty produces a *true* one.
+19. **A failed load says it failed.** A failed fetch is a third state, not an endless
+    loading state.
+20. **No internal identifier reaches the screen.** Not as a label, not as a tooltip, not
+    as a fallback. An unconfigured engine has no name.
+21. **No Tailwind palette utility in a component.** Every colour is a shell token.
+22. **The first frame is not empty.** A part that has been rendered shows its still
+    frame immediately, before the 3D chunk has loaded.
+23. **The active sheet says it is active** on every viewport width.
+24. **Body text is never below 11px.** 10px is reserved for chrome and engraved labels.
+25. **A failed build has exactly one lit action, and it is the failure card's.**
+26. **Layout maths comes from measured elements.** A plate that must clear another
+    plate is measured, not assumed.
+
+Each of these has an automated assertion in
+`src/components/cad/__tests__/ux-round2-acceptance.test.tsx` (24 assertions), so a later
+change cannot quietly reintroduce one.
 
 ---
 
@@ -1426,6 +1718,8 @@ The redesign is not complete because it uses the new colours. It is complete whe
 - Keep the camera's relationship to the part obvious at all times.
 - Make the ViewCube honest about whether the camera is on a standard view.
 - Derive layout maths from measured elements, not duplicated constants.
+- Draw the shape of loading content; write a sentence only for a fact you have.
+- Name an engine only when you can name it honestly.
 
 ### Don't
 
@@ -1438,6 +1732,9 @@ The redesign is not complete because it uses the new colours. It is complete whe
 - Use plain Enter as a submit shortcut in a Chinese-language input.
 - Let two code paths write the same state element.
 - Solve an information problem by adding another module.
+- Answer the same question in two places on one screen.
+- Print a sentence while the fact behind it is still in flight.
+- Paint a decorative icon with a semantic colour.
 
 ---
 
@@ -1462,6 +1759,13 @@ Before merging any screen of the new shell:
 - [ ] Long prompts, long design names and long provider names do not break a module.
 - [ ] Dark and light themes were both checked.
 - [ ] 9px engraved labels are never the only thing naming a control.
+- [ ] No screen answers the same question in two places (§18).
+- [ ] No panel prints a sentence while its data is still in flight (§17).
+- [ ] A failed fetch says it failed instead of spinning forever (§17).
+- [ ] No internal id, rule id, path or compile time is on screen (§18).
+- [ ] No Tailwind palette utility survives in `src/components/**` (§11).
+- [ ] The 10px type is a chrome label, not a sentence or a state word (§12).
+- [ ] A failed build has one lit action and it belongs to the failure card (§5).
 
 ---
 
@@ -1557,6 +1861,78 @@ Measured on the running app at 1440×900 with the seeded session's real jobs:
 | Space | hides every module, keeps the composer, restores on the second press |
 | Light mode | same hierarchy; modules resolve to `rgba(255,255,255,0.92)` on `#F4F2EE` |
 
+## 29. Measurement
+
+The product has to be able to answer "did this work" with a number, or every improvement
+claim is an opinion. Three columns carry that weight: `JobOutcome` (the user's verdict),
+`Job.latencyMs` (the wait), `Job.llmCallCount` (the cost). Their definitions are part of
+this design document, because a metric whose meaning drifts is worse than no metric — it
+keeps producing confident, wrong numbers.
+
+### The three run metrics
+
+| column | means | written where |
+| --- | --- | --- |
+| `latencyMs` | wall-clock time from the start of **this run** to the state the run ended in | once, in the pipeline's `finally` block |
+| `llmCallCount` | model calls this job has made, **cumulative across every run** | once per run, flushed as a delta |
+| `JobOutcome` | `accepted \| rejected \| user_edited \| exported` | the user's own action, append-only |
+
+`latencyMs` deliberately measures a **run**, not a job's lifetime. A job that pauses for
+human review can sit for days; that wait is a different problem from a spinner the user
+is watching, and folding them into one number makes both unreadable. Total time-to-delivery
+is `completedAt - createdAt`, which needs no extra column.
+
+### Rules
+
+1. **One write point per metric.** `latencyMs` is written in the `finally` block and
+   nowhere else. Putting a second write inside a mid-run transition is how the old value
+   came to measure a third of the wait — a 296 s run recorded 26.6 s, a 959 s run recorded
+   365.7 s, and both were in the database looking like facts. A regression test asserts
+   the write-site count is exactly one.
+2. **Count at the choke point, not at the call sites.** Every model call in the product
+   reaches `createChatCompletionDetailed` in `lib/tools/model-router.ts` — intake, request
+   research, generation, compile repair and visual repair all funnel through it. Counting
+   there means a new call site is counted automatically instead of being silently missed.
+3. **The counter is scoped to one async execution.** A Node process serves many jobs at
+   once. The scope is opened with `AsyncLocalStorage.run`, never `enterWith`: `enterWith`
+   mutates the current async resource, so the counter would survive the return and charge
+   one job's calls to whatever the caller starts next.
+4. **Attempts are counted when the request starts.** A retry costs the same budget as the
+   call that finally worked, so cost attribution has to see both.
+5. **Changing a definition requires a cut-over.** When a metric's meaning changes, run
+   `bun run metrics:reset` against the database. It empties both columns so that any
+   non-null `latencyMs` afterwards is provably new-semantics. Without this, old and new
+   rows sit in one column indistinguishable, and an average over them means nothing —
+   which is especially dangerous here because both fixes only ever push the number up.
+6. **A metric never takes the run down with it.** The metric write is wrapped so a failure
+   to record a number is logged and swallowed.
+
+### The abandonment signal falls out of the write point
+
+A run ends by writing `latencyMs` in its `finally` block. That single fact makes the
+product's first abandonment signal derivable for free, with no new instrumentation:
+
+> a job in an in-flight state (`NEW` / `SCAD_GENERATED` / `RENDERED` / `VALIDATED` /
+> `DEBUGGING` / `REPAIRING`) with no `latencyMs` is a run that never got to finish.
+
+`bun run ux:baseline` reports these, with how long each has been idle. It is the only
+abandonment signal the product has, and it depends entirely on rule 1 — remove the
+`finally` write and the signal dies silently.
+
+It also cannot tell a closed tab from a server restart: both leave exactly the same trace.
+The script says so out loud rather than picking the more interesting explanation, because
+"the user gave up" and "the server died" are different problems with different fixes.
+
+### Evidence boundary
+
+The product is local-first and has no accounts. Real-user evidence is therefore **not
+collected**: no telemetry leaves the machine, by decision (2026-10-26). The consequence is
+accepted deliberately — the only first-party usage data is the owner's own, and external
+verification has to come from reproducible judgement protocols and the code-level
+regressions that lock them, not from a fleet of strangers.
+
+---
+
 ## Open questions
 
 1. **UI copy language.** The shipped application is English; these prototypes are Chinese.
@@ -1574,3 +1950,32 @@ Measured on the running app at 1440×900 with the seeded session's real jobs:
    now have no active entry point in the tab strip, but their components remain bundled
    in the tree. Once their active homes in canvas modules and sheets are fully settled,
    the dead panel code should be pruned.
+5. *(resolved 2026-10-26 — see §29)* ~~Pipeline metric semantics are not what the column
+   names say.~~ Both fields now mean what their names claim; what remains open is the
+   **semantics cut-over**: `bun run metrics:reset` has to be run once per database before
+   any of the new numbers can be used as a baseline.
+6. *(resolved 2026-10-26 — superseded, and the original claim was wrong)* ~~An intent
+   clarification leaves no validation target behind.~~ Reading the code showed missing
+   targets do **not** block anything: `checkBoundingBox` returns `status: "SKIP"`,
+   `is_critical: false`, with the message `Skipped — no expected bounding box specified in
+   validation targets`, and the part still delivers. Resolving a clarification sends the
+   job back to `NEW`, and the following run rewrites the targets. The defect that did
+   exist was the opposite one — the clarification branch nulled `partFamily`, `scadSource`
+   and `validationResults` but left `validationTargetsJson` untouched, so targets derived
+   under the interpretation the user was rejecting could survive into the clarified job
+   and validate the new part against the wrong part's dimensions. That is now cleared.
+7. **A cancelled run is nearly silent.** The cancel route records the state but no reason,
+   so the ledger cannot tell a deliberate abandon from a run that was killed. The reason
+   now goes into `executionLogs`; what is still missing is surfacing it in the failure
+   notice, which only renders for the three failed states.
+8. **No `aria-busy` on loading regions.** A skeleton and a loaded-but-empty region are
+   indistinguishable to assistive technology, so "still working" and "nothing here" read
+   the same.
+9. *(resolved 2026-10-26 — see §16)* ~~Reduced motion is not honoured inside the
+   component tree.~~ The gap was larger than this note recorded: 27 looping
+   utilities with one `motion-reduce` variant, and four of the stylesheet's own
+   `… infinite` animations with none — plus a fifth (`.typing-wave-dot`) found by
+   the regression test that now guards it. Loops, the movement transitions and the
+   view cube's travel are all handled now; the ten-percent hover scale on a slider
+   thumb is deliberately kept, because it is pointer feedback rather than
+   unsolicited motion.

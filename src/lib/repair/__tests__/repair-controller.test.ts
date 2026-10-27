@@ -73,3 +73,13 @@ describe("repair completion guard", () => {
     ).toThrow("returned no content");
   });
 });
+
+ test("complexity repair reduces boolean geometry while preserving functional constraints", () => {
+  const prompt = buildRepairPrompt({
+    originalRequest: "V8 assembly", partFamily: "unknown", currentScadCode: "cube(10);",
+    repairStrategy: "simplify", validationResults: [],
+  });
+  expect(prompt).toContain("Reduce repeated hull()/minkowski()");
+  expect(prompt).toContain("functional features, fitting surfaces");
+  expect(prompt).toContain("syntax and geometry are not yet verified");
+ });

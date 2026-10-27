@@ -57,7 +57,7 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
 
   // Character count color: green → amber → red
   const charRatio = notes.length / MAX_CHARS
-  const charColor = charRatio > 0.9 ? 'text-rose-400' : charRatio > 0.7 ? 'text-amber-400' : 'text-emerald-400'
+  const charColor = charRatio > 0.9 ? 'text-[var(--shell-fail)]' : charRatio > 0.7 ? 'text-[var(--shell-warn)]' : 'text-[var(--shell-ok)]'
 
   // Escape HTML entities to prevent XSS before applying markdown formatting
   const escapeHtml = (text: string) => {
@@ -72,9 +72,9 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
   // Simple markdown-like preview: applied after HTML escaping
   const renderPreview = (text: string) => {
     return escapeHtml(text)
-      .replace(/^### (.+)$/gm, '<h3 class="text-sm font-semibold text-[var(--app-text-secondary)] mt-2 mb-1">$1</h3>')
-      .replace(/^## (.+)$/gm, '<h2 class="text-sm font-bold text-[var(--app-text-primary)] mt-3 mb-1">$1</h2>')
-      .replace(/^# (.+)$/gm, '<h1 class="text-base font-bold text-[var(--app-text-primary)] mt-3 mb-1">$1</h1>')
+      .replace(/^### (.+)$/gm, '<h3 class="text-[13px] font-semibold text-[var(--app-text-secondary)] mt-2 mb-1">$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2 class="text-[13px] font-bold text-[var(--app-text-primary)] mt-3 mb-1">$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1 class="text-[16px] font-bold text-[var(--app-text-primary)] mt-3 mb-1">$1</h1>')
       .replace(/\*\*(.+?)\*\*/g, '<strong class="text-[var(--app-text-primary)]">$1</strong>')
       .replace(/\*(.+?)\*/g, '<em class="text-[var(--app-text-secondary)]">$1</em>')
       .replace(/^- (.+)$/gm, '<li class="ml-3 text-[var(--app-text-muted)]">• $1</li>')
@@ -86,10 +86,10 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)]">
         <h3 className="text-eyebrow text-[var(--app-text-muted)] flex items-center gap-1.5">
-          <StickyNote className="w-3.5 h-3.5 text-amber-400" />{t("Notes")}
+          <StickyNote className="w-3.5 h-3.5 text-[var(--shell-text-muted)]" />{t("Notes")}
         </h3>
         <div className="flex items-center gap-2">
-          <span className={`text-xs font-mono tabular-nums ${charColor}`}>
+          <span className={`text-[12px] font-mono tabular-nums ${charColor}`}>
             {notes.length}/{MAX_CHARS}
           </span>
           {/* Auto-save indicator dot */}
@@ -99,22 +99,22 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
                 initial={{ opacity: 0, scale: 0.5 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.5 }}
-                className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+                className="w-1.5 h-1.5 rounded-full bg-[var(--shell-ok)]"
                 title={t("Auto-saved")}
               />
             )}
           </AnimatePresence>
-          {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />}
+          {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--shell-text-muted)]" />}
           <Button
             variant="ghost"
             size="sm"
-            className="h-5 text-xs gap-1 text-[var(--app-text-muted)] hover:text-[var(--app-accent-text)]"
+            className="h-5 text-[12px] gap-1 text-[var(--app-text-muted)] hover:text-[var(--app-accent-text)]"
             onClick={() => setShowPreview(!showPreview)}
           >
             {showPreview ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             {showPreview ? t("Edit") : t("Preview")}
           </Button>
-          <Button variant="ghost" size="sm" className="h-5 text-xs gap-1 text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]" onClick={handleSave}>
+          <Button variant="ghost" size="sm" className="h-5 text-[12px] gap-1 text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]" onClick={handleSave}>
             <Save className="w-3.5 h-3.5" />{t("Save")}
           </Button>
         </div>
@@ -129,7 +129,7 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.2 }}
-                className="text-sm text-[var(--app-text-muted)] leading-relaxed whitespace-pre-wrap bg-[var(--app-surface)] rounded-lg p-3 border border-[color:var(--app-border)] min-h-[200px]"
+                className="text-[13px] text-[var(--app-text-muted)] leading-relaxed whitespace-pre-wrap bg-[var(--app-surface)] rounded-lg p-3 border border-[color:var(--app-border)] min-h-[200px]"
                 dangerouslySetInnerHTML={{ __html: notes ? renderPreview(notes) : '<span class="text-[var(--app-text-dim)] italic">No notes yet...</span>' }}
               />
             ) : (
@@ -144,19 +144,19 @@ export function NotesPanel({ job, onUpdate }: { job: Job; onUpdate: () => void }
                   value={notes}
                   onChange={(e) => handleChange(e.target.value.slice(0, MAX_CHARS))}
                   placeholder={t("Add notes about this job...\n\nSupports **bold**, *italic*, `code`, and # headers.")}
-                  className="min-h-[200px] bg-[var(--app-bg)] border-[color:var(--app-border)] text-xs text-[var(--app-text-secondary)] placeholder:text-[var(--app-text-dim)] resize-y focus:border-amber-500/40"
+                  className="min-h-[200px] bg-[var(--app-bg)] border-[color:var(--app-border)] text-[12px] text-[var(--app-text-secondary)] placeholder:text-[var(--app-text-dim)] resize-y focus:border-[var(--shell-signal)]"
                 />
               </motion.div>
             )}
           </AnimatePresence>
           {!showPreview && notes.length > 0 && (
             <div className="mt-3 space-y-2">
-              <div className="text-xs font-mono tracking-widest text-[var(--app-text-dim)] uppercase flex items-center justify-between">
+              <div className="text-[12px] font-mono tracking-widest text-[var(--app-text-dim)] uppercase flex items-center justify-between">
                 <span>{t("Preview")}</span>
-                <span className="text-[8px] text-[var(--app-text-dim)]">{t("Supports **bold**, *italic*, `code`")}</span>
+                <span className="text-[10px] text-[var(--app-text-dim)]">{t("Supports **bold**, *italic*, `code`")}</span>
               </div>
               <div
-                className="text-sm text-[var(--app-text-muted)] leading-relaxed whitespace-pre-wrap bg-[var(--app-surface)] rounded-lg p-3 border border-[color:var(--app-border)] max-h-40 overflow-y-auto"
+                className="text-[13px] text-[var(--app-text-muted)] leading-relaxed whitespace-pre-wrap bg-[var(--app-surface)] rounded-lg p-3 border border-[color:var(--app-border)] max-h-40 overflow-y-auto"
                 dangerouslySetInnerHTML={{ __html: renderPreview(notes) }}
               />
             </div>

@@ -1,3 +1,6 @@
+import type { ExecutionProgress } from "./execution-progress";
+import { usesOpenScadWasm } from "@/lib/tools/openscad-backend";
+import { getOpenScadTimeoutMs, OPENSCAD_WASM_TIMEOUT_MS } from "@/lib/tools/scad-timeout";
 import { db } from "@/lib/db";
 import { MIMO_DEFAULT_MODEL } from "@/lib/mimo";
 import { appendLog, parameterDefsToValues } from "@/lib/stores/job-store";
@@ -5,6 +8,7 @@ import {
   extractParameterDefsFromScad,
   mergeExtractedParameters,
 } from "@/lib/tools/scad-parameter-extractor";
+import { buildScadParameterPersistence } from "@/lib/tools/scad-parameter-persistence";
 import {
   detectPartFamily,
   generateMockScadCode,
@@ -19,6 +23,10 @@ import {
 } from "@/lib/tools/scad-renderer";
 import { isRepairableScadCompileError } from "@/lib/tools/scad-compile-error";
 import {
+  isOpenScadCompileTimeoutError,
+  isOpenScadTimeoutError,
+} from "@/lib/tools/scad-timeout";
+import {
   clearValidationCache,
   getCriticalValidationFailures,
   validateRenderedArtifacts,
@@ -28,7 +36,9 @@ import { deriveExpectedBBox, formatResearchEvidence, runRequestResearch } from "
 import type { ResearchResultV1 } from "@/lib/research/request-research";
 import { buildJobQuality } from "@/lib/validation/job-quality";
 import { isValidationActionable } from "@/lib/validation/evidence-status";
+import { evaluateMotionContract } from "@/lib/validation/motion-contract";
 import { toPublicJobOrNull } from "@/lib/public-job";
+import { withLlmCallMeter, llmCallsThisRun } from "@/lib/model-runtime";
 import { analyzeCadRequest } from "@/lib/intake/request-intelligence";
 import { runModelCadIntake } from "@/lib/intake/model-intake";
 import {
@@ -164,9 +174,22 @@ function demoDelay(): Promise<void> {
     : Promise.resolve();
 }
 
-export async function executeCadJob(
+/**
+ * Entry point. Everything the run does — intake, research, generation, repair —
+ * happens inside one LLM call-meter scope, so `Job.llmCallCount` sees every
+ * call the run made.
+ */
+export function executeCadJob(
   jobId: string,
-  sendEvent: ProcessEventSink,
+  sendRawEvent: ProcessEventSink,
+  claimedExecution?: JobExecution
+) {
+  return withLlmCallMeter(() => runCadJob(jobId, sendRawEvent, claimedExecution));
+}
+
+async function runCadJob(
+  jobId: string,
+  sendRawEvent: ProcessEventSink,
   claimedExecution?: JobExecution
 ) {
   const job = await db.job.findUnique({ where: { id: jobId } });
@@ -174,16 +197,47 @@ export async function executeCadJob(
     throw new Error(`Job not found with id: ${jobId}`);
   }
 
+  // Run-scoped clock. The LLM call counter is opened by `executeCadJob` above.
   const jobStartedAt = Date.now();
+  // `llmCallCount` is cumulative across runs, so this run's calls are flushed
+  // as a delta on top of whatever earlier runs already charged to this job.
+  let llmCallsFlushed = 0;
   const executionAbort = new AbortController();
+  let progress: ExecutionProgress = {
+    step: "starting", message: "Starting CAD generation", startedAt: new Date().toISOString(),
+    stageStartedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+  };
+  const sendEvent: ProcessEventSink = event => {
+    if (typeof event.step === "string" && event.step !== progress.step) {
+      progress = { step: event.step, message: String(event.message ?? ""), startedAt: progress.startedAt,
+        stageStartedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        sourceBytes: progress.sourceBytes,
+        ...(["compiling_scad", "rendering", "previewing"].includes(event.step) ? {
+          backend: usesOpenScadWasm() ? "wasm" as const : "native" as const,
+          timeoutMs: usesOpenScadWasm() ? OPENSCAD_WASM_TIMEOUT_MS : getOpenScadTimeoutMs(),
+        } : {}),
+      };
+    }
+    sendRawEvent({ ...event, executionProgress: progress });
+  };
+  const renderOptions = {
+    signal: executionAbort.signal,
+    onDiagnostic: (diagnostic: string) => { progress = { ...progress, diagnostic }; },
+    onStage: (step: "rendering" | "previewing") => sendEvent({ step,
+      message: step === "rendering" ? "Preparing STL geometry" : "Generating PNG preview from geometry" }),
+  };
   let leaseCheckRunning = false;
   const leaseTimer = claimedExecution ? setInterval(async () => {
     if (leaseCheckRunning || executionAbort.signal.aborted) return;
     leaseCheckRunning = true;
-    try { await claimedExecution.assertActive(); }
+    try {
+      await claimedExecution.heartbeat({ ...progress, updatedAt: new Date().toISOString() });
+      progress = { ...progress, updatedAt: new Date().toISOString() };
+      sendRawEvent({ executionProgress: progress });
+    }
     catch (error) {
       // Only a lost lease cancels the run; a transient database error must not.
-      if (error instanceof JobExecutionStopped) executionAbort.abort();
+      if (error instanceof JobExecutionStopped) executionAbort.abort(new JobExecutionStopped());
     }
     finally { leaseCheckRunning = false; }
   }, 1_000) : null;
@@ -348,6 +402,13 @@ export async function executeCadJob(
           generationPath: "intent_clarification",
           intentResult: JSON.stringify(requestIntelligence),
           cadIntentJson: JSON.stringify({ request_intelligence: requestIntelligence }),
+          // What is in question here is the *meaning* of the request, so any
+          // targets an earlier run derived belong to the interpretation the user
+          // is about to reject. Left in place they would validate the new part
+          // against the wrong part's dimensions — and a PASS against the wrong
+          // target is worse than a skip. Contrast the repair branches below,
+          // which keep their targets: there the design intent has not changed.
+          validationTargetsJson: null,
           scadSource: null,
           stlPath: null,
           pngPath: null,
@@ -449,9 +510,13 @@ export async function executeCadJob(
 
     try {
       currentStage = "generate";
+      generationExecutionLogs = appendLog(generationExecutionLogs, "SCAD_GENERATION_STARTED",
+        `Writing OpenSCAD with ${job.modelId || "configured default model"}`);
+      await updateJob({ where: { id: jobId }, data: { executionLogs: generationExecutionLogs } });
       sendEvent({
         state: "NEW",
         step: "generating_llm",
+        executionLogs: generationExecutionLogs,
         message: `Generating SCAD code via ${job.modelId || process.env.MIMO_MODEL || MIMO_DEFAULT_MODEL}...`,
       });
       generationResult = await runScadGenerationSkill(
@@ -462,11 +527,36 @@ export async function executeCadJob(
         generationPlanCheckpoint.plan,
         executionAbort.signal,
         formatResearchEvidence(requestResearch),
+        async prepared => {
+          // Durable checkpoint BEFORE entering a potentially long compile.
+          progress.sourceBytes = Buffer.byteLength(prepared.scad_source);
+          generationExecutionLogs = appendLog(generationExecutionLogs, "SCAD_SOURCE_READY",
+            "Model output saved; starting OpenSCAD compile validation");
+          await updateJob({ where: { id: jobId }, data: {
+            scadSource: prepared.scad_source,
+            parameterSchema: JSON.stringify(prepared.parameters),
+            parameterValues: JSON.stringify(parameterDefsToValues(prepared.parameters)),
+            executionLogs: generationExecutionLogs,
+          } });
+          sendEvent({ step: "compiling_scad", message: "Source saved. OpenSCAD is compiling the geometry; completion percentage is unavailable.",
+            scadSource: prepared.scad_source, executionLogs: generationExecutionLogs });
+          await claimedExecution?.heartbeat(progress);
+        },
+        renderOptions.onDiagnostic,
       );
       usedLLM = true;
     } catch (llmError) {
+      await assertExecution();
       if (llmError instanceof GeneratedScadCompileError) {
         currentStage = "repair";
+        // A budget timeout is a complexity failure: keep the generated source and
+        // run one simplification repair instead of a generic syntax repair.
+        const compileBudgetError = isOpenScadCompileTimeoutError(llmError.cause)
+          ? llmError.cause
+          : null;
+        const compileBudgetSeconds = compileBudgetError
+          ? Math.max(1, Math.round(compileBudgetError.timeoutMs / 1000))
+          : 0;
         const compileFailure = compileFailureResult(llmError.compileLog);
         let failedScad = llmError.generationResult.scad_source;
         const failedParameters = mergeExtractedParameters(
@@ -486,17 +576,43 @@ export async function executeCadJob(
           model_execution: llmError.generationResult.model_execution,
         });
 
+        if (!compileBudgetError && !isRepairableScadCompileError(llmError.cause)) {
+          await updateJob({ where: { id: jobId }, data: {
+            state: "HUMAN_REVIEW",
+            scadSource: failedScad,
+            parameterSchema: JSON.stringify(failedParameters),
+            parameterValues: JSON.stringify(parameterDefsToValues(failedParameters)),
+            cadIntentJson: generatedCadIntent,
+            modelingPlanJson: JSON.stringify(llmError.generationResult.modeling_plan),
+            validationTargetsJson: JSON.stringify(llmError.generationResult.validation_targets),
+            stlPath: null, pngPath: null, renderLog: null, reportPath: null,
+            validationReportJson: null, qualityScore: null, completedAt: null,
+            validationResults: JSON.stringify([{ ...compileFailure, status: "ERROR" }]),
+            executionLogs: appendLog(generationExecutionLogs, "OPENSCAD_RUNTIME_UNAVAILABLE", llmError.compileLog),
+          } });
+          sendEvent({ state: "HUMAN_REVIEW", step: "error", errorCode: "OPENSCAD_RUNTIME_UNAVAILABLE",
+            failureStage: "generate", retryable: true,
+            message: `OpenSCAD validation was unavailable. Generated source is preserved; retry after restoring the runtime. ${llmError.compileLog}` });
+          return;
+        }
+        compileRepairPreviousHistory = JSON.stringify([
+          ...parseRepairHistory(job.repairHistory),
+          { type: "rejected_generation", scadSource: failedScad, diagnostics: llmError.compileLog },
+        ]);
+
         generationExecutionLogs = appendLog(
           generationExecutionLogs,
           "REPAIRING",
-          "Generated SCAD failed compilation; starting one compiler-guided repair",
+          compileBudgetError
+            ? `Generated SCAD exceeded the ${compileBudgetSeconds}s OpenSCAD compile budget; starting one complexity-reduction repair`
+            : "Generated SCAD failed compilation; starting one compiler-guided repair",
         );
         const repairLeaseEntry: CompileRepairLeaseEntry = {
           type: "compile_repair_lease",
           token: randomUUID(),
         };
         const repairLease = JSON.stringify([
-          ...parseRepairHistory(job.repairHistory),
+          ...parseRepairHistory(compileRepairPreviousHistory),
           repairLeaseEntry,
         ]);
         compileRepairLease = repairLease;
@@ -540,10 +656,13 @@ export async function executeCadJob(
         sendEvent({
           state: "NEW",
           step: "repairing",
-          message: "Generated SCAD failed OpenSCAD compilation. Attempting one geometry repair using the compiler diagnostics...",
-          errorCode: "OPENSCAD_COMPILE_FAILED",
+          message: compileBudgetError
+            ? `Generated SCAD is too complex to compile within the OpenSCAD ${compileBudgetSeconds}s budget. Attempting one complexity-reduction repair...`
+            : "Generated SCAD failed OpenSCAD compilation. Attempting one geometry repair using the compiler diagnostics...",
+          errorCode: compileBudgetError ? "OPENSCAD_COMPILE_TIMEOUT" : "OPENSCAD_COMPILE_FAILED",
         });
 
+        let repairValidationStarted = false;
         try {
           const repairResult = await runRepair({
             originalRequest: inputRequest,
@@ -559,9 +678,13 @@ export async function executeCadJob(
             },
             requestedModel: job.modelId,
             signal: executionAbort.signal,
+            repairStrategy: compileBudgetError ? "simplify" : "compile",
           });
           failedScad = repairResult.generationResult.scad_source;
-          await validateGeneratedScadSource(failedScad);
+          repairValidationStarted = true;
+          await updateJob({ where: { id: jobId }, data: { scadSource: failedScad } });
+          sendEvent({ step: "compiling_scad", message: "Compiling the saved repaired source" });
+          await validateGeneratedScadSource(failedScad, renderOptions);
           const repairedParameters = mergeExtractedParameters(
             extractParameterDefsFromScad(failedScad),
             repairResult.generationResult.parameters.length > 0
@@ -582,28 +705,44 @@ export async function executeCadJob(
             message: "The generated SCAD was repaired and passed OpenSCAD compilation.",
           });
         } catch (repairError) {
+          await assertExecution();
           const repairMessage = repairError instanceof Error
             ? repairError.message
             : "Unknown compile repair error";
           const providerError = repairError instanceof ModelRequestError ? repairError : null;
-          const repairValidationWasOperational = failedScad !== llmError.generationResult.scad_source
+          const repairedBudgetError = isOpenScadCompileTimeoutError(repairError)
+            ? repairError
+            : null;
+          const repairedBudgetSeconds = repairedBudgetError
+            ? Math.max(1, Math.round(repairedBudgetError.timeoutMs / 1000))
+            : 0;
+          const repairValidationWasOperational = repairValidationStarted
             && !providerError
+            && !repairedBudgetError
             && !isRepairableScadCompileError(repairError);
           const repairWasCompileFailure = !providerError
             && !repairValidationWasOperational
-            && failedScad !== llmError.generationResult.scad_source;
+            && repairValidationStarted;
           const failureSummary = providerError
             ? "Generated SCAD failed compilation and the repair model was unavailable"
+            : repairedBudgetError
+              ? `The automatic complexity-reduction repair still exceeded the ${repairedBudgetSeconds}s OpenSCAD compile budget`
             : repairValidationWasOperational
               ? "The repaired SCAD was preserved because OpenSCAD validation was unavailable"
             : repairWasCompileFailure
               ? "The automatic repair still failed OpenSCAD compilation"
               : "Generated SCAD failed compilation and automatic repair could not complete";
           const validationResults = repairWasCompileFailure
-            ? [compileFailureResult(`Automatic repair still failed OpenSCAD compilation: ${repairMessage}`)]
+            ? [compileFailureResult(
+                repairedBudgetError
+                  ? `Automatic repair still exceeded the OpenSCAD compile budget: ${repairMessage}`
+                  : `Automatic repair still failed OpenSCAD compilation: ${repairMessage}`,
+              )]
             : [compileFailure];
           const errorCode = providerError?.code
-            ?? (repairValidationWasOperational ? "OPENSCAD_RUNTIME_UNAVAILABLE" : "OPENSCAD_COMPILE_FAILED");
+            ?? (repairValidationWasOperational ? "OPENSCAD_RUNTIME_UNAVAILABLE"
+              : (repairedBudgetError || (!repairValidationStarted && compileBudgetError)) ? "OPENSCAD_COMPILE_TIMEOUT"
+              : "OPENSCAD_COMPILE_FAILED");
           const persistedParameters = mergeExtractedParameters(
             extractParameterDefsFromScad(failedScad),
             llmError.generationResult.parameters,
@@ -647,7 +786,7 @@ export async function executeCadJob(
           sendEvent({
             state: "HUMAN_REVIEW",
             step: "repair_error",
-            message: `${failureSummary}. The latest source is preserved for review.`,
+            message: `${failureSummary}. The latest source is preserved for review.${repairedBudgetError ? ` ${repairMessage}` : compileBudgetError ? ` ${compileBudgetError.message}` : ""}`,
             errorCode,
             failureStage: providerError ? "repair" : "generate",
             retryable: providerError?.retryable ?? true,
@@ -700,6 +839,11 @@ export async function executeCadJob(
         : `AgentSCAD-LLM-${partFamily}`
       : `AgentSCAD-DemoTemplate-${partFamily}`;
 
+    const generatedParameterPersistence = buildScadParameterPersistence(
+      scadCode,
+      generationResult.parameters,
+    );
+
     const generatedData = {
         state: "SCAD_GENERATED",
         partFamily,
@@ -709,8 +853,8 @@ export async function executeCadJob(
         renderLog: null,
         builderName,
         generationPath,
-        parameterSchema: JSON.stringify(generationResult.parameters),
-        parameterValues: JSON.stringify(parameterDefsToValues(generationResult.parameters)),
+        parameterSchema: generatedParameterPersistence.parameterSchema,
+        parameterValues: generatedParameterPersistence.parameterValues,
         cadIntentJson: JSON.stringify({
           request_intelligence: requestIntelligence,
           generation_plan: generationPlanCheckpoint,
@@ -753,8 +897,6 @@ export async function executeCadJob(
           parameters_mapped: generationResult.parameters.map((p) => p.key),
           llm_used: usedLLM,
         }),
-        llmCallCount: generationResult.model_execution?.call_count ?? 0,
-        latencyMs: Date.now() - jobStartedAt,
         repairHistory: compileRepairClaimed ? compileRepairPreviousHistory : job.repairHistory,
         executionLogs: appendLog(
           generationExecutionLogs,
@@ -794,13 +936,14 @@ export async function executeCadJob(
 
     try {
       sendEvent({ state: "SCAD_GENERATED", step: "rendering", message: "Generating STL..." });
-      sendEvent({ state: "SCAD_GENERATED", step: "rendering", message: "Generating PNG preview..." });
 
-      renderedArtifacts = await renderScadArtifacts(jobId, scadCode, undefined, assertExecution);
+      renderedArtifacts = await renderScadArtifacts(jobId, scadCode, undefined, assertExecution, renderOptions);
       clearValidationCache();
     } catch (execError) {
+      await assertExecution();
       const renderError =
         execError instanceof Error ? execError.message : "Unknown OpenSCAD render error";
+      const renderErrorCode = isOpenScadTimeoutError(execError) ? "OPENSCAD_RENDER_TIMEOUT" : "OPENSCAD_RENDER_FAILED";
       warnings.push(`OpenSCAD rendering failed: ${renderError}`);
 
       console.warn("OpenSCAD rendering failed:", execError);
@@ -823,7 +966,7 @@ export async function executeCadJob(
           validationReportJson: quality.validationReportJson,
           executionLogs: appendLog(
             (await db.job.findUnique({ where: { id: jobId } }))?.executionLogs,
-            "GEOMETRY_FAILED",
+            renderErrorCode,
             `OpenSCAD render failed: ${renderError}`
           ),
         },
@@ -832,7 +975,10 @@ export async function executeCadJob(
       sendEvent({
         state: "GEOMETRY_FAILED",
         step: "render_failed",
-        message: "OpenSCAD render failed. Real STL/PNG artifacts were not generated.",
+        message: `OpenSCAD render failed. Source is preserved. ${renderError}`,
+        errorCode: renderErrorCode,
+        failureStage: "render",
+        retryable: true,
         error: renderError,
         qualityReport: quality.readiness,
       });
@@ -888,6 +1034,12 @@ export async function executeCadJob(
       validationTargets: generationResult.validation_targets,
       skipVisual: true, // Phase 4: visual validation is user-triggered only
     });
+    const motionContractResult = evaluateMotionContract({
+      inputRequest,
+      intentResult: requestIntelligence,
+      scadSource: scadCode,
+    });
+    if (motionContractResult) validationResults.push(motionContractResult);
     let finalValidationResults = validationResults;
     const criticalFailures = getCriticalValidationFailures(validationResults);
     const validationQuality = buildJobQuality({
@@ -947,6 +1099,17 @@ export async function executeCadJob(
           });
 
           const repairedScad = repairResult.generationResult.scad_source;
+          // The repair can replace the artifact wholesale; refresh the editable
+          // parameter contract from the repaired source before persisting it.
+          const repairedParameterPersistence = buildScadParameterPersistence(
+            repairedScad,
+            repairResult.generationResult.parameters,
+          );
+          generationResult = {
+            ...generationResult,
+            scad_source: repairedScad,
+            parameters: repairedParameterPersistence.parameters,
+          };
 
           sendEvent({
             state: "REPAIRING",
@@ -961,15 +1124,18 @@ export async function executeCadJob(
             // Compile first: a repaired source that does not even parse used to be
             // persisted and only failed later inside the renderer, which parked the
             // job in HUMAN_REVIEW with a syntax-error artifact.
-            await validateGeneratedScadSource(repairedScad);
-            repairedArtifacts = await renderScadArtifacts(jobId, repairedScad, undefined, assertExecution);
+            await validateGeneratedScadSource(repairedScad, renderOptions);
+            repairedArtifacts = await renderScadArtifacts(jobId, repairedScad, undefined, assertExecution, renderOptions);
           } catch (reRenderError) {
+            await assertExecution();
             const msg = reRenderError instanceof Error ? reRenderError.message : "Unknown";
             await updateJob({
               where: { id: jobId },
               data: {
                 state: "HUMAN_REVIEW",
                 scadSource: repairedScad,
+                parameterSchema: repairedParameterPersistence.parameterSchema,
+                parameterValues: repairedParameterPersistence.parameterValues,
                 stlPath: null,
                 pngPath: null,
                 renderLog: JSON.stringify(buildRenderFailureLog(0, [msg])),
@@ -983,6 +1149,11 @@ export async function executeCadJob(
             sendEvent({
               state: "HUMAN_REVIEW",
               step: "repair_render_failed",
+              errorCode: isOpenScadTimeoutError(reRenderError)
+                ? (reRenderError.stage === "validation" ? "OPENSCAD_COMPILE_TIMEOUT" : "OPENSCAD_RENDER_TIMEOUT")
+                : "OPENSCAD_RENDER_FAILED",
+              failureStage: "repair",
+              retryable: true,
               message: `Repair SCAD failed OpenSCAD compile or render: ${msg}`,
             });
             return;
@@ -1002,6 +1173,12 @@ export async function executeCadJob(
               validationTargets: generationResult.validation_targets,
               skipVisual: true,
             });
+            const repairedMotionContract = evaluateMotionContract({
+              inputRequest,
+              intentResult: requestIntelligence,
+              scadSource: repairedScad,
+            });
+            if (repairedMotionContract) revalidationResults.push(repairedMotionContract);
             const stillFailing = getCriticalValidationFailures(revalidationResults);
             const repairQuality = buildJobQuality({
               state: stillFailing.length > 0 ? "HUMAN_REVIEW" : "DELIVERED",
@@ -1023,6 +1200,8 @@ export async function executeCadJob(
                 data: {
                   state: "HUMAN_REVIEW",
                   scadSource: repairedScad,
+                  parameterSchema: repairedParameterPersistence.parameterSchema,
+                  parameterValues: repairedParameterPersistence.parameterValues,
                   stlPath: repairedArtifacts.stlPath,
                   pngPath: repairedArtifacts.pngPath,
                   renderLog: JSON.stringify(repairedArtifacts.renderLog),
@@ -1055,6 +1234,8 @@ export async function executeCadJob(
               where: { id: jobId },
               data: {
                 scadSource: repairedScad,
+                parameterSchema: repairedParameterPersistence.parameterSchema,
+                parameterValues: repairedParameterPersistence.parameterValues,
                 stlPath: repairedArtifacts.stlPath,
                 pngPath: repairedArtifacts.pngPath,
                 renderLog: JSON.stringify(repairedArtifacts.renderLog),
@@ -1213,7 +1394,10 @@ export async function executeCadJob(
       job: toPublicJobOrNull(finalJob),
     });
   } catch (error) {
-    if (error instanceof JobExecutionStopped || executionAbort.signal.aborted) return;
+    if (error instanceof JobExecutionStopped || executionAbort.signal.aborted) {
+      sendRawEvent({ step: "cancelled", message: "Execution stopped. Saved source is preserved." });
+      return;
+    }
     console.error("Error during job processing:", error);
 
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -1221,15 +1405,23 @@ export async function executeCadJob(
       : currentStage === "validate" ? "VALIDATION_FAILED"
       : "GEOMETRY_FAILED";
     const modelError = error instanceof ModelRequestError ? error : null;
+    const timeoutError = isOpenScadTimeoutError(error) ? error : null;
     const errorCode = modelError?.code
-      ?? (currentStage === "render" ? "OPENSCAD_RENDER_FAILED"
+      ?? (timeoutError
+        ? (timeoutError.stage === "validation" ? "OPENSCAD_COMPILE_TIMEOUT" : "OPENSCAD_RENDER_TIMEOUT")
+        : currentStage === "render" ? "OPENSCAD_RENDER_FAILED"
         : currentStage === "validate" ? "CAD_VALIDATION_FAILED"
         : "CAD_GENERATION_FAILED");
-    const retryable = modelError?.retryable ?? currentStage !== "validate";
+    const retryable = timeoutError
+      ? true
+      : (modelError?.retryable ?? currentStage !== "validate");
 
     let detailedLog = `Processing failed during ${currentStage} [${errorCode}]: ${message}`;
     if (modelError?.evidence) {
       const parts: string[] = [];
+      if (modelError.evidence.provider) parts.push(`provider: ${modelError.evidence.provider}`);
+      if (modelError.evidence.transportCode) parts.push(`transport: ${modelError.evidence.transportCode}`);
+      if (typeof modelError.evidence.elapsedMs === "number") parts.push(`request duration: ${Math.round(modelError.evidence.elapsedMs / 1000)}s`);
       if (modelError.evidence.model) parts.push(`model: ${modelError.evidence.model}`);
       if (modelError.evidence.finishReason) parts.push(`finish_reason: ${modelError.evidence.finishReason}`);
       if (typeof modelError.evidence.responseLength === "number") parts.push(`length: ${modelError.evidence.responseLength}`);
@@ -1239,16 +1431,13 @@ export async function executeCadJob(
       }
     }
 
+    const executionLogs = appendLog(
+      (await db.job.findUnique({ where: { id: jobId } }))?.executionLogs,
+      errorCode, detailedLog,
+    );
     await updateJob({
       where: { id: jobId },
-      data: {
-        state: errorState,
-        executionLogs: appendLog(
-          (await db.job.findUnique({ where: { id: jobId } }))?.executionLogs,
-          errorCode,
-          detailedLog
-        ),
-      },
+      data: { state: errorState, executionLogs },
     });
 
     sendEvent({
@@ -1257,10 +1446,39 @@ export async function executeCadJob(
       message: `Processing failed: ${message}`,
       errorCode,
       failureStage: currentStage,
+      executionLogs,
       retryable,
       ...(modelError?.evidence ? { evidence: modelError.evidence } : {}),
     });
   } finally {
     if (leaseTimer) clearInterval(leaseTimer);
+    // Single write point for run metrics.
+    //
+    // `latencyMs` means "wall-clock time from the start of this run to the
+    // state the run ended in". It is written here and only here: the previous
+    // write site sat inside the SCAD_GENERATED transition, so it stopped the
+    // clock before render / validate / repair — a 296s job recorded 26.6s.
+    // Writing it in `finally` also means any newly added run-ending state is
+    // measured automatically instead of silently going unrecorded.
+    //
+    // `llmCallCount` is flushed as a delta so a concurrent run's calls are
+    // never overwritten, and it is flushed even when the run was cancelled,
+    // because the calls happened and cost the same either way.
+    const llmCallDelta = llmCallsThisRun() - llmCallsFlushed;
+    if (llmCallDelta > 0 || !executionAbort.signal.aborted) {
+      try {
+        const written = await db.job.updateMany({
+          where: { id: jobId },
+          data: {
+            ...(llmCallDelta > 0 ? { llmCallCount: { increment: llmCallDelta } } : {}),
+            ...(executionAbort.signal.aborted ? {} : { latencyMs: Date.now() - jobStartedAt }),
+          },
+        });
+        if (written.count === 1) llmCallsFlushed += llmCallDelta;
+      } catch (metricError) {
+        // A missing metric must never take the run down with it.
+        console.error("Failed to record terminal run metrics:", metricError);
+      }
+    }
   }
 }

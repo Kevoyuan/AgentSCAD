@@ -16,8 +16,8 @@ describe("compile repair lease contract", () => {
     expect(pipeline).toContain('type: "compile_repair_lease"');
     expect(pipeline).toContain('where: { id: jobId, state: "REPAIRING", repairHistory: repairLease }');
     expect(pipeline).toContain('repairHistory: compileRepairPreviousHistory');
-    expect(route).toContain('removeCompileRepairLease(job.repairHistory)');
-    expect(route).toContain('isStaleRepairLease(job.state, job.updatedAt, job.repairHistory)');
-    expect(route).toContain('updatedAt: job.updatedAt');
+    expect(route).toContain('recoverStaleJobExecution(job)');
+    const execution = fs.readFileSync(path.join(process.cwd(), 'src/lib/pipeline/job-execution.ts'), 'utf8');
+    expect(execution).toContain('updatedAt: job.updatedAt');
   });
 });

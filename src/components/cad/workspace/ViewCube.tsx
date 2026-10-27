@@ -2,8 +2,10 @@
 
 import { useI18n } from '@/components/i18n-provider'
 import { englishTranslator, type Translator } from '@/lib/i18n'
+import { useReducedMotion } from '@/hooks/use-reduced-motion'
 
 import * as React from 'react'
+import { ChevronUp } from 'lucide-react'
 
 /*
  * ViewCube, per DESIGN.md section 4.
@@ -15,6 +17,16 @@ import * as React from 'react'
  *
  * The cube mirrors the camera; it never owns orientation. Dragging is free and
  * is NOT snapped on release - landing on a standard view is a deliberate click.
+ *
+ * Readability pass (2026-10-26): the face labels used the label ladder at 9px,
+ * which measured 3.27-3.9:1 on the cube faces, and the current-view caption was
+ * a single 8.5px line that wrapped as "Free view · Front /" + "Right". Face
+ * labels now use the strongest text step (>= 6.9:1 on the darkest face in dark
+ * theme and > 15:1 in light theme) at 10px, the caption is a two-line structured
+ * label ("Free view" / "Front / Right") instead of a broken line, and the caption
+ * is also the keyboard-accessible trigger for a menu that names all 26 regions.
+ * Ray picking still owns the pointer behaviour; the menu is the non-pointer
+ * equivalent DESIGN.md section 21 requires ("no drag-only operation").
  */
 
 const VC_SIZE = 56
@@ -52,6 +64,39 @@ const VIEW_LABEL: Record<string, string> = {
   'bf-right': "Bottom front right", 'bb-right': "Bottom back right", 'bb-left': "Bottom back left", 'bf-left': "Bottom front left",
 }
 
+/** Compact text for the 26-item menu; the full name stays the accessible name. */
+const VIEW_SHORT: Record<string, string> = {
+  front: "Front", back: "Back", right: "Right", left: "Left", top: "Top", bottom: "Bottom",
+  'top-front': "Top front", 'top-right': "Top right", 'top-back': "Top back", 'top-left': "Top left",
+  'bottom-front': "Bottom front", 'bottom-right': "Bottom right", 'bottom-back': "Bottom back", 'bottom-left': "Bottom left",
+  'front-right': "Front right", 'back-right': "Back right", 'back-left': "Back left", 'front-left': "Front left",
+  'tf-right': "Top front right", 'tb-right': "Top back right", 'tb-left': "Top back left", 'tf-left': "Top front left",
+  'bf-right': "Bottom front right", 'bb-right': "Bottom back right", 'bb-left': "Bottom back left", 'bf-left': "Bottom front left",
+}
+
+/** The 26 regions, grouped the way the cube is read: faces, edges, corners. */
+const VIEW_GROUPS: Array<{ key: string; label: string; columns: number; regions: string[] }> = [
+  { key: 'faces', label: 'Faces', columns: 3, regions: ['front', 'back', 'right', 'left', 'top', 'bottom'] },
+  {
+    key: 'edges',
+    label: 'Edges',
+    columns: 3,
+    regions: [
+      'top-front', 'top-right', 'top-back', 'top-left',
+      'bottom-front', 'bottom-right', 'bottom-back', 'bottom-left',
+      'front-right', 'back-right', 'back-left', 'front-left',
+    ],
+  },
+  {
+    key: 'corners',
+    label: 'Corners',
+    columns: 2,
+    regions: ['tf-right', 'tb-right', 'tb-left', 'tf-left', 'bf-right', 'bb-right', 'bb-left', 'bf-left'],
+  },
+]
+
+const VIEW_ANGLES = new Map(VIEW_TABLE.map(([name, elevation, azimuth]) => [name, { elevation, azimuth }]))
+
 const norm = (a: number) => ((a % 360) + 360) % 360
 const byAngle = new Map(VIEW_TABLE.map(([n, r, a]) => [`${r}|${norm(a)}`, n]))
 
@@ -88,13 +133,19 @@ function resolveView(faces: string[]): { rx: number; az: number; name?: string }
  */
 const VERTICAL_STOP_TOLERANCE = 0.25
 
-export function labelFor(rx: number, az: number, t: Translator = englishTranslator): string {
+/** The standard view a camera angle is standing on, if it is standing on one. */
+function regionFor(rx: number, az: number): string | undefined {
   const rxRounded = +rx.toFixed(2)
-  const hit =
+  return (
     byAngle.get(`${rxRounded}|${+norm(az).toFixed(2)}`) ??
     (Math.abs(rxRounded) >= 90 - VERTICAL_STOP_TOLERANCE
       ? byAngle.get(`${rxRounded > 0 ? 90 : -90}|0`)
       : undefined)
+  )
+}
+
+export function labelFor(rx: number, az: number, t: Translator = englishTranslator): string {
+  const hit = regionFor(rx, az)
   if (hit) return t(VIEW_LABEL[hit])
   const d = dirOf(rx, az)
   const parts: string[] = []
@@ -120,7 +171,8 @@ const unit = (v: [number, number, number]): [number, number, number] => {
 /**
  * Pure region picker, exported for testing. `px`/`py` are pixel offsets from the
  * cube's centre. Returns null when the ray misses the cube entirely, so a click
- * on empty space is a no-op rather than a random jump.
+ * on empty space is a no-op rather than a random jump. `faces` is the raw list of
+ * cube faces the ray entered through; the ViewCube uses it for hover feedback.
  */
 export function pickViewRegion(
   px: number,
@@ -128,7 +180,7 @@ export function pickViewRegion(
   perspective: number,
   elevation: number,
   azimuth: number
-): { rx: number; az: number; name?: string } | null {
+): { rx: number; az: number; name?: string; faces: string[] } | null {
   const D = unit([px, py, -perspective])
   const O: [number, number, number] = [0, 0, perspective]
   const Ol = rot(O, elevation, azimuth)
@@ -164,10 +216,12 @@ export function pickViewRegion(
           : (P[1] > 0 ? 'bottom' : 'top')
     )
   }
-  return resolveView(faces)
+  return { ...resolveView(faces), faces }
 }
 
 export const VIEWCUBE_GEOMETRY = { size: VC_SIZE, half: HALF, faceThreshold: FACE_T, regions: VIEW_TABLE.length }
+
+const hoverKey = (faces: string[]) => faces.join('|')
 
 export function ViewCube({
   azimuth,
@@ -183,12 +237,23 @@ export function ViewCube({
   onChange?: (view: { azimuth: number; elevation: number }) => void
 }) {
   const { t } = useI18n()
+  // The cube's rotation is animated with an inline style, which no stylesheet
+  // media query can reach. Asking here is the only way to stop it.
+  const reducedMotion = useReducedMotion()
 
   const hostRef = React.useRef<HTMLDivElement>(null)
+  const wrapRef = React.useRef<HTMLDivElement>(null)
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
+  const menuRef = React.useRef<HTMLDivElement>(null)
   const [perspective, setPerspective] = React.useState(400)
   const dragRef = React.useRef({ moved: false })
   const frameRef = React.useRef<number | null>(null)
   const [isDragging, setIsDragging] = React.useState(false)
+  const [hovered, setHovered] = React.useState<string[]>([])
+  const [pressed, setPressed] = React.useState<string[]>([])
+  const [menuOpen, setMenuOpen] = React.useState(false)
+  const lastHoverRef = React.useRef('')
+  const descId = React.useId()
 
   // A pending frame must not fire after the cube unmounts.
   React.useEffect(() => () => {
@@ -219,12 +284,35 @@ export function ViewCube({
     return [e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2)]
   }
 
+  /* Hover feedback: highlight the faces the pointer is actually over. The region
+     is resolved with the same ray picker the click uses, so the highlight can
+     never advertise a different view than the click would apply. */
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (isDragging) return
+    const [px, py] = relPoint(e)
+    const region = Math.hypot(px, py) > HALF * 1.9 ? null : pickView(px, py)
+    const faces = region?.faces ?? []
+    const key = hoverKey(faces)
+    if (key === lastHoverRef.current) return
+    lastHoverRef.current = key
+    setHovered(faces)
+  }
+
+  const clearHover = () => {
+    if (lastHoverRef.current === '') return
+    lastHoverRef.current = ''
+    setHovered([])
+  }
+
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault()
     const el = e.currentTarget as HTMLElement
     const start = { x: e.clientX, y: e.clientY, az: azimuth, el: elevation }
     let pending: { x: number; y: number } | null = null
     dragRef.current.moved = false
+    const [downX, downY] = relPoint(e)
+    const downRegion = pickView(downX, downY)
+    if (downRegion) setPressed(downRegion.faces)
     setIsDragging(true)
     el.setPointerCapture(e.pointerId)
 
@@ -261,6 +349,7 @@ export function ViewCube({
       // settle `moved` before the click handler reads it.
       apply()
       setIsDragging(false)
+      setPressed([])
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -274,25 +363,119 @@ export function ViewCube({
     if (v) onCommand?.({ azimuth: v.az, elevation: v.rx })
   }
 
+  /* Keyboard orbit: the pointer is not the only way to turn the part (DESIGN.md
+     section 21). The 26 standard views also live in the caption menu below. */
+  const handleHostKeyDown = (e: React.KeyboardEvent) => {
+    const step = 15
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      const sign = e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        onChange?.({ azimuth: azimuth + sign * step, elevation })
+      } else {
+        onChange?.({ azimuth, elevation: Math.max(-89.8, Math.min(89.8, elevation + sign * step)) })
+      }
+    }
+  }
+
   const faceTransform = (css: string) => css.replace(/translateZ\([^)]+\)/, `translateZ(${HALF}px)`)
 
+  const label = labelFor(elevation, azimuth, t)
+  const [kind, ...rest] = label.split(' · ')
+  const detail = rest.join(' · ')
+  const currentRegion = regionFor(elevation, azimuth)
+  const hoveredSet = React.useMemo(() => new Set(hovered), [hovered])
+  const pressedSet = React.useMemo(() => new Set(pressed), [pressed])
+
+  /* Menu behaviour: focus the active view when it opens, arrow through the 26
+     items, Escape/outside-pointer closes and returns focus to the caption. */
+  React.useEffect(() => {
+    if (!menuOpen) return
+    const items = menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
+    const active = menuRef.current?.querySelector<HTMLButtonElement>('[data-active="true"]')
+    ;(active ?? items?.[0])?.focus()
+  }, [menuOpen])
+
+  React.useEffect(() => {
+    if (!menuOpen) return
+    const onDocumentPointerDown = (e: PointerEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    const onDocumentKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMenuOpen(false)
+        triggerRef.current?.focus()
+      }
+    }
+    document.addEventListener('pointerdown', onDocumentPointerDown)
+    document.addEventListener('keydown', onDocumentKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onDocumentPointerDown)
+      document.removeEventListener('keydown', onDocumentKeyDown)
+    }
+  }, [menuOpen])
+
+  const handleMenuKeyDown = (e: React.KeyboardEvent) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return
+    e.preventDefault()
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])
+    if (!items.length) return
+    const index = items.indexOf(document.activeElement as HTMLButtonElement)
+    let next = index
+    if (e.key === 'ArrowDown') next = index < 0 ? 0 : (index + 1) % items.length
+    if (e.key === 'ArrowUp') next = index <= 0 ? items.length - 1 : index - 1
+    if (e.key === 'Home') next = 0
+    if (e.key === 'End') next = items.length - 1
+    items[next]?.focus()
+  }
+
+  const applyRegion = (id: string) => {
+    const angles = VIEW_ANGLES.get(id)
+    if (angles) onCommand?.({ azimuth: angles.azimuth, elevation: angles.elevation })
+    setMenuOpen(false)
+    triggerRef.current?.focus()
+  }
+
   return (
-    <div className="select-none" style={{ width: 118 }}>
+    <div ref={wrapRef} className="relative select-none" style={{ width: 118 }}>
       <div
         ref={hostRef}
         data-testid="view-cube-host"
-        className="relative grid place-items-center cursor-grab active:cursor-grabbing rounded-[12px]"
+        className="relative grid cursor-grab place-items-center rounded-[9px] active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--shell-signal)]/40"
         style={{
           height: 86,
           perspective: 400,
-          background:
-            'radial-gradient(ellipse at 50% 44%, var(--shell-scrim) 0%, transparent 78%)',
+          touchAction: 'none',
+          /*
+           * No painted shadow behind the cube. Two attempts at one failed:
+           *
+           * 1. `radial-gradient(ellipse at 50% 44%, var(--shell-scrim) 0%, transparent 78%)`
+           *    borrowed the modal scrim token (35% dark in light theme) and, because the
+           *    gradient had no explicit size, its farthest-corner default filled the whole
+           *    118x86 footprint. Clipped by the host's 12px radius it read as a grey
+           *    rounded plate - the cube looked like it sat on a dirty square.
+           * 2. Shrinking it to a 32x11 contact ellipse under the bottom vertex made it
+           *    subtle, but it still tinted the field around a control that DESIGN.md
+           *    section 4 calls "small and quiet - the part is the subject, the cube is a
+           *    control". The faces already separate themselves with borders and an inset
+           *    highlight; the shadow was decoration, not structure.
+           *
+           * So it is gone rather than tuned. Nothing here paints outside the 56px cube.
+           */
         }}
-        onPointerDown={handlePointerDown}
-        onClick={handleClick}
+        tabIndex={0}
         role="group"
         aria-label={t("View cube")}
+        aria-describedby={descId}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={clearHover}
+        onClick={handleClick}
+        onKeyDown={handleHostKeyDown}
       >
+        <span id={descId} className="sr-only">
+          {t("Drag to orbit. Click a face, edge or corner to jump to a standard view. Use the view menu below, or keys 1-6, 0 and F from the workspace.")}
+        </span>
         <div
           className="relative"
           style={{
@@ -310,36 +493,132 @@ export function ViewCube({
              * cube eases toward the pointer and reads as lag, which is exactly the
              * feel the C5 iteration removed from the prototype.
              */
-            transition: isDragging ? 'none' : 'transform .34s cubic-bezier(.32,.72,.28,1)',
+            /*
+             * With reduced motion the cube still turns to the commanded view —
+             * it just arrives there instead of travelling. The view change
+             * itself is the information; the journey is not.
+             */
+            transition: isDragging || reducedMotion ? 'none' : 'transform .34s cubic-bezier(.32,.72,.28,1)',
           }}
         >
-          {Object.entries(CUBE).map(([id, def]) => (
-            <div
-              key={id}
-              className="absolute inset-0 grid place-items-center border font-mono text-[9px] tracking-[0.08em] text-[var(--shell-text-label)] transition-colors hover:text-[var(--shell-text)]"
-              style={{
-                transform: faceTransform(def.css),
-                backfaceVisibility: 'hidden',
-                // The cube sits on the canvas field (var(--shell-canvas)), so the faces have to
-                // be a clear step brighter than it or the cube reads as a dark square.
-                borderColor: 'var(--shell-cube-border)',
-                background:
-                  id === 'front' || id === 'back'
-                    ? 'var(--shell-cube-face-a)'
-                    : id === 'top' || id === 'bottom'
-                      ? 'var(--shell-cube-face-b)'
-                      : 'var(--shell-cube-face-c)',
-                boxShadow: 'var(--shell-cube-shadow)',
-              }}
-            >
-              {t(def.label)}
+          {Object.entries(CUBE).map(([id, def]) => {
+            const isHovered = hoveredSet.has(id)
+            const isPressed = pressedSet.has(id)
+            return (
+              <div
+                key={id}
+                className="absolute inset-0 grid place-items-center border font-mono text-[10px] leading-none tracking-[0.03em] text-[var(--shell-text)] transition-[background-color,border-color,filter] duration-150"
+                style={{
+                  transform: faceTransform(def.css),
+                  backfaceVisibility: 'hidden',
+                  padding: '0 2px',
+                  // The cube sits on the canvas field (var(--shell-canvas)), so the faces have to
+                  // be a clear step brighter than it or the cube reads as a dark square. The face
+                  // labels use the strongest text step: the old label step measured 3.27-3.9:1
+                  // here, and readability beats quietness (brief: >=4.6:1 at any size).
+                  borderColor: isPressed
+                    ? 'var(--shell-signal)'
+                    : isHovered
+                      ? 'var(--shell-border-strong)'
+                      : 'var(--shell-cube-border)',
+                  background:
+                    id === 'front' || id === 'back'
+                      ? 'var(--shell-cube-face-a)'
+                      : id === 'top' || id === 'bottom'
+                        ? 'var(--shell-cube-face-b)'
+                        : 'var(--shell-cube-face-c)',
+                  backgroundImage: isHovered || isPressed
+                    ? 'linear-gradient(rgba(255,255,255,0.12), rgba(255,255,255,0.12))'
+                    : 'none',
+                  boxShadow: 'var(--shell-cube-shadow)',
+                  filter: isPressed ? 'brightness(0.94)' : 'none',
+                }}
+              >
+                {t(def.label)}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/*
+       * The caption is the current-view readout AND the keyboard/SR equivalent of
+       * the 26 ray-picked regions. Two structured lines instead of one broken one:
+       * "Free view" / "Front / Right" and "Isometric" / "Top front right" never
+       * wrap mid-phrase. aria-haspopup tells assistive tech a list of views exists.
+       */}
+      <button
+        ref={triggerRef}
+        type="button"
+        data-testid="view-cube-label"
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        aria-label={`${t('Current view')}: ${label}`}
+        title={t('Standard views')}
+        onClick={() => setMenuOpen(open => !open)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+            setMenuOpen(true)
+          }
+        }}
+        className="group/label mt-0.5 flex w-full items-start justify-center gap-1 rounded-[4px] border border-transparent px-1 py-0.5 text-center transition-colors hover:border-[var(--shell-border)] hover:bg-[var(--shell-hover)] focus-visible:border-[var(--shell-signal)] focus-visible:outline-none [@media(pointer:coarse)]:min-h-11"
+      >
+        <span className="min-w-0">
+          <span className="block truncate font-mono text-[10px] leading-[1.35] text-[var(--shell-text-muted)]">
+            {kind}
+          </span>
+          {detail && (
+            <span className="block truncate font-mono text-[10px] leading-[1.35] text-[var(--shell-text-label)]">
+              {detail}
+            </span>
+          )}
+        </span>
+        <ChevronUp
+          aria-hidden="true"
+          strokeWidth={1.5}
+          className="mt-px h-2.5 w-2.5 shrink-0 text-[var(--shell-text-dim)] transition-colors group-hover/label:text-[var(--shell-text-muted)]"
+        />
+      </button>
+
+      {menuOpen && (
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label={t('Standard views')}
+          data-testid="view-cube-menu"
+          onKeyDown={handleMenuKeyDown}
+          className="absolute bottom-[calc(100%+6px)] left-0 z-30 w-[286px] rounded-[9px] border border-[var(--shell-border-strong)] p-2 backdrop-blur-xl"
+          style={{ background: 'var(--shell-module-solid)', boxShadow: 'var(--shell-shadow)' }}
+        >
+          {VIEW_GROUPS.map((group) => (
+            <div key={group.key} role="group" aria-label={t(group.label)} className="mb-1.5 last:mb-0">
+              <p className="px-1 pb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
+                {t(group.label)}
+              </p>
+              <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${group.columns}, minmax(0, 1fr))` }}>
+                {group.regions.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="menuitem"
+                    data-active={currentRegion === id ? 'true' : undefined}
+                    aria-label={t(VIEW_LABEL[id])}
+                    onClick={() => applyRegion(id)}
+                    className={`flex min-h-7 items-center rounded-[4px] px-1.5 py-1 text-left font-mono text-[10px] leading-[1.25] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--shell-signal)]/40 [@media(pointer:coarse)]:min-h-11 ${
+                      currentRegion === id
+                        ? 'bg-[var(--shell-well)] text-[var(--shell-text)]'
+                        : 'text-[var(--shell-text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]'
+                    }`}
+                  >
+                    {t(VIEW_SHORT[id])}
+                  </button>
+                ))}
+              </div>
             </div>
           ))}
         </div>
-      </div>
-      <div data-testid="view-cube-label" className="mt-0.5 text-center font-mono text-[8.5px] text-[var(--shell-text-label)]">
-        {labelFor(elevation, azimuth, t)}
-      </div>
+      )}
     </div>
   )
 }

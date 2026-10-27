@@ -40,12 +40,20 @@ describe('Phase 1: Floating Module System (DESIGN.md section 13)', () => {
   })
 
   test('collapse control renders toggle and hides body when collapsed', () => {
+    /*
+     * 2026-10-27 (UI-15): the control used to print − when open and ＋ when
+     * collapsed, which reads backwards - a minus looks like "already folded".
+     * It is a chevron now: pointing down when open, rotated to point right when
+     * collapsed, with aria-expanded carrying the state for assistive tech.
+     */
     const expandedHtml = renderToStaticMarkup(
       <Module id="mod-exp" title="尺寸" isCollapsed={false}>
         <div id="content-exp">Expanded Content</div>
       </Module>
     )
-    expect(expandedHtml).toContain('−')
+    expect(expandedHtml).toContain('aria-expanded="true"')
+    expect(expandedHtml).toContain('<polyline points="6 9 12 15 18 9">')
+    expect(expandedHtml).toContain('transform:none')
     expect(expandedHtml).toContain('id="content-exp"')
 
     const collapsedHtml = renderToStaticMarkup(
@@ -53,7 +61,8 @@ describe('Phase 1: Floating Module System (DESIGN.md section 13)', () => {
         <div id="content-col">Collapsed Content</div>
       </Module>
     )
-    expect(collapsedHtml).toContain('＋')
+    expect(collapsedHtml).toContain('aria-expanded="false"')
+    expect(collapsedHtml).toContain('rotate(-90deg)')
     expect(collapsedHtml).not.toContain('id="content-col"')
     expect(collapsedHtml).toContain('closed')
   })

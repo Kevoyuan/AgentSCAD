@@ -175,6 +175,28 @@ Use `_merge_tol = 0.2` as an optional modeling tolerance, not as a requirement f
 - For stands, docks, mounts, and holders: explicitly model support surfaces, retention lips, clearance, stability/base footprint, cable access, and airflow where relevant.
 - Avoid making a closed box when the user asked for a stand, dock, holder, bracket, or mount.
 
+## Compile Budget
+
+The deterministic render gate compiles the generated source with OpenSCAD before it can be delivered. Complex requests must stay inside that budget; native compilation defaults to 300s (configurable), while WASM has a fixed 120s limit. Aim comfortably below the budget.
+
+- Give multi-part assemblies a coarse representation: recognizable envelope plus the major named features. Omit optional internal components, fasteners, and hidden detail; preserve explicitly requested functional features and dimensions.
+- Keep the final boolean tree to roughly 40-60 operations. Prefer a handful of simple solids over dozens of small `difference()`/`union()` calls.
+- Do not repeat a detailed subassembly more than 8 times (for example, eight fully ribbed cylinder heads). Model one representative unit or a simplified block instead.
+- Use a coarse global resolution for assemblies: `$fa = 8;` and `$fs = 1;` by default; never finer than `$fa = 6`. Ignore this only when a fitting surface needs more segments (use a local `$fn`).
+- Avoid nested `hull()` and `minkowski()` loops, dense arrays of rounded solids, and per-facet detail below the requested fidelity.
+- If the request describes more than five subassemblies or an entire machine/engine, model the recognizable complete form, not a service-accurate internal assembly.
+
+## Presentation, Motion, and Visibility
+
+When the request is a display assembly, a mechanism, or explicitly asks for a "functional / motion-ready" model, visible composition matters as much as the envelope:
+
+- Hollow the castings you expose: subtract cylinder bores, the crankcase cavity, and the oil-pan interior instead of stacking solid cubes. A part that is modelled but buried inside solid material cannot be seen or validated.
+- For internal mechanisms add a top-level `cutaway = true; // [true:false]` switch and one `intersection()` cutter that exposes the crankshaft, pistons, and connecting rods. Use a single simple cutter volume, not one cutter per part, to stay within the compile budget.
+- Add a motion parameter with a customizer range and drive positions from a small kinematic `function`, for example `crank_angle = 45; // [0:1:360]` plus a piston-position function and phased crank pins (0, 90, 270, 180). Do not leave every piston and rod at the same phase.
+- Colour major subassemblies with named top-level colour variables and `color()` calls: block, head, valve cover, intake, exhaust, pulley, oil pan, internals (6-8 colours). A single-colour assembly reads as an unstructured blob in the preview, and the colour variables are also useful editable controls.
+- Keep display assemblies at display scale: use a self-consistent envelope of roughly 100-300 mm unless the user asks for a real-size model, and make the declared `validation_targets.expected_bbox` equal the actual CAD envelope. Do not import real-machine dimensions into a display model.
+- Every presentation knob (`cutaway`, `crank_angle`, colour names) must be a top-level assignment so the app can expose it as an editable control; values hidden inside modules are invisible to the UI.
+
 ## OpenSCAD Library Policy
 
 - Prefer `agentscad_std.scad` modules as your primary library.

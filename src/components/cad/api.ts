@@ -1,4 +1,4 @@
-import { Job } from './types'
+import { Job, JobOutcomeEvent, JobOutcomeSummary } from './types'
 
 // ─── API Functions ────────────────────────────────────────────────────────────
 
@@ -102,7 +102,14 @@ export async function fetchJobs(state?: string): Promise<{ jobs: Job[]; paginati
   const url = state ? `/api/jobs?state=${state}&limit=50&summary=true&count=false` : '/api/jobs?limit=50&summary=true&count=false'
   const res = await fetch(url)
   if (!res.ok) throw new Error('Failed to fetch jobs')
-  return res.json()
+  const data = (await res.json()) as { jobs: Job[]; pagination: { total: number } }
+  /*
+   * The list payload is deliberately thin: it has the fields a row needs to draw
+   * itself and nothing else. Marking the records lets the panels say "loading"
+   * instead of "this part was never generated" during the window between the row
+   * appearing and `/api/jobs/:id` answering (DESIGN.md sections 17 and 18).
+   */
+  return { ...data, jobs: (data.jobs ?? []).map(job => ({ ...job, summaryOnly: true })) }
 }
 
 export async function fetchJob(id: string): Promise<{ job: Job }> {
@@ -161,6 +168,36 @@ export async function resolveJobIntent(
   })
   if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to resolve request intent'))
   return res.json()
+}
+
+/**
+ * Record a user decision about the delivered part.
+ *
+ * `accepted` / `rejected` are the only two outcomes that say whether the task
+ * actually succeeded, and until the UI had a way to record them the ledger held
+ * only edits and exports - both of which are process signals, not verdicts.
+ * Without this call there is no measurement of "did the user get what they
+ * asked for" anywhere in the product.
+ */
+export async function recordJobOutcome(
+  id: string,
+  kind: 'accepted' | 'rejected' | 'user_edited' | 'exported',
+  detail?: string,
+): Promise<{ outcome: JobOutcomeEvent; summary: JobOutcomeSummary }> {
+  const res = await fetch(`/api/jobs/${id}/outcome`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(detail ? { kind, detail } : { kind }),
+  })
+  if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to record outcome'))
+  return res.json()
+}
+
+export async function fetchJobOutcomeSummary(id: string): Promise<JobOutcomeSummary> {
+  const res = await fetch(`/api/jobs/${id}/outcome`)
+  if (!res.ok) throw new Error(await readErrorMessage(res, 'Failed to load outcomes'))
+  const data = await res.json()
+  return data.summary as JobOutcomeSummary
 }
 
 export async function updateParameters(id: string, parameterValues: Record<string, unknown>): Promise<Job> {

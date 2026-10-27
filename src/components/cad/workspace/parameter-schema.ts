@@ -108,6 +108,36 @@ export function effectiveParameterValues(
 }
 
 /*
+ * The values the part on screen was actually built from — the ONLY baseline a
+ * "changed" comparison may use.
+ *
+ * A schema's `value` is the default the artifact declares, not the number the
+ * build ran with: a part can be built at `edge_length = 30` while its SCAD still
+ * declares 20, and the database has such a row. Comparing the built values
+ * against the declared default therefore reports "1 parameter changed" the
+ * instant the part is opened, before the user has touched anything — a lie that
+ * pushes them into an unnecessary rebuild.
+ *
+ * Stored value wins; the schema default is only the fallback for parameters the
+ * build never recorded.
+ */
+export function builtParameterValues(
+  job: Job | null,
+  schema: ResolvedSchema | null
+): Record<string, number> {
+  const stored = parseJSON<Record<string, number>>(job?.parameterValues ?? null, {})
+  const baseline: Record<string, number> = {}
+  for (const parameter of schema?.parameters ?? []) {
+    const storedValue = stored[parameter.key]
+    baseline[parameter.key] =
+      typeof storedValue === 'number' && Number.isFinite(storedValue)
+        ? storedValue
+        : parameter.value
+  }
+  return baseline
+}
+
+/*
  * Axis keys, in the order they are printed. The first group is what generated
  * designs actually emit (verified against the local database: body_length /
  * body_width / body_depth / wall_thickness), the rest are the conventional
@@ -155,4 +185,35 @@ export function parameterWallThickness(values: Record<string, number>): number |
 export function formatMeasure(value: number): string {
   if (Number.isInteger(value)) return String(value)
   return String(Number(value.toFixed(2)))
+}
+
+/*
+ * A unit is a claim about what a number measures, so a wrong one is not a cosmetic
+ * defect - it is the readout lying. `cyl_per_bank` (cylinders per bank) arrived with
+ * `unit: "mm"`, because the schema generator defaults the field to the design's
+ * length unit, and 尺寸 printed "4 mm" for a count of four.
+ *
+ * The rule is deliberately narrow. A count is recognised by its NAME, never by its
+ * type: an integer can be a 5 mm hole diameter, and stripping that unit would break
+ * a real dimension. So a physical unit is removed only when the key is unambiguously
+ * a count - it ends in a count noun, it is a `_per_` rate, or it is prefixed
+ * `num_` / `count_` / `qty_` - and the parameter is an integer.
+ */
+const COUNT_SUFFIX =
+  /(?:^|_)(count|num|number|qty|quantity|teeth|tooth|segments?|sides?|facets?|steps?|layers?|copies|ribs?|flutes?|banks?|slots?|bolts?|screws?|fins?|blades?|spokes?)$/i
+const COUNT_INFIX = /_per_/i
+const COUNT_PREFIX = /^(num|count|qty|number)_/i
+const PHYSICAL_UNIT = /^(mm|cm|m|in|inch|inches|°|deg|degree|degrees|rad)$/i
+
+export function isCountParameter(param: ParameterDef): boolean {
+  if (param.kind !== 'integer') return false
+  return COUNT_SUFFIX.test(param.key) || COUNT_INFIX.test(param.key) || COUNT_PREFIX.test(param.key)
+}
+
+/** The unit to print next to a parameter's value. */
+export function parameterUnit(param: ParameterDef): string {
+  const unit = (param.unit ?? '').trim()
+  if (!unit) return ''
+  if (PHYSICAL_UNIT.test(unit) && isCountParameter(param)) return ''
+  return unit
 }

@@ -12,6 +12,7 @@ import {
   buildRenderFailureLog,
   renderScadArtifacts,
 } from "@/lib/tools/scad-renderer";
+import { buildScadParameterPersistence } from "@/lib/tools/scad-parameter-persistence";
 import {
   cleanupArtifactWorkspace,
   materializeStoredArtifact,
@@ -25,6 +26,7 @@ import { buildJobQuality } from "@/lib/validation/job-quality";
 import { isModelMultimodal } from "@/app/api/models/route";
 import type { RenderedArtifacts } from "@/lib/harness/types";
 import { toPublicJobOrNull } from "@/lib/public-job";
+import { withLlmCallMeter, llmCallsThisRun } from "@/lib/model-runtime";
 
 export const maxDuration = 300;
 
@@ -38,7 +40,13 @@ interface RouteParams {
  * User-triggered visual repair: sends the preview image to a VLM,
  * identifies visual issues, repairs the SCAD, and re-renders.
  */
-export async function POST(
+// Visual repair is a separate HTTP request, so it opens its own call-count
+// scope; without it the analysis and repair calls never reach `llmCallCount`.
+export function POST(request: Request, context: RouteParams) {
+  return withLlmCallMeter(() => handleVisualRepair(request, context));
+}
+
+async function handleVisualRepair(
   request: Request,
   { params }: RouteParams
 ) {
@@ -132,6 +140,9 @@ export async function POST(
       }
     }
     const { repairedScad, visualReport, repairSummary } = visualRepairResult;
+    // The VLM repair can rewrite the artifact; keep the editable contract in sync
+    // with the source that is about to be persisted.
+    const repairedParameterPersistence = buildScadParameterPersistence(repairedScad);
 
     // Re-render with repaired SCAD
     clearValidationCache();
@@ -158,6 +169,8 @@ export async function POST(
         data: {
           state: "GEOMETRY_FAILED",
           scadSource: repairedScad,
+          parameterSchema: repairedParameterPersistence.parameterSchema,
+          parameterValues: repairedParameterPersistence.parameterValues,
           stlPath: null,
           pngPath: null,
           renderLog: JSON.stringify(buildRenderFailureLog(0, [errMsg])),
@@ -249,6 +262,8 @@ export async function POST(
       data: {
         state: nextState,
         scadSource: repairedScad,
+        parameterSchema: repairedParameterPersistence.parameterSchema,
+        parameterValues: repairedParameterPersistence.parameterValues,
         stlPath: artifacts.stlPath,
         pngPath: artifacts.pngPath,
         renderLog: JSON.stringify(artifacts.renderLog),
@@ -257,6 +272,7 @@ export async function POST(
         qualityScore: quality.qualityScore,
         validationReportJson: quality.validationReportJson,
         completedAt: nextState === "DELIVERED" ? new Date() : null,
+        llmCallCount: { increment: llmCallsThisRun() },
         executionLogs: appendLog(
           job.executionLogs,
           nextState === "DELIVERED" ? "DELIVERED" : "HUMAN_REVIEW",
@@ -290,6 +306,8 @@ export async function POST(
           data: {
             state: "HUMAN_REVIEW",
             completedAt: null,
+            // The calls happened even though the repair did not land.
+            llmCallCount: { increment: llmCallsThisRun() },
             executionLogs: appendLog(
               existingExecutionLogs,
               "HUMAN_REVIEW",

@@ -14,7 +14,10 @@ node_modules
 /coverage
 
 # next.js
-/.next/
+# `AGENTSCAD_BUILD_DIR` can rename the build directory so a production build and
+# a running dev server stop fighting over `.next`. A per-name rule misses the
+# next name that gets used, so the whole family is ignored at once.
+.next*/
 /out/
 
 # production
@@ -43,6 +46,12 @@ db/*.db
 
 # generated artifacts
 public/artifacts/
+# Tailwind v4 used to sweep unignored root files into its automatic source scan,
+# and a dump containing class-shaped text would turn into real utilities. That
+# scan is now off at the source (`@import "tailwindcss" source(none)` in
+# globals.css), so these entries are housekeeping rather than load-bearing -
+# keep them anyway; a 40MB audit dump in the repo root is nobody's friend.
+/outputs/
 .openscad-runtime/
 skills/scad-generation/learned-patterns.json
 benchmark-results.txt

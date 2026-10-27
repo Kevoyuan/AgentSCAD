@@ -15,10 +15,17 @@ import { englishTranslator, type Translator } from '@/lib/i18n'
  * circular button (section 5: "A decision is pending → 确认并生成"). Adding a second
  * lit confirm button here is the defect the 2026-09-17 audit logged as five
  * competing entry points.
+ *
+ * The options are cards, not a dim text list: a selected interpretation is the one
+ * fact the next composer action depends on, so it carries a signal border, a signal
+ * tint, a filled radio and a check mark - four redundant signals, none of them
+ * colour-only.
  */
 
+import { Check } from 'lucide-react'
 import { Job, parseJSON } from '@/components/cad/types'
 import { cn } from '@/lib/utils'
+import { EmptyNote } from './instrument'
 
 interface IntentInterpretation {
   id: string
@@ -63,59 +70,81 @@ export function DecisionModule({
 
   return (
     <div className="px-[11px] pb-[11px]">
-      <div className="pt-[3px] pb-[9px]">
-        <p className="text-[12.5px] font-semibold leading-[1.4] text-[var(--shell-text)]">{question}</p>
-        <p className="mt-[5px] font-mono text-[9px] leading-[1.5] text-[var(--shell-text-dim)]">
+      <div className="pt-[3px] pb-[8px]">
+        <p className="text-[13px] font-semibold leading-[1.4] text-[var(--shell-text)]">{question}</p>
+        <p className="mt-[5px] text-[11px] leading-[1.45] text-[var(--shell-text-label)]">
           {t("Your choice will be added to the description. Then use the button beside the input to generate.")}
         </p>
       </div>
 
       {interpretations.length === 0 ? (
-        <p className="py-2 text-[11.5px] text-[var(--shell-text-dim)]">
-          {t("No interpretations available. Make the description more specific or rebuild.")}
-        </p>
+        <EmptyNote>{t("No interpretations available. Make the description more specific or rebuild.")}</EmptyNote>
       ) : (
-        <div>
-          {interpretations.map(option => (
-            <div
-              key={option.id}
-              role="radio"
-              aria-checked={selectedId === option.id}
-              tabIndex={0}
-              onClick={() => onSelect(option.id)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  onSelect(option.id)
-                }
-              }}
-              className={cn(
-                'grid grid-cols-[13px_1fr] gap-[9px] items-start py-[10px] cursor-pointer',
-                'border-b border-[color:var(--shell-hairline)] last:border-b-0 last:pb-[2px] group'
-              )}
-            >
-              <i
+        <div role="radiogroup" aria-label={question} className="flex flex-col gap-[6px]">
+          {interpretations.map(option => {
+            const selected = selectedId === option.id
+            const detail = option.objectKind || option.domain || option.evidence?.[0]
+            return (
+              <div
+                key={option.id}
+                role="radio"
+                aria-checked={selected}
+                aria-label={option.label}
+                tabIndex={0}
+                title={detail ? `${option.label} — ${detail}` : option.label}
+                onClick={() => onSelect(option.id)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onSelect(option.id)
+                  }
+                }}
                 className={cn(
-                  'w-3 h-3 rounded-full border mt-[2px] relative not-italic shrink-0',
-                  selectedId === option.id ? 'border-[var(--shell-signal)]' : 'border-[var(--shell-text-dim)]'
+                  'group grid min-h-[44px] cursor-pointer grid-cols-[15px_1fr_16px] items-start gap-[9px]',
+                  'rounded-[6px] border px-[10px] py-[9px] transition-colors',
+                  selected
+                    ? 'border-[var(--shell-signal)] bg-[color-mix(in_srgb,var(--shell-signal)_9%,transparent)]'
+                    : 'border-[color:var(--shell-border)] hover:border-[var(--shell-border-strong)] hover:bg-[var(--shell-hover)]'
                 )}
+                style={selected ? undefined : { background: 'var(--shell-well)' }}
               >
-                {selectedId === option.id && (
-                  <span className="absolute rounded-full bg-[var(--shell-signal)]" style={{ inset: 2 }} />
-                )}
-              </i>
-              <div className="min-w-0">
-                <div className="text-[12px] font-semibold leading-[1.3] text-[var(--shell-text)] group-hover:text-[var(--shell-signal-soft)] transition-colors">
-                  {option.label}
-                </div>
-                {(option.objectKind || option.domain || option.evidence?.[0]) && (
-                  <div className="mt-[4px] font-mono text-[9px] leading-[1.45] text-[var(--shell-text-dim)]">
-                    {option.objectKind || option.domain || option.evidence?.[0]}
+                <i
+                  className={cn(
+                    'relative mt-[2px] h-[15px] w-[15px] shrink-0 rounded-full border not-italic',
+                    selected ? 'border-[var(--shell-signal)]' : 'border-[var(--shell-text-dim)]'
+                  )}
+                  aria-hidden="true"
+                >
+                  {selected && (
+                    <span
+                      className="absolute rounded-full bg-[var(--shell-signal)]"
+                      style={{ inset: 3 }}
+                    />
+                  )}
+                </i>
+                <div className="min-w-0">
+                  <div
+                    className={cn(
+                      'text-[12px] font-semibold leading-[1.3] transition-colors',
+                      selected
+                        ? 'text-[var(--shell-text)]'
+                        : 'text-[var(--shell-text-muted)] group-hover:text-[var(--shell-text)]'
+                    )}
+                  >
+                    {option.label}
                   </div>
-                )}
+                  {detail && (
+                    <div className="mt-[3px] text-[11px] leading-[1.4] text-[var(--shell-text-label)]">
+                      {detail}
+                    </div>
+                  )}
+                </div>
+                <span className="mt-[1px] flex h-[16px] w-[16px] items-center justify-center" aria-hidden="true">
+                  {selected && <Check className="h-[14px] w-[14px] text-[var(--shell-signal-soft)]" />}
+                </span>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

@@ -83,53 +83,14 @@ export const staggerTransition: Transition = {
   ease: 'easeOut',
 }
 
-// Subtle pulsing glow effect for active states
-export const pulseGlow: Variants = {
-  initial: {
-    boxShadow: '0 0 0px 0px rgba(139, 92, 246, 0)',
-  },
-  animate: {
-    boxShadow: [
-      '0 0 0px 0px rgba(139, 92, 246, 0)',
-      '0 0 12px 4px rgba(139, 92, 246, 0.3)',
-      '0 0 0px 0px rgba(139, 92, 246, 0)',
-    ],
-  },
-  exit: {
-    boxShadow: '0 0 0px 0px rgba(139, 92, 246, 0)',
-  },
-}
-
-export const pulseGlowTransition: Transition = {
-  duration: 2,
-  repeat: Infinity,
-  ease: 'easeInOut',
-}
-
-// Loading shimmer effect
-export const shimmer: Variants = {
-  initial: {
-    backgroundPosition: '-200% 0',
-  },
-  animate: {
-    backgroundPosition: '200% 0',
-  },
-  exit: {
-    backgroundPosition: '-200% 0',
-  },
-}
-
-export const shimmerTransition: Transition = {
-  duration: 1.8,
-  repeat: Infinity,
-  ease: 'linear',
-}
-
-export const shimmerStyle = {
-  background:
-    'linear-gradient(90deg, transparent 0%, rgba(139, 92, 246, 0.08) 50%, transparent 100%)',
-  backgroundSize: '200% 100%',
-} as const
+/*
+ * `pulseGlow`, `pulseGlowTransition`, `shimmer`, `shimmerTransition` and
+ * `shimmerStyle` were removed here. All five were unreferenced, and all five
+ * painted violet (#8B5CF6 at 30% and 8%) - a second accent that DESIGN.md
+ * section 11 does not allow, sitting in a file every panel imports. The live
+ * state glow is the signal token's job (`--shell-signal-rgb`), and the loading
+ * state is a skeleton, not a shimmer.
+ */
 
 // Success animation (scale + color flash)
 export const successPop: Variants = {

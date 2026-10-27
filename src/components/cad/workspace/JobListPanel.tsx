@@ -143,7 +143,7 @@ export function JobListPanel({
                 {/* The count is an anchor on the left; the actions wrap beside it
                     rather than pushing it onto a line of its own. */}
                 <div className="flex items-start gap-2 px-2.5 py-1.5 min-w-0">
-                  <span className="shrink-0 pt-[3px] font-mono text-[10.5px] leading-none text-[var(--shell-text-muted)]">
+                  <span className="shrink-0 pt-[7px] font-mono text-[11px] leading-none text-[var(--shell-text-muted)]">
                     {t("selected")}{selectedIds.size}
                   </span>
                   <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-0.5">
@@ -152,7 +152,7 @@ export function JobListPanel({
                       <button
                         type="button"
                         onClick={onOpenCompare}
-                        className="h-6 px-2 rounded-[4px] font-mono text-[10.5px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] transition-colors shrink-0"
+                        className="h-7 px-2 rounded-[4px] font-mono text-[11px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] transition-colors shrink-0"
                       >
                         {t("Compare")}
                       </button>
@@ -161,7 +161,7 @@ export function JobListPanel({
                       <button
                         type="button"
                         onClick={onOpenStats}
-                        className="h-6 px-2 rounded-[4px] font-mono text-[10.5px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] transition-colors shrink-0"
+                        className="h-7 px-2 rounded-[4px] font-mono text-[11px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] transition-colors shrink-0"
                       >
                         {t("Statistics")}
                       </button>
@@ -169,7 +169,7 @@ export function JobListPanel({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 gap-1 rounded-[4px] font-mono text-[10.5px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] shrink-0"
+                      className="h-7 px-2 gap-1 rounded-[4px] font-mono text-[11px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] shrink-0"
                       onClick={() => onBatchAction('reprocess')}
                     >
                       <RotateCcw className="w-3 h-3" />
@@ -178,7 +178,7 @@ export function JobListPanel({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 gap-1 rounded-[4px] font-mono text-[10.5px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] shrink-0"
+                      className="h-7 px-2 gap-1 rounded-[4px] font-mono text-[11px] text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] shrink-0"
                       onClick={() => onBatchAction('cancel')}
                     >
                       <Ban className="w-3 h-3" />
@@ -187,7 +187,7 @@ export function JobListPanel({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 px-2 gap-1 rounded-[4px] font-mono text-[10.5px] text-[var(--shell-fail)] hover:bg-[var(--shell-fail)]/12 shrink-0"
+                      className="h-7 px-2 gap-1 rounded-[4px] font-mono text-[11px] text-[var(--shell-fail)] hover:bg-[var(--shell-fail)]/12 shrink-0"
                       onClick={() => onBatchAction('delete')}
                     >
                       <Trash2 className="w-3 h-3" />
@@ -196,9 +196,10 @@ export function JobListPanel({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0 rounded-[4px] text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] shrink-0"
+                      className="h-7 w-7 p-0 rounded-[4px] text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] shrink-0"
                       onClick={onClearSelection}
                       aria-label={t("Clear selection")}
+                      title={t("Clear selection")}
                     >
                       <X className="w-3 h-3" />
                     </Button>
@@ -221,7 +222,7 @@ export function JobListPanel({
             onClick={() => onShowComposer?.()}
             aria-label={t("New part")}
             title={t("New part (⌘N)")}
-            className="rail-create shrink-0 mx-2.5 mb-2 h-[28px] px-2.5 rounded-[5px] border flex items-center justify-between gap-2 font-mono text-[10.5px] transition-colors"
+            className="rail-create shrink-0 mx-2.5 mb-2 h-7 px-2.5 rounded-[4px] border flex items-center justify-between gap-2 font-mono text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--shell-signal)] focus-visible:ring-offset-0"
           >
             <span className="flex items-center gap-1.5">
               <Plus className="w-3 h-3" />
@@ -230,7 +231,10 @@ export function JobListPanel({
             <span className="rail-create-key">⌘N</span>
           </button>
 
-          {/* Jobs List with Drag & Drop */}
+          {/* Jobs List with Drag & Drop. The rail body is the only scroll container:
+              the search row and the create action stay fixed above it, the plate's
+              height caps the body, and the scrollbar is always visible (thin, shell
+              thumb) so a part below the fold is discoverable rather than clipped. */}
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -238,7 +242,10 @@ export function JobListPanel({
             onDragEnd={onDragEnd}
             onDragCancel={onDragCancel}
           >
-            <div className="flex-1 min-h-0 overflow-y-auto min-w-0">
+            <div
+              className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden min-w-0 overscroll-contain [scrollbar-width:thin] [scrollbar-color:var(--shell-scroll-thumb)_transparent]"
+              data-testid="slots-scroll"
+            >
               <SortableContext
                 items={sortedJobs.map(j => j.id)}
                 strategy={verticalListSortingStrategy}
@@ -248,7 +255,7 @@ export function JobListPanel({
                       the empty state stays outside the listbox. */}
                   <div
                     role="listbox"
-                    aria-label={t("Part slots")}
+                    aria-label={`${t("Part slots")} (${sortedJobs.length})`}
                     className="min-w-0 divide-y divide-[color:var(--app-border-subtle)]"
                   >
                     {sortedJobs.map((job, i) => (

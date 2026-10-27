@@ -14,6 +14,10 @@ import {
   type ModelCompletionResponse,
 } from "@/lib/tools/model-router";
 import { sanitizeGeneratedScadSource } from "@/lib/tools/scad-sanitizer";
+import {
+  extractParameterDefsFromScad,
+  mergeExtractedParameters,
+} from "@/lib/tools/scad-parameter-extractor";
 import { normalizeGenerationResult } from "@/lib/harness/structured-output";
 import { ModelRequestError, type ModelErrorEvidence } from "@/lib/model-runtime";
 import type { StructuredGenerationResult, CadValidationTargets } from "@/lib/harness/types";
@@ -34,6 +38,12 @@ export interface RepairInput {
   };
   requestedModel?: string | null;
   signal?: AbortSignal;
+  /**
+   * "simplify" is selected when the generated source was rejected by the compile
+   * budget instead of by a source/geometry diagnostic. The repair then trades
+   * small or hidden detail for a source that OpenSCAD can compile in budget.
+   */
+  repairStrategy?: "compile" | "simplify";
 }
 
 export interface RepairResult {
@@ -121,11 +131,26 @@ export function buildRepairPrompt(input: RepairInput): string {
     "These statuses are uncertainty, not evidence of a geometry defect. Do not repair them as failed checks.",
     "",
     "## Repair Goal",
-    "Fix ONLY the failed validation checks listed above.",
-    "Do NOT change dimensions or features that already pass validation.",
-    "Preserve all required features from the CAD intent.",
-    "Use AgentSCAD standard library modules (include <agentscad_std.scad>) when possible.",
-    "Keep parameters as top-level assignments.",
+    ...(input.repairStrategy === "simplify"
+      ? [
+          "The current source exceeded the compile budget; its syntax and geometry are not yet verified: OpenSCAD exhausted its compile budget before finishing.",
+          "This is a COMPLEXITY failure, not a syntax or geometry-correctness failure.",
+          "Rewrite the source to compile comfortably within budget while preserving the user's requested form:",
+          "- Keep the outer silhouette, all required dimensions, functional features, fitting surfaces, and every editable top-level parameter.",
+          "- Merge or drop optional internal and hidden detail; preserve functional interfaces and clearances.",
+          "- Reduce repeated hull()/minkowski()/dense-array geometry; prefer a few coarse primitives.",
+          "- Use a coarse global resolution: set `$fa = 12;` and `$fs = 2;`, and avoid per-feature `$fn` above 32 unless the request needs it.",
+          "- Keep the final boolean tree to roughly 40-60 operations; do not model detail below the requested fidelity.",
+          "- Keep all geometry in one `module generated_part()` called once at the top level.",
+          "Target a source that compiles in well under half of the configured budget.",
+        ]
+      : [
+          "Fix ONLY the failed validation checks listed above.",
+          "Do NOT change dimensions or features that already pass validation.",
+          "Preserve all required features from the CAD intent.",
+          "Use AgentSCAD standard library modules (include <agentscad_std.scad>) when possible.",
+          "Keep parameters as top-level assignments.",
+        ]),
     "",
     "Return the full corrected structured JSON with updated scad_source:",
     '{"part_type": "...", "features": [...], "modeling_plan": [...], "scad_source": "..."}',
@@ -229,6 +254,13 @@ export async function runRepair(input: RepairInput): Promise<{
   }
 
   const sanitizedScadSource = sanitizeGeneratedScadSource(generationResult.scad_source);
+  // A repair can rewrite the whole artifact. Re-extract the editable controls from
+  // the repaired source so callers persist the real parameters instead of the
+  // stale generation-era schema.
+  const repairedParameters = mergeExtractedParameters(
+    extractParameterDefsFromScad(sanitizedScadSource),
+    generationResult.parameters,
+  );
 
   // Extract repair summary from the raw response
   let repairMeta: RepairResult = {
@@ -264,6 +296,7 @@ export async function runRepair(input: RepairInput): Promise<{
       ...emptyStructuredDefaults(),
       ...generationResult,
       scad_source: sanitizedScadSource,
+      parameters: repairedParameters,
       part_type: input.cadIntent?.part_type || input.partFamily,
       features: (input.cadIntent?.features as StructuredGenerationResult["features"]) || [],
       modeling_plan: (input.cadIntent?.modeling_plan as string[]) || [],

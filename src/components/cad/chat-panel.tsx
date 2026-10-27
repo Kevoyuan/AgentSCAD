@@ -51,9 +51,9 @@ function CodeCopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="code-copy-btn text-xs font-mono text-[var(--app-text-muted)] hover:text-[var(--app-text-primary)] bg-[var(--app-surface-raised)] hover:bg-[var(--app-surface-hover)] border border-[color:var(--app-border)] shadow-sm active:scale-[0.97] transition-all cursor-pointer px-2 py-1 rounded flex items-center gap-1.5"
+      className="code-copy-btn text-[12px] font-mono text-[var(--app-text-muted)] hover:text-[var(--app-text-primary)] bg-[var(--app-surface-raised)] hover:bg-[var(--app-surface-hover)] border border-[color:var(--app-border)] shadow-sm active:scale-[0.97] transition-all cursor-pointer px-2 py-1 rounded flex items-center gap-1.5"
     >
-      {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+      {copied ? <Check className="w-3 h-3 text-[var(--shell-ok)]" /> : <Copy className="w-3 h-3" />}
       {copied ? t("Copied") : t("Copy")}
     </button>
   )
@@ -218,7 +218,7 @@ function MessagePatchButton({
     <button
       onClick={handleApply}
       disabled={isApplying}
-      className={`flex items-center gap-1.5 rounded bg-[var(--app-accent-text)] hover:brightness-110 active:brightness-95 px-2 py-1 font-mono text-xs text-white shadow-sm active:scale-[0.97] transition-all disabled:cursor-wait disabled:opacity-60 cursor-pointer border border-transparent ${className}`}
+      className={`flex items-center gap-1.5 rounded bg-[var(--app-accent-text)] hover:brightness-110 active:brightness-95 px-2 py-1 font-mono text-[12px] text-white shadow-sm active:scale-[0.97] transition-all disabled:cursor-wait disabled:opacity-60 cursor-pointer border border-transparent ${className}`}
       title={t("Apply every SCAD patch block in this assistant message")}
     >
       <Wand2 className="h-3 w-3" />
@@ -253,7 +253,7 @@ function ScadApplyButton({
     <button
       onClick={handleApply}
       disabled={isApplying}
-      className="text-xs font-mono text-white bg-[var(--app-accent-text)] hover:brightness-110 active:brightness-95 shadow-sm active:scale-[0.97] transition-all px-2 py-1 rounded flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-wait border border-transparent cursor-pointer"
+      className="text-[12px] font-mono text-white bg-[var(--app-accent-text)] hover:brightness-110 active:brightness-95 shadow-sm active:scale-[0.97] transition-all px-2 py-1 rounded flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-wait border border-transparent cursor-pointer"
     >
       <Wand2 className="w-3 h-3" />
       {isApplying ? t("Rendering...") : mode === 'replace' ? t("Apply & Render") : t("Patch & Render")}
@@ -261,26 +261,36 @@ function ScadApplyButton({
   )
 }
 
-// Category badge colors
+/*
+ * Category badge icons.
+ *
+ * These are six neutral markers, not six states. They used to be a rainbow -
+ * amber for flagship, teal for fast, emerald for vision, orange for code - and
+ * DESIGN.md section 11 allows exactly one lit group on a screen (the composer's
+ * action) and forbids decorative hue entirely. A model category is not a
+ * verdict: nothing about a badge that says "vision" implies the part is
+ * better. The icon shape carries the distinction; the colour stays out of it.
+ */
 const CATEGORY_STYLES: Record<string, { icon: React.ReactNode; color: string }> = {
-  flagship: { icon: <Star className="w-2.5 h-2.5" />, color: 'text-amber-400' },
-  balanced: { icon: <Brain className="w-2.5 h-2.5" />, color: 'text-stone-300' },
-  fast: { icon: <Zap className="w-2.5 h-2.5" />, color: 'text-teal-400' },
-  reasoning: { icon: <Brain className="w-2.5 h-2.5" />, color: 'text-amber-400' },
-  vision: { icon: <Eye className="w-2.5 h-2.5" />, color: 'text-emerald-400' },
-  code: { icon: <Code2 className="w-2.5 h-2.5" />, color: 'text-orange-400' },
+  flagship: { icon: <Star className="w-2.5 h-2.5" />, color: 'text-[var(--shell-text-muted)]' },
+  balanced: { icon: <Brain className="w-2.5 h-2.5" />, color: 'text-[var(--shell-text-muted)]' },
+  fast: { icon: <Zap className="w-2.5 h-2.5" />, color: 'text-[var(--shell-text-muted)]' },
+  reasoning: { icon: <Brain className="w-2.5 h-2.5" />, color: 'text-[var(--shell-text-muted)]' },
+  vision: { icon: <Eye className="w-2.5 h-2.5" />, color: 'text-[var(--shell-text-muted)]' },
+  code: { icon: <Code2 className="w-2.5 h-2.5" />, color: 'text-[var(--shell-text-muted)]' },
 }
 
 // Provider display colors
 const PROVIDER_COLORS: Record<string, string> = {
-  mimo: '#ff6a00',
-  openai: '#10a37f',
-  anthropic: '#d97706',
-  google: '#4285f4',
-  deepseek: '#5b6ef7',
-  zhipu: '#3b82f6',
-  qwen: '#8b5cf6',
-  mistral: '#f97316',
+  /* Brand marks, declared once in globals.css as `--provider-*`. */
+  mimo: 'var(--provider-mimo)',
+  openai: 'var(--provider-openai)',
+  anthropic: 'var(--provider-anthropic)',
+  google: 'var(--provider-google)',
+  deepseek: 'var(--provider-deepseek)',
+  zhipu: 'var(--provider-zhipu)',
+  qwen: 'var(--provider-qwen)',
+  mistral: 'var(--provider-mistral)',
 }
 
 const DEFAULT_CHAT_MODEL = 'mimo-v2.5-pro'
@@ -634,7 +644,7 @@ export function ChatPanel({
   const assistantMarkdownComponents = useMemo(() => createMarkdownComponents(true), [createMarkdownComponents])
   const streamingMarkdownComponents = useMemo(() => createMarkdownComponents(false), [createMarkdownComponents])
 
-  const proseClasses = "prose prose-invert prose-xs max-w-none [&_pre]:rounded-md [&_pre]:bg-[var(--app-bg)] [&_pre]:border [&_pre]:border-[color:var(--app-border)] [&_pre]:p-2 [&_pre]:text-[13px] [&_pre]:leading-relaxed [&_code]:text-[var(--app-accent-text)] [&_code]:before:content-none [&_code]:after:content-none [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-sm [&_strong]:text-[var(--app-text-primary)] [&_a]:text-[var(--app-accent-text)]"
+  const proseClasses = "prose prose-invert prose-xs max-w-none [&_pre]:rounded-md [&_pre]:bg-[var(--app-bg)] [&_pre]:border [&_pre]:border-[color:var(--app-border)] [&_pre]:p-2 [&_pre]:text-[13px] [&_pre]:leading-relaxed [&_code]:text-[var(--app-accent-text)] [&_code]:before:content-none [&_code]:after:content-none [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_h1]:text-[13px] [&_h2]:text-[12px] [&_h3]:text-[13px] [&_strong]:text-[var(--app-text-primary)] [&_a]:text-[var(--app-accent-text)]"
 
   return (
     <div
@@ -667,7 +677,7 @@ export function ChatPanel({
             <Button
               variant="ghost"
               size="sm"
-              className="h-5 gap-1 px-1.5 text-[8px] text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]"
+              className="h-5 gap-1 px-1.5 text-[10px] text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]"
               onClick={handleUndoApply}
             >
               <RotateCcw className="h-2.5 w-2.5" />
@@ -677,7 +687,7 @@ export function ChatPanel({
           {/* Model Picker */}
           <div className="relative min-w-0" ref={modelPickerRef}>
             <button
-              className="flex max-w-36 items-center gap-1 truncate rounded px-1.5 py-0.5 font-mono text-xs text-[var(--app-text-muted)] transition-all hover:text-[var(--app-text-secondary)] hover:bg-[var(--app-surface-hover)] active:scale-[0.97] cursor-pointer"
+              className="flex max-w-36 items-center gap-1 truncate rounded px-1.5 py-0.5 font-mono text-[12px] text-[var(--app-text-muted)] transition-all hover:text-[var(--app-text-secondary)] hover:bg-[var(--app-surface-hover)] active:scale-[0.97] cursor-pointer"
               onClick={() => setShowModelPicker(!showModelPicker)}
             >
               <span className="truncate">{currentModel?.name || 'MiMo-V2.5-Pro'}</span>
@@ -690,7 +700,7 @@ export function ChatPanel({
                 {/* Provider filter tabs */}
                 <div className="flex gap-0.5 px-2 py-1.5 border-b border-[color:var(--app-border-separator)] overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
                   <button
-                    className={`text-[8px] font-mono px-1.5 py-0.5 rounded shrink-0 transition-colors ${!providerFilter ? 'bg-[var(--app-accent-bg)] text-[var(--app-accent-text)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`}
+                    className={`text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0 transition-colors ${!providerFilter ? 'bg-[var(--app-accent-bg)] text-[var(--app-accent-text)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`}
                     onClick={() => setProviderFilter(null)}
                   >
                     {t("All")}
@@ -698,7 +708,7 @@ export function ChatPanel({
                   {providers.map(p => (
                     <button
                       key={p.id}
-                      className={`text-[8px] font-mono px-1.5 py-0.5 rounded shrink-0 transition-colors ${providerFilter === p.id ? 'bg-[var(--app-accent-bg)] text-[var(--app-accent-text)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`}
+                      className={`text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0 transition-colors ${providerFilter === p.id ? 'bg-[var(--app-accent-bg)] text-[var(--app-accent-text)]' : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'}`}
                       onClick={() => setProviderFilter(p.id === providerFilter ? null : p.id)}
                     >
                       {p.name}
@@ -708,8 +718,8 @@ export function ChatPanel({
                 {/* Model groups by provider */}
                 {groupedModels.map(group => (
                   <div key={group.provider}>
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 text-[8px] font-mono text-[var(--app-text-dim)] uppercase tracking-wider">
-                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: PROVIDER_COLORS[group.provider] || '#71717a' }} />
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono text-[var(--app-text-dim)] uppercase tracking-wider">
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: PROVIDER_COLORS[group.provider] || 'var(--provider-unknown)' }} />
                       {group.providerName}
                     </div>
                     {group.models.map(model => {
@@ -726,9 +736,9 @@ export function ChatPanel({
                             {catStyle.icon}
                           </span>
                           <span className="font-mono font-medium">{model.name}</span>
-                          {model.multimodal && <Eye className="w-2 h-2 text-emerald-400" />}
+                          {model.multimodal && <Eye className="w-2 h-2 text-[var(--shell-text-muted)]" />}
                           {model.reasoning && <Brain className="w-2 h-2 text-[var(--app-accent-text)]" />}
-                          <span className="text-[8px] text-[var(--app-text-dim)] ml-auto truncate max-w-[80px]">{model.description.slice(0, 20)}...</span>
+                          <span className="text-[10px] text-[var(--app-text-dim)] ml-auto truncate max-w-[80px]">{model.description.slice(0, 20)}...</span>
                         </button>
                       )
                     })}
@@ -738,7 +748,7 @@ export function ChatPanel({
             )}
           </div>
           {messages.length > 0 && (
-            <Button variant="ghost" size="sm" className="h-4 text-[8px] text-[var(--app-text-dim)] hover:text-[var(--app-text-muted)]" onClick={() => { setMessages([]); setStreamingContent(''); localStorage.removeItem(`chat-${job.id}`) }}>
+            <Button variant="ghost" size="sm" className="h-4 text-[10px] text-[var(--app-text-dim)] hover:text-[var(--app-text-muted)]" onClick={() => { setMessages([]); setStreamingContent(''); localStorage.removeItem(`chat-${job.id}`) }}>
               {t("Clear")}
             </Button>
           )}
@@ -751,14 +761,14 @@ export function ChatPanel({
               <MessageSquare className="w-5 h-5 text-[var(--app-accent)]" />
             </div>
             <div className="text-center">
-              <p className="text-xs">{t("Ask about this CAD job")}</p>
+              <p className="text-[12px]">{t("Ask about this CAD job")}</p>
               <p className="text-[13px] text-[var(--app-text-dim)] mt-1">{t("Using")} {currentModel?.name || 'MiMo-V2.5-Pro'} {t("by")} {currentModel?.providerName || 'Xiaomi MiMo'}</p>
             </div>
             <div className="mt-1 flex max-w-[280px] flex-wrap justify-center gap-1 px-2">
               {suggestions.map(q => (
                 <button
                   key={q}
-                  className="text-xs font-mono text-[var(--app-text-dim)] bg-[var(--app-surface-hover)] px-2 py-1 rounded-md hover:text-[var(--app-text-muted)] hover:bg-[var(--app-surface-raised)] transition-colors"
+                  className="text-[12px] font-mono text-[var(--app-text-dim)] bg-[var(--app-surface-hover)] px-2 py-1 rounded-md hover:text-[var(--app-text-muted)] hover:bg-[var(--app-surface-raised)] transition-colors"
                   onClick={() => setInput(t(q))}
                 >
                   {t(q)}
@@ -772,7 +782,7 @@ export function ChatPanel({
             key={i}
               className={`flex min-w-0 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-            <div className={`max-w-[92%] overflow-hidden rounded-lg px-3 py-2 text-sm leading-relaxed ${
+            <div className={`max-w-[92%] overflow-hidden rounded-lg px-3 py-2 text-[13px] leading-relaxed ${
               msg.role === 'user'
                 ? 'bg-[var(--app-accent-bg)] text-[var(--app-accent-text)] border border-[color:var(--app-accent-border)]'
                 : 'bg-[var(--app-surface-raised)] text-[var(--app-text-secondary)] border border-[color:var(--app-border)]'
@@ -780,15 +790,15 @@ export function ChatPanel({
               {msg.role === 'assistant' && (
                 <div className="flex items-center gap-1 mb-1">
                   <Sparkles className="w-2.5 h-2.5 text-[var(--app-accent-text)]" />
-                  <span className="text-[8px] font-mono text-[var(--app-accent-text)]">AgentSCAD</span>
-                  <span className="ml-auto text-[8px] font-mono text-[var(--app-text-dim)] flex items-center gap-0.5">
+                  <span className="text-[10px] font-mono text-[var(--app-accent-text)]">AgentSCAD</span>
+                  <span className="ml-auto text-[10px] font-mono text-[var(--app-text-dim)] flex items-center gap-0.5">
                     <Clock className="w-2 h-2" />{formatTimestamp(msg.timestamp, locale)}
                   </span>
                 </div>
               )}
               {msg.role === 'user' && (
                 <div className="flex items-center justify-end gap-0.5 mb-1">
-                  <span className="text-[8px] font-mono text-[var(--app-accent-text)] flex items-center gap-0.5">
+                  <span className="text-[10px] font-mono text-[var(--app-accent-text)] flex items-center gap-0.5">
                     <Clock className="w-2 h-2" />{formatTimestamp(msg.timestamp, locale)}
                   </span>
                 </div>
@@ -833,11 +843,11 @@ export function ChatPanel({
         {/* Streaming message */}
         {isStreaming && streamingContent && (
           <div className="flex justify-start">
-            <div className="max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed bg-[var(--app-surface-raised)] text-[var(--app-text-secondary)] border border-[color:var(--app-border)]">
+            <div className="max-w-[85%] rounded-lg px-3 py-2 text-[13px] leading-relaxed bg-[var(--app-surface-raised)] text-[var(--app-text-secondary)] border border-[color:var(--app-border)]">
               <div className="flex items-center gap-1 mb-1">
                 <Sparkles className="w-2.5 h-2.5 text-[var(--app-accent-text)] animate-pulse" />
-                <span className="text-[8px] font-mono text-[var(--app-accent-text)]">AgentSCAD</span>
-                <span className="text-[8px] font-mono text-[var(--app-accent-text)] animate-pulse">{t("generating...")}</span>
+                <span className="text-[10px] font-mono text-[var(--app-accent-text)]">AgentSCAD</span>
+                <span className="text-[10px] font-mono text-[var(--app-accent-text)] animate-pulse">{t("generating...")}</span>
               </div>
               <div className={proseClasses}>
                 <ReactMarkdown components={streamingMarkdownComponents}>
@@ -872,14 +882,14 @@ export function ChatPanel({
               <div key={i} className="relative group">
                 <img src={img} alt={t("Upload {0}", { 0: i + 1 })} className="w-10 h-10 rounded object-cover border border-[color:var(--app-border)]" />
                 <button
-                  className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[var(--shell-fail)] rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={() => removeImage(i)}
                 >
                   <X className="w-2 h-2" />
                 </button>
               </div>
             ))}
-            <span className="text-[8px] font-mono text-[var(--app-text-dim)] self-center">{pendingImages.length} image{pendingImages.length > 1 ? 's' : ''}</span>
+            <span className="text-[10px] font-mono text-[var(--app-text-dim)] self-center">{pendingImages.length} image{pendingImages.length > 1 ? 's' : ''}</span>
           </div>
         )}
         <div className="flex min-w-0 items-center gap-1.5">
@@ -911,11 +921,11 @@ export function ChatPanel({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
             placeholder={isMultimodal ? t("Paste screenshot or ask about this CAD...") : t("Ask about this design...")}
-            className="h-7 min-w-0 bg-[var(--app-bg)] text-sm border-[color:var(--app-border)] placeholder:text-[var(--app-text-dim)]"
+            className="h-7 min-w-0 bg-[var(--app-bg)] text-[13px] border-[color:var(--app-border)] placeholder:text-[var(--app-text-dim)]"
             disabled={isStreaming}
           />
           {isStreaming ? (
-            <Button size="sm" className="h-7 w-7 p-0 bg-rose-600 hover:bg-rose-500 shrink-0 stop-btn-pulse" onClick={handleStop}>
+            <Button size="sm" className="h-7 w-7 p-0 bg-[var(--shell-fail)] hover:opacity-90 shrink-0 stop-btn-pulse" onClick={handleStop}>
               <Square className="w-3.5 h-3.5" />
             </Button>
           ) : (

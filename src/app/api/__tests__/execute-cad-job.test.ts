@@ -2,6 +2,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, mock, spyOn, test } 
 import { ModelRequestError } from "@/lib/model-runtime";
 import { GeneratedScadCompileError } from "@/lib/harness/generation-errors";
 
+import type { StructuredGenerationResult } from "@/lib/harness/types";
+import { OpenScadTimeoutError } from "@/lib/tools/scad-timeout";
+
 import { spawnSync } from "node:child_process";
 
 // Bun module replacements survive mock.restore(). Keep all pipeline mocks in
@@ -25,10 +28,18 @@ if (process.env.AGENTSCAD_PIPELINE_TEST_CHILD === "1") {
 
 function registerPipelineTests() {
 const updates: Array<{ where: { id: string }; data: Record<string, unknown> }> = [];
+const isRunMetricsWrite = (data: Record<string, unknown>) =>
+  Object.keys(data).length > 0 &&
+  Object.keys(data).every((key) => key === "latencyMs" || key === "llmCallCount");
+// The pipeline flushes run metrics (latencyMs / llmCallCount) from a `finally`
+// block, so every run produces one trailing write that carries no state.
+// State-transition assertions have to look past it.
+const stateUpdates = () => updates.filter((update) => !isRunMetricsWrite(update.data));
 let currentJob: Record<string, unknown>;
 let generationCalls = 0;
 let templateCalls = 0;
 let renderCalls = 0;
+let renderError: Error | null = null;
 let intakeCalls = 0;
 let modelIntakeResult: Record<string, unknown>;
 let modelIntakeError: Error | null = null;
@@ -38,11 +49,15 @@ const generationPlans: Array<Record<string, unknown> | undefined> = [];
 let generationError: Error | null = null;
 let repairError: Error | null = null;
 let repairCalls = 0;
+let repairStrategy: string | undefined;
 let repairedScad = "cube([12, 12, 12]);";
 let repairUsesParameters = false;
 let repairValidationResults: Array<{ message: string }> = [];
 let cancelDuringRepair = false;
 let compileValidationError: Error | null = null;
+let renderedArtifactsResult: Record<string, unknown> | null = null;
+let renderedValidationQueue: Array<Array<Record<string, unknown>>> = [];
+let motionContractResult: Record<string, unknown> | null = null;
 
 function generatedResult(scadSource: string) {
   return {
@@ -66,6 +81,25 @@ function generatedResult(scadSource: string) {
     },
     parameters: [],
     scad_source: scadSource,
+  };
+}
+
+function renderableArtifacts(): Record<string, unknown> {
+  return {
+    artifactsDir: "/tmp/agentscad-test-artifacts",
+    scadFilePath: "/tmp/agentscad-test-artifacts/model.scad",
+    stlFilePath: "/tmp/agentscad-test-artifacts/model.stl",
+    pngFilePath: "/tmp/agentscad-test-artifacts/preview.png",
+    stlPath: "/artifacts/job-pipeline/model.stl",
+    pngPath: "/artifacts/job-pipeline/preview.png",
+    renderLog: {
+      openscad_version: "real",
+      render_time_ms: 5,
+      stl_triangles: 12,
+      stl_vertices: 0,
+      png_resolution: "800x600",
+      warnings: [],
+    },
   };
 }
 
@@ -142,13 +176,16 @@ beforeAll(() => {
       _model?: string | null,
       familyOverride?: string,
       generationPlan?: Record<string, unknown>,
+      _signal?: AbortSignal,
+      _research?: string,
+      onSourceReady?: (result: StructuredGenerationResult) => Promise<void>,
     ) => {
       generationCalls += 1;
       generationRequests.push(request);
       generationFamilies.push(familyOverride || "unset");
       generationPlans.push(generationPlan);
       if (generationError) throw generationError;
-      return {
+      const result: StructuredGenerationResult = {
         part_type: "electronics_enclosure",
         summary: "Generated test enclosure",
         units: "mm",
@@ -187,6 +224,8 @@ beforeAll(() => {
         ],
         scad_source: "wall_thickness = 2; cube([10, 10, 10]);",
       };
+      await onSourceReady?.(result);
+      return result;
     }),
   }));
 
@@ -230,13 +269,15 @@ beforeAll(() => {
     }),
     renderScadArtifacts: mock(async () => {
       renderCalls += 1;
-      throw new Error("openscad failed");
+      if (renderedArtifactsResult) return renderedArtifactsResult;
+      throw renderError ?? new Error("openscad failed");
     }),
   }));
 
   mock.module("@/lib/repair/repair-controller", () => ({
-    runRepair: mock(async (input: { validationResults: Array<{ message: string }> }) => {
+    runRepair: mock(async (input: { validationResults: Array<{ message: string }>; repairStrategy?: string }) => {
       repairCalls += 1;
+      repairStrategy = input.repairStrategy;
       repairValidationResults = input.validationResults;
       if (repairError) throw repairError;
       if (cancelDuringRepair) currentJob = { ...currentJob, state: "CANCELLED" };
@@ -285,8 +326,14 @@ beforeAll(() => {
       },
     }),
     clearValidationCache: mock(() => undefined),
-    getCriticalValidationFailures: mock(() => []),
-    validateRenderedArtifacts: mock(async () => []),
+    getCriticalValidationFailures: mock((results: Array<{ passed?: boolean; is_critical?: boolean; status?: string }>) =>
+      results.filter((result) => result.is_critical && result.passed === false && result.status !== "SKIP"),
+    ),
+    validateRenderedArtifacts: mock(async () => renderedValidationQueue.shift() ?? []),
+  }));
+
+  mock.module("@/lib/validation/motion-contract", () => ({
+    evaluateMotionContract: mock(() => motionContractResult),
   }));
 });
 
@@ -299,6 +346,7 @@ beforeEach(() => {
   generationCalls = 0;
   templateCalls = 0;
   renderCalls = 0;
+  renderError = null;
   intakeCalls = 0;
   modelIntakeError = null;
   generationRequests.length = 0;
@@ -307,11 +355,15 @@ beforeEach(() => {
   generationError = null;
   repairError = null;
   repairCalls = 0;
+  repairStrategy = undefined;
   repairedScad = "cube([12, 12, 12]);";
   repairUsesParameters = false;
   repairValidationResults = [];
   cancelDuringRepair = false;
   compileValidationError = null;
+  renderedArtifactsResult = null;
+  renderedValidationQueue = [];
+  motionContractResult = null;
   modelIntakeResult = {
     version: 1,
     rawRequest: "electronics enclosure",
@@ -386,6 +438,36 @@ describe("executeCadJob", () => {
     expect(isTemplateFallbackEnabled({ AGENTSCAD_TEMPLATE_FALLBACK: "true" })).toBe(true);
   });
 
+  test("re-extracts editable SCAD parameters instead of persisting a stale generic schema", async () => {
+    const { buildScadParameterPersistence } = await import("@/lib/tools/scad-parameter-persistence");
+    const refreshed = buildScadParameterPersistence(
+      [
+        "total_length = 842;",
+        "bore = 100.5;",
+        "module generated_part() { cylinder(d = bore, h = 10); }",
+        "generated_part();",
+      ].join("\n"),
+      [{
+        key: "width",
+        label: "Width",
+        kind: "float",
+        unit: "mm",
+        value: 40,
+        min: 5,
+        max: 500,
+        step: 1,
+        source: "user",
+        editable: true,
+        description: "Width of the part",
+        group: "geometry",
+      }],
+    );
+
+    expect(refreshed.parameters.map((parameter) => parameter.key)).toEqual(["total_length", "bore"]);
+    expect(JSON.parse(refreshed.parameterSchema)).toHaveLength(2);
+    expect(JSON.parse(refreshed.parameterValues)).toMatchObject({ total_length: 842, bore: 100.5 });
+  });
+
   test("marks the job as GEOMETRY_FAILED and emits render_failed when OpenSCAD rendering fails", async () => {
     spyOn(console, "warn").mockImplementation(() => undefined);
     const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
@@ -394,10 +476,10 @@ describe("executeCadJob", () => {
 
     expect(updates.map((update) => update.data.state)).toContain("SCAD_GENERATED");
     expect(intakeCalls).toBe(1);
-    expect(updates.at(-1)?.data.state).toBe("GEOMETRY_FAILED");
-    expect(updates.at(-1)?.data.stlPath).toBeNull();
-    expect(updates.at(-1)?.data.pngPath).toBeNull();
-    expect(JSON.parse(updates.at(-1)?.data.renderLog as string).warnings[0]).toContain("openscad failed");
+    expect(stateUpdates().at(-1)?.data.state).toBe("GEOMETRY_FAILED");
+    expect(stateUpdates().at(-1)?.data.stlPath).toBeNull();
+    expect(stateUpdates().at(-1)?.data.pngPath).toBeNull();
+    expect(JSON.parse(stateUpdates().at(-1)?.data.renderLog as string).warnings[0]).toContain("openscad failed");
     expect(events.at(-1)).toMatchObject({
       state: "GEOMETRY_FAILED",
       step: "render_failed",
@@ -419,7 +501,7 @@ describe("executeCadJob", () => {
     expect(intakeCalls).toBe(0);
     // Research runs before clarification and records its own status on the job (here:
     // DISABLED, explicitly configured by this isolated test runner).
-    expect(updates).toHaveLength(2);
+    expect(stateUpdates()).toHaveLength(2);
     expect(updates[0]?.data).toHaveProperty("researchResult");
     expect(JSON.parse(updates[0]?.data.researchResult as string)).toMatchObject({
       status: "DISABLED",
@@ -430,6 +512,10 @@ describe("executeCadJob", () => {
       scadSource: null,
       stlPath: null,
       pngPath: null,
+      // Targets derived under the interpretation the user is about to reject
+      // must not survive into the clarified job, or the new part gets validated
+      // against the wrong part's dimensions.
+      validationTargetsJson: null,
       validationResults: null,
       completedAt: null,
     });
@@ -519,7 +605,7 @@ describe("executeCadJob", () => {
     expect(intakeCalls).toBe(1);
     expect(generationCalls).toBe(0);
     expect(renderCalls).toBe(0);
-    expect(updates.at(-1)?.data.state).toBe("HUMAN_REVIEW");
+    expect(stateUpdates().at(-1)?.data.state).toBe("HUMAN_REVIEW");
     expect(events.at(-1)).toMatchObject({
       step: "intent_clarification_required",
       message: "你要科幻展示模型，还是带尺寸约束的机械连接接口？",
@@ -545,7 +631,7 @@ describe("executeCadJob", () => {
 
     expect(generationFamilies).toEqual(["unknown"]);
     expect(renderCalls).toBe(0);
-    expect(updates.at(-1)?.data.state).toBe("GEOMETRY_FAILED");
+    expect(stateUpdates().at(-1)?.data.state).toBe("GEOMETRY_FAILED");
     expect(events.some((event) => event.step === "generating_mock")).toBe(false);
     expect(events.at(-1)).toMatchObject({
       errorCode: "CAD_GENERATION_FAILED",
@@ -553,6 +639,89 @@ describe("executeCadJob", () => {
       retryable: true,
     });
     expect(templateCalls).toBe(0);
+  });
+
+  test("timeout makes one simplification attempt and preserves both sources on repeated timeout", async () => {
+    const source = "cube(20);";
+    generationError = new GeneratedScadCompileError(generatedResult(source),
+      new OpenScadTimeoutError({ stage: "validation", timeoutMs: 300000, elapsedMs: 300041 }));
+    compileValidationError = new OpenScadTimeoutError({ stage: "validation", timeoutMs: 300000, elapsedMs: 300041 });
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+    await executeCadJob("job-pipeline", event => events.push(event));
+    expect(repairCalls).toBe(1);
+    expect(repairStrategy).toBe("simplify");
+    expect(renderCalls).toBe(0);
+    expect(currentJob.state).toBe("HUMAN_REVIEW");
+    expect(currentJob.scadSource).toBe(repairedScad);
+    expect(String(currentJob.repairHistory)).toContain(source);
+    expect(events.at(-1)?.errorCode).toBe("OPENSCAD_COMPILE_TIMEOUT");
+    expect(String(events.at(-1)?.message)).toContain("Simplify");
+  });
+
+  test("successful simplification proceeds to rendering and retains rejected source", async () => {
+    generationError = new GeneratedScadCompileError(generatedResult("cube(20);"),
+      new OpenScadTimeoutError({ stage: "validation", timeoutMs: 300000, elapsedMs: 300041 }));
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+    await executeCadJob("job-pipeline", event => events.push(event));
+    expect(repairCalls).toBe(1);
+    expect(repairStrategy).toBe("simplify");
+    expect(renderCalls).toBe(1);
+    expect(events.some(event => event.step === "repair_success")).toBe(true);
+    expect(currentJob.scadSource).toBe(repairedScad);
+    expect(String(currentJob.repairHistory)).toContain("cube(20);");
+  });
+
+  test("render timeout retains source and emits the actionable timeout code", async () => {
+    renderError = new OpenScadTimeoutError({ stage: "render", timeoutMs: 300000, elapsedMs: 300041 });
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+    await executeCadJob("job-pipeline", event => events.push(event));
+    expect(currentJob.scadSource).toBeTruthy();
+    expect(events.at(-1)).toMatchObject({ errorCode: "OPENSCAD_RENDER_TIMEOUT", failureStage: "render", retryable: true });
+    expect(String(events.at(-1)?.message)).toContain("Simplify");
+    expect(String(currentJob.executionLogs)).toContain("OPENSCAD_RENDER_TIMEOUT");
+  });
+
+  test("persists model output before compile validation and emits its distinct stage", async () => {
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+    await executeCadJob("job-pipeline", event => {
+      events.push(event);
+      if (event.step === "compiling_scad") {
+        expect(currentJob.scadSource).toBe("wall_thickness = 2; cube([10, 10, 10]);");
+        expect(event.executionProgress).toMatchObject({ step: "compiling_scad", backend: "native" });
+        expect(renderCalls).toBe(0);
+      }
+    });
+    expect(events.some(event => event.step === "compiling_scad")).toBe(true);
+  });
+
+  test("runtime failure preserves generated source without spending a repair call", async () => {
+    generationError = new GeneratedScadCompileError(generatedResult("cube(20);"), new Error("spawn openscad ENOENT"));
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+    await executeCadJob("job-pipeline", event => events.push(event));
+    expect(repairCalls).toBe(0);
+    expect(renderCalls).toBe(0);
+    expect(currentJob.state).toBe("HUMAN_REVIEW");
+    expect(currentJob.scadSource).toBe("cube(20);");
+    expect(events.at(-1)?.errorCode).toBe("OPENSCAD_RUNTIME_UNAVAILABLE");
+    expect(JSON.parse(String(currentJob.validationResults))[0].status).toBe("ERROR");
+  });
+
+  test("unchanged repaired source still reports a repeated timeout", async () => {
+    repairedScad = "cube(20);";
+    generationError = new GeneratedScadCompileError(generatedResult(repairedScad),
+      new OpenScadTimeoutError({ stage: "validation", timeoutMs: 300000, elapsedMs: 300041 }));
+    compileValidationError = new OpenScadTimeoutError({ stage: "validation", timeoutMs: 300000, elapsedMs: 300041 });
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+    await executeCadJob("job-pipeline", event => events.push(event));
+    expect(repairCalls).toBe(1);
+    expect(events.at(-1)?.errorCode).toBe("OPENSCAD_COMPILE_TIMEOUT");
+    expect(String(events.at(-1)?.message)).toContain("still exceeded");
   });
 
   test("repairs generated SCAD that fails OpenSCAD compilation before rendering", async () => {
@@ -589,7 +758,7 @@ describe("executeCadJob", () => {
 
     expect(repairCalls).toBe(1);
     expect(renderCalls).toBe(0);
-    expect(updates.at(-1)?.data).toMatchObject({
+    expect(stateUpdates().at(-1)?.data).toMatchObject({
       state: "HUMAN_REVIEW",
       generationPath: "llm_compile_repair_failed",
       scadSource: repairedScad,
@@ -600,13 +769,13 @@ describe("executeCadJob", () => {
       errorCode: "OPENSCAD_COMPILE_FAILED",
       failureStage: "generate",
     });
-    const persistedValidation = JSON.parse(String(updates.at(-1)?.data.validationResults));
+    const persistedValidation = JSON.parse(String(stateUpdates().at(-1)?.data.validationResults));
     expect(persistedValidation).toHaveLength(1);
     expect(persistedValidation.every((result: { rule_id: string; status: string }) =>
       result.rule_id === "C001" && result.status === "FAIL"
     )).toBe(true);
-    expect(String(updates.at(-1)?.data.executionLogs)).toContain("OPENSCAD_COMPILE_FAILED");
-    expect(String(updates.at(-1)?.data.renderLog)).toContain("Current top level object is empty");
+    expect(String(stateUpdates().at(-1)?.data.executionLogs)).toContain("OPENSCAD_COMPILE_FAILED");
+    expect(String(stateUpdates().at(-1)?.data.renderLog)).toContain("Current top level object is empty");
   });
 
   test("preserves the original generated SCAD when the compile repair provider fails", async () => {
@@ -622,11 +791,11 @@ describe("executeCadJob", () => {
     await executeCadJob("job-pipeline", () => undefined);
 
     expect(renderCalls).toBe(0);
-    expect(updates.at(-1)?.data).toMatchObject({
+    expect(stateUpdates().at(-1)?.data).toMatchObject({
       state: "HUMAN_REVIEW",
       scadSource: badScad,
     });
-    expect(String(updates.at(-1)?.data.renderLog)).toContain("repair provider unavailable");
+    expect(String(stateUpdates().at(-1)?.data.renderLog)).toContain("repair provider unavailable");
   });
 
   test("bounds compiler diagnostics before sending them to the repair model", async () => {
@@ -660,6 +829,72 @@ describe("executeCadJob", () => {
     expect(JSON.parse(String(generatedUpdate?.data.parameterSchema))).toMatchObject([
       { key: "diameter", value: 24 },
     ]);
+  });
+
+  test("refreshes the editable parameter schema after a validation repair rewrites the SCAD", async () => {
+    renderedArtifactsResult = renderableArtifacts();
+    renderedValidationQueue = [
+      [{
+        rule_id: "B001",
+        rule_name: "Bounding Box Match",
+        level: "ENGINEERING",
+        passed: false,
+        status: "FAIL",
+        is_critical: true,
+        message: "Bbox mismatch",
+      }],
+      [],
+    ];
+    repairedScad = [
+      "total_length = 842;",
+      "bore = 100;",
+      "module generated_part() { cylinder(d = bore, h = 10); }",
+      "generated_part();",
+    ].join("\n");
+    repairUsesParameters = false;
+
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+
+    await executeCadJob("job-pipeline", (event) => events.push(event));
+
+    expect(repairCalls).toBe(1);
+    expect(renderCalls).toBe(2);
+    expect(currentJob.state).toBe("DELIVERED");
+    const schemas = updates
+      .map((update) => update.data.parameterSchema)
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => JSON.parse(value) as Array<{ key: string }>);
+    const repairedSchema = schemas.find((schema) =>
+      schema.some((parameter) => parameter.key === "total_length"),
+    );
+    expect(repairedSchema?.map((parameter) => parameter.key)).toEqual(["total_length", "bore"]);
+    expect(repairedSchema?.some((parameter) => parameter.key === "width")).toBe(false);
+  });
+
+  test("attaches the motion contract result to the persisted validation evidence", async () => {
+    renderedArtifactsResult = renderableArtifacts();
+    renderedValidationQueue = [[]];
+    motionContractResult = {
+      rule_id: "M001",
+      rule_name: "Motion Contract",
+      level: "ENGINEERING",
+      passed: false,
+      status: "WARN",
+      is_critical: false,
+      message: "Motion-ready request is not actually movable: missing crank_angle.",
+    };
+
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    await executeCadJob("job-pipeline", () => undefined);
+
+    const validationPayloads = updates
+      .map((update) => update.data.validationResults)
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => JSON.parse(value) as Array<{ rule_id?: string; status?: string }>);
+    const motionResult = validationPayloads.flat().find((result) => result.rule_id === "M001");
+    expect(motionResult?.status).toBe("WARN");
+    expect(currentJob.state).toBe("DELIVERED");
   });
 
   test("does not overwrite cancellation that wins during compile repair", async () => {
@@ -698,7 +933,7 @@ describe("executeCadJob", () => {
       failureStage: "repair",
       retryable: true,
     });
-    const persistedValidation = JSON.parse(String(updates.at(-1)?.data.validationResults));
+    const persistedValidation = JSON.parse(String(stateUpdates().at(-1)?.data.validationResults));
     expect(persistedValidation).toHaveLength(1);
     expect(persistedValidation[0].rule_id).toBe("C001");
   });
@@ -719,7 +954,7 @@ describe("executeCadJob", () => {
       errorCode: "OPENSCAD_RUNTIME_UNAVAILABLE",
       retryable: true,
     });
-    expect(updates.at(-1)?.data.scadSource).toBe(repairedScad);
+    expect(stateUpdates().at(-1)?.data.scadSource).toBe(repairedScad);
   });
 
   test("does not silently replace a known family with a template in the normal product path", async () => {
@@ -785,8 +1020,25 @@ describe("executeCadJob", () => {
       retryable: true,
       message: "Processing failed: Model generation timed out after 90 seconds. Retry or choose a faster model.",
     });
-    expect(updates.at(-1)?.data.executionLogs).toContain("LLM_TIMEOUT");
-    expect(updates.at(-1)?.data.executionLogs).not.toContain("no safe template");
+    expect(stateUpdates().at(-1)?.data.executionLogs).toContain("LLM_TIMEOUT");
+    expect(stateUpdates().at(-1)?.data.executionLogs).not.toContain("no safe template");
+  });
+
+  test("persists transport diagnostics and includes the same log in the failure event", async () => {
+    generationError = new ModelRequestError("LLM_UNAVAILABLE", "Connection interrupted (ECONNRESET)", true, {
+      evidence: { model: "test-model", provider: "Test provider", transportCode: "ECONNRESET", elapsedMs: 240000 },
+    });
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    const events: Record<string, unknown>[] = [];
+    await executeCadJob("job-pipeline", event => events.push(event));
+    const logs = stateUpdates().at(-1)?.data.executionLogs;
+    expect(logs).toContain("ECONNRESET");
+    expect(logs).toContain("Test provider");
+    expect(logs).toContain("request duration: 240s");
+    expect(events.at(-1)?.executionLogs).toBe(logs);
+    expect(events.at(-1)?.failureStage).toBe("generate");
+    expect(updates.some(update => String(update.data.executionLogs).includes("SCAD_GENERATION_STARTED"))).toBe(true);
+    expect(renderCalls).toBe(0);
   });
 
   test("surfaces LLM truncation and format errors with detailed evidence in executionLogs and events", async () => {
@@ -820,7 +1072,7 @@ describe("executeCadJob", () => {
         responseLength: 4096,
       },
     });
-    const logs = updates.at(-1)?.data.executionLogs;
+    const logs = stateUpdates().at(-1)?.data.executionLogs;
     expect(logs).toContain("LLM_OUTPUT_TRUNCATED");
     expect(logs).toContain("model: deepseek-flash");
     expect(logs).toContain("finish_reason: length");

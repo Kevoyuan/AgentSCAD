@@ -31,9 +31,11 @@ import {
   ValidationResult,
   parseJSON,
   getStateInfo,
+  getStateHex,
   getValidationEvidenceStatus,
   type ValidationEvidenceStatus,
 } from './types'
+import { parameterUnit } from './workspace/parameter-schema'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -86,9 +88,9 @@ function ParamRow({
 
   return (
     <div className="grid grid-cols-[1fr_100px_20px_100px] items-center gap-1 py-1 px-2 border-b border-[color:var(--app-border)] last:border-0">
-      <span className="text-sm text-[var(--app-text-muted)] truncate">{label}</span>
+      <span className="text-[13px] text-[var(--app-text-muted)] truncate">{label}</span>
       <span
-        className={`text-sm font-mono text-right tabular-nums ${
+        className={`text-[13px] font-mono text-right tabular-nums ${
           diff === 'higher'
             ? 'bg-transparent text-[var(--shell-ok)]'
             : 'text-[var(--app-text-secondary)]'
@@ -105,7 +107,7 @@ function ParamRow({
         )}
       </span>
       <span
-        className={`text-sm font-mono tabular-nums ${
+        className={`text-[13px] font-mono tabular-nums ${
           diff === 'lower'
             ? 'bg-transparent text-[var(--shell-fail)]'
             : diff === 'higher'
@@ -143,7 +145,7 @@ function ValidationRow({
     return (
       <span className="flex flex-col items-center gap-0.5" aria-label={status} title={status}>
         {icon}
-        <span className="text-[7px] font-mono leading-none text-[var(--app-text-dim)]">{status}</span>
+        <span className="text-[10px] font-mono leading-none text-[var(--app-text-dim)]">{status}</span>
       </span>
     )
   }
@@ -154,7 +156,7 @@ function ValidationRow({
         !bothSame ? 'bg-transparent' : ''
       }`}
     >
-      <span className="text-sm text-[var(--app-text-muted)] truncate flex items-center gap-1.5">
+      <span className="text-[13px] text-[var(--app-text-muted)] truncate flex items-center gap-1.5">
         {isCritical && <AlertTriangle className="w-3.5 h-3.5 text-[var(--shell-warn)] flex-shrink-0" />}
         {ruleName}
       </span>
@@ -271,13 +273,10 @@ export function JobCompare({ jobs }: JobCompareProps) {
     { key: 'scad', label: 'SCAD' },
   ]
 
-  // State color map for compare borders
-  const borderColorMap: Record<string, string> = {
-    NEW: '#A79E92', SCAD_GENERATED: '#E8B84B', RENDERED: '#FFB597',
-    VALIDATED: '#7BD68A', DELIVERED: '#7BD68A', DEBUGGING: '#E8B84B',
-    REPAIRING: '#E8B84B', VALIDATION_FAILED: '#E8583F', GEOMETRY_FAILED: '#E8583F',
-    RENDER_FAILED: '#E8583F', HUMAN_REVIEW: '#E8B84B', CANCELLED: '#A79E92',
-  }
+  /* The border colour comes from the one state vocabulary. This used to be a
+     second, hand-maintained copy of the palette (a rendered part was drawn in the
+     soft signal here and in "warn" everywhere else), so a compared part could be
+     framed in a colour its own row never used. */
 
   return (
     <motion.div
@@ -292,7 +291,7 @@ export function JobCompare({ jobs }: JobCompareProps) {
       <div className="flex items-center gap-3 mb-4">
         <div className="flex items-center gap-1.5">
           <ArrowLeftRight className="w-4 h-4 text-[var(--app-accent-text)]" />
-          <h2 className="text-sm font-semibold text-[var(--app-text-primary)] tracking-wide">
+          <h2 className="text-[13px] font-semibold text-[var(--app-text-primary)] tracking-wide">
             {t("Compare Jobs")}
           </h2>
         </div>
@@ -301,12 +300,12 @@ export function JobCompare({ jobs }: JobCompareProps) {
       {/* Job selectors */}
       <div className="grid grid-cols-[1fr_20px_1fr] gap-2 mb-4 items-center">
         <Select value={leftId} onValueChange={setLeftId}>
-          <SelectTrigger className="h-7 bg-[var(--app-input-bg)] border-[color:var(--app-border)] text-[var(--app-text-secondary)] text-xs compare-border-left" style={{ borderLeftColor: leftJob ? (borderColorMap[leftJob.state] || '#A79E92') : 'transparent' }}>
+          <SelectTrigger className="h-7 bg-[var(--app-input-bg)] border-[color:var(--app-border)] text-[var(--app-text-secondary)] text-[12px] compare-border-left" style={{ borderLeftColor: leftJob ? getStateHex(leftJob.state) : 'transparent' }}>
             <SelectValue placeholder={t("Select job A...")} />
           </SelectTrigger>
           <SelectContent className="bg-[var(--app-bg)] border-[color:var(--app-border)]">
             {jobs.map((j) => (
-              <SelectItem key={j.id} value={j.id} className="text-xs">
+              <SelectItem key={j.id} value={j.id} className="text-[12px]">
                 <span className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full" style={{
                     backgroundColor: getStateInfo(j.state).dot.replace('bg-', ''),
@@ -320,16 +319,16 @@ export function JobCompare({ jobs }: JobCompareProps) {
         </Select>
 
         <div className="flex items-center justify-center">
-          <span className="text-xs font-mono font-bold text-[var(--app-accent-text)] bg-[var(--app-accent-bg)] rounded-full w-7 h-7 flex items-center justify-center border border-[color:var(--app-accent-border)]">VS</span>
+          <span className="text-[12px] font-mono font-bold text-[var(--app-accent-text)] bg-[var(--app-accent-bg)] rounded-full w-7 h-7 flex items-center justify-center border border-[color:var(--app-accent-border)]">VS</span>
         </div>
 
         <Select value={rightId} onValueChange={setRightId}>
-          <SelectTrigger className="h-7 bg-[var(--app-input-bg)] border-[color:var(--app-border)] text-[var(--app-text-secondary)] text-xs compare-border-left" style={{ borderLeftColor: rightJob ? (borderColorMap[rightJob.state] || '#A79E92') : 'transparent' }}>
+          <SelectTrigger className="h-7 bg-[var(--app-input-bg)] border-[color:var(--app-border)] text-[var(--app-text-secondary)] text-[12px] compare-border-left" style={{ borderLeftColor: rightJob ? getStateHex(rightJob.state) : 'transparent' }}>
             <SelectValue placeholder={t("Select job B...")} />
           </SelectTrigger>
           <SelectContent className="bg-[var(--app-bg)] border-[color:var(--app-border)]">
             {jobs.map((j) => (
-              <SelectItem key={j.id} value={j.id} className="text-xs">
+              <SelectItem key={j.id} value={j.id} className="text-[12px]">
                 <span className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full" style={{
                     backgroundColor: getStateInfo(j.state).dot.replace('bg-', ''),
@@ -371,7 +370,7 @@ export function JobCompare({ jobs }: JobCompareProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex items-center justify-center py-12 text-[var(--app-text-dim)] text-xs"
+            className="flex items-center justify-center py-12 text-[var(--app-text-dim)] text-[12px]"
           >
             {t("Select two jobs to compare")}
           </motion.div>
@@ -386,14 +385,14 @@ export function JobCompare({ jobs }: JobCompareProps) {
           >
             {/* Column headers */}
             <div className="grid grid-cols-[1fr_100px_20px_100px] items-center gap-1 px-2 py-1.5 bg-[var(--app-empty-bg)] border-b border-[color:var(--app-border)]">
-              <span className="text-xs font-mono text-[var(--app-text-dim)] tracking-widest uppercase">
+              <span className="text-[12px] font-mono text-[var(--app-text-dim)] tracking-widest uppercase">
                 {activeTab === 'parameters' ? t("Parameter") : activeTab === 'validation' ? t("Rule") : ''}
               </span>
-              <span className="text-xs font-mono text-[var(--app-text-dim)] tracking-widest uppercase text-right">
+              <span className="text-[12px] font-mono text-[var(--app-text-dim)] tracking-widest uppercase text-right">
                 {t("Job A")}
               </span>
               <span />
-              <span className="text-xs font-mono text-[var(--app-text-dim)] tracking-widest uppercase">
+              <span className="text-[12px] font-mono text-[var(--app-text-dim)] tracking-widest uppercase">
                 {t("Job B")}
               </span>
             </div>
@@ -410,7 +409,7 @@ export function JobCompare({ jobs }: JobCompareProps) {
                     <ParamRow
                       key={param.key}
                       label={param.label || param.key}
-                      unit={param.unit}
+                      unit={parameterUnit(param)}
                       leftVal={leftValues[param.key] ?? param.value}
                       rightVal={rightValues[param.key] ?? param.value}
                     />
