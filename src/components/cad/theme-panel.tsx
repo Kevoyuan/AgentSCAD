@@ -91,11 +91,9 @@ export function ThemePanel() {
         )}
       </div>
 
-      <div className="rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] p-2.5">
-        <p className="text-[12px] leading-[1.6] text-[var(--shell-text-muted)]">
-          {t("The design system defines the palette: one accent and semantic colors for pass, review and fail. Change workspace density in Panels: Overview / Tune / Model.")}
-        </p>
-      </div>
+      <p className="text-[12px] leading-[1.6] text-[var(--shell-text-muted)]">
+        {t("Choose Light, Dark, or System to match your device.")}
+      </p>
     </div>
   )
 }
