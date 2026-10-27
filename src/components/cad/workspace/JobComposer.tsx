@@ -167,6 +167,7 @@ export function JobComposer({
     <Dialog open={showComposer} onOpenChange={onShowComposerChange}>
       <DialogContent
         showCloseButton={false}
+        data-job-composer
         /* The create surface is a shell plate (DESIGN.md section 13), not a legacy
            panel: same background, border, radius and shadow as a floating module.
            `sm:max-w-[780px]` is required because the primitive's `sm:max-w-lg` wins
@@ -189,7 +190,7 @@ export function JobComposer({
           <DialogDescription id="composer-description">{t("Describe the part and its constraints")}</DialogDescription>
         </DialogHeader>
 
-        <div className="flex max-h-[calc(100dvh-24px)] min-h-0 flex-col">
+        <div className="flex max-h-[calc(100dvh-24px)] min-h-0 min-w-0 flex-col">
           {/* Header - pinned: the scroll region is the body below it */}
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[color:var(--shell-hairline)] px-4 py-3">
             <div className="flex min-w-0 items-center gap-2.5">
@@ -213,7 +214,7 @@ export function JobComposer({
           </div>
 
           {/* Body - the only scroll region of the dialog */}
-          <div className="stable-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
+          <div className="stable-scrollbar min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
             {/* Primary Prompt Input */}
             <div className="rounded-[9px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] overflow-hidden focus-within:border-[var(--shell-signal)] transition-colors">
               <div className="flex items-center justify-between gap-2 border-b border-[color:var(--shell-hairline)] px-3 py-1.5">
@@ -271,8 +272,8 @@ export function JobComposer({
               </div>
             </div>
 
-            {/* Engine & Labels Bar */}
-            <div className="grid gap-3 sm:grid-cols-2">
+            {/* Model selection stays visible; optional controls are disclosed below. */}
+            <div className="grid gap-3">
               <div className="rounded-[9px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] p-2.5 space-y-1.5">
                 <div className="flex min-h-7 items-center justify-between">
                   <span className="flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-[var(--shell-text-label)]">
@@ -306,7 +307,12 @@ export function JobComposer({
                   </select>
                 )}
               </div>
+            </div>
 
+            <details className="space-y-3" data-composer-options>
+              <summary className={`cursor-pointer rounded-[4px] py-2 text-[12px] text-[var(--shell-text-muted)] ${FOCUS}`}>
+                {t("Options: tags, refinements and templates")}
+              </summary>
               <div className="rounded-[9px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] p-2.5 space-y-1.5">
                 <div className="flex min-h-7 items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-[var(--shell-text-label)]">
                   <Tag className="h-3 w-3" /> {t("Tags (optional)")}
@@ -319,7 +325,6 @@ export function JobComposer({
                   className="shell-field h-8 rounded-[4px] border-[color:var(--shell-border)] bg-[var(--shell-module-solid)] font-mono text-[12px] text-[var(--shell-text)] placeholder:text-[var(--shell-text-muted)] focus:border-[var(--shell-signal)] focus-visible:ring-0"
                 />
               </div>
-            </div>
 
             {/* Progressive Assistance Tabs: Modifiers | Templates | Recent */}
             <div className="rounded-[9px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] overflow-hidden">
@@ -378,7 +383,7 @@ export function JobComposer({
                                   }`}
                                 >
                                   {selected ? <Check className="h-3 w-3 shrink-0 text-[var(--shell-signal)]" /> : <span aria-hidden="true">+</span>}
-                                  <span>{value}</span>
+                                  <span>{t(value)}</span>
                                 </button>
                               )
                             })}
@@ -422,6 +427,7 @@ export function JobComposer({
                 />
               </div>
             )}
+            </details>
           </div>
 
           {/* Footer - pinned under the scroll region */}
