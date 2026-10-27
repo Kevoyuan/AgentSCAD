@@ -70,7 +70,7 @@
   "System": "跟随系统",
   "Interface theme": "界面主题",
   "System theme: currently": "跟随系统:当前",
-  "The design system defines the palette: one accent and semantic colors for pass, review and fail. Change workspace density in Panels: Overview / Tune / Model.": "配色由设计系统固定:一个信号色加一组语义色(通过 / 需复核 / 失败)。 工作台密度在「面板」里切换 —— 全览 / 调参 / 看模型。",
+  "Choose Light, Dark, or System to match your device.": "选择亮色、暗色，或跟随设备的系统设置。",
   "Reset view": "重置视角",
   "Zoom in": "放大",
   "Zoom out": "缩小",
