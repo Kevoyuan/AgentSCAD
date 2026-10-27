@@ -1255,6 +1255,15 @@ pre:hover .code-copy-btn { opacity: 1; }
 /* Portalled settings do not inherit the workspace's touch targets. Keep the
    desktop density, but grow real controls on narrow screens and touch devices. */
 @media (max-width: 959px), (pointer: coarse) {
+  [data-job-composer] button,
+  [data-job-composer] input,
+  [data-job-composer] select,
+  [data-job-composer] summary,
+  [cmdk-item] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
   [data-settings-sheet] button:not([role="switch"]),
   [data-settings-sheet] input,
   [data-settings-sheet] select {
