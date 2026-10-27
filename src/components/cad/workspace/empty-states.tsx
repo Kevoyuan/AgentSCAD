@@ -99,7 +99,7 @@ export function JobListEmptyState({
         {t("No parts yet.")}<br />
         {t("Start with a description below.")}
       </p>
-      <p className="font-mono text-[10px] leading-[1.5] text-[var(--shell-text-label)]">
+      <p className="font-mono text-[11px] leading-[1.5] text-[var(--shell-text-label)]">
         {t("Use New part above, or type in the composer.")}
       </p>
     </div>
@@ -252,7 +252,7 @@ export function CadViewportEmptyState({
               key={t(example)}
               type="button"
               onClick={() => onShowComposer?.(t(example))}
-              className="group inline-flex h-7 items-center gap-1.5 rounded-full border border-[color:var(--shell-border)] bg-[var(--shell-well)] px-3 font-mono text-[10px] text-[var(--shell-text-label)] transition-colors hover:border-[color:color-mix(in_srgb,var(--shell-signal)_50%,transparent)] hover:text-[var(--shell-signal-soft)] focus-visible:outline-none focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--shell-signal)]"
+              className="group inline-flex min-h-7 max-[959px]:min-h-11 items-center gap-1.5 rounded-full border border-[color:var(--shell-border)] bg-[var(--shell-well)] px-3 py-1 font-mono text-[11px] text-[var(--shell-text-label)] transition-colors hover:border-[color:color-mix(in_srgb,var(--shell-signal)_50%,transparent)] hover:text-[var(--shell-signal-soft)] focus-visible:outline-none focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--shell-signal)]"
               title={t("Put this example in the composer")}
             >
               {t(example)}
