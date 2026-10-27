@@ -48,7 +48,7 @@ function TagBadge({ tag, index }: { tag: string; index: number }) {
 
   return (
     <span
-      className={`tag-badge inline-flex items-center px-1.5 py-0 rounded-full text-[8px] font-mono border ${color.bg} ${color.text} ${color.border}`}
+      className={`tag-badge inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-mono border ${color.bg} ${color.text} ${color.border}`}
       style={{ animationDelay: `${index * 50}ms` }}
     >
       {tag}
@@ -77,7 +77,7 @@ export function TagBadges({ customerId, maxDisplay = 3 }: TagBadgesProps) {
         <TagBadge key={tag} tag={tag} index={i} />
       ))}
       {remaining > 0 && (
-        <span className="text-[7px] text-[var(--app-text-dim)] font-mono">+{remaining}</span>
+        <span className="text-[10px] text-[var(--app-text-dim)] font-mono">+{remaining}</span>
       )}
     </div>
   )

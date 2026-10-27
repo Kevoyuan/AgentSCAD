@@ -23,6 +23,17 @@ const nextConfig: NextConfig = {
   },
   /* config options here */
   reactStrictMode: false,
+  /* A running `next dev` and a production build share one `.next` directory, so
+     the build's clean step deletes the dev server's output and the two processes
+     fight over the same files. Pointing the build at its own directory lets both
+     run at once. It must stay git-ignored: Tailwind's source scan reads anything
+     in the project root that .gitignore misses, and a build artifact full of
+     minified bytes makes it emit invalid CSS and fail the build. */
+  distDir: process.env.AGENTSCAD_BUILD_DIR || ".next",
+  /* The Next dev badge sits bottom-left and covers the readout plate (measured at
+     1440x900: it paints over the "Triangles" row). It is a dev-only chrome overlay,
+     not product UI, so it is disabled rather than worked around in layout. */
+  devIndicators: false,
   allowedDevOrigins: [
     "preview-chat-7f7c9a19-5f5e-4348-bd7b-cf3b8f994d26.space.z.ai",
     ".space.z.ai",

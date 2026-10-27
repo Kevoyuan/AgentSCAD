@@ -27,8 +27,12 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 | Run one evidence case | `bun run cad:eval:case <id>` |
 | Parse last harness report as JSON | `bun run cad:eval:report` |
 | Run real deterministic WASM render benchmark | `bun run cad:eval:render` |
+| **UX baseline (states, acceptance, wait, cost, abandoned runs)** | `bun run ux:baseline [--stale-hours 2]` |
+| Clear metric columns after a definition change | `bun run metrics:reset` (dry run) · `bun run metrics:reset -- --yes` (applies) |
 
 Tests use Bun's built-in test runner. Run `bun run test` before handing off CAD pipeline or skill resolver changes.
+
+`bun run ux:baseline` is the evidence loop's collection step: it prints state distribution, acceptance and verdict coverage, wait-time percentiles, model cost, and **runs that never finished**. A run ends by writing `latencyMs` in its `finally` block, so a job sitting in an in-flight state (`NEW` / `SCAD_GENERATED` / `RENDERED` / `VALIDATED` / `DEBUGGING` / `REPAIRING`) with no `latencyMs` is a run that never got to finish. That is the only abandonment signal the product has, and it depends entirely on the `finally` write — remove that write and the signal dies silently. It cannot distinguish a closed tab from a server restart; both look identical, and the script says so.
 
 The offline evaluator uses `PASS|FAIL|SKIP|ERROR|NOT_RUN` evidence and never marks unexecuted geometry facts as passing. It does not call an LLM or OpenSCAD; treat it as intent/schema/retrieval evidence, not compile, mesh, bbox, semantic-quality, or model-comparison evidence. `cad:eval:render` is a separate real WASM compile/STL/bbox/PNG gate and still does not imply manifold, visual, or model quality. `cad:eval` includes frozen regressions; `cad:eval:fast` is the smallest offline smoke suite.
 
@@ -48,7 +52,7 @@ OpenSCAD is the core CAD execution engine. Local development can use the native 
 2. **GENERATE** — the selected/configured LLM generates structured CAD intent and complete OpenSCAD for both known families and arbitrary freeform requests. Family detection is optional prompt/retrieval context, never a generation gate. Legacy templates for four known families are disabled by default and available only through the explicit `AGENTSCAD_TEMPLATE_FALLBACK=true` demo switch.
 3. **RENDER** — native OpenSCAD or the isolated WASM child process renders SCAD to STL; the serverless preview path projects the STL to PNG.
 4. **VALIDATE** — deterministic rules inspect compile/render evidence, dimensions, connectivity, holes, wall thickness, and mesh facts. Visual review is a separate user-triggered VLM path.
-5. **DELIVER** — SCAD, STL, PNG, parameters, and validation reports are available. `DELIVERED` does not prove that the artifact matches the user's intent or that the user accepted it.
+5. **DELIVER** — SCAD, STL, PNG, parameters, and validation reports are available. `DELIVERED` does not prove that the artifact matches the user's intent or that the user accepted it. Acceptance is a separate fact the user records through the outcome ledger (`POST /api/jobs/{id}/outcome` with `accepted` or `rejected`); the checks module offers that verdict once a part is built and nothing blocks it.
 
 Each step emits SSE events to the requesting frontend. The broader workspace refreshes job data through polling; there is no separate WebSocket service in the current repository.
 
@@ -67,6 +71,11 @@ Each step emits SSE events to the requesting frontend. The broader workspace ref
 - Use `OPENSCAD_LIBRARY_PATHS`/`OPENSCADPATH` only for additional reviewed local OpenSCAD library parent directories.
 - Default library installation must not include GPL libraries. NopSCADlib requires explicit opt-in through `bun run scad:libs:install:gpl`.
 - Keep `src/app/api/jobs/[id]/process/route.ts` as a thin HTTP/SSE adapter. Put CAD job state-machine work in `src/lib/pipeline/execute-cad-job.ts` or lower-level tools.
+- After generation or any SCAD rewrite (compile repair, validation repair, VLM repair, manual apply), re-derive `parameterSchema`/`parameterValues` from the persisted SCAD via `buildScadParameterPersistence`. Stale generation-era keys make the parameter UI inert.
+- The job state display table in `src/components/cad/types.tsx` must cover every state in the API's `VALID_STATES` list. A missing state falls through to the default, and the default reads as 草稿 — so a job stuck in that state looks like a brand new empty part.
+- Progress for a part is an explicit state → percentage map, not an index lookup into the happy-path steps. A lookup returns 0 for every off-path state, and the card clamps 0 to a 4% bar, so a part being repaired appears to have just started.
+- The shortcuts sheet is a contract with the running app: it may only list keys the shell binds, and it must show the real inspector tab set (描述 / 源码 / 记录). Retiring a key means removing its row; promising a key means binding it.
+- `accepted` and `rejected` must always have a UI producer. The outcome ledger is the only place the product records whether a generation worked; edits and exports are process signals, not verdicts, and a ledger with no decision events cannot measure task success.
 
 ### API Layer
 
@@ -90,10 +99,13 @@ Key client files:
 
 ### Persistence and Realtime
 
-- Prisma ORM uses SQLite locally (`DATABASE_URL`, default `db/dev.db`). The current canonical schema has `Job`, `JobVersion`, and the append-only `JobOutcome` ledger. `JobOutcome` records what the user did (accepted, rejected, edited, exported) and stays separate from pipeline state; `DELIVERED` still never implies acceptance.
+- Prisma ORM uses SQLite locally (`DATABASE_URL`, default `db/dev.db`). The current canonical schema has `Job`, `JobVersion`, and the append-only `JobOutcome` ledger. `JobOutcome` records what the user did (accepted, rejected, edited, exported) and stays separate from pipeline state; `DELIVERED` still never implies acceptance. `accepted` and `rejected` are produced by the checks module's delivery verdict; `exported` and `user_edited` are produced by the artifact and parameter routes. The ledger is append-only, so the most recent decision wins.
 - Rendered artifacts use local files in normal local development and Vercel Blob in serverless deployments.
 - Browser requests receive an opaque HttpOnly job-session cookie for isolation. This is not an account or user-management system.
 - Active process progress uses SSE; workspace list refresh uses polling. No standalone WebSocket or mini-service runtime exists in the current tree.
+- **Run metrics are a contract, not decoration** (DESIGN.md §29). `latencyMs` = wall-clock time for one run, written once in the pipeline's `finally` block. `llmCallCount` = model calls a job has made, cumulative across runs, flushed as a delta. Two rules follow mechanically: never add a second `latencyMs` write, and never assign `llmCallCount` an absolute value — both mistakes already shipped once and produced numbers that looked trustworthy and were not. A regression test in `src/lib/__tests__/run-metrics-contract.test.ts` locks each invariant.
+- Every model call reaches `createChatCompletionDetailed` in `lib/tools/model-router.ts`. It is the single counting point for `llmCallCount`. If you add a path that talks to a provider directly, those calls silently stop being counted.
+- Changing what a metric means requires a cut-over: run `bun run metrics:reset -- --yes` against each database. It empties both columns so any non-null `latencyMs` afterwards is provably new-semantics. Without it, old and new rows are indistinguishable in one column.
 
 ### LLM Integration
 
@@ -101,7 +113,9 @@ Key client files:
 - `src/lib/openrouter.ts` — OpenRouter API client (defaults to GPT-5.6 Sol)
 - `src/lib/provider-catalog.ts` — source of truth for provider presets and recommended model metadata
 - `src/lib/tools/model-router.ts` — Routes requests to MiMo, OpenRouter, DeepSeek, or fallback
-- User-configured OpenAI-compatible providers are the primary product path; environment presets and `z-ai-web-dev-sdk` provide compatibility/fallback paths.
+- `src/lib/tools/model-stream.ts` — Accumulates OpenAI-compatible SSE completions for long generations; `stream: true` prevents multi-minute non-streaming bodies from being reset by providers (~240s observed) and JSON bodies still fall back cleanly.
+- `src/lib/tools/model-transport-retry.ts` — Bounded, abortable retry for transient transport resets (ECONNRESET / undici socket codes); schema, auth, and truncation failures are not retried.
+- User-configured OpenAI-compatible providers are the primary product path; environment presets and `z-ai-web-dev-sdk` provide compatibility/fallback paths. SCAD generation streams and retries a dropped connection once; repair/intake stay non-streaming.
 
 ### OpenSCAD Library Bundle
 
@@ -131,6 +145,7 @@ Key client files:
 - `src/lib/validation/bbox-check.ts` — B001: bounding box match vs validation_targets
 - `src/lib/validation/component-check.ts` — C002: floating/disconnected part detection
 - `src/lib/validation/hole-check.ts` — H001: through-hole count via Euler characteristic
+- `src/lib/validation/motion-contract.ts` — M001: motion-ready requests expose a crank/motion angle, kinematic function, phased internals, and a cutaway; a missing contract is a blocking critical failure
 - `src/lib/repair/repair-controller.ts` — validation-driven LLM repair orchestrator
 - `src/lib/repair/visual-repair-controller.ts` — user-triggered VLM visual repair
 
@@ -152,6 +167,11 @@ OpenSCAD library env:
 - `AGENTSCAD_OPENSCAD_LIBRARY_DIR` overrides the managed library directory; `CADCAD_OPENSCAD_LIBRARY_DIR` is legacy compatibility.
 - `OPENSCAD_LIBRARY_PATHS` adds extra reviewed library parent paths.
 - `OPENSCADPATH` is passed through to OpenSCAD and augmented by the resolver.
+
+Native OpenSCAD render env:
+
+- `AGENTSCAD_OPENSCAD_TIMEOUT_MS` sets the native compile/render budget in milliseconds (default `300000`, clamped 5s-50min). Exceeding it is classified as a complexity timeout: the pipeline attempts one simplification repair and preserves the rejected source for review. The isolated WASM renderer keeps its fixed 120s timeout.
+- Compile validation keeps a bounded in-process STL cache for the following render (parameter overrides recompile). Native output uses binary STL; native sources without `color()` use the fast mesh projection for the PNG, while sources containing `color()` use the OpenSCAD PNG renderer so material colours and the cutaway survive (both fall back to the projection when the OpenSCAD preview fails). WASM keeps the fixed child-process projection. Compilation diagnostics travel with cached native STL. Rejected generation snapshots are retained in `repairHistory`, and unavailable validation preserves the editable source without spending a model repair call.
 
 ## Skill routing
 

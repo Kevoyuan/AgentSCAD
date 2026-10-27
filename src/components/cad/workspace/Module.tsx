@@ -41,6 +41,11 @@ export interface ModuleProps {
    * up (DESIGN.md "Module contract", item 3).
    */
   flow?: boolean
+  /**
+   * A quiet control that belongs to the plate rather than to its body: the CODE
+   * plate's "open" action lives here instead of inside an otherwise empty body.
+   */
+  headerAction?: React.ReactNode
 }
 
 export function Module({
@@ -67,6 +72,7 @@ export function Module({
   right,
   bottom,
   flow = false,
+  headerAction,
 }: ModuleProps) {
   const { t } = useI18n()
 
@@ -229,7 +235,12 @@ export function Module({
         // It also becomes absolute for the duration of a drag, because the drag
         // maths produces stage coordinates, and the drag ends by reporting those
         // coordinates back as the module's free position.
-        flow && !isFree && !isDragging ? 'relative shrink-0' : 'absolute',
+        //
+        // `min-h-0` and no `shrink-0`: a plate in a flex column must be allowed to
+        // give height back to its siblings. With `shrink-0` three plates whose
+        // natural heights summed to 754px sat in a 702px column and the last one
+        // was simply clipped - which is what made CODE look like a broken plate.
+        flow && !isFree && !isDragging ? 'relative min-h-0' : 'absolute',
         'overflow-hidden',
         isDragging && 'drag',
         isCollapsed && 'closed',
@@ -273,44 +284,65 @@ export function Module({
       >
         {/* Grip line affordance on hover */}
         {draggable && (
-          <div className="grip pointer-events-none absolute left-1/2 top-[3px] -translate-x-1/2 w-[22px] h-[2px] rounded-[2px] bg-[var(--shell-border-strong)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100" />
+          <div className="grip pointer-events-none absolute left-1/2 top-[3px] -translate-x-1/2 w-[26px] h-[2px] rounded-full bg-[var(--shell-border-strong)] opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100" />
         )}
 
         {/* Title: 9px mono engraved per Section 12, and a real heading so the eight
             plates form an outline for screen readers (DESIGN.md section 21). */}
         {titleAs === 'h2' ? (
-          <h2 className="font-mono text-[9px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)] truncate m-0">
+          <h2 className="font-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[var(--shell-text-label)] truncate m-0">
             {title}
           </h2>
         ) : (
-          <span className="font-mono text-[9px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)] truncate">
+          <span className="font-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[var(--shell-text-label)] truncate">
             {title}
           </span>
         )}
 
         {/* State/Badge on the right */}
         {badge && (
-          <span className="font-mono text-[9px] tracking-[0.08em] text-[var(--shell-text-muted)] ml-auto mr-1 truncate">
+          <span className="font-mono text-[10px] tracking-[0.06em] text-[var(--shell-text-muted)] ml-auto mr-1 truncate">
             {badge}
           </span>
         )}
 
-        {/* Collapse Control Button */}
+        {/* A plate-level action sits before the collapse control, at the same
+            optical weight as the badge. */}
+        {headerAction && <div className={cn('shrink-0', !badge && 'ml-auto')}>{headerAction}</div>}
+
+        {/* Collapse Control Button.
+            A chevron, not ＋ / −: a minus reads as "already collapsed" to most
+            people, and the two glyphs sat at different optical weights inside a
+            22px box. ▾ / ▸ is the pair every disclosure on the platform uses. */}
         {collapsible && (
           <button
             type="button"
             data-c={id}
             className={cn(
-              'cv w-4 h-4 rounded-[4px] border border-[color:var(--shell-border)] bg-transparent text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] hover:border-[color:var(--shell-border-strong)] transition-colors flex items-center justify-center font-mono text-[9px] leading-none shrink-0 cursor-pointer',
-              !badge && 'ml-auto'
+              'cv w-[22px] h-[22px] rounded-[4px] border border-[color:var(--shell-border)] bg-transparent text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] hover:border-[color:var(--shell-border-strong)] transition-colors flex items-center justify-center shrink-0 cursor-pointer',
+              !badge && !headerAction && 'ml-auto'
             )}
             onClick={(e) => {
               e.stopPropagation()
               toggleCollapse()
             }}
             aria-label={isCollapsed ? t("Expand {0}", { 0: String(title) }) : t("Collapse {0}", { 0: String(title) })}
+            aria-expanded={!isCollapsed}
+            title={isCollapsed ? t("Expand {0}", { 0: String(title) }) : t("Collapse {0}", { 0: String(title) })}
           >
-            {isCollapsed ? '＋' : '−'}
+            <svg
+              viewBox="0 0 24 24"
+              className="h-3 w-3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 120ms ease' }}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
           </button>
         )}
       </div>
@@ -319,10 +351,9 @@ export function Module({
       {!isCollapsed && (
         <div
           className={cn(
-            'mod-b flex-1 min-h-0 overflow-y-auto overflow-x-hidden select-text',
+            'mod-b scroll-shell flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain select-text',
             bodyClassName
           )}
-          style={{ scrollbarWidth: 'thin' }}
         >
           {children}
         </div>

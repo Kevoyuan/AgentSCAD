@@ -42,9 +42,9 @@ export function SpecPanel({
           sheet is part of the C2 surface and was still painted from the old palette. */}
       <div className="rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] p-3">
         <div className="flex items-center justify-between pb-2 mb-2 border-b border-[color:var(--shell-hairline)]">
-          <span className="text-[9px] font-mono uppercase tracking-[0.16em] text-[var(--shell-text-label)]">{t("Part description")}</span>
+          <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[var(--shell-text-label)]">{t("Part description")}</span>
         </div>
-        <p className="text-[12.5px] leading-relaxed text-[var(--shell-text)] font-normal select-text">
+        <p className="text-[13px] leading-relaxed text-[var(--shell-text)] font-normal select-text">
           {job.inputRequest}
         </p>
       </div>
@@ -52,15 +52,15 @@ export function SpecPanel({
       {/* Engineering Attributes Grid */}
       <div className="rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] overflow-hidden">
         <div className="px-3 py-2 border-b border-[color:var(--shell-hairline)] flex items-center justify-between">
-          <span className="text-[9px] font-mono uppercase tracking-[0.16em] text-[var(--shell-text-label)]">{t("Manufacturing specification")}</span>
-          <span className="text-[9px] font-mono text-[var(--shell-text-dim)]">{job.partFamily || t("Custom")}</span>
+          <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[var(--shell-text-label)]">{t("Manufacturing specification")}</span>
+          <span className="text-[10px] font-mono text-[var(--shell-text-dim)]">{job.partFamily || t("Custom")}</span>
         </div>
         <div className="divide-y divide-[color:var(--shell-hairline)]">
-          <div className="flex items-center justify-between px-3 py-2 text-[12.5px]">
+          <div className="flex items-center justify-between px-3 py-2 text-[13px]">
             <span className="text-[var(--shell-text-muted)]">{t("Part family")}</span>
             <span className="font-medium text-[var(--shell-text)]">{job.partFamily ? getPartFamilyLabel(job.partFamily) : t("Unclassified")}</span>
           </div>
-          <div className="flex items-center justify-between px-3 py-2 text-[12.5px]">
+          <div className="flex items-center justify-between px-3 py-2 text-[13px]">
             <span className="text-[var(--shell-text-muted)]">{t("Overall dimensions")}</span>
             <span className="font-mono tabular-nums text-[var(--shell-text)]">{dimensions.length ? `${dimensions.join(' × ')} mm` : '—'}</span>
           </div>

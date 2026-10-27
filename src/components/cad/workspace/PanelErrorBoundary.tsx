@@ -102,20 +102,20 @@ export class PanelErrorBoundary extends Component<PanelErrorBoundaryProps, Panel
           aria-live="assertive"
         >
           {/* Subsystem Isolation Badge */}
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-transparent border border-transparent text-[var(--shell-fail)] text-xs font-mono mb-3 shrink-0">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-transparent border border-transparent text-[var(--shell-fail)] text-[12px] font-mono mb-3 shrink-0">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
             <span className="uppercase tracking-wider font-semibold">
               {this.props.panelName} {t("FAULT ISOLATED")}
             </span>
           </div>
 
-          <h3 className="text-sm font-semibold tracking-tight text-[var(--app-text-primary)] mb-1.5">
+          <h3 className="text-[13px] font-semibold tracking-tight text-[var(--app-text-primary)] mb-1.5">
             {t(t("Panel error isolated"))}</h3>
-          <p className="text-xs text-[var(--app-text-muted)] max-w-sm mb-4 leading-relaxed">
+          <p className="text-[12px] text-[var(--app-text-muted)] max-w-sm mb-4 leading-relaxed">
             {t(t("This panel encountered a rendering error. Your other panels and CAD session are preserved. Retry the panel or switch parts to recover."))}</p>
 
           {/* Monospace Error Diagnostic Box */}
-          <div className="w-full max-w-md bg-[var(--app-bg)] border border-[color:var(--app-border-subtle)] rounded-[6px] p-3 text-left mb-4 overflow-x-auto max-h-32 text-xs font-mono tabular-nums">
+          <div className="w-full max-w-md bg-[var(--app-bg)] border border-[color:var(--app-border-subtle)] rounded-[6px] p-3 text-left mb-4 overflow-x-auto max-h-32 text-[12px] font-mono tabular-nums">
             <div className="text-[11px] font-mono text-[var(--shell-fail)] font-semibold mb-1 truncate">
               {this.state.error?.name || 'RuntimeError'}: {this.state.error?.message || t("Unexpected failure")}
             </div>
@@ -131,7 +131,7 @@ export class PanelErrorBoundary extends Component<PanelErrorBoundaryProps, Panel
             <Button
               size="sm"
               onClick={this.handleReset}
-              className="h-7 text-xs font-medium gap-1.5 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white px-3 rounded-[6px] active:scale-[0.98]"
+              className="h-7 text-[12px] font-medium gap-1.5 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)] text-white px-3 rounded-[6px] active:scale-[0.98]"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               {t(t("Retry panel"))}</Button>
@@ -139,7 +139,7 @@ export class PanelErrorBoundary extends Component<PanelErrorBoundaryProps, Panel
               size="sm"
               variant="outline"
               onClick={this.handleCopyDiagnostics}
-              className="h-7 text-xs font-medium gap-1.5 border-[color:var(--app-border)] text-[var(--app-text-muted)] hover:text-[var(--app-text-primary)] px-2.5 rounded-[6px] active:scale-[0.98]"
+              className="h-7 text-[12px] font-medium gap-1.5 border-[color:var(--app-border)] text-[var(--app-text-muted)] hover:text-[var(--app-text-primary)] px-2.5 rounded-[6px] active:scale-[0.98]"
             >
               {this.state.copied ? (
                 <>

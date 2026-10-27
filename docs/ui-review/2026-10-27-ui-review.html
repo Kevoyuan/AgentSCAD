@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentSCAD · UI 设计审查 2026-10-27</title>
+<style>
+  :root{
+    --bg:#141312; --bg2:#0E0D0C; --plate:#1E1B18; --plate2:#26231F;
+    --hair:rgba(255,255,255,.09); --hair2:rgba(255,255,255,.055);
+    --tx:#EDE8E0; --muted:#D2CABF; --label:#BDB4A7; --dim:#A79E92;
+    --signal:#FF5A1F; --soft:#FFB597; --ok:#7BD68A; --warn:#E8B84B; --fail:#FF8A73;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:
+      radial-gradient(ellipse 70% 50% at 50% -10%, #2A2622 0%, transparent 60%),
+      var(--bg);
+    color:var(--tx);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:56px 32px 96px}
+  a{color:var(--soft);text-decoration:none;border-bottom:1px solid rgba(255,181,151,.3)}
+  code{font-family:var(--mono);font-size:.86em;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;color:var(--muted)}
+
+  /* header */
+  .eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+  h1{font-size:38px;line-height:1.15;letter-spacing:-.02em;margin:14px 0 10px;font-weight:650}
+  .lede{font-size:17px;color:var(--muted);max-width:74ch;margin:0}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:22px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .meta b{color:var(--label);font-weight:500}
+
+  /* verdict */
+  .verdict{
+    margin-top:36px;border:1px solid var(--hair);border-radius:9px;
+    background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012));
+    padding:24px 26px;display:grid;grid-template-columns:88px 1fr;gap:24px;align-items:start;
+  }
+  .score{font-family:var(--mono);font-size:44px;line-height:1;color:var(--signal);letter-spacing:-.03em}
+  .score span{font-size:15px;color:var(--dim);letter-spacing:0;margin-left:2px}
+  .verdict p{margin:0;color:var(--muted)}
+  .verdict p+p{margin-top:10px}
+  .verdict strong{color:var(--tx);font-weight:600}
+
+  /* scorecard */
+  h2{font-size:13px;font-family:var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--label);
+     margin:64px 0 18px;padding-bottom:12px;border-bottom:1px solid var(--hair)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;font-weight:500;color:var(--dim);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+     padding:0 10px 10px 0;border-bottom:1px solid var(--hair2);font-family:var(--mono)}
+  td{padding:11px 10px 11px 0;border-bottom:1px solid var(--hair2);vertical-align:top;color:var(--muted)}
+  td:first-child{color:var(--tx);width:150px}
+  .bar{display:flex;gap:3px;align-items:center}
+  .bar i{width:15px;height:5px;border-radius:1px;background:rgba(255,255,255,.09);display:block}
+  .bar i.on{background:var(--label)}
+  .bar i.on.low{background:var(--fail)}
+  .bar i.on.mid{background:var(--warn)}
+  .num{font-family:var(--mono);font-size:11px;color:var(--dim);margin-left:8px}
+
+  /* issues */
+  .issue{border:1px solid var(--hair);border-radius:9px;margin:18px 0;overflow:hidden;background:rgba(255,255,255,.014)}
+  .issue-h{display:flex;gap:14px;align-items:baseline;padding:18px 22px 16px;border-bottom:1px solid var(--hair2)}
+  .id{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.06em;flex:none;padding-top:3px}
+  .sev{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;padding:3px 7px;border-radius:3px;flex:none;
+       border:1px solid currentColor;line-height:1}
+  .p0{color:var(--fail)} .p1{color:var(--warn)} .p2{color:var(--dim)}
+  .issue-h h3{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em;line-height:1.4}
+  .issue-b{padding:20px 22px 22px}
+  .issue-b p{margin:0 0 12px;color:var(--muted)}
+  .issue-b p:last-child{margin-bottom:0}
+  figure{margin:18px 0 4px}
+  figure img{display:block;margin:0 auto;max-width:100%;max-height:520px;width:auto;height:auto;
+             border-radius:6px;border:1px solid var(--hair);background:var(--bg2)}
+  figcaption{font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:9px;line-height:1.5}
+  .facts{display:grid;grid-template-columns:96px 1fr;gap:6px 16px;margin:16px 0 0;font-size:13px}
+  .facts dt{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);padding-top:3px}
+  .facts dd{margin:0;color:var(--muted)}
+  .facts dd b{color:var(--tx);font-weight:600}
+  .quote{border-left:2px solid var(--hair);padding:2px 0 2px 14px;color:var(--label);font-size:13.5px;margin:14px 0}
+  .quote em{color:var(--dim);font-style:normal;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;display:block;margin-top:5px}
+
+  /* plan */
+  .phase{border:1px solid var(--hair);border-radius:9px;margin:14px 0;background:rgba(255,255,255,.014)}
+  .phase-h{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:16px 22px;border-bottom:1px solid var(--hair2)}
+  .phase-h h3{margin:0;font-size:15.5px;font-weight:600}
+  .phase-h span{font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+  .phase ol{margin:0;padding:16px 22px 18px 42px;color:var(--muted);font-size:13.5px}
+  .phase li{margin:0 0 9px}
+  .phase li:last-child{margin-bottom:0}
+  .phase li b{color:var(--tx);font-weight:600}
+
+  ul.check{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+  ul.check li{padding-left:26px;position:relative;color:var(--muted);font-size:13.5px}
+  ul.check li::before{content:"";position:absolute;left:0;top:7px;width:11px;height:11px;border:1px solid var(--dim);border-radius:2px}
+  ul.check code{font-size:.85em}
+
+  .good{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:8px}
+  .good div{border:1px solid var(--hair2);border-radius:6px;padding:14px 16px;background:rgba(123,214,138,.03)}
+  .good b{display:block;color:var(--ok);font-size:12.5px;margin-bottom:4px;font-weight:600}
+  .good p{margin:0;font-size:13px;color:var(--muted);line-height:1.55}
+
+  footer{margin-top:72px;padding-top:20px;border-top:1px solid var(--hair);font-family:var(--mono);font-size:10.5px;color:var(--dim);line-height:1.8}
+
+  @media (max-width:720px){
+    .wrap{padding:36px 18px 64px}
+    h1{font-size:28px}
+    .verdict{grid-template-columns:1fr;gap:14px}
+    .good{grid-template-columns:1fr}
+    .facts{grid-template-columns:1fr;gap:2px 0}
+    .facts dd{margin-bottom:10px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">Design Review · AgentSCAD</div>
+  <h1>浮动仪表盘：骨架是对的，执行在六处偏离了自己的规范</h1>
+  <p class="lede">
+    以 DESIGN.md（C2 · floating instrument panel）为验收基准，对 5 个视口 × 2 套主题 × 8 个运行时状态做了渲染审查与源码核对。
+    系统层（令牌、对比度、证据层级）达到产品级；问题集中在<strong>模块完整性、强调色预算、字号收敛、窄屏面板</strong>四类。
+  </p>
+  <div class="meta">
+    <span><b>日期</b> 2026-10-27</span>
+    <span><b>范围</b> src/app · src/components/cad · globals.css</span>
+    <span><b>视口</b> 1440×900 · 1280×800 · 1024×768 · 900×700 · 390×844</span>
+    <span><b>状态</b> 空 · 有列表 · 已选中 · 失败 · 无几何 · 三档密度 · 六个浮层</span>
+  </div>
+
+  <div class="verdict">
+    <div class="score">2.7<span>/5</span></div>
+    <div>
+      <p><strong>可以发布，但不能这样发布。</strong>最严重的问题不是审美，而是<em>证据被切掉</em>：右侧栏的三个模块在 1440×900 下溢出 52px，CODE 模块 59% 的高度被容器裁掉，参数与检验的最后一行被切片，而滚动条不可见。对一个以“可验证”为核心卖点的 CAD 工具，用户看不到完整证据，比不好看严重得多。</p>
+      <p>第二类问题是<strong>强调色超预算</strong>。DESIGN.md §11 规定每屏只有一个 signal 橙组，实测桌面端稳定出现 2 组，设置/通知浮层各 1 组，窄屏 Parts 页签是一块半屏宽的纯橙矩形——它成了整个界面最大的色块，而它只是一个页签。</p>
+      <p>第三类是<strong>字号系统漂移</strong>：规范定义 4 档（10 / 11 / 11.5–12.5 / 12.5），代码里有 14 档；57 处声明为 8–9.5px 的类名被一条全局规则改写成 10px，声明值和渲染值已经不一致。</p>
+    </div>
+  </div>
+
+  <h2>修复记录 · 同日落地</h2>
+
+  <div class="verdict" style="grid-template-columns:88px 1fr">
+    <div class="score" style="color:var(--ok)">17<span>/17</span></div>
+    <div>
+      <p><strong>全部修完，并且是用测量收的口，不是用肉眼收的口。</strong>下面每一条都对应一处代码改动和一次可复现的断言：8 个视口 × 主题组合下模块裁切 0、实心 signal 组 0、对比度失败 0（逐文本节点算）、渲染字号收敛到 5 档、16 个快捷键逐键可观测。</p>
+      <p>过程中还挖出两个<em>不在原报告里</em>的真实故障，见本节末尾——其中一个会让整个应用打不开，而且看起来像是随机发生的。</p>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th style="width:56px">编号</th><th style="width:210px">问题</th><th>修法</th><th style="width:170px">验证</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>UI-01</td><td>右栏把模块切掉一半</td>
+        <td>根因不是高度算错，是 <code>Module</code> 的 flow 模式带 <code>shrink-0</code>：三块自然高度 754px 塞进 702px 容器，最后一块被裁。改 <code>min-h-0</code>，列内改为 flex 分配（参数 52% / 检验 flex-1 / CODE flex-none），每块 body 自己滚；<code>.scroll-shell</code> 让滚动条常驻可见。</td>
+        <td>三视口 0 裁切；<code>#right-column</code> 不再是滚动容器</td>
+      </tr>
+      <tr>
+        <td>UI-02</td><td>参数行是三列不相干的列</td>
+        <td>抽出 <code>parameterUnit()</code> / <code>isCountParameter()</code>，计数类参数（<code>teeth</code>/<code>segments</code>/<code>count</code>…）不再显示单位；参数行改共享网格 <code>[minmax(0,1fr)_104px_24px]</code>，单位列成一条竖线；<code>Stepper</code> 112→104 对齐；<code>job-compare</code> 与 <code>parameter-panel</code> 删掉各自的本地启发式，共用同一函数。</td>
+        <td>单位列 x 坐标逐行一致</td>
+      </tr>
+      <tr>
+        <td>UI-03</td><td>检验数字读不通且重复</td>
+        <td><code>summarizeChecks(job)</code> 成为唯一计数来源；正文一句 <code>{ran} checks ran · {passed} passed · {failed} failed · {warned} to review</code>；未运行单独一行 <code>{unrun} checks could not run</code>；徽章改状态词（Failed / Needs review / Passed / Not checked / Queued）而不是再报一遍分数；"1 blocking" → "1 failed"。</td>
+        <td>分母只出现一次</td>
+      </tr>
+      <tr>
+        <td>UI-04</td><td>快捷键表承诺 E，E 什么也不做</td>
+        <td><code>setActiveTab('CODE')</code> 只改了 Sheet 内部的页签值，Sheet 本身关着。补 <code>setShowDetails(true)</code>，并要求 <code>selectedJob</code> 存在；H 同理。快捷键表整体重写为两组，每个键只出现一次。</td>
+        <td>16 键逐键实测，全部可观测</td>
+      </tr>
+      <tr>
+        <td>UI-05</td><td>窄屏列表被页签压住</td>
+        <td>页签选中态从实心橙改 <code>.shell-tab-active</code>（9% 底 + 底部 2px signal 边 + 文字转亮）；<code>Parts</code> → <code>Part slots</code> 与模块标题同名；面板高度改 <code>calc(100vh - 220px)</code>。</td>
+        <td>390 下列表底 692 ≤ 页签顶 694</td>
+      </tr>
+      <tr>
+        <td>UI-06</td><td>阻塞横幅常驻模型正上方</td>
+        <td>删除 <code>ViewerPanel</code> 的 HUMAN_REVIEW 横幅：460px 宽、不可关、文案与状态机矛盾（状态是"等人工审核"，横幅说"运行失败"）。</td>
+        <td>画布无横幅，<code>AlertTriangle</code> 已清</td>
+      </tr>
+      <tr>
+        <td>UI-07</td><td>每屏至少两个实心橙组</td>
+        <td>密度段三按钮、通知页签、设置页签全部改 <code>.shell-selected</code> / <code>.shell-tab</code>；"Generate geometry" 与 JobFailureNotice 主按钮降为软橙。新增 <code>--shell-signal-rgb</code> 承载三处光晕的 alpha，不再写死 dark 主题的橙。</td>
+        <td>8 组合实心 signal 组 = 0（检测器已用注入探针验证灵敏度）</td>
+      </tr>
+      <tr>
+        <td>UI-08</td><td>14 档字号，57 处声明是假的</td>
+        <td>先把 57 处声明按映射批量改写（7/8/8.5/9/9.5→10、10.5→11、11.5→12、12.5→13、14→13、15→16、<code>text-xs</code>→12、<code>text-sm</code>→13），再删掉那条把所有 8–9.5px 静默改写成 10px 的 unlayered 规则。</td>
+        <td>渲染字号 10/11/12/13/16 五档（窄屏四档）</td>
+      </tr>
+      <tr>
+        <td>UI-09</td><td>读数模块没有主角</td>
+        <td>重写 <code>ReadoutModule</code>：包络尺寸独立成行、16px 等宽左对齐，上方 <code>BOUNDING BOX</code> + 证据态词（Measured / Target / Not measured）；单位列固定 18px 只放单位；新增 <code>Artifact</code> 行与 <code>Built by {engine}</code>。</td>
+        <td>16px 是模块内唯一最大字号</td>
+      </tr>
+      <tr>
+        <td>UI-10</td><td>文案重复、互相指路、夹带内部语汇</td>
+        <td>删掉画布中央与快捷键表重复的 Space 提示；编辑器占位符去重；"No diagnostic payload" 改成可执行的一句话；"1 blocking" 等内部语汇清掉。</td>
+        <td>同一句提示在屏上只出现一次</td>
+      </tr>
+      <tr>
+        <td>UI-11</td><td>品牌板宽度跟着标题跳</td>
+        <td><code>calc(100vw - 480px)</code> → 固定 <code>width: 460</code>；标题 <code>flex-1 truncate</code> + tooltip；引擎信息移出品牌板，进读数模块的 <code>Built by</code>——provenance 属于产物，不属于下一个动作。</td>
+        <td>四视口宽度一致</td>
+      </tr>
+      <tr>
+        <td>UI-12</td><td>焦点环是"环套环"</td>
+        <td><code>input:focus</code> 的 <code>box-shadow: 0 0 0 2px</code> 画在边框内侧，与已变橙的 border 叠成两圈。改 <code>outline: 1px solid var(--shell-signal); outline-offset: -1px</code>；<code>.linear-focus-ring</code> 与 <code>.shell-field</code> 同步。</td>
+        <td>单圈</td>
+      </tr>
+      <tr>
+        <td>UI-13</td><td>Light 主题：新建像危险操作、网格消失</td>
+        <td><code>--shell-signal-soft</code> 离开 danger 红；网格 <code>--shell-field-grid</code> 提到 #DDD8CF / #D2CCC1，<code>--shell-grid</code> 0.045→0.062；<code>STATE_TONE_HEX</code> 四个硬编码 hex 改 <code>var(--shell-*)</code>（原先 #7BD68A 在白底只有 1.9:1）。</td>
+        <td>浅色下对比度 0 失败</td>
+      </tr>
+      <tr>
+        <td>UI-14</td><td>图标尺寸与字重不成套</td>
+        <td>视口工具条 8 个图标统一 18px / <code>strokeWidth 1.5</code>；删掉激活态底部那个 3px 小点——浅底 + 文字转亮已经是唯一信号，不需要第三个指示器。全库 <code>strokeWidth</code> 统一到 1.5。</td>
+        <td>图标盒尺寸一致</td>
+      </tr>
+      <tr>
+        <td>UI-15</td><td>折叠控件语义反了，空模块留白</td>
+        <td><code>＋ / −</code> → chevron（<code>rotate(-90deg)</code> 表示折叠）+ <code>aria-expanded</code>；CODE 模块去掉空体，改用新增的 <code>headerAction</code> 槽位（<code>ChevronRight</code> + "Open"）。</td>
+        <td><code>aria-expanded</code> 存在且方向正确</td>
+      </tr>
+      <tr>
+        <td>UI-16</td><td>设置与通知的 IA</td>
+        <td>删掉重复的 Settings Dialog（设置同时存在 Dialog 和 Sheet 两个表面，页签样式和焦点态都不同）；导出从页脚移进独立的 <code>Data</code> 分区并写清后果；通知抽屉标题跟随页签；加载 spinner 换 3 行骨架。</td>
+        <td>单一设置表面</td>
+      </tr>
+      <tr>
+        <td>UI-17</td><td>81 处硬编码色，5 处越界圆角</td>
+        <td>硬编码 hex 归零：语义色进 <code>--shell-*</code>，供应商品牌色进新增的 <code>--provider-*</code>；圆角并入 3/4/6/9/999 尺度；新增 ESLint 规则禁止 <code>#RRGGBB</code> 出现在 <code>src/components/cad/**</code>；删掉 <code>motion-presets</code> 里 5 个从未被引用的紫色预设。</td>
+        <td>lint 探针命中 2 处；全库 hex 0</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>回归验证 · 实测数据</h2>
+
+  <table>
+    <thead><tr><th>断言</th><th style="width:120px">1440×900</th><th style="width:120px">1280×800</th><th style="width:120px">1024×768</th><th style="width:110px">390×844</th></tr></thead>
+    <tbody>
+      <tr><td>模块被裁切（dark / light）</td><td>0 / 0</td><td>0 / 0</td><td>0 / 0</td><td>0 / 0</td></tr>
+      <tr><td>实心 signal 组</td><td>0 / 0</td><td>0 / 0</td><td>0 / 0</td><td>0 / 0</td></tr>
+      <tr><td>对比度失败 / 检查的文本节点</td><td>0 / 126</td><td>0 / 121</td><td>0 / 115</td><td>0 / 9</td></tr>
+      <tr><td>渲染字号档数</td><td colspan="3">5（10 / 11 / 12 / 13 / 16）</td><td>4（10 / 11 / 12 / 13）</td></tr>
+      <tr><td>硬编码 hex（<code>src/components/cad/**</code>）</td><td colspan="4">0（ESLint 规则 + 探针验证）</td></tr>
+      <tr><td>快捷键可观测</td><td colspan="4">16 / 16（1–6 0 F E H S T ? ⌘K ⌘N Space Esc）</td></tr>
+    </tbody>
+  </table>
+
+  <p style="color:var(--muted);font-size:13.5px;margin-top:14px">
+    测量方法上有两处要交代，否则数字会被误读。<strong>其一</strong>，"实心 signal 组 = 0" 曾经是假阴性：现代浏览器把 <code>color-mix()</code> 的结果序列化成 <code>color(srgb …)</code>，而旧检测器只认 <code>rgba()</code>，于是所有带 tint 的元素都被跳过。改成 canvas 解析任意 CSS 颜色后重测，并注入一个实心橙探针和一个 12% 橙探针验证检测器确实能区分两者。<strong>其二</strong>，<code>F</code> 一度被判为死键：<code>fit</code> 保持方向只调距离，相机本来就在 fit 距离时画面当然不变。用滚轮改变距离后重测，放大与缩小都能精确回到同一帧。
+  </p>
+
+  <h2>修复后实拍</h2>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px">
+    <figure style="margin:0">
+      <img src="assets/after/1440x900-dark.png" alt="修复后 1440×900 深色主题" style="width:100%;border-radius:6px;border:1px solid var(--hair)">
+      <figcaption style="font-size:12px;color:var(--dim);margin-top:6px">1440×900 深色：右列三块完整，CODE 收成一行 <code>13 ln · Open ›</code>；画布只有一条拖动提示；读数模块的包络尺寸是 16px 主角。</figcaption>
+    </figure>
+    <figure style="margin:0">
+      <img src="assets/after/1440x900-light.png" alt="修复后 1440×900 浅色主题" style="width:100%;border-radius:6px;border:1px solid var(--hair)">
+      <figcaption style="font-size:12px;color:var(--dim);margin-top:6px">同布局浅色：网格可见、选中态是 tint 而非橙块、"Overview" 与列表序号都过 AA；CHECKS 的正文只报一次分母。</figcaption>
+    </figure>
+    <figure style="margin:0">
+      <img src="assets/after/1024x768-dark.png" alt="修复后 1024×768 深色主题" style="width:100%;border-radius:6px;border:1px solid var(--hair)">
+      <figcaption style="font-size:12px;color:var(--dim);margin-top:6px">1024×768：品牌板固定 460px，与密度段之间留出稳定间距，不再随标题长度伸缩。</figcaption>
+    </figure>
+    <figure style="margin:0">
+      <img src="assets/after/390x844-parts-open.png" alt="修复后 390 宽屏，零件面板展开" style="width:100%;border-radius:6px;border:1px solid var(--hair)">
+      <figcaption style="font-size:12px;color:var(--dim);margin-top:6px">390 宽屏展开 Part slots：列表底 692px，页签条顶 694px，不相压；页签是描边 + 暗底，不再是整屏最大色块。</figcaption>
+    </figure>
+  </div>
+
+  <h2>顺手挖出的两个故障（不在原报告内）</h2>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">BUG-A</span><span class="sev p0">P0</span><h3>Tailwind 把二进制文件读成了类名，整站变成 Build Error</h3></div>
+    <div class="issue-b">
+      <p>回归跑到一半，页面开始随机变成 <code>Parsing CSS source code failed</code> 覆盖层，报错内容是 <code>@media (m&lt;0x05&gt; :coarse)</code> 和 <code>.text-[var(&lt;0x07&gt;7&lt;0x01&gt; &lt;0x12&gt;dim)]</code>——十六进制控制字符出现在类名里。原因不是谁写错了 class，是 <code>@import "tailwindcss"</code> 的自动扫描把构建目录和 SQLite 文件当源码读了：<code>AGENTSCAD_BUILD_DIR=.next-review</code> 生成的目录不在 <code>.gitignore</code> 里，于是第一次编译写出的 sourcemap 被下一次编译当成源文件，坏 CSS 又写回缓存，形成自喂养。</p>
+      <p>修法：<code>@import "tailwindcss" source(none)</code> 关掉自动扫描，只留一条 <code>@source "../**/*.{ts,tsx}"</code>；<code>.next-review</code> 进 <code>.gitignore</code>。这样二进制永远不可能变成类名，构建目录也不可能喂回自己。</p>
+      <p class="facts" style="margin-top:8px">验证：连续 6 次请求全部 200，日志 0 条 CSS 解析错误；生成 CSS 214KB，<code>@media (pointer: coarse)</code>、<code>.shell-selected</code>、<code>--shell-signal-rgb</code> 均在。</p>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">BUG-B</span><span class="sev p1">P1</span><h3>WASM 渲染测试单独跑是绿的，全量跑是红的</h3></div>
+    <div class="issue-b">
+      <p>Bun 在同一进程里跑所有测试文件，而 <code>mock.module()</code> 是全局的：API 路由测试把 <code>@/lib/tools/scad-renderer</code> 换成了一个 render log 里版本号为 <code>"test"</code> 的桩。当 WASM 测试排在它后面时，<code>renderScadArtifacts</code> 解析到桩，三条断言全部失败并报 <code>expected 2026.01.12-wasm, received test</code>。</p>
+      <p>修法：把这个文件挪进子进程（<code>Bun.spawn</code> 跑 <code>bun test</code> 自身），让它的模块表从零开始，不再受前序文件污染。</p>
+      <p class="facts" style="margin-top:8px">验证：单独跑与全量跑都通过。</p>
+    </div>
+  </div>
+
+  <h2>评分卡</h2>
+  <table>
+    <thead><tr><th>维度</th><th>评分</th><th>依据</th></tr></thead>
+    <tbody>
+      <tr><td>结构与空间</td><td><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><span class="num">4</span></div></td><td>全幅画布 + 浮动模块的骨架成立；空状态与失败态都有专门构图。</td></tr>
+      <tr><td>层级与焦点</td><td><div class="bar"><i class="on mid"></i><i class="on mid"></i><i class="on mid"></i><i></i><i></i><span class="num">3</span></div></td><td>同一屏出现 2–3 个同权重主行动（composer 圆钮 + 画布中央按钮 + Automatic repair）。</td></tr>
+      <tr><td>字体系统</td><td><div class="bar"><i class="on low"></i><i class="on low"></i><i></i><i></i><i></i><span class="num">2</span></div></td><td>14 档字号；57 处声明被静默改写；10.5px 承担必读说明。</td></tr>
+      <tr><td>颜色预算</td><td><div class="bar"><i class="on low"></i><i class="on low"></i><i></i><i></i><i></i><span class="num">2</span></div></td><td>实心橙组每屏 2 个起；行缩略图彩边；快捷键弹窗四色标题。</td></tr>
+      <tr><td>模块完整性</td><td><div class="bar"><i class="on low"></i><i class="on low"></i><i></i><i></i><i></i><span class="num">2</span></div></td><td>右列溢出裁切；参数/检验末行被切；面板列表被页签压住。</td></tr>
+      <tr><td>响应式</td><td><div class="bar"><i class="on low"></i><i class="on low"></i><i></i><i></i><i></i><span class="num">2</span></div></td><td>&lt;960 的面板内容被切断；标题压成 8 个字符；占位符截断成半个单词。</td></tr>
+      <tr><td>文案</td><td><div class="bar"><i class="on low"></i><i class="on low"></i><i></i><i></i><i></i><span class="num">2</span></div></td><td>标题与占位符同句；Space 提示出现两次；“No diagnostic payload”。</td></tr>
+      <tr><td>可访问性</td><td><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><span class="num">4</span></div></td><td>3 视口 × 2 主题实测 0 处低于 AA；焦点环与 shell 规则冲突；E 键失效。</td></tr>
+      <tr><td>令牌一致性</td><td><div class="bar"><i class="on mid"></i><i class="on mid"></i><i class="on mid"></i><i></i><i></i><span class="num">3</span></div></td><td>81 处硬编码十六进制（14 个文件）；5 处越界圆角。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>P0 · 阻断核心任务或破坏可信度</h2>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-01</span><span class="sev p0">P0</span><h3>右侧栏把模块切掉一半，而且没有滚动提示</h3></div>
+    <div class="issue-b">
+      <p>1440×900 下 <code>#right-column</code> 可视高度 702px，内容 754px（尺寸 323 + 间距 10 + 检验 323 + 间距 10 + 代码 88）。容器 <code>overflow-y:auto</code> 可以滚动，但没有可见滚动条，于是 CODE 模块只露出 36px 的标题条，剩下 52px 被裁在视口外——看起来像一块坏掉的空板。</p>
+      <p>滚动之后问题更明显：参数模块的顶部被切在筛选框中间，检验模块的底部被切在最后一行，<strong>一次滚动里没有任何一个模块是完整的</strong>。DESIGN.md §3 “模块契约”第 4 条写的是 “Never clip its own content. A cutoff control is a bug.”</p>
+      <figure><img src="assets/80-right-scrolled.jpg" alt="右列滚动后，参数与检验模块两端同时被切"><figcaption>右列滚动到底：参数模块顶部被切在筛选框，检验模块底部紧贴页脚，代码模块才勉强露出。</figcaption></figure>
+      <dl class="facts">
+        <dt>规范</dt><dd>DESIGN.md §3.4（模块不得裁切自身内容）· §13（模块体应纵向滚动而不是被容器裁切）</dd>
+        <dt>位置</dt><dd><code>MainWorkspace.tsx</code> · <code>#right-column</code> 的固定高度与三个模块的固定高度</dd>
+        <dt>修法</dt><dd>右列改为 <b>flex 分配</b>：参数与检验按内容比例伸缩（各自内部滚动），CODE 固定 88px；或把 CODE 移出右列，只保留在检查器弹窗。滚动条改为常显的 8px 令牌样式。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-02</span><span class="sev p0">P0</span><h3>参数行不是一列，是三个互不相干的列</h3></div>
+    <div class="issue-b">
+      <p>每一行由「标签 / 步进器 / 单位」三段组成，但它们没有共享网格：标签左对齐、步进器右对齐、单位再右对齐，中间留出 60–90px 的空白。结果是标签和它控制的数字之间没有视觉联系，读数时需要横跨半个模块。</p>
+      <p>更严重的是<strong>单位不可信</strong>：同一个作业里 <code>V Angle</code> 显示 <code>°</code>，而 <code>Cyl Per Bank</code>（每缸列数，一个纯计数）显示 <code>mm</code>——因为参数 schema 里就写着 <code>unit: "mm"</code>，界面照单全收。仪表面板上的单位一旦说谎，整个读数区都不可信。</p>
+      <figure><img src="assets/41-params-zoom.jpg" alt="参数模块：标签、步进器、单位三段分离；Cyl Per Bank 带 mm 单位"><figcaption>三段式布局让标签与数字脱节；“Cyl Per Bank 4 mm” 把计数标成了长度。</figcaption></figure>
+      <dl class="facts">
+        <dt>规范</dt><dd>DESIGN.md §12（数值用 mono + 单位承载语义）· §18（证据层级）</dd>
+        <dt>位置</dt><dd><code>DimensionsModule.tsx</code> 行布局；<code>parameter-schema.ts</code> 单位校验</dd>
+        <dt>修法</dt><dd>改为固定列宽的 <code>grid-template-columns: 1fr 112px 34px</code>，单位右对齐成一条竖线；<code>kind: integer</code> 且语义为计数的参数禁止输出长度单位。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-03</span><span class="sev p0">P0</span><h3>检验模块的三组数字读不通，而且重复了一遍</h3></div>
+    <div class="issue-b">
+      <p>标题栏写 <code>5 / 7 passed</code>，正文第一行又写 <code>5 / 7 passed</code> + <code>1 failed</code>，下一行写 <code>3 checks not run · excluded from passes</code>。读者会本能地做加法：5 + 1 + 3 = 9，分母却是 7。<strong>数字本身是对的</strong>（7 是“已运行的检查数”，3 是“未运行”），但呈现方式让它看起来像错的。</p>
+      <p>代码注释里写着「只有当摘要能提供徽章给不出的数字时才打印第二行」，可实际上它把 <code>5 / 7 passed</code> 原样重复了一遍，只多了 <code>1 failed</code>。同一块板里还并存 <code>1 blocking</code>（标题栏）与 <code>1 failed</code>（正文）两种说法。</p>
+      <figure><img src="assets/42-checks-zoom.jpg" alt="检验模块：5/7 passed 出现两次，1 blocking 与 1 failed 并存，末行被页脚切断"><figcaption>同一事实三种说法；底部 STL / SCAD / History 页脚把 “Maximum dimensions” 一行切掉。</figcaption></figure>
+      <dl class="facts">
+        <dt>规范</dt><dd>DESIGN.md §19（先讲发生了什么，再讲怎么做）· §18（可信证据）</dd>
+        <dt>位置</dt><dd><code>ChecksModule.tsx:312</code> 摘要行 · <code>:328</code> 未运行说明 · 标题徽章</dd>
+        <dt>修法</dt><dd>统一成一句：<b>“7 项已运行 · 5 通过 · 1 失败 · 1 待复核”</b>，未运行单独一行且不与分母混用；删掉正文重复的通过数；标题栏只留状态词，不再放计数。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-04</span><span class="sev p0">P0</span><h3>快捷键表承诺了 E，但 E 什么也不做</h3></div>
+    <div class="issue-b">
+      <p>快捷键弹窗在 NAVIGATION 组写 <code>Edit SCAD code — E</code>、<code>Show history (LOG) — H</code>，又在 INSPECTOR TABS 组把 <code>Code — E</code>、<code>History — H</code> 再列一次。<code>Toggle shortcuts</code> 也出现了两次（NAVIGATION 与 GENERAL）。</p>
+      <p>实测：按 <code>H</code> 能打开记录，按 <code>S</code> 能打开统计，<strong>按 <code>E</code> 没有任何反应</strong>——右列 scrollTop 保持 0，没有弹窗，没有焦点移动。DESIGN.md §5 的原话是：“The shortcuts sheet is a contract, not a summary. If a key is retired, the row goes; if a key is promised, it is bound.”</p>
+      <figure><img src="assets/09-shortcuts.jpg" alt="快捷键弹窗：四个分组四种颜色，E/H 与 Toggle shortcuts 重复"><figcaption>四个分组各用一种强调色（橙 / 绿 / 黄 / 橙），13px 的组标题比模块标题大一倍；重复行让整张表显得不可信。</figcaption></figure>
+      <dl class="facts">
+        <dt>规范</dt><dd>DESIGN.md §5（快捷键表即契约）· §11（禁止彩虹式着色）</dd>
+        <dt>位置</dt><dd><code>MainWorkspace.tsx:1803-1887</code> 的四个分组字面量</dd>
+        <dt>修法</dt><dd>绑定 <code>E</code>（打开 Code 页签）或删除该行；合并 INSPECTOR TABS 分组进 NAVIGATION；四个组标题统一为 <code>--shell-text-label</code>，去掉彩色图标。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-05</span><span class="sev p0">P0</span><h3>&lt;960px 的零件面板：列表被页签条压住，页签是整屏最大的色块</h3></div>
+    <div class="issue-b">
+      <p>窄屏把模块折叠成底部面板，方向是对的。但面板内的滚动区没有给页签条留出空间，第 02 行标题被页签条<strong>从中间切开</strong>；同时激活页签是一个 435×44 的实心橙矩形，恰好占面板宽度的一半——它比 composer 的主行动大三倍，成为整屏视觉焦点，而它只是一个页签。</p>
+      <figure><img src="assets/58-900-parts.jpg" alt="900px 下零件面板：第二行被页签条切断，Parts 页签是巨大橙色块"><figcaption>900×700：面板列表被底部页签切断；“Parts” 页签是全屏最大色块。</figcaption></figure>
+      <figure><img src="assets/71-390-parts.jpg" alt="390px 下同样问题更明显"><figcaption>390×844：同样结构，面板名 “PART SLOTS” 与页签名 “Parts” 不一致。</figcaption></figure>
+      <dl class="facts">
+        <dt>规范</dt><dd>DESIGN.md §11（一个 signal 橙组）· §20（面板体在高度上限内滚动）</dd>
+        <dt>位置</dt><dd>窄屏 sheet 容器与 tab 条（<code>MainWorkspace.tsx</code> 窄屏分支）</dd>
+        <dt>修法</dt><dd>页签条改为面板的 <b>sticky 页脚</b>并给列表 <code>padding-bottom: 56px</code>；激活态改为底部 2px 下划线 + 浅底，不用实心橙；面板标题与页签名统一。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-06</span><span class="sev p0">P0</span><h3>阻塞提示常驻在模型正上方，不能关也没有动作</h3></div>
+    <div class="issue-b">
+      <p>选中一个带阻塞检查的作业后，画布顶部中央出现一块 460px 宽的提示板：“Geometry generated with blocking checks…”，<strong>20 秒后仍在，刷新后仍在，没有关闭按钮，也没有跳转按钮</strong>。它遮住模型的上部，而同样的信息在检验模块里已经有一份，并且那里才有可执行动作。</p>
+      <p>文案还与状态机矛盾：该作业处于 <code>HUMAN_REVIEW</code>（导轨写的是 “Needs your decision”），提示板却让用户 “press Generate to rebuild”——真正该做的是回答那个待定问题。在 1024×768 下它距品牌模块底边只有 9px（61 → 70），形成一条拥挤的横带；在 390 下警告图标因为垂直居中，落到三行文字的第二行，视觉上与标题脱节。</p>
+      <figure><img src="assets/29-select-review.jpg" alt="画布顶部中央的阻塞提示板遮住模型"><figcaption>1440×900：提示板压在模型上方，右侧检验模块已经表达同一事实。</figcaption></figure>
+      <figure><img src="assets/72-390-selected.jpg" alt="390px 下提示板占满宽度，图标错位"><figcaption>390×844：图标与标题不在同一基线，且提示板占据首屏 10% 高度。</figcaption></figure>
+      <dl class="facts">
+        <dt>规范</dt><dd>DESIGN.md §11（一个行动组）· §17（加载与异步行为）</dd>
+        <dt>位置</dt><dd><code>ViewerPanel.tsx:189-209</code> 的 <code>viewer-status-notice</code> 条</dd>
+        <dt>修法</dt><dd>按状态分支文案（待决定 → “有一个待定问题需要你确认”，阻塞 → 指向检验）；删掉画布横幅，把这句话降级为检验模块标题栏下方的一行；若必须保留，加关闭按钮并移到画布右下、避开模型。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <h2>P1 · 系统一致性与层级</h2>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-07</span><span class="sev p1">P1</span><h3>强调色超预算：每屏至少两个实心橙组</h3></div>
+    <div class="issue-b">
+      <p>DESIGN.md §11 写得很清楚：“<strong>one</strong> signal orange element group — the action and its immediate status… Three is not [acceptable]”，并且明确说 rail 的「＋ 新零件」之所以用软橙（<code>#FFB597</code> 文字 + 40% 边框 + 10% 底）就是为了“不成为第二个实心橙组”。</p>
+      <p>实测桌面主屏稳定有 2 组实心橙：密度段选中项（约 100×32 的纯橙胶囊）和 composer 的 34px 圆形行动键；设置浮层再加 3 组（Providers 页签、Save 按钮、Enabled 开关）；通知浮层再加 1 组（Activity 页签）；窄屏再加 1 组（Parts 页签，且面积最大）。软橙的还有 Automatic repair（40% 橙边 + 橙字）和 rail 的 New part。</p>
+      <figure><img src="assets/34-controls-zoom.jpg" alt="密度段 Overview 为实心橙"><figcaption>密度段：一个纯橙胶囊，与 composer 的行动键争夺“主行动”身份。</figcaption></figure>
+      <figure><img src="assets/54-settings.jpg" alt="设置浮层：页签、Save、开关均为实心橙"><figcaption>设置浮层：页签胶囊 + Save + 开关，三处实心橙。</figcaption></figure>
+      <dl class="facts">
+        <dt>规范</dt><dd>DESIGN.md §11 强调预算 · §24 设计预算</dd>
+        <dt>位置</dt><dd>密度段、设置页签、通知页签、窄屏页签、Automatic repair</dd>
+        <dt>修法</dt><dd>选中态统一为「浅 signal 底 + signal 文字 + 1px signal 边」，把实心橙留给每屏唯一的主行动；Automatic repair 降为 secondary（描边 + 中性文字）。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-08</span><span class="sev p1">P1</span><h3>字号有 14 档，其中 57 处声明值是假的</h3></div>
+    <div class="issue-b">
+      <p>规范定义 4 档：10（engraved）/ 11–12（mono 数值）/ 11.5–12.5（control）/ 12.5（body）。代码里统计到 14 档：7、8、9、9.5、10、10.5、11、11.5、12、12.5、13、14、18，加上 Tailwind 的 <code>text-xs</code>/<code>text-sm</code>。</p>
+      <p>其中 57 处写的是 <code>text-[8px]</code>、<code>text-[9px]</code>、<code>text-[9.5px]</code>，被 <code>globals.css</code> 里一条无层级的规则强制改成 10px。<strong>声明值和渲染值已经不一致</strong>——下一个开发者读到 9px，屏幕上却是 10px，任何字号审计都会得出错误结论。</p>
+      <p>同时，10.5px 被用来承担必读说明（读数模块的行标签、检验的“3 checks not run”、参数标签），而 §12 的红线是“no body, label, value, or instruction the user must read to act may be below 11px”。</p>
+      <figure><img src="assets/50-readout.jpg" alt="读数模块：标题、数值、标签、单位都在 10–11px"><figcaption>读数模块：标题 10、主数值 11、标签 10.5、单位 10——四档挤在 1px 区间里，主数值读不出主次。</figcaption></figure>
+      <dl class="facts">
+        <dt>规范</dt><dd>DESIGN.md §12 字号与 Scale</dd>
+        <dt>位置</dt><dd><code>src/components/cad/**</code>（57 处 &lt;10px 声明）· <code>globals.css:558-563</code></dd>
+        <dt>修法</dt><dd>收敛到 <b>10 / 11 / 12 / 12.5</b> 四档 + 14（弹窗标题）；把 57 处 8–9.5px 直接改写为 <code>text-[10px]</code> 并删掉覆盖规则；10.5px 的必读文案升到 11px。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-09</span><span class="sev p1">P1</span><h3>读数模块没有主角，状态被塞进了单位列</h3></div>
+    <div class="issue-b">
+      <p>读数模块是这台“仪器”的显示屏，但包络尺寸（最重要的派生值）与其它行同为 11px，且右对齐到数值列，左边留白——它读起来像一行普通数据，不像读数。<code>Triangles</code> 行的单位位显示的是 <code>Built</code> / <code>No artifact</code>，一个句子占用了单位列。</p>
+      <p>没有数值时，标题行变成孤零零的 <code>— mm</code>（左半边全空），读者会以为渲染坏了，而不是“尚未测量”。</p>
+      <figure><img src="assets/50-readout.jpg" alt="读数模块数值层级"><figcaption>“842.0 × 840.0 × 802.0” 与 “Wall thickness” 同权重；“Built” 出现在单位位置。</figcaption></figure>
+      <dl class="facts">
+        <dt>规范</dt><dd>DESIGN.md §12（Value 用 mono + tabular）· §18（证据层级）</dd>
+        <dt>位置</dt><dd><code>ReadoutModule.tsx:63-106</code></dd>
+        <dt>修法</dt><dd>包络尺寸升到 15–16px mono 并左对齐；单位列只放单位（mm / ° / 空），产物状态单独一列或放到模块徽章；空值显示 <code>—</code> 加一行灰色说明而不是空标签。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-10</span><span class="sev p1">P1</span><h3>文案重复、互相指路，还夹带内部语汇</h3></div>
+    <div class="issue-b">
+      <p>空状态的标题是「Describe the part you need.」，占位符是「Describe the part you need, for example: …」——<strong>同一句话说了两遍</strong>。画布上又有一行 10px 大字距提示「DRAG A MODULE HEADER TO MOVE IT · SPACE HIDES ALL PANELS」，而 composer 提示行里已经有「Space Hide panels」；按空格后，上方与 composer 内同时出现「PANELS HIDDEN · PRESS SPACE TO RESTORE」。</p>
+      <p>失败卡片把内部错误直接抛给用户：「<code>No diagnostic payload</code>」。设置面板在解释 Vercel 环境变量如何注入 <code>OPENAI_API_KEY</code>——这是给部署者看的，不是给用户看的。</p>
+      <figure><img src="assets/01-dark-1440.jpg" alt="空状态：标题与占位符同句"><figcaption>空状态：标题与占位符同句；三枚示例 chip 没有“可点击”的暗示。</figcaption></figure>
+      <figure><img src="assets/28-select-failed.jpg" alt="失败卡片显示 No diagnostic payload"><figcaption>失败态：“No diagnostic payload” 是日志字段名，不是用户语言。</figcaption></figure>
+      <dl class="facts">
+        <dt>规范</dt><dd>DESIGN.md §19（先讲发生了什么，再讲怎么做；不要解释应用自身架构）</dd>
+        <dt>位置</dt><dd>空状态文案 · <code>JobFailureNotice.tsx:112</code> · 设置 Providers 说明</dd>
+        <dt>修法</dt><dd>标题改为动作句（“描述你要的零件”），占位符只给例子；Space 提示只保留 composer 内一处；错误文案改为「生成在检验阶段中断，可以重试或查看执行日志」；Vercel 说明移入文档链接。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-11</span><span class="sev p1">P1</span><h3>品牌模块的宽度跟着标题长度跳，窄屏只剩 22px 间隙</h3></div>
+    <div class="issue-b">
+      <p>同一个位置，品牌板在四个作业之间测到 419 / 544 / 698 / 726px 四种宽度。切换零件时整个顶栏在动，密度模块的位置感也随之漂移。1024×768 下品牌板右边缘 560、密度板左边缘 582，<strong>只剩 22px</strong>，再长一点的标题就会撞上。</p>
+      <figure><img src="assets/29-select-review.jpg" alt="品牌模块随标题变宽"><figcaption>726px 宽的品牌板：标题、状态、模型选择器、铃铛、齿轮挤在一行。</figcaption></figure>
+      <dl class="facts">
+        <dt>规范</dt><dd>DESIGN.md §20（960–1279 品牌板有视口相关的宽度上限）· §13</dd>
+        <dt>位置</dt><dd><code>MainWorkspace.tsx</code> 品牌模块</dd>
+        <dt>修法</dt><dd>给品牌板固定宽度（如 420px）并把标题截断成一行 + title 属性；模型选择器移出品牌板，放进密度板或设置。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-12</span><span class="sev p1">P1</span><h3>浮层的焦点环还是旧的“环套环”</h3></div>
+    <div class="issue-b">
+      <p>DESIGN.md §21 要求“visible focus is one amber border rather than a ring inside a ring”，并且规定了 <code>.shell-field</code> 的自有焦点态。但命令面板的输入框和快捷键弹窗的关闭按钮仍然吃到全局 <code>input:focus { box-shadow: 0 0 0 2px var(--ring) }</code>，在深色底上是一圈亮橙描边，看起来像校验错误。</p>
+      <figure><img src="assets/07-palette.jpg" alt="命令面板输入框有一圈橙色 focus 环"><figcaption>命令面板：输入框的 2px 橙环贴着弹窗圆角，读作警告而非焦点。</figcaption></figure>
+      <dl class="facts">
+        <dt>规范</dt><dd>DESIGN.md §21 焦点可见性</dd>
+        <dt>位置</dt><dd><code>globals.css:630-645</code> · 命令面板输入框、弹窗按钮</dd>
+        <dt>修法</dt><dd>把 <code>.shell-field</code> 的规则扩展到所有弹层输入框；弹窗图标按钮统一 <code>focus-visible:outline-1 outline-[--shell-signal] outline-offset-2</code>。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-13</span><span class="sev p1">P1</span><h3>Light 主题：新建按钮像危险操作，网格几乎消失</h3></div>
+    <div class="issue-b">
+      <p>浅色下 <code>--shell-signal-soft</code> 是 <code>#B8471F</code>，配 10% signal 底与 40% signal 边，整颗按钮呈<strong>鲑红</strong>——在浅色语境里这是删除/错误的配色，而它其实是“新建零件”。</p>
+      <p>同时画布网格（<code>#E0DCD5</code> on <code>#EDE9E1</code>）与背景的对比只有约 1.06:1，深色主题里那个标志性的“精密台面”在浅色下基本消失。</p>
+      <figure><img src="assets/21-populated-light.jpg" alt="浅色主题：New part 呈红色，网格很淡"><figcaption>浅色主题：New part 读作危险按钮；画布网格几乎不可见。</figcaption></figure>
+      <dl class="facts">
+        <dt>规范</dt><dd>DESIGN.md §11（Light 语义色）· §4 视口场</dd>
+        <dt>位置</dt><dd><code>globals.css</code> <code>.rail-create</code> · <code>--shell-field-grid</code></dd>
+        <dt>修法</dt><dd>浅色下新建按钮改用 signal 的浅色变体（如 <code>#C2410C</code> 文字 + 8% 底），避免落入 danger 色域；网格加深到约 1.15:1。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <h2>P2 · 打磨项</h2>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-14</span><span class="sev p2">P2</span><h3>图标尺寸与字重不成套</h3></div>
+    <div class="issue-b">
+      <p>视口工具条里 8 个图标，实际视觉尺寸从 20px 到 26px 不等（标尺图标因为斜置显得最大最重），激活态只靠按钮下方一个 3px 的点表示。品牌板的齿轮比铃铛重一档。</p>
+      <figure><img src="assets/43-viewportctl-zoom.jpg" alt="视口工具条图标尺寸不一"><figcaption>同一组控件内图标视觉尺寸相差 30%；激活态只有一个小圆点。</figcaption></figure>
+      <dl class="facts">
+        <dt>修法</dt><dd>统一 18px / 1.5 stroke；激活态改为浅底 + 图标转为 <code>--shell-text</code>。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-15</span><span class="sev p2">P2</span><h3>折叠控件语义反了，空模块留白</h3></div>
+    <div class="issue-b">
+      <p>模块折叠按钮在展开时显示 <code>−</code>、折叠时显示 <code>＋</code>——但视觉上 <code>−</code> 更像“已折叠”。CODE 模块展开后主体只有一个按钮，下方留 41px 空白，看起来像加载失败。</p>
+      <dl class="facts">
+        <dt>修法</dt><dd>改为 chevron（<code>▾ / ▸</code>）；CODE 模块去掉空体，把 “Open code / history” 直接做成标题栏右侧的动作。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-16</span><span class="sev p2">P2</span><h3>设置与通知的 IA 小问题</h3></div>
+    <div class="issue-b">
+      <p>设置面板里 “Export all workspace data” 孤立在 Providers 页签最底部，且被视口裁掉；加载态是一个孤零零的 spinner，没有骨架。通知中心的面板标题是 Notifications，默认打开的却是 Activity 页签。</p>
+      <figure><img src="assets/55-notifications.jpg" alt="通知中心默认打开 Activity"><figcaption>标题 Notifications，默认页签 Activity；筛选 chip 只有 10px。</figcaption></figure>
+      <dl class="facts">
+        <dt>修法</dt><dd>导出移入独立的 Data 分区；加载用 3 行骨架；面板改名为 Activity，或默认停在 Notifications。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-h"><span class="id">UI-17</span><span class="sev p2">P2</span><h3>令牌纪律：81 处硬编码色，5 处越界圆角</h3></div>
+    <div class="issue-b">
+      <p><code>src/components/cad/**</code> 里有 81 处十六进制色值分布在 14 个文件；圆角有 5 处落在 7/8/10/12/14px（规范只有 3/4/6/9/999）。快捷键弹窗的分隔线写死 <code>bg-white/[0.075]</code>，在浅色主题下等于不存在。</p>
+      <dl class="facts">
+        <dt>规范</dt><dd>DESIGN.md §22（一个元素只有一个写者）· §13 圆角尺度</dd>
+        <dt>修法</dt><dd>加一条 lint 规则禁止 <code>#RRGGBB</code> 出现在 tsx；把 <code>bg-white/[…]</code> 换成 <code>--shell-hairline</code>；越界圆角并入 3/4/6/9。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <h2>修复计划 <span style="text-transform:none;letter-spacing:0;color:var(--ok);font-family:inherit">（三个阶段的 17 项均已完成，见页首「修复记录」）</span></h2>
+
+  <div class="phase">
+    <div class="phase-h"><h3>阶段 A · 止血：让证据完整可见</h3><span>约 1–2 天 · 6 项</span></div>
+    <ol>
+      <li><b>UI-01</b> 右列改 flex 分配 + 常显滚动条；CODE 移出右列或固定高度。</li>
+      <li><b>UI-02</b> 参数行改固定三列网格；计数参数禁止长度单位。</li>
+      <li><b>UI-03</b> 检验摘要合并成一句，删掉重复的 “5 / 7 passed”。</li>
+      <li><b>UI-04</b> 绑定 <code>E</code> 或删除该行；合并重复分组。</li>
+      <li><b>UI-05</b> 窄屏页签改 sticky 页脚 + 列表留白；激活态去实心橙。</li>
+      <li><b>UI-06</b> 画布横幅删除或降级为检验模块内一行。</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <div class="phase-h"><h3>阶段 B · 收敛：一屏一个行动，一套字号</h3><span>约 3–5 天 · 6 项</span></div>
+    <ol>
+      <li><b>UI-07</b> 选中态统一为浅底 + signal 文字；实心橙只留给主行动。</li>
+      <li><b>UI-08</b> 字号收敛到 10 / 11 / 12 / 12.5；删掉 57 处假声明与覆盖规则。</li>
+      <li><b>UI-09</b> 读数模块建立 15–16px 的主数值层。</li>
+      <li><b>UI-10</b> 空状态、Space 提示、错误文案三处去重并改成人话。</li>
+      <li><b>UI-11</b> 品牌板固定宽度，标题单行截断。</li>
+      <li><b>UI-12</b> 焦点态统一到 <code>.shell-field</code> 规则。</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <div class="phase-h"><h3>阶段 C · 打磨：主题、图标、令牌</h3><span>约 2–3 天 · 5 项</span></div>
+    <ol>
+      <li><b>UI-13</b> 浅色新建按钮去 danger 色；网格加深。</li>
+      <li><b>UI-14 / 15</b> 图标统一 18px；折叠改 chevron；CODE 去空体。</li>
+      <li><b>UI-16</b> 设置导出分区化；通知默认页签对齐标题。</li>
+      <li><b>UI-17</b> 清硬编码色与越界圆角，加 lint 守卫。</li>
+      <li>把本报告的四条度量写进 CI（见下）。</li>
+    </ol>
+  </div>
+
+  <h2>验收清单（可自动断言）</h2>
+  <ul class="check">
+    <li>在 1440×900 / 1280×800 / 1024×768 下，每个 <code>[data-module]</code> 的 <code>getBoundingClientRect()</code> 完全落在视口内，或被祖先裁切的比例为 0。</li>
+    <li>每个可滚动容器（<code>#right-column</code>、<code>.mod-b</code>）在 <code>scrollHeight &gt; clientHeight</code> 时滚动条可见（<code>scrollbar-width ≠ none</code>）。</li>
+    <li>每屏 <code>background</code> 为实心 <code>--shell-signal</code> 的元素组数 ≤ 1（DOM 统计）。</li>
+    <li>渲染后出现的 <code>font-size</code> 去重 ≤ 5 种；源码中 <code>text-[8px|8.5px|9px|9.5px]</code> 计数为 0。</li>
+    <li>快捷键表每一行都能触发可观测状态变化（逐个 keydown 断言）。</li>
+    <li>对比度脚本在 3 视口 × 2 主题下 0 处低于 4.5:1（当前已通过，保持）。</li>
+    <li>窄屏面板最后一行不被页签条覆盖（<code>lastRow.bottom &lt; tabBar.top</code>）。</li>
+  </ul>
+
+  <h2>值得保留的部分</h2>
+  <div class="good">
+    <div><b>对比度真的做到了</b><p>3 个视口 × 2 套主题实测，渲染文本 0 处低于 AA。深色下 label / dim 在 7:1 以上，浅色更高——这套文字阶梯是本次审查里最扎实的一层。</p></div>
+    <div><b>证据层级是产品级设计</b><p>“Target 15 × 40 × 30” 与实测值用不同色阶区分，并附一句“Target values are not measured geometry.”。这在一个以可信为核心的工具里，比任何视觉修饰都值钱。</p></div>
+    <div><b>状态覆盖完整</b><p>空、有列表未选中、已选中、失败、无几何、三档密度、六个浮层——每个状态都有专门构图，没有一屏是“默认样子硬套”。</p></div>
+    <div><b>无障碍不是补丁</b><p>44px 触摸目标、<code>prefers-reduced-motion</code> 全局兜底、状态词而非仅颜色、模块标题为 h2 形成大纲——这些是提前设计进去的，不是事后补的。</p></div>
+  </div>
+
+  <footer>
+    方法：headless Chromium（Playwright 1.63）渲染 + DOM 几何测量 + 文本对比度遍历 + 源码计数。<br>
+    截图：1440×900 / 1280×800 / 1024×768 / 900×700 / 390×844，深浅两套主题，共 30 张。<br>
+    基准文档：DESIGN.md（C2 · floating instrument panel，v2）。<br>
+    附：审查期间对 dev 数据库的临时会话改动已完整还原（逐行 diff 校验通过）。
+  </footer>
+
+</div>
+</body>
+</html>

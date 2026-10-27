@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import fs from "fs/promises";
 import os from "os";
 import path from "path";
@@ -31,6 +32,19 @@ afterAll(() => {
   }
 });
 
+/*
+ * These assertions are about the real renderer, so they cannot share a process
+ * with a suite that replaces it. Bun's `mock.module()` is global and survives
+ * `mock.restore()` (the same limitation documented in skill-runner-streaming and
+ * execute-cad-job tests), and `scad-apply-route.test.ts` stubs
+ * `renderScadArtifacts` with a render log whose version is "test". Whichever file
+ * ran first used to decide whether this suite passed - green alone, red in the
+ * full run. Same remedy as the other two: run the mocked-independent body in a
+ * child process.
+ */
+const IS_CHILD = process.env.AGENTSCAD_WASM_RENDER_TEST_CHILD === "1";
+
+if (IS_CHILD) {
 describe("OpenSCAD WASM renderer", () => {
   test("renders bundled-library SCAD to a binary STL and real PNG preview", async () => {
     const tempDir = await fs.mkdtemp(
@@ -198,3 +212,24 @@ describe("OpenSCAD WASM renderer", () => {
     }
   });
 });
+} else {
+  test(
+    "OpenSCAD WASM renderer runs in an isolated process",
+    () => {
+      const result = spawnSync(
+        process.execPath,
+        ["test", "--timeout", "60000", import.meta.path],
+        {
+          encoding: "utf8",
+          timeout: 120_000,
+          env: {
+            ...process.env,
+            AGENTSCAD_WASM_RENDER_TEST_CHILD: "1",
+          },
+        },
+      );
+      expect(result.status, result.stdout + result.stderr).toBe(0);
+    },
+    120_000,
+  );
+}

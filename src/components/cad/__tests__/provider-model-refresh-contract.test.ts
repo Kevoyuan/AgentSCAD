@@ -22,8 +22,14 @@ describe("provider model refresh contract", () => {
       "[showComposer, providerRevision, newJobModelId, onNewJobModelIdChange]",
     );
     expect(workspace).toContain("providerRevision={providerRevision}");
+    /*
+     * 2026-10-27: settings has one surface now (the sheet); the duplicate Dialog
+     * that used to hold the other copy of this callback is gone, so the assertion
+     * follows the surviving call site. The contract is unchanged - saving a
+     * provider bumps the revision, and the composer re-reads the engine list.
+     */
     expect(workspace).toContain(
-      "onProvidersChanged={() => setProviderRevision(revision => revision + 1)}",
+      "onProvidersChanged={() => setProviderRevision(r => r + 1)}",
     );
     expect(settings.match(/onProvidersChanged\?\.\(\)/g)).toHaveLength(4);
   });

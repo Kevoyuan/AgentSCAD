@@ -1,9 +1,9 @@
 import { createHash } from "crypto";
 import { buildScadCodingPrompt, buildScadPrompt, loadFamilySchema, loadSkill, applyParameterOverrides } from "@/lib/skill-resolver";
 import { createChatCompletionDetailed } from "@/lib/tools/model-router";
+import { retryModelTransport } from "@/lib/tools/model-transport-retry";
 import { sanitizeGeneratedScadSource } from "@/lib/tools/scad-sanitizer";
 import { validateGeneratedScadSource } from "@/lib/tools/scad-renderer";
-import { isRepairableScadCompileError } from "@/lib/tools/scad-compile-error";
 import {
   extractParameterDefsFromScad,
   mergeExtractedParameters,
@@ -427,6 +427,8 @@ export async function runScadGenerationSkill(
   generationPlan?: CadGenerationPlan,
   signal?: AbortSignal,
   researchEvidence?: string,
+  onSourceReady?: (result: StructuredGenerationResult) => Promise<void>,
+  onDiagnostic?: (message: string) => void,
 ): Promise<StructuredGenerationResult> {
   const partFamily = familyOverride ?? detectPartFamily(inputRequest);
   const paramSchema = await getParameterSchema(partFamily, parameterValues);
@@ -439,16 +441,41 @@ export async function runScadGenerationSkill(
   }
 
   const modelStartedAt = Date.now();
-  let modelCallCount = 1;
-  const completion = await createChatCompletionDetailed({
-    messages: [
-      { role: "system", content: prompt.systemPrompt },
-      { role: "user", content: prompt.userPrompt },
-    ],
-    model: requestedModel?.trim() || undefined,
-    stream: false,
-    signal,
-  });
+  let modelCallCount = 0;
+
+  // CAD generations can take minutes. Stream the response so the provider
+  // connection stays active (non-streaming bodies were reset around 240s), and
+  // retry once when the socket itself drops. Schema/truncation failures are not
+  // retried here; the format-correction path below owns those.
+  const callGenerationModel = async (
+    requestMessages: Parameters<typeof createChatCompletionDetailed>[0]["messages"],
+  ) => retryModelTransport(
+    async () => {
+      modelCallCount += 1;
+      return createChatCompletionDetailed({
+        messages: requestMessages,
+        model: requestedModel?.trim() || undefined,
+        stream: true,
+        signal,
+      });
+    },
+    {
+      attempts: 2,
+      baseDelayMs: 1_500,
+      signal,
+      onRetry: ({ code, attempt, attempts }) => {
+        const retryMessage =
+          `Model connection interrupted (${code}); retrying generation (${attempt + 1}/${attempts})...`;
+        console.warn(retryMessage);
+        onDiagnostic?.(retryMessage);
+      },
+    },
+  );
+
+  const completion = await callGenerationModel([
+    { role: "system", content: prompt.systemPrompt },
+    { role: "user", content: prompt.userPrompt },
+  ]);
 
   let generationResult: StructuredGenerationResult;
   let lastEvidence: ModelErrorEvidence = {
@@ -488,18 +515,12 @@ export async function runScadGenerationSkill(
             ? "Your previous output was truncated. Please output a concise CAD Intent JSON followed by a complete, unbroken ```scad ... ``` code block. Ensure the OpenSCAD code is properly closed."
             : "FORMAT CORRECTION: Output Part 1 as CAD Intent JSON, followed by a ```scad ... ``` code fence containing complete OpenSCAD source code. Do not output extraneous commentary.";
 
-        modelCallCount += 1;
-        const retryCompletion = await createChatCompletionDetailed({
-          messages: [
-            { role: "system", content: prompt.systemPrompt },
-            { role: "user", content: prompt.userPrompt },
-            { role: "assistant", content: completion.content },
-            { role: "user", content: correctionMessage },
-          ],
-          model: requestedModel?.trim() || undefined,
-          stream: false,
-          signal,
-        });
+        const retryCompletion = await callGenerationModel([
+          { role: "system", content: prompt.systemPrompt },
+          { role: "user", content: prompt.userPrompt },
+          { role: "assistant", content: completion.content },
+          { role: "user", content: correctionMessage },
+        ]);
 
         lastEvidence = {
           model: retryCompletion.model,
@@ -567,10 +588,13 @@ export async function runScadGenerationSkill(
     scad_source: sanitizedScadSource,
   };
 
+  signal?.throwIfAborted();
+  await onSourceReady?.(preparedResult);
   try {
-    await validateGeneratedScadSource(sanitizedScadSource);
+    await validateGeneratedScadSource(sanitizedScadSource, { signal, onDiagnostic });
   } catch (error) {
-    if (!isRepairableScadCompileError(error)) throw error;
+    signal?.throwIfAborted();
+    // Preserve every generated source; the pipeline decides whether repair is appropriate.
     throw new GeneratedScadCompileError(preparedResult, error);
   }
 

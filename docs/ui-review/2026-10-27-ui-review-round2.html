@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentSCAD · UI/UX 审查（第二轮）2026-10-27</title>
+<style>
+  :root{
+    --bg:#141312; --bg2:#0E0D0C; --plate:#1E1B18; --plate2:#26231F;
+    --hair:rgba(255,255,255,.09); --hair2:rgba(255,255,255,.055);
+    --tx:#EDE8E0; --muted:#D2CABF; --label:#BDB4A7; --dim:#A79E92;
+    --signal:#FF5A1F; --soft:#FFB597; --ok:#7BD68A; --warn:#E8B84B; --fail:#FF8A73;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:
+      radial-gradient(ellipse 70% 50% at 50% -10%, #2A2622 0%, transparent 60%),
+      var(--bg);
+    color:var(--tx);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:56px 32px 96px}
+  a{color:var(--soft);text-decoration:none;border-bottom:1px solid rgba(255,181,151,.3)}
+  code{font-family:var(--mono);font-size:.86em;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;color:var(--muted)}
+
+  .eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+  h1{font-size:38px;line-height:1.15;letter-spacing:-.02em;margin:14px 0 10px;font-weight:650}
+  .lede{font-size:17px;color:var(--muted);max-width:74ch;margin:0}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:22px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .meta b{color:var(--label);font-weight:500}
+
+  .verdict{
+    margin-top:36px;border:1px solid var(--hair);border-radius:9px;
+    background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012));
+    padding:24px 26px;display:grid;grid-template-columns:88px 1fr;gap:24px;align-items:start;
+  }
+  .score{font-family:var(--mono);font-size:44px;line-height:1;color:var(--signal);letter-spacing:-.03em}
+  .score span{font-size:15px;color:var(--dim);letter-spacing:0;margin-left:2px}
+  .verdict p{margin:0;color:var(--muted)}
+  .verdict p+p{margin-top:10px}
+  .verdict strong{color:var(--tx);font-weight:600}
+
+  h2{font-size:13px;font-family:var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--label);
+     margin:64px 0 18px;padding-bottom:12px;border-bottom:1px solid var(--hair)}
+  h3{font-size:15px;margin:32px 0 10px;font-weight:600}
+  p{color:var(--muted);margin:0 0 12px}
+  ul,ol{color:var(--muted);margin:0 0 14px;padding-left:22px}
+  li{margin:5px 0}
+  li::marker{color:var(--dim)}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;font-weight:500;color:var(--dim);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+     padding:0 10px 10px 0;border-bottom:1px solid var(--hair2);font-family:var(--mono)}
+  td{padding:11px 10px 11px 0;border-bottom:1px solid var(--hair2);vertical-align:top;color:var(--muted)}
+  td:first-child{color:var(--tx);width:190px}
+  .bar{display:flex;gap:3px;align-items:center}
+  .bar i{width:15px;height:5px;border-radius:1px;background:rgba(255,255,255,.09);display:block}
+  .bar i.on{background:var(--label)}
+  .bar i.on.low{background:var(--fail)}
+  .bar i.on.mid{background:var(--warn)}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--tx)}
+
+  .card{border:1px solid var(--hair);border-radius:9px;background:rgba(255,255,255,.022);padding:20px 22px;margin:16px 0}
+  .card h4{margin:0 0 4px;font-size:15px;font-weight:600;color:var(--tx);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .card .id{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--dim);background:rgba(255,255,255,.06);
+            padding:2px 6px;border-radius:3px}
+  .tag{font-family:var(--mono);font-size:10px;letter-spacing:.1em;padding:2px 6px;border-radius:3px;text-transform:uppercase}
+  .p0{background:rgba(255,90,31,.16);color:#FF8A73;border:1px solid rgba(255,90,31,.4)}
+  .p1{background:rgba(232,184,75,.14);color:var(--warn);border:1px solid rgba(232,184,75,.35)}
+  .p2{background:rgba(255,255,255,.07);color:var(--label);border:1px solid var(--hair)}
+  .p3{background:transparent;color:var(--dim);border:1px solid var(--hair2)}
+  .card .where{font-family:var(--mono);font-size:11px;color:var(--dim);margin:0 0 12px}
+  .card p{margin:0 0 10px;font-size:14px}
+  .card p:last-child{margin-bottom:0}
+  .kv{display:grid;grid-template-columns:78px 1fr;gap:6px 14px;font-size:13.5px;margin:10px 0 0}
+  .kv dt{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);padding-top:4px}
+  .kv dd{margin:0;color:var(--muted)}
+
+  .evidence{border-left:2px solid var(--hair);padding:2px 0 2px 14px;margin:12px 0;font-family:var(--mono);font-size:12px;color:var(--label);white-space:pre-wrap;line-height:1.7}
+  .evidence .n{color:var(--dim)}
+  .quote{color:var(--tx);background:rgba(255,255,255,.045);padding:2px 6px;border-radius:3px}
+
+  figure{margin:18px 0}
+  figure img{width:100%;border:1px solid var(--hair);border-radius:7px;display:block}
+  figcaption{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:8px;line-height:1.6}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+
+  .callout{border:1px solid rgba(255,90,31,.32);background:rgba(255,90,31,.06);border-radius:9px;padding:18px 20px;margin:18px 0}
+  .callout h4{margin:0 0 8px;color:var(--soft);font-size:14px;font-weight:600}
+  .callout p{color:var(--muted);margin:0 0 8px;font-size:14px}
+  .callout p:last-child{margin:0}
+  .good{border-color:rgba(123,214,138,.3);background:rgba(123,214,138,.05)}
+  .good h4{color:var(--ok)}
+
+  .foot{margin-top:72px;padding-top:18px;border-top:1px solid var(--hair2);font-family:var(--mono);font-size:11px;color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="eyebrow">AgentSCAD · Design review · Round 2</div>
+<h1>第二轮 UI/UX 审查</h1>
+<p class="lede">第一轮 17 项问题修复之后，重新以 DESIGN.md 为基准实测当前状态。本轮重点不在"做得糙不糙"，而在<b>界面说的是不是真的</b>——同一块屏幕上，两个模块对同一件零件给出相反的答案。</p>
+<div class="meta">
+  <span><b>日期</b> 2026-10-27</span>
+  <span><b>基准</b> DESIGN.md</span>
+  <span><b>覆盖</b> 5 视口 × 2 主题 × 3 状态 = 30 组合</span>
+  <span><b>实测</b> Playwright headless Chromium / WebGL 2.0</span>
+  <span><b>新增问题</b> 12 项</span>
+  <span><b>撤回结论</b> 1 项</span>
+</div>
+
+<div class="verdict">
+  <div class="score">3.8<span>/5</span></div>
+  <div>
+    <p><strong>工艺层面已经合格，真实性问题没有解决。</strong>上一轮的硬伤全部守住了：30 个组合零裁切、零对比度失败、正文五档字号、交付态零实心强调块。右列不再溢出，移动端能真实渲染几何，浅色主题的语义色也站住了。</p>
+    <p>但本轮量到的问题换了一个性质：<strong>不是画得不好，是画错了。</strong>打开一件已经交付的零件，尺寸模块立刻写「1 parameter changed · Rebuild required」并给一个 Undo，而同一屏底部的 composer 写「No rebuild needed」；点选后的 1–2.5 秒里，尺寸和检验两个模块都说「先生成一次」，而列表和 composer 说「Ready to export」。<strong>界面在用户还没做任何事的时候，先撒了两个谎。</strong></p>
+    <p>另外，上一轮的颜色纪律只扫了 hex 字面量，漏掉了 Tailwind 调色板类——<span class="num">107 处 / 36 种</span>，含明令禁止的 cyan。本轮已用运行时探针证实这些工具类<strong>确实会渲染</strong>。</p>
+  </div>
+</div>
+
+<h2>一、先说方法：本轮做了什么，没做什么</h2>
+<p>为了让结论可复核，先把取证方式写清楚。</p>
+<ul>
+  <li><b>多状态实测</b>：5 个视口（1440×900 / 1280×800 / 1024×768 / 768×900 / 390×844）× 2 主题 × 3 状态（交付 / 待决策 / 失败），每格记录裁切、模块重叠、实心强调块、强调色使用点、字号分布、内部语汇泄漏、对比度。</li>
+  <li><b>时间线探针</b>：点选零件后每 250ms 采样一次 DOM，记录各模块文案、3D 视口加载态、canvas 出现时刻，共 48 帧。</li>
+  <li><b>载荷核对</b>：直接比对 <code>/api/jobs?summary=true</code> 返回的字段与详情接口的字段差集。</li>
+  <li><b>工具类生效性探针</b>：在真实页面里注入带目标类名的元素，读计算样式，判断 Tailwind 是否真的生成了该工具类。</li>
+  <li><b>没有做的</b>：7 个次级面板（校验、聊天、研究、时间线、笔记、依赖、版本历史）在本次可达路径里没有渲染出来，因此关于它们的结论只到"静态存在 + 工具类生效"，没有到"可见"。这一点在第 4 节会明确标注。</li>
+</ul>
+
+<h2>二、上一轮 17 项：回归结果</h2>
+<table>
+  <thead><tr><th>维度</th><th>实测</th><th>判定</th></tr></thead>
+  <tbody>
+    <tr><td>模块裁切</td><td><span class="num">clipped: none</span> —— 30/30 组合</td><td>守住</td></tr>
+    <tr><td>对比度</td><td><span class="num">0 fail</span>，每格逐项测 94–175 个文本节点</td><td>守住</td></tr>
+    <tr><td>强调色预算</td><td>交付 / 待决策态 <span class="num">solid signal: 0</span>；失败态 1 处（见 N9）</td><td>基本守住</td></tr>
+    <tr><td>字号阶梯</td><td>收敛为 10 / 11 / 12 / 13 / 16 五档</td><td>守住</td></tr>
+    <tr><td>右列布局</td><td>三个模块在 1024/1280/1440 下均无溢出</td><td>守住</td></tr>
+    <tr><td>移动端几何</td><td>390×844 下 20mm 立方体真实渲染，非占位图</td><td>守住</td></tr>
+    <tr><td>浅色主题</td><td>语义色与网格在 15 个浅色组合里无对比度失败</td><td>守住</td></tr>
+  </tbody>
+</table>
+
+<div class="callout good">
+  <h4>值得说一句</h4>
+  <p>上一轮最危险的两个根因——flow 模块的 <code>shrink-0</code> 与 <code>globals.css</code> 里那条把 8–9.5px 静默改写成 10px 的 unlayered 规则——确实被拔掉了。30 个组合零裁切不是运气，是布局模型改对了。</p>
+</div>
+
+<h2>三、本轮新发现</h2>
+
+<div class="card">
+  <h4><span class="id">N1</span> 同一个零件，两处对"是否陈旧"给出相反答案 <span class="tag p0">P0</span></h4>
+  <p class="where">DimensionsModule.tsx:92-99 · MainWorkspace.tsx:242-251 · 违反 §18 / §22</p>
+  <p>打开一件已经交付的零件，不做任何操作，屏幕上同时出现两句互相否定的话：</p>
+  <div class="evidence"><span class="n">t=487ms</span>  [data-module="params"] → <span class="quote">DIMENSIONS 1 parameters · Edge Length − ＋ mm · 1 parameter changed · Rebuild required · Undo</span>
+<span class="n">t=487ms</span>  composer 尾部       → <span class="quote">No rebuild needed</span></div>
+  <p>两句都停留在屏幕上，直到用户动手。左边告诉用户"你改了一个参数，必须重建"，右边告诉用户"不需要重建"。<b>同一件零件，两个模块，两个答案。</b></p>
+  <dl class="kv">
+    <dt>根因</dt><dd>两套基线。尺寸模块的 <code>changed</code> 用 <code>values[p.key]</code>（来自 <code>job.parameterValues</code>，即<b>已构建值</b>）去比 <code>p.value</code>（schema 里<b>声明的默认值</b>）；composer 的 <code>changes</code> 用 <code>paramDraft</code>（草稿）去比 <code>p.value</code>，而 <code>paramDraft</code> 初始为 <code>null</code>，于是永远为空。</dd>
+    <dt>数据佐证</dt><dd>库里有 schema 的 8 个作业中，恰好有 1 个两者不一致：<code>edge_length</code> 已构建 = 30、schema = 20。而这正是默认选中的那一件。</dd>
+    <dt>后果</dt><dd>用户一进来就被要求重建；点 Undo 会写入草稿；点生成会白烧一次完整构建。<b>这不是文案问题，是会让用户白花钱的谎。</b></dd>
+    <dt>修法</dt><dd>陈旧只有一个写者：<code>draft vs job.parameterValues</code>。尺寸模块应接收 <code>baseline</code> 而不是自己从 <code>p.value</code> 反推；<code>p.value</code> 只用于"新建设计时填什么"。</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h4><span class="id">N2</span> 加载期把"还没到"渲染成"从未生成" <span class="tag p1">P1</span></h4>
+  <p class="where">useWorkspaceState（summary 列表）· DimensionsModule.tsx:67-73 · ChecksModule · 违反 §18</p>
+  <p>点选一件零件的瞬间，列表和 composer 已经知道它有几何，但尺寸与检验两个模块拿不到 schema 和检验结果，于是各自打印了自己的空状态句子。</p>
+  <figure>
+    <img src="assets/round2/01-1440-delivered-2.5s.png" alt="1440×900 dark，点选后约 2.5 秒">
+    <figcaption>1440×900 / dark / 已交付零件。顶部 <b>Ready to export</b>、composer <b>No rebuild needed</b>，而右侧 DIMENSIONS 写 <b>No dimensions yet. Generate this part to see them here.</b>，CHECKS 写 <b>No check results yet. Generate a part to see them here.</b> 同一屏，两种事实。</figcaption>
+  </figure>
+  <dl class="kv">
+    <dt>根因</dt><dd><code>GET /api/jobs?limit=50&amp;summary=true</code> 的返回字段里<b>没有</b> <code>parameterSchema</code> / <code>parameterValues</code> / <code>validationResults</code>，但<b>有</b> <code>stlPath</code> / <code>pngPath</code> / <code>state</code>。列表因此能画对状态徽章，模块却只能画空态。</dd>
+    <dt>窗口</dt><dd>热缓存 1.0–2.5 秒；冷启动更久（首包 3D chunk 未命中时可达 6.5 秒，见 N5）。</dd>
+    <dt>修法</dt><dd>两条路，选一：① summary 补这三个字段（最省事，代价是列表载荷变大）；② 模块区分 <code>pending</code> 与 <code>empty</code>——没到就画 dash / 骨架，<b>不要给句子</b>。句子一旦给出就必须为真。</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h4><span class="id">N3</span> 引擎名出现在界面上，且会退化成裸 id <span class="tag p1">P1</span></h4>
+  <p class="where">ReadoutModule.tsx:188-190 · ModelPicker.tsx:60-68 · 违反 §26.8</p>
+  <p>读数模块底部有一行 provenance。正常零件显示 <span class="quote">Built by V4 Flash</span>；一旦该作业的模型已经不在当前配置表里，就原样吐出模型 id：<span class="quote">Built by deepseek-v4-flash</span>。</p>
+  <div class="evidence">engineLabel():
+  const model = models.find(c =&gt; c.id === modelId)
+  if (model) return { label: shortLabel(model), full: `${model.name} · ${model.providerName}` }
+  const slug = modelId.split(':').pop() || modelId
+  return { label: slug, full: modelId }        <span class="n">// ← 回退到裸 id</span></div>
+  <dl class="kv">
+    <dt>后果</dt><dd>§26.8 明确禁止界面上出现 engine name。而且这里是<b>不确定回退</b>：越是老的、越可能是出问题的作业，越会暴露内部 id。</dd>
+    <dt>修法</dt><dd>回退到用户词（例如「未知引擎」）或干脆不渲染这一行；内部 id 留在详情面板里。</dd>
+  </dl>
+  <div class="grid2">
+    <figure><img src="assets/round2/02-1440-review-settled.png" alt="交付态读数模块"><figcaption>正常态：<b>Built by V4 Flash</b>（左下）</figcaption></figure>
+    <figure><img src="assets/round2/03-1024-failed.png" alt="失败态读数模块"><figcaption>失败态：<b>Built by deepseek-v4-flash</b>（左下），同一行，两种暴露程度</figcaption></figure>
+  </div>
+</div>
+
+<div class="card">
+  <h4><span class="id">N4</span> 107 处 Tailwind 原色类，实测会真的渲染 <span class="tag p1">P1</span></h4>
+  <p class="where">validation-panel / chat-panel / research-panel / timeline-panel / job-version-history / notes-panel / job-dependencies / ui/toast / ui/slider · 违反 §11</p>
+  <p>上一轮的颜色纪律只查了 <code>#RRGGBB</code> 字面量，并为此加了一条 ESLint 规则。但 <code>text-emerald-400</code> 这类<b>类名</b>不是 hex，规则抓不到。静态统计结果：</p>
+  <table>
+    <thead><tr><th>文件</th><th>处数</th><th>高频变体</th></tr></thead>
+    <tbody>
+      <tr><td>validation-panel.tsx</td><td class="num">50</td><td>emerald / rose / amber</td></tr>
+      <tr><td>chat-panel.tsx</td><td class="num">11</td><td>emerald / amber</td></tr>
+      <tr><td>research-panel.tsx</td><td class="num">10</td><td>sky / violet</td></tr>
+      <tr><td>timeline-panel.tsx</td><td class="num">10</td><td>emerald / rose</td></tr>
+      <tr><td>job-version-history.tsx</td><td class="num">10</td><td>emerald / amber</td></tr>
+      <tr><td>notes-panel.tsx</td><td class="num">7</td><td>amber</td></tr>
+      <tr><td>job-dependencies.tsx</td><td class="num">5</td><td>sky</td></tr>
+      <tr><td>ui/toast.tsx · ui/slider.tsx</td><td class="num">4</td><td>rose / emerald</td></tr>
+      <tr><td colspan="3">合计 <b>107 处 / 36 种</b>；高频：<code>text-emerald-400</code> 13、<code>text-amber-400</code> 12、<code>text-rose-400</code> 11；<b>含 <code>cyan-400</code>（§11 明令禁止）</b></td></tr>
+    </tbody>
+  </table>
+  <p>关键问题是这些类<b>到底会不会生效</b>。在真实页面里注入带目标类名的元素，读计算样式：</p>
+  <div class="evidence">text-emerald-400    → color: <span class="quote">lab(75.08 -60.73 19.41)</span>     <span class="n">饱和绿</span>
+text-cyan-400       → color: <span class="quote">lab(76.60 -40.94 -29.62)</span>     <span class="n">饱和青 ← 明令禁止</span>
+text-amber-400      → color: <span class="quote">lab(80.16 16.60 99.21)</span>       <span class="n">饱和琥珀</span>
+bg-emerald-500/10   → bg:    <span class="quote">oklab(0.696 -0.162 0.051 / 0.1)</span> <span class="n">10% 绿底</span></div>
+  <p><b>结论：Tailwind 确实生成了这些工具类，也确实没有被全局覆盖。</b>任何带着它们的元素都会渲染成调色板原色，而不是 <code>--shell-*</code> 令牌。</p>
+  <div class="callout">
+    <h4>诚实边界</h4>
+    <p>可达性是成立的：<code>validation-panel</code> / <code>job-dependencies</code> / <code>research-panel</code> / <code>chat-panel</code> 由 <code>InspectorPanel</code> 挂载，<code>job-version-history</code> / <code>timeline-panel</code> / <code>notes-panel</code> 由 <code>history-panel</code> 挂载。</p>
+    <p>但我按可达路径打开了 Code / History / Description 三个页签后，DOM 里只捞到 1 个带 <code>cyan-400</code> 的元素，且它的计算色已被覆盖成 shell 文本色——<b>死类</b>。其余 7 个面板本次没有渲染出来，所以「107 处全部可见」<b>未获证实</b>；已证实的是「工具类本身有效」+「静态确有 107 处」。这条按 P1 记，但请用第 7 节的脚本逐面板复核后再定修复量。</p>
+  </div>
+  <dl class="kv">
+    <dt>修法</dt><dd>把 107 处换成 <code>var(--shell-ok)</code> / <code>--shell-warn</code> / <code>--shell-fail</code> 系列；并把 ESLint 的 <code>no-restricted-syntax</code> 从"禁 hex"扩展到"禁 Tailwind 调色板类名"。</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h4><span class="id">N5</span> 首屏 3D 视图 6.5 秒空窗，而静帧就在手边 <span class="tag p1">P1</span></h4>
+  <p class="where">ViewerPanel.tsx:16-26 · three-d-viewer.tsx:990-1000 · 违反 §4</p>
+  <p>点选零件后，画布中央只有一个骨架框和一行 <b>Preparing 3D view</b>。实测冷缓存下这段空窗持续 <span class="num">6.5 秒</span>，热缓存 1.0–2.5 秒。</p>
+  <div class="evidence"><span class="n">t=1500ms</span> prep=true  canvases=[]      mount=1440×900
+<span class="n">t=5000ms</span> prep=true  canvases=[]
+<span class="n">t=5500ms</span> prep=true  canvases=[1440×900]   <span class="n">← canvas 挂上了</span>
+<span class="n">t=6500ms</span> prep=false canvases=[1440×900]   <span class="n">← 骨架才撤</span></div>
+  <p>而这件作业的 <code>pngPath</code> 是 <code>/artifacts/&lt;id&gt;/preview.png</code>，直链 <b>200</b>，图就在磁盘上。DESIGN.md §4 要求"失败时展示最后一次已知渲染"，加载时更该先给一张静帧：<b>用户看到的应该是"零件正在出现"，而不是"系统正在准备某个东西"。</b></p>
+  <dl class="kv">
+    <dt>修法</dt><dd>把 <code>preview.png</code> 作为 canvas 的背景层先铺上，canvas ready 后淡出。骨架只用于<b>确实没有静帧</b>的作业。</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h4><span class="id">N6</span> 移动端 sheet 页签没有激活态 <span class="tag p2">P2</span></h4>
+  <p class="where">MainWorkspace 窄屏页签行 · 违反 §20 / §21</p>
+  <p>390×844 下四个页签（Part slots / Dimensions / Checks / Readouts）在视觉上完全一致。抽查两枚的计算样式：</p>
+  <div class="evidence">Part slots → color: rgb(189,180,167)  font-weight: 400  aria-selected: null  aria-pressed: false
+Readouts   → color: rgb(189,180,167)  font-weight: 400  aria-selected: null  aria-pressed: false</div>
+  <p>既没有视觉标记，也没有可访问性标记。用户点了"Dimensions"之后，无法确认自己现在在哪个 sheet 里——只能靠下面的内容猜。</p>
+  <figure>
+    <img src="assets/round2/04-390-delivered.png" alt="390×844 交付态">
+    <figcaption>390×844 / dark。四个页签同色同重；同时注意画布上方悬空的三根红/绿/蓝轴线（见 N10），以及顶部被截断成 <b>A solid 20 m…</b> 的零件名（见 N12）。</figcaption>
+  </figure>
+</div>
+
+<div class="card">
+  <h4><span class="id">N7</span> 10px 正文仍在，且是句子不是标签 <span class="tag p2">P2</span></h4>
+  <p class="where">ReadoutModule · MainWorkspace · 违反 §24（正文不低于 11px）</p>
+  <p>本轮逐字采样到的 10px 文本：</p>
+  <div class="evidence">Target values are not measured geometry.   <span class="n">← 正文句子，必须 ≥11px</span>
+mm · 0 — 200                                <span class="n">← 参数范围，正文</span>
+Drag a module header to move it             <span class="n">← 提示句，正文</span>
+Needs your decision                         <span class="n">← 状态词</span>
+Panels / Overview / Tune / Model / Revision 1 / Part slots / History   <span class="n">← chrome 标签，10px 可接受（§12）</span></div>
+  <p>需要区分对待：<b>chrome 标签 10px 是设计选择，正文句子 10px 是违规。</b>上一轮把字号收敛到五档是对的，但 10px 这一档被用到了句子身上。</p>
+</div>
+
+<div class="card">
+  <h4><span class="id">N8</span> 内部语汇：<code>Target values are not measured geometry.</code> <span class="tag p2">P2</span></h4>
+  <p class="where">ReadoutModule 底部 · 违反 §10 / §26.8</p>
+  <p>"target values" 和 "measured geometry" 是引擎词。用户心里只有两样东西：<b>我填的尺寸</b> 和 <b>实际做出来的东西</b>。这句话想说的其实是"下面这组包围盒是按你填的参数算的，不是从模型量的"，但现在的写法要求用户先懂管线。</p>
+  <dl class="kv">
+    <dt>改写</dt><dd>「按参数推算 · 非实测」——同样是 11 个字，不需要任何背景知识。</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h4><span class="id">N9</span> 失败态的强调层级倒置 <span class="tag p2">P2</span></h4>
+  <p class="where">composer 发送键 vs JobFailureNotice · 违反 §11</p>
+  <p>失败态实拍里，屏幕最响的元素是 composer 右下角那颗<b>实心 signal 圆键</b>（34×34，实测面积 1156px²）；而这个状态真正要求的动作——失败卡上的「Generate again」——只有 1px 描边。同一颗发送键在交付态实测为 <code>rgba(255,255,255,0.055)</code>，即 6% 白。</p>
+  <p>也就是说：<b>同一个控件在两种状态下强调级别不同，而失败态下最响的那个不是恢复动作。</b>用户的视线会被拉到"再输入一句话"，而不是"重试"。§11 的强调色预算本意就是防止这件事。</p>
+  <dl class="kv">
+    <dt>边界</dt><dd>我没有定位到触发实心态的具体条件（输入非空？焦点？作业状态？），因此这一条记为<b>待确认</b>，不建议直接改代码，先把判定条件找出来。</dd>
+  </dl>
+</div>
+
+<div class="card">
+  <h4><span class="id">N10</span> 3D 视口里的轴线悬在半空 <span class="tag p3">P3</span></h4>
+  <p class="where">three-d-viewer.tsx:715-719 · 违反 §11</p>
+  <p><code>AxesHelper</code> 固定在世界坐标 <code>(-50, 0.1, -50)</code>。在小视口里它落在模型正上方，读起来像三根彩色的线飘在空中——没有地面、没有原点参照，用户第一反应是"渲染出错了"。</p>
+  <p>另外它用的是红/绿/蓝三原色，属于"任意装饰色"，和 §11 的颜色预算直接冲突。轴线要么绑到模型的包围盒角点并随网格一起显示/隐藏，要么去掉。</p>
+</div>
+
+<div class="card">
+  <h4><span class="id">N11</span> 浮板压住零件栏边框 <span class="tag p3">P3</span></h4>
+  <p class="where">失败态 1024 / 1280 / 1440</p>
+  <p>三个宽度下都测得 <code>slots ↔ readout</code> 重叠 <span class="num">3511px²</span>（约 59px 高）。没有遮住任何一行内容，但零件栏的下边框被切断，读起来像布局没算完。</p>
+</div>
+
+<div class="card">
+  <h4><span class="id">N12</span> 品牌副标题被省略号截断 <span class="tag p3">P3</span></h4>
+  <p class="where">MainWorkspace 品牌板 · §3.4 精神</p>
+  <p>1440 下显示 <b>A complete V8 …</b>，390 下显示 <b>A solid 20 m…</b>。零件名是这一屏的"身份"，被截断且没有 hover 全文，用户就分不清自己看的是哪一件。§3.4 的原话是"a cutoff control is a bug"——截断的标识文本同理。</p>
+</div>
+
+<h2>四、撤回一条结论</h2>
+<div class="callout">
+  <h4>上一版我准备写"查看器卡死在 Preparing 3D view"，这是错的</h4>
+  <p>证据是那张 2.5 秒时的截图：画布中央只有骨架和 "Preparing 3D view"，而列表说 "Ready to export"。看起来像永久卡死。</p>
+  <p>实际是我的脚本只等了 2.5 秒就按了快门。用 250ms 粒度的探针重跑后：<code>prep</code> 在 6.5 秒（冷）/ 1.0–2.5 秒（热）后变为 <code>false</code>，canvas 正常挂载，几何正常渲染（见 390 截图里的立方体）。<b>没有卡死。</b></p>
+  <p>这条已改写为 N5：问题真实存在，但性质是"空窗期太长且不用静帧"，不是"死锁"。写进这里是因为审查报告的价值取决于它有多可信——一条夸大的结论会毁掉另外十一条。</p>
+</div>
+
+<h2>五、评分卡</h2>
+<table>
+  <thead><tr><th>维度</th><th>分</th><th>依据</th></tr></thead>
+  <tbody>
+    <tr><td>布局与裁切</td><td><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div><span class="num">4.5</span></td><td>30/30 零裁切，右列分配正确，浮板位置稳定</td></tr>
+    <tr><td>排版与字号</td><td><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div><span class="num">4.0</span></td><td>五档收敛成功；10px 仍用在正文句子上（N7）</td></tr>
+    <tr><td>颜色纪律</td><td><div class="bar"><i class="on low"></i><i class="on low"></i><i class="on mid"></i><i></i><i></i></div><span class="num">2.8</span></td><td>107 处原色类实测生效，含 cyan（N4）；失败态强调倒置（N9）</td></tr>
+    <tr><td>状态真实性</td><td><div class="bar"><i class="on low"></i><i class="on low"></i><i></i><i></i><i></i></div><span class="num">2.2</span></td><td>陈旧判定自相矛盾（N1）；加载期假空态（N2）；引擎名泄漏（N3）</td></tr>
+    <tr><td>文案</td><td><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div><span class="num">3.0</span></td><td>检验摘要与修订段已经好读；仍残留引擎语汇（N8）</td></tr>
+    <tr><td>响应式</td><td><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div><span class="num">3.5</span></td><td>移动端几何真实渲染；页签无激活态（N6）；品牌名截断（N12）</td></tr>
+    <tr><td>性能观感</td><td><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div><span class="num">3.0</span></td><td>6.5s 冷启动空窗，静帧未利用（N5）</td></tr>
+    <tr><td>可访问性</td><td><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div><span class="num">4.0</span></td><td>对比度 0 失败；移动页签缺 aria 状态（N6）</td></tr>
+    <tr><td><b>总分</b></td><td><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div><b class="num">3.8</b></td><td>比第一轮 2.7 提升 1.1；扣分全部集中在"界面说的是不是真的"</td></tr>
+  </tbody>
+</table>
+
+<h2>六、修复顺序</h2>
+<ol>
+  <li><b>N1（P0，先修这个）</b>——把陈旧判定收成一个写者。<code>baseline = job.parameterValues</code>，<code>draft</code> 与它比。尺寸模块删掉自己的 <code>changed</code> 计算，改吃 <code>hasDraftChanges</code> + <code>changes</code>。修完断言：打开任意已交付零件，尺寸模块与 composer 的陈旧语句必须同时为空。</li>
+  <li><b>N2（P1）</b>——summary 补 <code>parameterSchema</code> / <code>parameterValues</code> / <code>validationResults</code>；或模块引入 <code>pending</code> 态。修完断言：点选后 0ms 起，屏幕上不得出现"Generate this part / Generate a part"。</li>
+  <li><b>N3（P1）</b>——<code>engineLabel</code> 去掉裸 id 回退；读数模块那一行改成不依赖模型的固定文案或不渲染。修完断言：任何页面上不得匹配到 <code>deepseek-|gpt-|claude-</code> 这类 id 形态。</li>
+  <li><b>N4（P1）</b>——按第 7 节脚本逐面板复核后批量替换；ESLint 规则扩展到调色板类名。</li>
+  <li><b>N5（P1）</b>——<code>preview.png</code> 作 canvas 背景层。修完断言：点选后 300ms 内画布区域必须有非空像素。</li>
+  <li><b>N6–N12（P2/P3）</b>——按上面各条的修法逐条处理，N9 先定位触发条件再改。</li>
+</ol>
+
+<h2>七、可自动断言的验收清单</h2>
+<p>下面每一条都能写成脚本，不需要人眼判断。</p>
+<table>
+  <thead><tr><th>断言</th><th>方法</th></tr></thead>
+  <tbody>
+    <tr><td>陈旧只有一个写者</td><td>选中任意已交付零件，<code>[data-module="params"]</code> 内不得出现 <code>Rebuild required</code>，除非 composer 尾部同时出现同一句</td></tr>
+    <tr><td>加载期不撒谎</td><td>点选后 0–3000ms 每 100ms 采样，页面文本不得出现 <code>Generate this part</code> / <code>Generate a part to see</code></td></tr>
+    <tr><td>无引擎名</td><td><code>document.body.innerText</code> 不得匹配 <code>/(deepseek|gpt|claude|gemini|llama)[-_ ]?[0-9a-z.]*/i</code></td></tr>
+    <tr><td>无调色板原色</td><td>遍历所有元素 className，不得匹配 <code>/(emerald|rose|amber|cyan|sky|violet|purple|blue|green|red|yellow|orange|teal|indigo|fuchsia|pink|lime)-\d{2,3}/</code>；逐面板打开后再跑一遍</td></tr>
+    <tr><td>首帧有内容</td><td>点选后 300ms 截图，画布区域非背景色像素占比 &gt; 5%</td></tr>
+    <tr><td>移动页签有激活态</td><td>390 宽下，四个 sheet 页签的 <code>computedStyle</code> 必须至少有一项不同，且被选中者带 <code>aria-selected="true"</code></td></tr>
+    <tr><td>正文不小于 11px</td><td>遍历叶子文本节点，凡长度 &gt; 12 字符者 <code>fontSize ≥ 11</code></td></tr>
+    <tr><td>零裁切</td><td>已有断言继续跑：<code>scrollHeight - clientHeight ≤ 2</code> 且 <code>overflow: hidden</code> 的元素数为 0</td></tr>
+  </tbody>
+</table>
+
+<h2>八、值得保留的部分</h2>
+<div class="callout good">
+  <h4>这些不要动</h4>
+  <p><b>检验模块的摘要行</b>——"7 checks ran · 5 passed · 1 failed · 1 to review" 一句话把四件事说清楚了，而且计数只有一个来源（<code>summarizeChecks</code>）。这是全屏最诚实的一块。</p>
+  <p><b>读数模块的层级</b>——包络尺寸 16px 作主角，壁厚 / 三角面 / 制品状态依次退后，符合 §6"读数是指针，不是表格"。</p>
+  <p><b>参数行的单位列</b>——计数量（Cyl per Bank）不给单位，长度量给 mm，这个区分是对的，而且做在 schema 层（<code>isCountParameter</code>）而不是散在组件里。</p>
+  <p><b>移动端能真的看到零件</b>——390 宽下渲染的是几何本体而不是占位图，这件事比它看起来难。</p>
+</div>
+
+<div class="foot">
+  第二轮审查 · 2026-10-27 · 30 组合实测 / 48 帧时间线 / 载荷字段比对 / 工具类生效性探针<br>
+  截图目录：docs/ui-review/assets/round2/ · 第一轮报告：2026-10-27-ui-review.html
+</div>
+
+</div>
+</body>
+</html>

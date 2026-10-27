@@ -1,46 +1,57 @@
 'use client'
 
 import { useI18n } from '@/components/i18n-provider'
-import { motion } from 'framer-motion'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { getStateInfo } from './types'
+import {
+  getJobStateUi,
+  STATE_TONE_CLASS,
+  STATE_TONE_DOT_CLASS,
+} from './types'
 
-const ACTIVE_STATES = ['NEW', 'SCAD_GENERATED', 'RENDERED', 'VALIDATED', 'DEBUGGING', 'REPAIRING']
-const FAILED_STATES = ['VALIDATION_FAILED', 'GEOMETRY_FAILED', 'RENDER_FAILED']
-const SHORT_LABELS: Record<string, string> = {
-  NEW: 'Draft',
-  SCAD_GENERATED: 'Generated',
-  RENDERED: 'Rendered',
-  VALIDATED: 'Validated',
-  DELIVERED: 'Artifacts ready',
-  VALIDATION_FAILED: 'Validation blocked',
-  GEOMETRY_FAILED: 'Validation blocked',
-  RENDER_FAILED: 'Validation blocked',
-  HUMAN_REVIEW: 'Needs review',
-  DEBUGGING: 'Repairing',
-  REPAIRING: 'Repairing',
-  CANCELLED: 'Cancelled',
-}
+/*
+ * The one status chip. It reads the unified vocabulary from `types.tsx`, so a
+ * badge can never say "ARTIFACTS READY" while the rail says "Ready to export"
+ * (DESIGN.md sections 2, 6, 11). Colour is a secondary signal: the state word is
+ * always present, and the dot/ring is semantic. Sizes are floored at 10px - the
+ * old `xs` rendered 8px status text, which was unreadable and failed the
+ * text-ladder contrast rule (DESIGN.md sections 12, 21).
+ */
 
-export function StateBadge({ state, size = 'sm', timestamp }: { state: string; size?: 'xs' | 'sm' | 'md'; timestamp?: string }) {
+const SIZE_CLASS = {
+  xs: 'gap-1 text-[10px] px-1 py-0 leading-[16px]',
+  sm: 'gap-1.5 text-[11px] px-1.5 py-0.5 leading-[16px]',
+  md: 'gap-1.5 text-[12px] px-2 py-1 leading-[16px]',
+} as const
+
+const DOT_SIZE_CLASS = {
+  xs: 'h-1 w-1',
+  sm: 'h-1.5 w-1.5',
+  md: 'h-1.5 w-1.5',
+} as const
+
+export function StateBadge({
+  state,
+  size = 'sm',
+  timestamp,
+}: {
+  state: string
+  size?: 'xs' | 'sm' | 'md'
+  timestamp?: string
+}) {
   const { t, locale } = useI18n()
-  const info = getStateInfo(state)
-  const label = t(SHORT_LABELS[state] || state.replace(/_/g, ' '))
-  const isFailed = FAILED_STATES.includes(state)
-  const isDelivered = state === 'DELIVERED'
-  const isReview = state === 'HUMAN_REVIEW'
-  const isProcessing = ACTIVE_STATES.includes(state)
+  const { labelKey, tone } = getJobStateUi(state)
+  const label = t(labelKey)
 
   const formatTimestamp = (ts: string) => {
     try {
       const d = new Date(ts)
       return d.toLocaleString(locale, {
         month: 'short', day: 'numeric',
-        hour: '2-digit', minute: '2-digit', second: '2-digit'
+        hour: '2-digit', minute: '2-digit',
       })
     } catch {
       return ts
@@ -48,10 +59,10 @@ export function StateBadge({ state, size = 'sm', timestamp }: { state: string; s
   }
 
   const tooltipContent = (
-    <div className="text-xs">
-      <div className="font-mono font-semibold">{state}</div>
+    <div className="text-[11px] leading-snug">
+      <div className="font-medium">{label}</div>
       {timestamp && (
-        <div className="text-[13px] opacity-70 mt-0.5">{formatTimestamp(timestamp)}</div>
+        <div className="mt-0.5 font-mono text-[10px] opacity-80">{formatTimestamp(timestamp)}</div>
       )}
     </div>
   )
@@ -59,34 +70,15 @@ export function StateBadge({ state, size = 'sm', timestamp }: { state: string; s
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <motion.span
-          key={state}
-          className={`inline-flex items-center rounded-sm font-mono font-medium relative ${
-            size === 'xs' ? 'gap-1 text-[8px] px-1 py-0.5' :
-            size === 'sm' ? 'gap-1.5 text-[10px] px-1.5 py-0.5' :
-            'gap-1.5 text-xs px-2 py-0.5'
-          } ${
-            isFailed ? 'text-[var(--cad-danger)]' :
-            isDelivered ? 'text-[var(--cad-success)]' :
-            isReview ? 'text-[var(--cad-warning)]' :
-            isProcessing ? 'text-[var(--cad-accent)]' :
-            'text-[var(--cad-text-muted)]'
-          } bg-transparent border border-transparent transition-colors`}
-          initial={{ scale: 1.05, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.2 }}
+        <span
+          className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-[3px] font-medium ${SIZE_CLASS[size]} ${STATE_TONE_CLASS[tone]}`}
         >
-          <span className={`relative rounded-full ${
-            isFailed ? 'bg-[var(--cad-danger)]' :
-            isDelivered ? 'bg-[var(--cad-success)]' :
-            isReview ? 'bg-[var(--cad-warning)]' :
-            isProcessing ? 'bg-[var(--cad-accent)]' :
-            'bg-[var(--cad-text-muted)]'
-          } ${isProcessing || isDelivered ? 'status-pulse' : ''} ${
-            size === 'xs' ? 'w-1 h-1' : 'w-1.5 h-1.5'
-          }`} />
-          <span className="relative tracking-wider uppercase">{label}</span>
-        </motion.span>
+          <span
+            aria-hidden="true"
+            className={`shrink-0 rounded-full ${DOT_SIZE_CLASS[size]} ${STATE_TONE_DOT_CLASS[tone]}`}
+          />
+          <span>{label}</span>
+        </span>
       </TooltipTrigger>
       <TooltipContent side="top">
         {tooltipContent}

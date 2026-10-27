@@ -15,11 +15,16 @@ import {
   findProviderForModel,
 } from "@/lib/provider-settings";
 import {
+  readOpenAiCompatibleStream,
+  type StreamedCompletion,
+} from "@/lib/tools/model-stream";
+import {
   createModelRequestSignal,
   getModelRequestTimeoutMs,
   ModelRequestError,
   normalizeModelRequestError,
   createControlledSnippet,
+  countLlmCall,
   type ModelErrorEvidence,
 } from "@/lib/model-runtime";
 
@@ -270,6 +275,115 @@ export function unpackProviderChatCompletionResponse(
   return unpackProviderChatCompletionDetailed(result, providerLabel, fallbackModel).content;
 }
 
+/** Convert an accumulated SSE stream into the same shape as a JSON completion. */
+export function toModelCompletionResponseFromStream(
+  streamed: StreamedCompletion,
+  providerLabel = "Model provider",
+  fallbackModel?: string,
+): ModelCompletionResponse {
+  const resolvedModel = streamed.model || fallbackModel || "unknown";
+  const reasoningContent = streamed.reasoningContent?.trim() || undefined;
+  const content = streamed.content;
+  const trimmedContent = content.trim();
+
+  if (!trimmedContent) {
+    const evidence: ModelErrorEvidence = {
+      model: resolvedModel,
+      provider: providerLabel,
+      finishReason: streamed.finishReason,
+      responseLength: 0,
+      usage: streamed.usage,
+    };
+
+    // Mirror the non-streaming path: a provider that returned only hidden
+    // reasoning still gets a chance at the repair/format-correction flow.
+    if (reasoningContent) {
+      return {
+        content: reasoningContent,
+        model: resolvedModel,
+        provider: providerLabel,
+        finishReason: streamed.finishReason,
+        responseLength: reasoningContent.length,
+        rawSnippet: createControlledSnippet(reasoningContent),
+        reasoningContent,
+        usage: streamed.usage,
+      };
+    }
+
+    if (streamed.finishReason === "length") {
+      throw new ModelRequestError(
+        "LLM_OUTPUT_TRUNCATED",
+        `${providerLabel} output was truncated before completion (finish_reason: length).`,
+        true,
+        { evidence },
+      );
+    }
+    if (streamed.finishReason === "content_filter" || streamed.finishReason === "refusal") {
+      throw new ModelRequestError(
+        "LLM_UNAVAILABLE",
+        `${providerLabel} request was filtered or refused by safety rules (finish_reason: ${streamed.finishReason}).`,
+        false,
+        { evidence },
+      );
+    }
+    throw new ModelRequestError(
+      "LLM_EMPTY_RESPONSE",
+      `${providerLabel} returned an empty message (finish_reason: ${streamed.finishReason || "unknown"}).`,
+      true,
+      { evidence },
+    );
+  }
+
+  return {
+    content,
+    model: resolvedModel,
+    provider: providerLabel,
+    finishReason: streamed.finishReason,
+    responseLength: content.length,
+    rawSnippet: createControlledSnippet(content),
+    ...(reasoningContent ? { reasoningContent } : {}),
+    ...(streamed.usage ? { usage: streamed.usage } : {}),
+  };
+}
+
+/**
+ * Read one provider response, accepting either a live SSE stream or a plain JSON
+ * body (a provider may ignore `stream: true`). Streaming keeps the connection
+ * active during multi-minute CAD generations; see model-stream.ts.
+ */
+export async function readModelCompletionResponse(
+  response: Response,
+  options: {
+    stream: boolean;
+    providerLabel: string;
+    fallbackModel?: string;
+    signal?: AbortSignal;
+  },
+): Promise<ModelCompletionResponse> {
+  const contentType = response.headers.get("content-type") ?? "";
+  const isEventStream = /text\/event-stream/i.test(contentType);
+
+  if (!options.stream || !isEventStream) {
+    const result = await response.json();
+    return unpackProviderChatCompletionDetailed(
+      result,
+      options.providerLabel,
+      options.fallbackModel,
+    );
+  }
+
+  const streamed = await readOpenAiCompatibleStream(response, {
+    provider: options.providerLabel,
+    model: options.fallbackModel,
+    signal: options.signal,
+  });
+  return toModelCompletionResponseFromStream(
+    streamed,
+    options.providerLabel,
+    options.fallbackModel,
+  );
+}
+
 export function hasImageInput(messages: MimoMessage[]): boolean {
   return messages.some((message) =>
     Array.isArray(message.content)
@@ -303,12 +417,21 @@ export async function createChatCompletionDetailed({
   preferMimo = true,
   signal,
 }: ModelRouterRequest): Promise<ModelCompletionResponse> {
+  // Single accounting point for `Job.llmCallCount`. Every model call in the
+  // product reaches this function, so counting here keeps the metric complete
+  // without threading counters through five different return types.
+  countLlmCall();
   const timeoutMs = getModelRequestTimeoutMs();
   const requestSignal = createModelRequestSignal(signal, timeoutMs);
+  const startedAt = Date.now();
+  let requestedModel = model;
+  let requestedProvider: string | undefined;
 
   try {
     const configuredProvider = await findProviderForModel(model);
     if (configuredProvider) {
+      requestedProvider = configuredProvider.provider.name;
+      requestedModel = configuredProvider.model;
       const providerResponse = await createProviderChatCompletion({
         provider: configuredProvider.provider,
         model: configuredProvider.model,
@@ -316,12 +439,12 @@ export async function createChatCompletionDetailed({
         stream,
         signal: requestSignal,
       });
-      const result = await providerResponse.json();
-      return unpackProviderChatCompletionDetailed(
-        result,
-        configuredProvider.provider.name,
-        configuredProvider.model,
-      );
+      return readModelCompletionResponse(providerResponse, {
+        stream,
+        providerLabel: configuredProvider.provider.name,
+        fallbackModel: configuredProvider.model,
+        signal: requestSignal,
+      });
     }
 
     if (isOpenRouterModel(model)) {
@@ -331,8 +454,12 @@ export async function createChatCompletionDetailed({
         stream,
         signal: requestSignal,
       });
-      const result = await openRouterResponse.json();
-      return unpackProviderChatCompletionDetailed(result, "OpenRouter", model);
+      return readModelCompletionResponse(openRouterResponse, {
+        stream,
+        providerLabel: "OpenRouter",
+        fallbackModel: model,
+        signal: requestSignal,
+      });
     }
 
     if (model?.startsWith("deepseek-")) {
@@ -342,8 +469,12 @@ export async function createChatCompletionDetailed({
         stream,
         signal: requestSignal,
       });
-      const result = await deepSeekResponse.json();
-      return unpackProviderChatCompletionDetailed(result, "DeepSeek", model);
+      return readModelCompletionResponse(deepSeekResponse, {
+        stream,
+        providerLabel: "DeepSeek",
+        fallbackModel: model,
+        signal: requestSignal,
+      });
     }
 
     if (preferMimo && getMimoConfig().enabled) {
@@ -354,8 +485,12 @@ export async function createChatCompletionDetailed({
         stream,
         signal: requestSignal,
       });
-      const result = await mimoResponse.json();
-      return unpackProviderChatCompletionDetailed(result, "MiMo", selectedModel);
+      return readModelCompletionResponse(mimoResponse, {
+        stream,
+        providerLabel: "MiMo",
+        fallbackModel: selectedModel,
+        signal: requestSignal,
+      });
     }
 
     if (hasImageInput(messages)) {
@@ -382,12 +517,21 @@ export async function createChatCompletionDetailed({
                 .map((part) => part.text)
                 .join("\n"),
       })),
-      stream,
+      // The fallback SDK does not expose an OpenAI-compatible SSE body here;
+      // keep its response shape non-streaming.
+      stream: false,
     }), requestSignal);
 
     return unpackProviderChatCompletionDetailed(result, "Fallback provider", "zai-default");
   } catch (error) {
-    throw normalizeModelRequestError(error, timeoutMs);
+    const normalized = normalizeModelRequestError(error, timeoutMs);
+    throw new ModelRequestError(normalized.code, normalized.message, normalized.retryable, {
+      cause: normalized,
+      evidence: {
+        model: requestedModel, provider: requestedProvider,
+        ...normalized.evidence, elapsedMs: Date.now() - startedAt,
+      },
+    });
   }
 }
 

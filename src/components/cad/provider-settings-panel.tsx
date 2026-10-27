@@ -42,6 +42,15 @@ const EMPTY_FORM = {
   keepExistingApiKey: false,
 }
 
+/* Shell tokens only (DESIGN.md section 22): this panel used the un-themed `--app-*`
+   accent/active fills, which in dark mode put amber text at 4.2:1 and a 3% white
+   wash where the selected tab should be. */
+const FIELD =
+  'shell-field h-8 rounded-[4px] border-[color:var(--shell-border)] bg-[var(--shell-module-solid)] text-[12px] text-[var(--shell-text)] placeholder:text-[var(--shell-text-muted)] focus:border-[var(--shell-signal)] focus-visible:ring-0'
+const LABEL = 'flex items-center gap-1.5 text-[12px] font-medium text-[var(--shell-text-label)]'
+const ICON_BUTTON =
+  'linear-focus-ring h-7 w-7 shrink-0 rounded-[4px] text-[var(--shell-text-muted)] outline-none transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]'
+
 export function ProviderSettingsPanel({
   onProvidersChanged,
 }: {
@@ -144,7 +153,7 @@ export function ProviderSettingsPanel({
       await testProvider(form)
       toast.success(t("Provider connection works"))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("Provider test failed"))
+      toast.error(error instanceof Error ? error.message : t("Failed to test provider"))
     } finally {
       setIsTesting(false)
     }
@@ -193,22 +202,44 @@ export function ProviderSettingsPanel({
     }
   }
 
+  /* Honest disabled states: a dimmed Save/Test that cannot say why is worse than a
+     plain disabled control that names its precondition in `title`. */
+  const saveDisabledReason = isSaving
+    ? t("Saving…")
+    : isTesting
+      ? t("Wait for the connection test to finish")
+      : !persistenceUi.canSave
+        ? persistence.writable
+          ? t("Save is unavailable right now")
+          : t("Configure {0} in Vercel Project Settings", { 0: selectedEnvKey })
+        : undefined
+  const testDisabledReason = isSaving
+    ? t("Wait for the save to finish")
+    : isTesting
+      ? t("Testing…")
+      : undefined
+
   return (
     <div className="space-y-4 p-1">
       <div className="space-y-2">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex min-h-8 items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Plug className="w-3.5 h-3.5 text-[var(--app-accent-text)]" />
-            <span className="text-[13px] font-mono tracking-widest text-[var(--app-accent-text)] uppercase">{t("Providers")}</span>
+            <Plug className="w-3.5 h-3.5 text-[var(--shell-signal-soft)]" />
+            <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--shell-signal-soft)]">{t("Providers")}</span>
           </div>
-          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={handleReset}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="linear-focus-ring h-7 gap-1 rounded-[4px] px-2 text-[12px] text-[var(--shell-text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]"
+            onClick={handleReset}
+          >
             <Plus className="w-3.5 h-3.5" />{t("Add")}
           </Button>
         </div>
 
         {activeEnvProviders.length > 0 && (
-          <div className="rounded-lg border border-[color:var(--app-border)] bg-[var(--app-bg)] px-3 py-2">
-            <div className="flex items-center gap-2 text-[13px] text-[var(--app-text-secondary)]">
+          <div className="rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] px-3 py-2">
+            <div className="flex items-center gap-2 text-[12px] text-[var(--shell-text-muted)]">
               <Wifi className="w-3.5 h-3.5 text-[var(--shell-ok)]" />
               {t("Environment keys detected")}
             </div>
@@ -223,51 +254,80 @@ export function ProviderSettingsPanel({
         )}
 
         {persistenceUi.showEnvironmentNotice && (
-          <div className="rounded-lg border border-transparent bg-transparent px-3 py-2 text-xs leading-5 text-[var(--app-text-secondary)]">
-            {t("Vercel stores providers through environment variables. Add")} <span className="font-mono text-[var(--shell-warn)]">{selectedEnvKey}</span> {t("in Vercel Project Settings, then redeploy. You can test a key here, but it will not be saved.")}
+          /*
+           * Action first. The old copy opened with how Vercel stores providers and
+           * closed with an apology about saving, which is deployment detail, not an
+           * instruction (UI-10: "do not explain the application's own
+           * architecture"). What a person needs is the variable name, where to put
+           * it, and whether the Test button they can see will do anything.
+           */
+          <div className="rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] px-3 py-2 text-[12px] leading-5 text-[var(--shell-text-muted)]">
+            {t("This deployment reads keys from environment variables. Set")} <span className="font-mono text-[var(--shell-warn)]">{selectedEnvKey}</span> {t("in Project Settings and redeploy — a key entered here can be tested but is not saved.")}
           </div>
         )}
 
         {persistenceUi.showSessionNotice && (
-          <div className="rounded-lg border border-transparent bg-transparent px-3 py-2 text-xs leading-5 text-[var(--app-text-secondary)]">
-            <span className="inline-flex items-center gap-1.5 font-medium text-[var(--shell-ok)]">
+          <div className="rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] px-3 py-2">
+            <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[var(--shell-ok)]">
               <ShieldCheck className="h-3.5 w-3.5" />{t("Encrypted session storage")}
             </span>
-            <div className="mt-1">
+            <div className="mt-1 text-[12px] leading-5 text-[var(--shell-text-muted)]">
               {t("API keys are encrypted, unavailable to page JavaScript, and expire when the browser session ends.")}
             </div>
           </div>
         )}
 
-        <div className="space-y-2 max-h-44 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--app-scrollbar-thumb) transparent' }}>
+        <div className="stable-scrollbar max-h-48 space-y-2 overflow-y-auto pr-1">
           {isLoading ? (
             <div className="flex h-20 items-center justify-center">
-              <Loader2 className="w-4 h-4 animate-spin text-[var(--app-text-muted)]" />
+              <Loader2 className="w-4 h-4 animate-spin text-[var(--shell-text-muted)]" />
             </div>
           ) : providers.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-[color:var(--app-border)] px-3 py-4 text-center text-xs text-[var(--app-text-muted)]">
+            <div className="rounded-[6px] border border-dashed border-[color:var(--shell-border)] px-3 py-4 text-center text-[12px] text-[var(--shell-text-muted)]">
               {t("No providers saved for this session.")}
             </div>
           ) : providers.map(provider => (
-            <div key={provider.id} className="rounded-lg border border-[color:var(--app-border)] bg-[var(--app-bg)] px-3 py-2">
+            <div key={provider.id} className="rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] px-3 py-2">
               <div className="flex items-start justify-between gap-2">
-                <button type="button" className="min-w-0 text-left" onClick={() => handleEdit(provider)}>
+                <button
+                  type="button"
+                  className="linear-focus-ring -mx-1 min-w-0 rounded-[4px] px-1 py-0.5 text-left outline-none transition-colors hover:bg-[var(--shell-hover)]"
+                  onClick={() => handleEdit(provider)}
+                  title={t("Edit provider")}
+                >
                   <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium text-[var(--app-text-primary)]">{provider.name}</span>
-                    {provider.isDefault && <Star className="w-3 h-3 fill-[var(--shell-warn)] text-[var(--shell-warn)]" />}
-                    {!provider.enabled && <span className="text-[10px] uppercase text-[var(--app-text-muted)]">{t("Off")}</span>}
+                    <span className="truncate text-[13px] font-medium text-[var(--shell-text)]">{provider.name}</span>
+                    {provider.isDefault && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.08em] text-[var(--shell-warn)]">
+                        <Star className="h-3 w-3 fill-[var(--shell-warn)] text-[var(--shell-warn)]" />
+                        {t("Default")}
+                      </span>
+                    )}
+                    {!provider.enabled && <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--shell-text-label)]">{t("Off")}</span>}
                   </div>
-                  <div className="mt-0.5 truncate text-xs text-[var(--app-text-muted)]">
+                  <div className="mt-0.5 truncate text-[12px] text-[var(--shell-text-muted)]">
                     {provider.defaultModel} · {provider.apiKeyPreview || t("no key")}
                   </div>
                 </button>
                 <div className="flex shrink-0 items-center gap-1">
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleSetDefault(provider)} aria-label={t("Set default provider")}>
-                    <Star className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-[var(--shell-fail)] hover:text-[var(--shell-fail)]" onClick={() => handleDelete(provider)} aria-label={t("Delete provider")}>
+                  <button
+                    type="button"
+                    onClick={() => handleSetDefault(provider)}
+                    aria-label={t("Set default provider")}
+                    title={provider.isDefault ? t("Already the default provider") : t("Set default provider")}
+                    className={`${ICON_BUTTON} ${provider.isDefault ? 'text-[var(--shell-warn)] hover:text-[var(--shell-warn)]' : 'hover:text-[var(--shell-warn)]'}`}
+                  >
+                    <Star className={`w-3.5 h-3.5 ${provider.isDefault ? 'fill-[var(--shell-warn)]' : ''}`} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(provider)}
+                    aria-label={t("Delete provider")}
+                    title={t("Delete provider")}
+                    className={`${ICON_BUTTON} hover:text-[var(--shell-fail)]`}
+                  >
                     <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                  </button>
                 </div>
               </div>
             </div>
@@ -275,13 +335,13 @@ export function ProviderSettingsPanel({
         </div>
       </div>
 
-      <Separator className="bg-[var(--app-surface-hover)]" />
+      <Separator className="bg-[var(--shell-hairline)]" />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label className="text-xs text-[var(--app-text-muted)]">{t("Preset")}</Label>
+          <Label className={LABEL}>{t("Preset")}</Label>
           <Select value={form.preset} onValueChange={handlePresetChange}>
-            <SelectTrigger className="h-8 w-full bg-[var(--app-bg)] border-[color:var(--app-border)]">
+            <SelectTrigger className={`${FIELD} w-full`} aria-label={t("Preset")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -290,91 +350,119 @@ export function ProviderSettingsPanel({
               ))}
             </SelectContent>
           </Select>
-          <div className="text-[10px] leading-4 text-[var(--app-text-muted)]">
+          <div className="text-[11px] leading-4 text-[var(--shell-text-muted)]">
             {selectedPreset?.description}
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs text-[var(--app-text-muted)]">{t("Name")}</Label>
-          <Input value={form.name} onChange={event => updateForm({ name: event.target.value })} className="h-8 bg-[var(--app-bg)] border-[color:var(--app-border)]" />
+          <Label className={LABEL} htmlFor="provider-name">{t("Name")}</Label>
+          <Input id="provider-name" value={form.name} onChange={event => updateForm({ name: event.target.value })} className={FIELD} />
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <Label className="text-xs text-[var(--app-text-muted)] flex items-center gap-1.5">
+        <Label className={LABEL} htmlFor="provider-base-url">
           <Server className="w-3 h-3" />{t("Base URL")}
         </Label>
-        <Input value={form.baseUrl} onChange={event => updateForm({ baseUrl: event.target.value })} className="h-8 bg-[var(--app-bg)] border-[color:var(--app-border)]" />
+        <Input id="provider-base-url" value={form.baseUrl} onChange={event => updateForm({ baseUrl: event.target.value })} className={FIELD} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label className="text-xs text-[var(--app-text-muted)] flex items-center gap-1.5">
+          <Label className={LABEL} htmlFor="provider-api-key">
             <KeyRound className="w-3 h-3" />{t("API Key")}
           </Label>
           <Input
+            id="provider-api-key"
             type="password"
             value={form.apiKey}
             onChange={event => updateForm({ apiKey: event.target.value, keepExistingApiKey: false })}
             placeholder={form.keepExistingApiKey ? t("Keep existing key") : 'sk-...'}
-            className="h-8 bg-[var(--app-bg)] border-[color:var(--app-border)]"
+            className={FIELD}
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs text-[var(--app-text-muted)]">{t("Model")}</Label>
-          <Input value={form.defaultModel} onChange={event => updateForm({ defaultModel: event.target.value })} className="h-8 bg-[var(--app-bg)] border-[color:var(--app-border)]" />
+          <Label className={LABEL} htmlFor="provider-model">{t("Model")}</Label>
+          <Input id="provider-model" value={form.defaultModel} onChange={event => updateForm({ defaultModel: event.target.value })} className={FIELD} />
           {selectedPreset && selectedPreset.recommendedModels.length > 0 && (
             <div className="flex flex-wrap gap-1 pt-0.5">
-              {selectedPreset.recommendedModels.map(recommended => (
-                <button
-                  key={recommended.id}
-                  type="button"
-                  title={recommended.description}
-                  onClick={() => updateForm({ defaultModel: recommended.id })}
-                  className={`rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
-                    form.defaultModel === recommended.id
-                      ? 'border-[color:var(--app-accent)] bg-[var(--app-accent-bg)] text-[var(--app-accent-text)]'
-                      : 'border-[color:var(--app-border)] text-[var(--app-text-muted)] hover:text-[var(--app-text-secondary)]'
-                  }`}
-                >
-                  {recommended.label}
-                </button>
-              ))}
+              {selectedPreset.recommendedModels.map(recommended => {
+                const selected = form.defaultModel === recommended.id
+                return (
+                  <button
+                    key={recommended.id}
+                    type="button"
+                    title={recommended.description}
+                    aria-pressed={selected}
+                    onClick={() => updateForm({ defaultModel: recommended.id })}
+                    className={`linear-focus-ring inline-flex min-h-6 items-center rounded-[4px] border px-2 py-0.5 text-[11px] leading-4 transition-colors ${
+                      selected
+                        ? 'border-[color:color-mix(in_srgb,var(--shell-signal)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--shell-signal)_12%,transparent)] text-[var(--shell-signal-soft)]'
+                        : 'border-[color:var(--shell-border)] text-[var(--shell-text-muted)] hover:border-[color:var(--shell-border-strong)] hover:text-[var(--shell-text)]'
+                    }`}
+                  >
+                    {recommended.label}
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <label className="flex items-center gap-2 text-xs text-[var(--app-text-secondary)]">
-          <Switch checked={form.enabled} onCheckedChange={enabled => updateForm({ enabled })} />
-          {t("Enabled")}
-        </label>
-        <label className="flex items-center gap-2 text-xs text-[var(--app-text-secondary)]">
-          <Switch checked={form.isDefault} onCheckedChange={isDefault => updateForm({ isDefault })} />
-          {t("Default")}
-        </label>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-5">
+          <div className="flex min-h-7 items-center gap-2">
+            <Switch
+              id="provider-enabled"
+              checked={form.enabled}
+              onCheckedChange={enabled => updateForm({ enabled })}
+              aria-label={t("Enabled")}
+              title={t("Enabled")}
+            />
+            <Label htmlFor="provider-enabled" className="text-[12px] font-normal text-[var(--shell-text-muted)]">{t("Enabled")}</Label>
+          </div>
+          <div className="flex min-h-7 items-center gap-2">
+            <Switch
+              id="provider-default"
+              checked={form.isDefault}
+              onCheckedChange={isDefault => updateForm({ isDefault })}
+              aria-label={t("Default")}
+              title={t("Default")}
+            />
+            <Label htmlFor="provider-default" className="text-[12px] font-normal text-[var(--shell-text-muted)]">{t("Default")}</Label>
+          </div>
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {persistence.mode === 'encrypted-cookie' && providers.length > 0 && (
-            <Button variant="ghost" size="sm" className="h-8 gap-1 text-[var(--shell-fail)] hover:text-[var(--shell-fail)]" onClick={handleClearProviders}>
+            <Button variant="ghost" size="sm" className="linear-focus-ring h-8 gap-1 rounded-[6px] px-2.5 text-[12px] text-[var(--shell-fail)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-fail)]" onClick={handleClearProviders}>
               <Trash2 className="w-3.5 h-3.5" />
               {t("Clear keys")}
             </Button>
           )}
-          <Button variant="outline" size="sm" className="h-8 gap-1" onClick={handleTest} disabled={isTesting || isSaving}>
-            {isTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-            {t("Test")}
-          </Button>
-          <Button
-            size="sm"
-            className="h-8 gap-1 bg-[var(--app-accent)] hover:bg-[var(--app-accent-hover)]"
-            onClick={handleSave}
-            disabled={isSaving || isTesting || !persistenceUi.canSave}
-            title={!persistence.writable ? t("Configure {0} in Vercel Project Settings", { 0: selectedEnvKey }) : undefined}
-          >
-            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
-            {t("Save")}
-          </Button>
+          <span title={testDisabledReason}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="linear-focus-ring h-8 gap-1 rounded-[6px] border-[color:var(--shell-border)] bg-transparent px-3 text-[12px] text-[var(--shell-text-muted)] hover:border-[color:var(--shell-border-strong)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] disabled:opacity-40"
+              onClick={handleTest}
+              disabled={isTesting || isSaving}
+            >
+              {isTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              {t("Test")}
+            </Button>
+          </span>
+          <span title={saveDisabledReason}>
+            <Button
+              size="sm"
+              className="linear-focus-ring h-8 gap-1 rounded-[6px] bg-[var(--shell-signal)] px-3 text-[12px] font-medium text-[var(--shell-signal-ink)] hover:bg-[var(--shell-signal-hover)] disabled:opacity-40 disabled:pointer-events-none"
+              onClick={handleSave}
+              disabled={isSaving || isTesting || !persistenceUi.canSave}
+            >
+              {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
+              {t("Save")}
+            </Button>
+          </span>
         </div>
       </div>
     </div>

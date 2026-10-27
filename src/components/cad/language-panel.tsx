@@ -16,13 +16,13 @@ export function LanguagePanel() {
           id="interface-language"
           value={locale}
           onChange={event => setLocale(event.target.value as Locale)}
-          className="h-10 w-full rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] px-3 text-sm text-[var(--shell-text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--shell-signal)]"
+          className="h-10 w-full rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] px-3 text-[13px] text-[var(--shell-text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--shell-signal)]"
         >
           <option value="en" lang="en">English</option>
           <option value="zh-CN" lang="zh-CN">简体中文</option>
         </select>
       </div>
-      <p className="text-[11.5px] leading-[1.6] text-[var(--shell-text-muted)]">
+      <p className="text-[12px] leading-[1.6] text-[var(--shell-text-muted)]">
         {t('Changes apply immediately and are saved in this browser.')}
       </p>
     </div>

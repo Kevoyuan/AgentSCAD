@@ -16,28 +16,42 @@ export type HistorySubTab = 'versions' | 'timeline' | 'notes'
 interface HistoryPanelProps {
   job: Job
   onUpdate: () => void
+  initialTab?: HistorySubTab
 }
 
-export function HistoryPanel({ job, onUpdate }: HistoryPanelProps) {
+/* Shell tokens only (DESIGN.md section 22). The sub-tab used the legacy amber
+   `--app-accent` fill with white text - 3.1:1 in light mode - and 24px tall
+   targets. It is now the shell's one signal fill with dark ink, on 28px targets. */
+const SUB_TAB =
+  'linear-focus-ring inline-flex h-7 items-center gap-1.5 rounded-[4px] px-2.5 font-mono text-[11px] outline-none transition-colors'
+
+export function HistoryPanel({ job, onUpdate, initialTab }: HistoryPanelProps) {
   const { t } = useI18n()
 
-  const [subTab, setSubTab] = useState<HistorySubTab>('versions')
+  const [subTab, setSubTab] = useState<HistorySubTab>(initialTab ?? (job.state.endsWith('_FAILED') ? 'timeline' : 'versions'))
   const logs = parseJSON<ExecutionLog[]>(job.executionLogs, [])
   const hasNotes = Boolean(job.notes && job.notes.trim().length > 0)
 
+  const tabClass = (active: boolean) => `${SUB_TAB} ${
+    active
+      ? 'bg-[var(--shell-signal)] font-semibold text-[var(--shell-signal-ink)]'
+      : 'text-[var(--shell-text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]'
+  }`
+
   return (
-    <div className="flex flex-col h-full min-h-0 min-w-0 bg-[var(--app-surface)]">
+    <div className="flex flex-col h-full min-h-0 min-w-0">
       {/* Precision Segmented Controller */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)] bg-[var(--app-surface-raised)]/30 shrink-0">
-        <div className="flex items-center gap-1 bg-[var(--app-surface)] p-0.5 rounded-md border border-[color:var(--app-border)]">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[color:var(--shell-hairline)] px-3 py-1.5">
+        <div
+          role="group"
+          aria-label={t("History sections")}
+          className="flex items-center gap-0.5 rounded-[6px] border border-[color:var(--shell-hairline)] bg-[var(--shell-well)] p-0.5"
+        >
           <button
             type="button"
             onClick={() => setSubTab('versions')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-mono transition-all duration-150 active:scale-[0.98] ${
-              subTab === 'versions'
-                ? 'bg-[var(--app-accent)] text-white font-medium shadow-sm'
-                : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'
-            }`}
+            aria-pressed={subTab === 'versions'}
+            className={tabClass(subTab === 'versions')}
           >
             <History className="w-3 h-3" />
             <span>{t("VERSIONS")}</span>
@@ -46,20 +60,17 @@ export function HistoryPanel({ job, onUpdate }: HistoryPanelProps) {
           <button
             type="button"
             onClick={() => setSubTab('timeline')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-mono transition-all duration-150 active:scale-[0.98] ${
-              subTab === 'timeline'
-                ? 'bg-[var(--app-accent)] text-white font-medium shadow-sm'
-                : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'
-            }`}
+            aria-pressed={subTab === 'timeline'}
+            className={tabClass(subTab === 'timeline')}
           >
             <Clock className="w-3 h-3" />
             <span>{t("TIMELINE")}</span>
             {logs.length > 0 && (
               <span
-                className={`text-[10px] font-mono tabular-nums px-1 py-0.2 rounded ${
+                className={`rounded px-1 py-0.5 font-mono text-[10px] tabular-nums ${
                   subTab === 'timeline'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-[var(--app-surface-raised)] text-[var(--app-text-muted)]'
+                    ? 'bg-[color-mix(in_srgb,var(--shell-signal-ink)_16%,transparent)] text-[var(--shell-signal-ink)]'
+                    : 'bg-[var(--shell-well)] text-[var(--shell-text-label)]'
                 }`}
               >
                 {logs.length}
@@ -70,23 +81,20 @@ export function HistoryPanel({ job, onUpdate }: HistoryPanelProps) {
           <button
             type="button"
             onClick={() => setSubTab('notes')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-mono transition-all duration-150 active:scale-[0.98] ${
-              subTab === 'notes'
-                ? 'bg-[var(--app-accent)] text-white font-medium shadow-sm'
-                : 'text-[var(--app-text-muted)] hover:text-[var(--app-text-primary)] hover:bg-[var(--app-surface-hover)]'
-            }`}
+            aria-pressed={subTab === 'notes'}
+            className={tabClass(subTab === 'notes')}
           >
             <StickyNote className="w-3 h-3" />
             <span>{t("NOTES")}</span>
             {hasNotes && (
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${subTab === 'notes' ? 'bg-[var(--shell-signal-ink)]' : 'bg-[var(--shell-warn)]'}`} />
             )}
           </button>
         </div>
       </div>
 
       {/* Main Single View Stage */}
-      <div className="flex-1 min-h-0 min-w-0 overflow-hidden relative">
+      <div className="relative flex-1 min-h-0 min-w-0 overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={subTab}

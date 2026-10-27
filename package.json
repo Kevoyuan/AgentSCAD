@@ -7,7 +7,7 @@
     "dev:all": "next dev -p 3000",
     "dev:app": "next dev -p 3000",
     "runtime:openscad:install": "node scripts/install-openscad-wasm.mjs",
-    "build": "bun run runtime:openscad:install && next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
+    "build": "bun run runtime:openscad:install && next build && cp -r \"${AGENTSCAD_BUILD_DIR:-.next}/static\" \"${AGENTSCAD_BUILD_DIR:-.next}/standalone/.next/\" && cp -r public \"${AGENTSCAD_BUILD_DIR:-.next}/standalone/\"",
     "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
     "doctor": "bun scripts/doctor.ts",
     "test": "bun run test:unit",
@@ -29,7 +29,9 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "metrics:reset": "bun scripts/reset-metrics-baseline.ts",
+    "ux:baseline": "bun scripts/ux-baseline.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

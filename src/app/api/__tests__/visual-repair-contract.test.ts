@@ -14,5 +14,10 @@ describe("visual repair route contract", () => {
     expect(source).toContain("if (claim.count !== 1)");
     expect(source).toContain('where: { id, state: "REPAIRING" }');
     expect(source).toContain("if (committed.count !== 1)");
+    // A VLM repair rewrites the artifact; the editable parameter contract must be
+    // re-derived from the repaired source rather than kept from generation.
+    expect(source).toContain("buildScadParameterPersistence(repairedScad)");
+    expect(source).toContain("parameterSchema: repairedParameterPersistence.parameterSchema");
+    expect(source).toContain("parameterValues: repairedParameterPersistence.parameterValues");
   });
 });

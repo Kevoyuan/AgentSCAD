@@ -80,3 +80,26 @@ describe("model runtime", () => {
   });
 });
 
+
+
+test("preserves a nested connection reset without exposing arbitrary error text", () => {
+  const inner = Object.assign(new Error("secret api_key=do-not-persist"), { code: "ECONNRESET" });
+  const error = normalizeModelRequestError(new TypeError("terminated", { cause: inner }));
+  expect(error.code).toBe("LLM_UNAVAILABLE");
+  expect(error.evidence?.transportCode).toBe("ECONNRESET");
+  expect(error.message).toContain("ECONNRESET");
+  expect(JSON.stringify(error.evidence)).not.toContain("do-not-persist");
+  const cyclic = new Error("socket failed");
+  cyclic.cause = cyclic;
+  expect(normalizeModelRequestError(cyclic).code).toBe("LLM_UNAVAILABLE");
+});
+
+test("classifies undici socket-close text without a code so a generation retry is allowed", () => {
+  const error = normalizeModelRequestError(
+    new TypeError("The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()"),
+  );
+  expect(error.code).toBe("LLM_UNAVAILABLE");
+  expect(error.retryable).toBe(true);
+  expect(error.evidence?.transportCode).toBe("UND_ERR_SOCKET");
+  expect(error.message).toContain("UND_ERR_SOCKET");
+});

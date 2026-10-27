@@ -1,13 +1,11 @@
-import { claimJobExecution, JobExecutionConflict, JobExecutionStopped } from "@/lib/pipeline/job-execution";
+import { recoverStaleJobExecution, claimJobExecution, JobExecutionConflict, JobExecutionStopped } from "@/lib/pipeline/job-execution";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import {
   canProcessJobState,
   executeCadJob,
-  isStaleRepairLease,
   processableJobStatesMessage,
-  removeCompileRepairLease,
 } from "@/lib/pipeline/execute-cad-job";
 
 export const maxDuration = 300;
@@ -47,27 +45,7 @@ export async function POST(
       );
     }
 
-    if (isStaleRepairLease(job.state, job.updatedAt, job.repairHistory)) {
-      const recovered = await db.job.updateMany({
-        where: {
-          id,
-          ...jobAccessFilter(access),
-          state: "REPAIRING",
-          updatedAt: job.updatedAt,
-        },
-        data: {
-          state: "HUMAN_REVIEW",
-          repairHistory: removeCompileRepairLease(job.repairHistory),
-          completedAt: null,
-        },
-      });
-      if (recovered.count === 1) {
-        job = await db.job.findFirst({ where: { id, ...jobAccessFilter(access) } });
-      }
-      if (!job) {
-        return NextResponse.json({ error: "Job not found" }, { status: 404 });
-      }
-    }
+    job = await recoverStaleJobExecution(job);
 
     if (job.state === "HUMAN_REVIEW" && job.generationPath === "intent_clarification") {
       return NextResponse.json(

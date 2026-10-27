@@ -54,7 +54,7 @@ export function ThemePanel() {
   return (
     <div className="space-y-4 p-1">
       <div>
-        <div className="mb-2 font-mono text-[9px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)]">
+        <div className="mb-2 font-mono text-[10px] font-medium tracking-[0.16em] uppercase text-[var(--shell-text-label)]">
           {t("Interface theme")}
         </div>
         <div className="flex items-center gap-0.5 rounded-[6px] bg-[var(--shell-well)] p-0.5">
@@ -66,9 +66,9 @@ export function ThemePanel() {
                 key={mode.value}
                 type="button"
                 aria-pressed={isActive}
-                className={`flex-1 h-[28px] flex items-center justify-center gap-1.5 rounded-[4px] font-mono text-[10.5px] transition-colors ${
+                className={`flex-1 h-[28px] flex items-center justify-center gap-1.5 rounded-[4px] font-mono text-[11px] transition-colors ${
                   isActive
-                    ? 'bg-[var(--shell-signal)] text-[#1A0F08]'
+                    ? 'bg-[var(--shell-signal)] text-[var(--shell-signal-ink)]'
                     : 'text-[var(--shell-text-dim)] hover:text-[var(--shell-text)]'
                 }`}
                 onClick={() => {
@@ -85,14 +85,14 @@ export function ThemePanel() {
           })}
         </div>
         {theme === 'system' && (
-          <p className="mt-2 font-mono text-[9.5px] text-[var(--shell-text-dim)]">
+          <p className="mt-2 font-mono text-[10px] text-[var(--shell-text-dim)]">
             {t("System theme: currently")}{resolvedTheme === 'dark' ? t("Dark") : t("Light")}
           </p>
         )}
       </div>
 
       <div className="rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)] p-2.5">
-        <p className="text-[11.5px] leading-[1.6] text-[var(--shell-text-muted)]">
+        <p className="text-[12px] leading-[1.6] text-[var(--shell-text-muted)]">
           {t("The design system defines the palette: one accent and semantic colors for pass, review and fail. Change workspace density in Panels: Overview / Tune / Model.")}
         </p>
       </div>

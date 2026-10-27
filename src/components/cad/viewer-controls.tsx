@@ -2,23 +2,20 @@
 
 import { useI18n } from '@/components/i18n-provider'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import {
-  RotateCcw,
-  Grid3x3,
-  Eye,
-  EyeOff,
+  Axis3D,
+  Box,
   Camera,
+  Download,
+  Grid3x3,
+  Loader2,
+  Maximize2,
+  Ruler,
   ZoomIn,
   ZoomOut,
-  Move3D,
-  Axis3D,
-  Sun,
-  Moon,
-  Ruler,
-  Download,
-  Loader2,
+  type LucideIcon,
 } from 'lucide-react'
 import { fadeInUp, fadeInUpTransition } from './motion-presets'
 
@@ -44,6 +41,41 @@ interface ViewerControlsProps {
   canvasRef?: React.RefObject<HTMLCanvasElement | null>
 }
 
+interface ControlSpec {
+  id: string
+  icon: LucideIcon
+  /** visible tooltip + accessible name */
+  tooltip: string
+  onClick?: () => void
+  /** defined only for toggles; drives aria-pressed and the on/off plate treatment */
+  pressed?: boolean
+  disabled?: boolean
+  spin?: boolean
+  /** keep the last button's tooltip inside the viewport */
+  align?: 'center' | 'right'
+}
+
+/*
+ * One quiet plate, three groups: view actions, display toggles, output actions.
+ *
+ * The audit found nine floating unlabelled glyphs that nobody could decode. The
+ * fix is not bigger icons - it is grouping, a visible on/off state, an accessible
+ * name and a tooltip on every control, and an output pair that is recognisably
+ * "capture" and "download". The plate borrows the module surface (9px radius,
+ * module background, shell border and shadow) so the overlay reads as part of the
+ * instrument panel rather than a stock media-player bar (DESIGN.md sections 3, 11,
+ * 14: plates, not pills; one accent, never a second lit group).
+ *
+ * Glyph metric (DESIGN.md section 12, UI-14): every icon is drawn in the same
+ * 18px box at 1.5 stroke, so the ruler no longer reads heavier than the grid just
+ * because its diagonal silhouette fills more of its own bounds. On/off state is a
+ * raised plate plus the icon stepping up to `--shell-text` - the 3px dot that used
+ * to sit under it was a second, weaker encoding of the same fact and is gone.
+ *
+ * Responsive: at <1280 the composer owns the bottom centre and the plate keeps a
+ * 206px footprint so it never lands on top of it; each group wraps to its own row
+ * inside the same plate. At >=1280 (xl) the three groups sit on one row.
+ */
 export function ViewerControls({
   state,
   onChange,
@@ -68,135 +100,158 @@ export function ViewerControls({
     onScreenshot()
   }, [onScreenshot])
 
-  const navControls = [
-    {
-      icon: Move3D,
-      label: t("Reset view"),
-      active: false,
-      onClick: onResetCamera,
-    },
-    { icon: ZoomIn, label: t("Zoom in"), active: false, onClick: onZoomIn },
-    { icon: ZoomOut, label: t("Zoom out"), active: false, onClick: onZoomOut },
+  /*
+   * Active display toggles stay neutral rather than signal orange: grid and axes
+   * are on by default, and the accent budget (DESIGN.md section 11) allows exactly
+   * one lit group - the composer's action. A raised plate + brighter icon is the
+   * on/off state, and aria-pressed carries it to assistive tech.
+   */
+  const viewControls: ControlSpec[] = [
+    { id: 'fit', icon: Maximize2, tooltip: t('Fit to view'), onClick: onResetCamera },
+    { id: 'zoom-in', icon: ZoomIn, tooltip: t('Zoom in'), onClick: onZoomIn },
+    { id: 'zoom-out', icon: ZoomOut, tooltip: t('Zoom out'), onClick: onZoomOut },
   ]
 
-  /*
-   * DESIGN.md section 4 keeps the viewport calm by default and section 6 gives the
-   * measurements their own module. Grid and axes ride with the part; a rendered
-   * bounding box duplicates the 读数 module and is therefore opt-in, not default.
-   */
-  const displayControls = [
+  const displayControls: ControlSpec[] = [
+    { id: 'wireframe', icon: Box, tooltip: t('Wireframe'), pressed: state.wireframe, onClick: () => toggle('wireframe') },
+    { id: 'grid', icon: Grid3x3, tooltip: t('Grid'), pressed: state.showGrid, onClick: () => toggle('showGrid') },
+    /*
+     * The triad is ground furniture: it is measured against the grid, so it is
+     * drawn with the grid and not independently of it. The button reports what
+     * is actually on screen - with the grid off, the axes are off, and the
+     * tooltip says why rather than leaving a switch that appears broken.
+     */
     {
-      icon: state.wireframe ? Eye : EyeOff,
-      label: t("Wireframe"),
-      active: state.wireframe,
-      onClick: () => toggle('wireframe'),
-    },
-    {
-      icon: Grid3x3,
-      label: t("Grid"),
-      active: state.showGrid,
-      onClick: () => toggle('showGrid'),
-    },
-    {
+      id: 'axes',
       icon: Axis3D,
-      label: t("Axes"),
-      active: state.showAxes,
+      tooltip: state.showGrid ? t('Axes') : t('Axes (needs the grid)'),
+      pressed: state.showAxes && state.showGrid,
       onClick: () => toggle('showAxes'),
     },
-    {
-      icon: Ruler,
-      label: t("Dimension labels"),
-      active: state.showDimensions,
-      onClick: () => toggle('showDimensions'),
-    },
+    { id: 'dimensions', icon: Ruler, tooltip: t('Dimension labels'), pressed: state.showDimensions, onClick: () => toggle('showDimensions') },
   ]
 
-  const outputControls = [
-    {
-      icon: Camera,
-      label: t("Screenshot"),
-      active: false,
-      onClick: handleScreenshot,
-    },
+  const outputControls: ControlSpec[] = [
+    { id: 'screenshot', icon: Camera, tooltip: t('Screenshot'), onClick: handleScreenshot },
     ...(onDownloadStl
-      ? [
-          {
-            icon: isDownloadingStl ? Loader2 : Download,
-            iconClassName: isDownloadingStl ? 'animate-spin' : undefined,
-            label: isDownloadingStl ? t("Downloading STL…") : t("Export STL"),
-            active: false,
-            disabled: !hasStl || isDownloadingStl,
-            onClick: onDownloadStl,
-          },
-        ]
+      ? [{
+          id: 'export-stl',
+          icon: isDownloadingStl ? Loader2 : Download,
+          tooltip: isDownloadingStl ? t('Downloading STL…') : t('Export STL'),
+          onClick: onDownloadStl,
+          disabled: !hasStl || isDownloadingStl,
+          spin: isDownloadingStl,
+          align: 'right' as const,
+        }]
       : []),
   ]
 
-  /*
-   * Active display toggles are neutral, not signal orange. Grid and axes are ON by
-   * default, so lighting them with the signal colour would put two permanent orange
-   * elements on screen competing with the composer's action — the accent budget in
-   * DESIGN.md section 11 allows exactly one. DESIGN.md also removed the separate
-   * measurement colour, so dimension values read as ordinary text.
-   */
-  const renderGroup = (items: typeof navControls) => (
-    <div className="flex items-center gap-0.5">
-      {items.map((ctrl) => {
-        const Icon = ctrl.icon
-        const isDisabled = 'disabled' in ctrl && Boolean(ctrl.disabled)
-        return (
-          <button
-            key={ctrl.label}
-            onClick={isDisabled ? undefined : ctrl.onClick}
-            disabled={isDisabled}
-            aria-label={ctrl.label}
-            aria-pressed={ctrl.active}
-            title={isDisabled ? (!hasStl ? t("No STL available to export") : t("Downloading…")) : `${ctrl.label}${ctrl.active ? t(" · On") : t(" · Off")}`}
-            className={`
-              relative flex items-center justify-center w-7 h-7 rounded-md transition-all active:scale-95
-              ${
-                isDisabled
-                  ? 'opacity-30 cursor-not-allowed text-[var(--shell-text-muted)]'
-                  : ctrl.active
-                  ? 'bg-[var(--shell-raise)] text-[var(--shell-text)] shadow-sm'
-                  : 'text-[var(--shell-text-muted)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)]'
-              }
-            `}
-          >
-            <Icon className={`w-3.5 h-3.5 ${'iconClassName' in ctrl && ctrl.iconClassName ? ctrl.iconClassName : ''}`} />
-            {ctrl.active && (
-              <motion.span
-                className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--shell-text-label)]"
-                layoutId="viewer-control-active"
-                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-              />
-            )}
-          </button>
-        )
-      })}
-    </div>
-  )
+  const renderControl = (ctrl: ControlSpec) => {
+    const Icon = ctrl.icon
+    const tooltip = ctrl.pressed === undefined
+      ? ctrl.tooltip
+      : `${ctrl.tooltip} · ${ctrl.pressed ? t('On') : t('Off')}`
+    return (
+      <button
+        key={ctrl.id}
+        type="button"
+        onClick={ctrl.disabled ? undefined : ctrl.onClick}
+        disabled={ctrl.disabled}
+        aria-label={ctrl.tooltip}
+        aria-pressed={ctrl.pressed === undefined ? undefined : ctrl.pressed}
+        title={tooltip}
+        data-control={ctrl.id}
+        className={`
+          group relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[4px] border
+          transition-[background-color,color,border-color] duration-150
+          focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1
+          focus-visible:outline-[var(--shell-signal)]
+          [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11
+          ${
+            ctrl.disabled
+              ? 'cursor-not-allowed border-transparent text-[var(--shell-text-dim)] opacity-45'
+              : ctrl.pressed
+                ? 'border-[var(--shell-border-strong)] bg-[var(--shell-raise)] text-[var(--shell-text)] hover:bg-[var(--shell-hover)]'
+                : 'border-transparent text-[var(--shell-text-label)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] active:bg-[var(--shell-raise)]'
+          }
+        `}
+      >
+        <Icon
+          aria-hidden="true"
+          strokeWidth={1.5}
+          className={`h-[18px] w-[18px] ${ctrl.spin ? 'animate-spin' : ''}`}
+        />
+        <span
+          role="tooltip"
+          className={`
+            pointer-events-none absolute bottom-[calc(100%+7px)] z-30 whitespace-nowrap rounded-[4px]
+            border border-[var(--shell-border)] bg-[var(--shell-module-solid)] px-1.5 py-1
+            font-mono text-[10px] leading-none text-[var(--shell-text)] shadow-[var(--shell-shadow)]
+            opacity-0 transition-opacity duration-100 group-hover:opacity-100 group-focus-visible:opacity-100
+            ${ctrl.align === 'right' ? 'right-0' : 'left-1/2 -translate-x-1/2'}
+          `}
+        >
+          {tooltip}
+        </span>
+      </button>
+    )
+  }
 
   return (
-    <motion.div
-      className="absolute bottom-3 right-3 z-20"
-      variants={fadeInUp}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      transition={fadeInUpTransition}
-    >
-      <div
-        className="flex items-center gap-1 rounded-full border border-[var(--shell-border)] px-2 py-1 backdrop-blur-2xl"
-        style={{ background: 'var(--shell-module)', boxShadow: 'var(--shell-shadow)' }}
+    <>
+      {/*
+       * Desktop / tablet: the one quiet plate, bottom-right. Hidden below 960px
+       * because the stacked layout (DESIGN.md section 20) pins a full-width sheet
+       * bar + composer over the canvas bottom there: the plate sat behind their
+       * z-40 layer and could not be used at all. Orbit and zoom are touch
+       * gestures on that layout, so only Fit needs a floating control.
+       */}
+      <motion.div
+        className="absolute bottom-4 right-4 z-20 hidden min-[960px]:block"
+        variants={fadeInUp}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        transition={fadeInUpTransition}
       >
-        {renderGroup(navControls)}
-        <div className="h-4 w-px bg-[color:var(--shell-border)] mx-0.5" />
-        {renderGroup(displayControls)}
-        <div className="h-4 w-px bg-[color:var(--shell-border)] mx-0.5" />
-        {renderGroup(outputControls)}
+        <div
+          role="toolbar"
+          aria-label={t('Viewport controls')}
+          aria-orientation="horizontal"
+          data-testid="viewer-toolbar"
+          className="flex w-[206px] flex-wrap items-center justify-end rounded-[9px] border border-[var(--shell-border)] p-[2px] backdrop-blur-2xl xl:w-auto xl:flex-nowrap"
+          style={{ background: 'var(--shell-module)', boxShadow: 'var(--shell-shadow)' }}
+        >
+          <div role="group" aria-label={t('View')} className="flex items-center">
+            {viewControls.map(renderControl)}
+          </div>
+          <div aria-hidden="true" className="mx-px h-5 w-px shrink-0 bg-[var(--shell-border)]" />
+          <div role="group" aria-label={t('Display')} className="flex items-center">
+            {displayControls.map(renderControl)}
+          </div>
+          <div aria-hidden="true" className="mx-px hidden h-5 w-px shrink-0 bg-[var(--shell-border)] xl:block" />
+          <div role="group" aria-label={t('Output')} className="flex items-center">
+            {outputControls.map(renderControl)}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Narrow layouts: one 44px touch target for fit, top-right under the header.
+          `onResetCamera` is the same fit that the desktop plate and the `f` key use. */}
+      <div className="absolute right-4 top-4 z-20 min-[960px]:hidden">
+        <button
+          type="button"
+          onClick={onResetCamera}
+          aria-label={t('Fit to view')}
+          title={t('Fit to view')}
+          data-testid="viewer-fit-button"
+          className="flex h-11 w-11 items-center justify-center rounded-[9px] border border-[var(--shell-border-strong)] bg-[var(--shell-module)] text-[var(--shell-text)] backdrop-blur-2xl transition-transform hover:bg-[var(--shell-raise)] active:scale-95 focus-visible:border-[var(--shell-signal)] focus-visible:outline-none"
+          style={{ boxShadow: 'var(--shell-shadow)' }}
+        >
+          <Maximize2 aria-hidden="true" strokeWidth={1.5} className="h-[18px] w-[18px]" />
+        </button>
       </div>
-    </motion.div>
+    </>
   )
 }
 
@@ -205,8 +260,6 @@ export function ViewerControls({
  * The actual Three.js integration is in the parent component.
  */
 export function useViewerControls(defaultState?: Partial<ViewerControlsState>) {
-
-
   const [state, setState] = useState<ViewerControlsState>({
     // DESIGN.md section 4: the part is inspected, not performed at. Auto-rotate
     // also makes the ViewCube's meaning drift, so it defaults off.

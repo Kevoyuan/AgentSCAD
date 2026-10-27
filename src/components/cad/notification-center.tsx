@@ -46,16 +46,46 @@ const subscribeToNothing = () => () => {}
 const onClient = () => true
 const onServer = () => false
 
+/* DESIGN.md section 14: the shell's one focus ring. */
+const FOCUS = 'linear-focus-ring outline-none'
+/* A view chip is a control with a visible selected state; 28px tall so it is a real
+   target rather than an 8px label with padding. */
+const VIEW_CHIP = `inline-flex h-7 items-center rounded-[4px] px-2.5 text-[11px] font-medium transition-colors ${FOCUS}`
+
 // ─── Notification Icon & Color Mapping ─────────────────────────────────────
 
-const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof CheckCircle2; color: string; bgColor: string }> = {
+const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof CheckCircle2; color: string; plate: string }> = {
   /* Semantic colours from the palette, never Tailwind steps (DESIGN.md section 11). */
-  job_completed: { icon: CheckCircle2, color: 'text-[var(--shell-ok)]', bgColor: 'bg-transparent' },
-  job_review: { icon: AlertTriangle, color: 'text-[var(--shell-warn)]', bgColor: 'bg-transparent' },
-  job_failed: { icon: XCircle, color: 'text-[var(--shell-fail)]', bgColor: 'bg-transparent' },
-  job_cancelled: { icon: Ban, color: 'text-[var(--shell-text-label)]', bgColor: 'bg-transparent' },
-  parameter_updated: { icon: Settings, color: 'text-[var(--shell-signal-soft)]', bgColor: 'bg-transparent' },
-  scad_updated: { icon: Code2, color: 'text-[var(--shell-signal-soft)]', bgColor: 'bg-transparent' },
+  job_completed: {
+    icon: CheckCircle2,
+    color: 'text-[var(--shell-ok)]',
+    plate: 'border-[color:color-mix(in_srgb,var(--shell-ok)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--shell-ok)_10%,transparent)]',
+  },
+  job_review: {
+    icon: AlertTriangle,
+    color: 'text-[var(--shell-warn)]',
+    plate: 'border-[color:color-mix(in_srgb,var(--shell-warn)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--shell-warn)_10%,transparent)]',
+  },
+  job_failed: {
+    icon: XCircle,
+    color: 'text-[var(--shell-fail)]',
+    plate: 'border-[color:color-mix(in_srgb,var(--shell-fail)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--shell-fail)_10%,transparent)]',
+  },
+  job_cancelled: {
+    icon: Ban,
+    color: 'text-[var(--shell-text-label)]',
+    plate: 'border-[color:var(--shell-border)] bg-[var(--shell-well)]',
+  },
+  parameter_updated: {
+    icon: Settings,
+    color: 'text-[var(--shell-signal-soft)]',
+    plate: 'border-[color:color-mix(in_srgb,var(--shell-signal)_45%,transparent)] bg-[color-mix(in_srgb,var(--shell-signal)_10%,transparent)]',
+  },
+  scad_updated: {
+    icon: Code2,
+    color: 'text-[var(--shell-signal-soft)]',
+    plate: 'border-[color:color-mix(in_srgb,var(--shell-signal)_45%,transparent)] bg-[color-mix(in_srgb,var(--shell-signal)_10%,transparent)]',
+  },
 }
 
 // ─── Time ago helper ───────────────────────────────────────────────────────
@@ -80,38 +110,48 @@ function NotificationItem({
   notification: Notification
   onMarkRead: (id: string) => void
 }) {
-
-
+  const { t } = useI18n()
   const config = NOTIFICATION_CONFIG[notification.type]
   const Icon = config.icon
 
   return (
-    <motion.div
+    <motion.button
+      type="button"
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
-      className={`flex items-start gap-2.5 px-3 py-2.5 cursor-pointer linear-transition hover:bg-[var(--app-hover-subtle)] ${
-        !notification.read ? 'border-l-2 border-l-[color:var(--app-accent)]' : 'border-l-2 border-l-transparent'
+      className={`flex w-full cursor-pointer items-start gap-2.5 border-l-2 px-3 py-2.5 text-left transition-colors hover:bg-[var(--shell-hover)] ${FOCUS} ${
+        !notification.read ? 'border-l-[color:var(--shell-signal)]' : 'border-l-transparent'
       }`}
       onClick={() => {
         if (!notification.read) onMarkRead(notification.id)
       }}
+      aria-label={notification.read
+        ? t("Notification: {0}", { 0: notification.title })
+        : t("{0}. Unread. Activate to mark as read.", { 0: notification.title })}
     >
-      <div className={`shrink-0 w-6 h-6 rounded-md flex items-center justify-center ${config.bgColor}`}>
-        <Icon className={`w-3.5 h-3.5 ${config.color}`} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className={`text-sm leading-tight ${notification.read ? 'text-[var(--app-text-muted)]' : 'text-[var(--app-text-secondary)]'}`}>
+      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] border ${config.plate}`}>
+        <Icon className={`h-3.5 w-3.5 ${config.color}`} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className={`block text-[13px] leading-4 ${notification.read ? 'text-[var(--shell-text-muted)]' : 'font-medium text-[var(--shell-text)]'}`}>
           {notification.title}
-        </p>
-        <p className="text-xs text-[var(--app-text-dim)] mt-0.5 truncate">{notification.description}</p>
-        <p className="text-[8px] text-[var(--app-text-dim)] mt-1 font-mono">{notifTimeAgo(notification.timestamp)}</p>
-      </div>
-      {!notification.read && (
-        <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--app-accent)] mt-1.5" />
-      )}
-    </motion.div>
+        </span>
+        <span className="mt-0.5 line-clamp-2 block text-[12px] leading-4 text-[var(--shell-text-muted)]">
+          {notification.description}
+        </span>
+        <span className="mt-1 flex items-center gap-1.5 font-mono text-[10px] tabular-nums text-[var(--shell-text-label)]">
+          <span>{notifTimeAgo(notification.timestamp)}</span>
+          {!notification.read && (
+            <span className="inline-flex items-center gap-1 text-[var(--shell-signal-soft)]">
+              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--shell-signal)]" />
+              {t("New")}
+            </span>
+          )}
+        </span>
+      </span>
+    </motion.button>
   )
 }
 
@@ -176,7 +216,7 @@ export function NotificationCenter({
         /* DESIGN.md section 21: an icon-only control carries an accessible name. */
         aria-label={unreadCount > 0 ? t("Notifications, {0} unread", { 0: unreadCount }) : t("Notifications")}
         title={t("Notifications")}
-        className="h-6 w-6 p-0 rounded-[4px] text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] hover:bg-[var(--shell-hover)] relative"
+        className="relative h-7 w-7 rounded-[4px] p-0 text-[var(--shell-text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]"
         onClick={() => {
           setActiveView(unreadCount > 0 || notifications.length > 0 ? 'notifications' : 'activity')
           setIsOpen(!isOpen)
@@ -187,7 +227,8 @@ export function NotificationCenter({
           <motion.span
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] rounded-full bg-rose-500 text-white text-[7px] font-bold flex items-center justify-center px-0.5"
+            aria-hidden="true"
+            className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--shell-signal)] px-1 font-mono text-[10px] font-semibold tabular-nums text-[var(--shell-signal-ink)]"
           >
             {unreadCount > 9 ? '9+' : unreadCount}
           </motion.span>
@@ -223,85 +264,111 @@ export function NotificationCenter({
             className="fixed right-0 top-0 bottom-0 z-[60] flex w-[368px] max-w-[86vw] flex-col bg-[var(--shell-module-solid)]/97 backdrop-blur-2xl border-l border-[color:var(--shell-border)] shadow-[-24px_0_48px_-12px_rgba(0,0,0,0.7)]"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-[color:var(--app-border)]">
-              <div className="flex items-center gap-2">
-                <Bell className="w-3.5 h-3.5 text-[var(--app-accent-text)]" />
-                <span className="text-sm font-medium text-[var(--app-text-secondary)]">{t("Notifications")} </span>
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[color:var(--shell-border)] px-3 py-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <Bell className="h-3.5 w-3.5 shrink-0 text-[var(--shell-signal-soft)]" />
+                {/* The drawer's title follows its tab. It said "Notifications"
+                    while opening on "Activity" whenever there was nothing unread -
+                    a panel whose name does not match its contents is the first thing
+                    a reader has to work around. */}
+                <span className="truncate text-[13px] font-medium text-[var(--shell-text)]">
+                  {activeView === 'notifications' ? t("Notifications") : t("Activity")}
+                </span>
                 {unreadCount > 0 && (
-                  <span className="text-[8px] font-mono px-1.5 py-0.5 rounded-full bg-[var(--app-accent-bg)] text-[var(--app-accent-text)] border border-[color:var(--app-accent-border)]">
-                    {unreadCount} new
+                  <span className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--shell-signal)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--shell-signal)_12%,transparent)] px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-[var(--shell-signal-soft)]">
+                    {t("{0} new", { 0: unreadCount })}
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex shrink-0 items-center gap-1">
                 {unreadCount > 0 && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-5 text-[8px] gap-0.5 text-[var(--app-accent-text)] hover:text-[var(--app-accent-text)] px-1"
+                    className={`h-7 gap-1 rounded-[4px] px-2 text-[11px] text-[var(--shell-signal-soft)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-signal)] ${FOCUS}`}
                     onClick={onMarkAllRead}
+                    title={t("Mark all as read")}
                   >
-                    <CheckCheck className="w-2.5 h-2.5" />{t("Mark all as read")}
+                    <CheckCheck className="w-3 h-3" />{t("Mark all read")}
                   </Button>
                 )}
                 {notifications.length > 0 && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-5 text-[8px] gap-0.5 text-[var(--app-text-muted)] hover:text-[var(--app-text-muted)] px-1"
+                    className={`h-7 gap-1 rounded-[4px] px-2 text-[11px] text-[var(--shell-text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] ${FOCUS}`}
                     onClick={onClearAll}
+                    title={t("Clear notifications")}
                   >
-                    <Trash2 className="w-2.5 h-2.5" />{t("Clear")}
+                    <Trash2 className="w-3 h-3" />{t("Clear")}
                   </Button>
                 )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 text-[8px] text-[var(--app-text-dim)] hover:text-[var(--app-text-muted)] px-0.5"
+                <button
+                  type="button"
                   onClick={() => setIsOpen(false)}
+                  aria-label={t("Close notifications")}
+                  title={t("Close")}
+                  className={`grid h-7 w-7 place-items-center rounded-[4px] text-[var(--shell-text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] ${FOCUS}`}
                 >
-                  <X className="w-3.5 h-3.5" />
-                </Button>
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center gap-1 border-b border-[color:var(--app-border)] px-2 py-1.5">
+            <div className="flex shrink-0 items-center gap-1 border-b border-[color:var(--shell-border)] px-2 py-1.5">
               <button
-                className={`h-6 rounded-md px-2 text-[11px] font-medium transition-colors ${
+                type="button"
+                aria-pressed={activeView === 'notifications'}
+                className={`${VIEW_CHIP} ${
                   activeView === 'notifications'
-                    ? 'bg-[var(--app-accent-bg)] text-[var(--app-accent-text)]'
-                    : 'text-[var(--app-text-muted)] hover:bg-[var(--app-surface-hover)] hover:text-[var(--app-text-secondary)]'
+                    ? 'shell-selected'
+                    : 'text-[var(--shell-text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]'
                 }`}
                 onClick={() => setActiveView('notifications')}
               >
-                {t("Notifications")}{notifications.length > 0 ? notifications.length : ''}
+                {t("Notifications")}
+                {notifications.length > 0 && <span className="ml-1.5 font-mono text-[10px] tabular-nums opacity-80">{notifications.length}</span>}
               </button>
               <button
-                className={`h-6 rounded-md px-2 text-[11px] font-medium transition-colors ${
+                type="button"
+                aria-pressed={activeView === 'activity'}
+                className={`${VIEW_CHIP} ${
                   activeView === 'activity'
-                    ? 'bg-[var(--app-accent-bg)] text-[var(--app-accent-text)]'
-                    : 'text-[var(--app-text-muted)] hover:bg-[var(--app-surface-hover)] hover:text-[var(--app-text-secondary)]'
+                    ? 'shell-selected'
+                    : 'text-[var(--shell-text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]'
                 }`}
                 onClick={() => setActiveView('activity')}
               >
-                {t("Activity")}{activityEvents.length > 0 ? activityEvents.length : ''}
+                {t("Activity")}
+                {activityEvents.length > 0 && <span className="ml-1.5 font-mono text-[10px] tabular-nums opacity-80">{activityEvents.length}</span>}
               </button>
             </div>
 
             {/* Notifications List */}
             {activeView === 'notifications' ? (
-              <ScrollArea className="max-h-70">
+              <ScrollArea className="min-h-0 flex-1">
                 {notifications.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 gap-3">
-                    <div className="w-10 h-10 rounded border border-[color:var(--cad-border-strong)] flex items-center justify-center opacity-40">
-                      <Activity className="w-5 h-5 text-[var(--cad-text-muted)]" />
+                  <div className="flex flex-col items-center justify-center gap-3 px-6 py-10">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-well)]">
+                      <Activity className="h-5 w-5 text-[var(--shell-text-label)]" />
                     </div>
-                    <p className="text-sm text-[var(--app-text-dim)]">{t("No notifications")}</p>
-                    <p className="text-xs text-[var(--app-text-dim)]">{t("You're all caught up")}
-</p>
+                    <p className="text-[13px] text-[var(--shell-text-muted)]">{t("No notifications")}</p>
+                    <p className="text-[12px] text-[var(--shell-text-label)]">{t("You're all caught up")}</p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-[color:var(--app-border)]">
+                  <div
+                    className="divide-y divide-[color:var(--shell-hairline)]"
+                    /*
+                     * The run finished, the part failed, a decision came back -
+                     * none of that reached a screen reader. The list is the
+                     * product's record of what happened to a job, so it is a
+                     * live region: a new entry is announced instead of arriving
+                     * silently in a panel nobody had open.
+                     */
+                    role="log"
+                    aria-live="polite"
+                    aria-label={t("Notifications")}
+                  >
                     <AnimatePresence>
                       {notifications.map(n => (
                         <NotificationItem
@@ -315,7 +382,7 @@ export function NotificationCenter({
                 )}
               </ScrollArea>
             ) : (
-              <div className="max-h-[420px]">
+              <div className="min-h-0 flex-1 overflow-hidden">
                 <JobActivityFeed
                   events={activityEvents}
                   onClear={onClearActivity}

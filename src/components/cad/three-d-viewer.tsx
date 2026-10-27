@@ -34,16 +34,23 @@ function createRoundedRectShape(THREE: any, w: number, h: number, r: number) {
  * Technical line colour for the part's edges, its bounding box and the dimension
  * lines. Deliberately NOT the brand signal: DESIGN.md section 11 gives the signal
  * colour to the action and the active state only, and section 4 says the part is
- * neutral machined grey. These were hardcoded amber (0xF59E0B), which made the
- * model read as an orange wireframe on top of the brand accent.
+ * neutral machined grey. These were hardcoded amber, which made the model read as
+ * an orange wireframe sitting on top of the brand accent.
+ *
+ * This is the one colour in the tree that stays a numeric literal instead of a
+ * `var(--shell-*)`: it is a three.js material value, and the part must look the
+ * same in both themes - the model is the constant, the field around it is what
+ * changes. UI chrome takes its colour from the token map; the part does not.
  */
 const TECHNICAL_LINE = 0x93a1ae
 
 /*
  * The field is painted by three.js, so it cannot inherit a CSS variable the way a
- * div does: the background, the fog and the grid were literals (#0B0F14, #141312,
- * #2B3643, #C9C3B8) that had already drifted from the token map. Read the shell's
- * own field tokens instead, so the largest surface in the product has one owner.
+ * div does: the background, the fog and the grid used to be literals that had
+ * already drifted from the token map. Read the shell's own field tokens instead,
+ * so the largest surface in the product has one owner. The numeric fallback only
+ * applies when the token cannot be read (SSR, or a stylesheet that has not landed
+ * yet) - it is not a second palette.
  */
 function fieldToken(name: string, fallback: number): number {
   if (typeof window === 'undefined' || typeof document === 'undefined') return fallback
@@ -65,31 +72,132 @@ function fieldToken(name: string, fallback: number): number {
 const MAX_ELEVATION = 89.8
 const POLAR_GUARD = ((90 - MAX_ELEVATION) * Math.PI) / 180
 
-// ─── Auto-fit camera to geometry bounds ──────────────────────────────────────
+// ─── Safe viewport framing ──────────────────────────────────────────────────
+/*
+ * The canvas is full-bleed (DESIGN.md section 3), but the floating plates cover
+ * its edges: the parts rail on the left, the instrument column on the right, the
+ * brand row on top, and the readout/composer band on the bottom. Framing the part
+ * to the raw canvas therefore births it behind a plate - the audit's 842mm VESA
+ * part was simultaneously cut by the rail, the right column and the composer.
+ *
+ * Fit to the safe rectangle instead. The insets are the measured plate envelopes
+ * at >= 1024px (rail 268+margin, column 262+margin, brand row, readout/composer
+ * band); they are declared once here and used by every fit entry point - the
+ * initial load, the `f` shortcut / fit command, the toolbar Fit button - so the
+ * part cannot be framed differently depending on how it was refitted.
+ */
+export const VIEWPORT_SAFE_INSETS = { left: 300, right: 290, top: 90, bottom: 150 } as const
 
-function fitCameraToObject(THREE: any, camera: any, controls: any, object: any, padding = 1.4) {
+export interface ViewportInsets { left: number; right: number; top: number; bottom: number }
+
+export function safeInsetsFor(width: number, height: number): ViewportInsets {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return { left: 0, right: 0, top: 0, bottom: 0 }
+  }
+  // Below 960 the shell switches to the stacked layout (DESIGN.md section 20): the
+  // viewer surface sits under a 48px header, and the sheet bar + composer are
+  // pinned over its bottom edge. Those overlays are full-width, so the safe rect is
+  // the surface minus a small top breathing space and the whole bottom band - the
+  // desktop 300/290/150 plate insets here would shrink the part to a third of the
+  // screen. Values measured on 390x844: canvas y 48 -> 692, composer+sheet bar
+  // occupy the bottom 176px of the surface.
+  if (width < 960) {
+    return { left: 16, right: 16, top: 16, bottom: 176 }
+  }
+  // The plate widths are fixed, so the side insets do not scale down with the
+  // window; clamp them only against pathological aspect ratios.
+  return {
+    left: Math.min(VIEWPORT_SAFE_INSETS.left, Math.round(width * 0.32)),
+    right: Math.min(VIEWPORT_SAFE_INSETS.right, Math.round(width * 0.32)),
+    top: Math.min(VIEWPORT_SAFE_INSETS.top, Math.round(height * 0.14)),
+    bottom: Math.min(VIEWPORT_SAFE_INSETS.bottom, Math.round(height * 0.24)),
+  }
+}
+
+/**
+ * Camera distance that frames a sphere of `radius` inside the safe rectangle.
+ *
+ * A perspective camera maps a lateral offset to NDC through tan(fov/2), so the
+ * usable half-angle shrinks with the safe fraction of the canvas. Taking the
+ * smaller of the vertical and horizontal limits is what lets a wide or tall part
+ * fit both ways; using the bounding sphere rather than the longest edge is what
+ * keeps it inside the safe rect at every orbit angle (DESIGN.md section 4:
+ * "framed from its bounding sphere so no orientation clips").
+ */
+function fitDistanceFor(camera: any, radius: number, width: number, height: number, padding: number) {
+  const insets = safeInsetsFor(width, height)
+  const halfWidth = Math.max(1, width / 2)
+  const halfHeight = Math.max(1, height / 2)
+  const verticalFraction = Math.max(0.2, (halfHeight - Math.max(insets.top, insets.bottom)) / halfHeight)
+  const horizontalFraction = Math.max(0.2, (halfWidth - Math.max(insets.left, insets.right)) / halfWidth)
+  const tanHalfV = Math.tan((camera.fov * Math.PI) / 360)
+  const aspect = Number.isFinite(camera.aspect) && camera.aspect > 0 ? camera.aspect : width / height
+  // The same NDC requirement on both axes: y fits when tanHalfV * verticalFraction,
+  // x fits when tanHalfV * aspect * horizontalFraction; the tighter one wins.
+  const usableHalfTan = Math.min(tanHalfV * verticalFraction, tanHalfV * aspect * horizontalFraction)
+  if (!Number.isFinite(usableHalfTan) || usableHalfTan <= 0.001) {
+    return { dist: (radius / Math.max(tanHalfV, 0.001)) * 1.4, insets }
+  }
+  return { dist: (radius / usableHalfTan) * padding, insets }
+}
+
+/** Frames the object inside the viewport's safe rectangle and returns the fit. */
+function fitCameraToObject(
+  THREE: any,
+  camera: any,
+  controls: any,
+  object: any,
+  viewport?: { width: number; height: number; preserveDirection?: boolean },
+  padding = 1.06,
+) {
   const box = new THREE.Box3().setFromObject(object)
   const center = box.getCenter(new THREE.Vector3())
   const size = box.getSize(new THREE.Vector3())
   const maxDim = Math.max(size.x, size.y, size.z)
+  const width = Math.max(1, viewport?.width ?? 0)
+  const height = Math.max(1, viewport?.height ?? 0)
   if (!Number.isFinite(maxDim) || maxDim <= 0) {
     camera.position.set(60, 50, 60)
     controls.target.set(0, 0, 0)
     controls.update()
-    return { center: new THREE.Vector3(0, 0, 0), size: new THREE.Vector3(1, 1, 1), maxDim: 1, dist: 90 }
+    return { center: new THREE.Vector3(0, 0, 0), size: new THREE.Vector3(1, 1, 1), maxDim: 1, radius: 1, dist: 90, insets: safeInsetsFor(width, height) }
   }
-  const fov = camera.fov * (Math.PI / 180)
-  const dist = (maxDim / 2 / Math.tan(fov / 2)) * padding
 
-  camera.position.set(center.x + dist * 0.7, center.y + dist * 0.5, center.z + dist * 0.7)
+  // Half the bounding-box diagonal: the tightest sphere the part always fits in.
+  const radius = Math.max(0.5 * Math.hypot(size.x, size.y, size.z), maxDim * 0.5)
+  const fitted = fitDistanceFor(camera, radius, width, height, padding)
+  const dist = fitted.dist
+
+  /*
+   * "Fit" is a framing command, not a view command: a user who asked for the
+   * front view and then hits Fit must stay on the front view. A first load has no
+   * meaningful direction yet, so it is born on the canonical isometric stop
+   * (azimuth 45, elevation 45) - a standard view, so the ViewCube caption reads
+   * "Isometric / Top front right" instead of an unreadable free-angle.
+   */
+  const dir = new THREE.Vector3()
+  const offset = camera.position.clone().sub(controls.target ?? new THREE.Vector3())
+  if (viewport?.preserveDirection && offset.lengthSq() > 1e-6) dir.copy(offset).normalize()
+  else dir.set(0.5, Math.SQRT1_2, 0.5).normalize()
+
+  camera.position.copy(center).addScaledVector(dir, dist)
+  camera.up.set(0, 1, 0)
+  camera.aspect = width / height
   camera.near = Math.max(0.01, dist / 1000)
-  camera.far = Math.max(1000, dist * 8, maxDim * 10)
+  camera.far = Math.max(1000, dist * 8, radius * 10)
   camera.updateProjectionMatrix()
   controls.target.copy(center)
   controls.minDistance = Math.max(0.5, dist * 0.05, maxDim * 0.1)
   controls.maxDistance = Math.max(500, dist * 8, maxDim * 15)
   controls.update()
-  return { center, size, maxDim, dist }
+  return { center, size, maxDim, radius, dist, insets: fitted.insets }
+}
+
+/** Publish the framing decision on the canvas host so it can be verified. */
+function recordViewportFit(host: HTMLElement | null, fit: { dist: number; insets: ViewportInsets }) {
+  if (!host) return
+  host.dataset.fitDistance = fit.dist.toFixed(1)
+  host.dataset.safeInsets = `${fit.insets.left},${fit.insets.right},${fit.insets.top},${fit.insets.bottom}`
 }
 
 // ─── Fallback procedural enclosure ──────────────────────────────────────────
@@ -383,7 +491,13 @@ export function ThreeDViewer({
       const controls = controlsObjRef.current
       const object = mainGroupRef.current
       if (THREE && camera && controls && object) {
-        fitCameraToObject(THREE, camera, controls, object)
+        const host = mountRef.current
+        const fit = fitCameraToObject(THREE, camera, controls, object, {
+          width: host?.clientWidth ?? window.innerWidth,
+          height: host?.clientHeight ?? window.innerHeight,
+          preserveDirection: true,
+        })
+        recordViewportFit(host, fit)
         const target = controls.target
         const dx = camera.position.x - target.x
         const dy = camera.position.y - target.y
@@ -452,7 +566,13 @@ export function ThreeDViewer({
       gridHelperRef.current.visible = controlsState.showGrid
     }
     if (axisHelperRef.current) {
-      axisHelperRef.current.visible = controlsState.showAxes
+      /*
+       * The triad is ground furniture: it is measured against the ground plane,
+       * so it belongs to the grid. With the grid off there is nothing for it to
+       * stand on, and a triad floating in empty space is the thing the 2026-10-27
+       * review flagged.
+       */
+      axisHelperRef.current.visible = controlsState.showAxes && controlsState.showGrid
     }
     if (bboxOverlayRef.current) {
       bboxOverlayRef.current.bboxLine.visible = controlsState.showDimensions
@@ -468,7 +588,12 @@ export function ThreeDViewer({
 
   const handleResetCamera = useCallback(() => {
     if (cameraRef.current && controlsObjRef.current && mainGroupRef.current && threeModuleRef.current) {
-      fitCameraToObject(threeModuleRef.current, cameraRef.current, controlsObjRef.current, mainGroupRef.current)
+      const host = mountRef.current
+      recordViewportFit(host, fitCameraToObject(threeModuleRef.current, cameraRef.current, controlsObjRef.current, mainGroupRef.current, {
+        width: host?.clientWidth ?? window.innerWidth,
+        height: host?.clientHeight ?? window.innerHeight,
+        preserveDirection: true,
+      }))
     }
   }, [])
 
@@ -593,9 +718,44 @@ export function ThreeDViewer({
         scene.add(gridHelper)
         gridHelperRef.current = gridHelper
 
-        const axisHelper = new THREE.AxesHelper(30)
-        axisHelper.position.set(-50, 0.1, -50)
-        axisHelper.visible = controlsState.showAxes
+        /*
+         * The origin triad.
+         *
+         * It used to sit at a fixed world coordinate (-50, 0.1, -50) in three.js's
+         * built-in red / green / blue. Two things were wrong with that. In a
+         * viewport sized to a 20mm bracket the triad was nowhere near the part,
+         * so it read as three coloured lines hanging in empty space; and the
+         * primaries are exactly the rainbow DESIGN.md section 11 refuses (the
+         * accent budget allows one lit group and no decorative hue).
+         *
+         * Now it is grounded and quiet: it stands on the part's own near-left
+         * corner, scaled to the part, and painted in the same field tokens as the
+         * grid it belongs to. The vertical axis is one step brighter so the trio
+         * still reads as a triad rather than an L.
+         */
+        const axisHelper = new THREE.AxesHelper(1)
+        axisHelper.visible = controlsState.showAxes && controlsState.showGrid
+        const axisColors = [
+          fieldToken('--shell-field-grid-strong', fieldIsDark ? 0x242322 : 0xD5D2CB),
+          fieldToken('--shell-text-dim', fieldIsDark ? 0xB0A79B : 0x5F584E),
+          fieldToken('--shell-field-grid-strong', fieldIsDark ? 0x242322 : 0xD5D2CB),
+        ]
+        const axisColorAttribute = axisHelper.geometry.getAttribute('color')
+        if (axisColorAttribute) {
+          for (let axisIndex = 0; axisIndex < 3; axisIndex++) {
+            const packed = axisColors[axisIndex]
+            const r = ((packed >> 16) & 0xff) / 255
+            const g = ((packed >> 8) & 0xff) / 255
+            const b = (packed & 0xff) / 255
+            for (let vertex = 0; vertex < 2; vertex++) {
+              const index = axisIndex * 2 + vertex
+              if (index < axisColorAttribute.count) {
+                axisColorAttribute.setXYZ(index, r, g, b)
+              }
+            }
+          }
+          axisColorAttribute.needsUpdate = true
+        }
         scene.add(axisHelper)
         axisHelperRef.current = axisHelper
 
@@ -673,6 +833,26 @@ export function ThreeDViewer({
           mainGroup.position.y -= groupBbox.min.y
           mainGroup.position.z -= groupCenter.z
           mainGroup.updateMatrixWorld(true)
+
+          /*
+           * Stand the triad on the part's own corner, at the part's scale. The
+           * group is now centred on the origin in x and z, so its local min
+           * corner maps to `min - center`.
+           */
+          const axis = axisHelperRef.current
+          if (axis) {
+            const span = Math.max(
+              groupBbox.max.x - groupBbox.min.x,
+              groupBbox.max.z - groupBbox.min.z,
+            )
+            const axisLength = Math.max(4, Math.min(span * 0.4, 60))
+            axis.scale.setScalar(axisLength)
+            axis.position.set(
+              groupBbox.min.x - groupCenter.x,
+              0.02,
+              groupBbox.min.z - groupCenter.z
+            )
+          }
         }
 
         // Add dimension overlay (bounding box + axis + dim lines)
@@ -686,9 +866,11 @@ export function ThreeDViewer({
         bboxOverlayRef.current = dimOverlay
         dimensionLabelsRef.current = dimOverlay.sizes
 
-        // Auto-fit camera to the loaded geometry. Fog must scale with the fitted
-        // distance, otherwise long phone-case models disappear into the background.
-        const fitted = fitCameraToObject(THREE, camera, controls, mainGroup)
+        // Auto-fit camera to the loaded geometry, inside the safe rectangle that
+        // excludes the floating plates. Fog must scale with the fitted distance,
+        // otherwise long phone-case models disappear into the background.
+        const fitted = fitCameraToObject(THREE, camera, controls, mainGroup, { width: w, height: h })
+        recordViewportFit(mountRef.current, fitted)
         scene.fog = new THREE.Fog(
           fieldToken('--shell-canvas-deep', fieldIsDark ? 0x0E0D0C : 0xEDE9E1),
           Math.max(fitted.dist * 1.6, fitted.maxDim * 2.2, 220),
@@ -827,19 +1009,21 @@ export function ThreeDViewer({
   }, [geometryKey])
 
   if (job.state === 'NEW' || job.state === 'SCAD_GENERATED') {
-  return (
-      <div className="flex flex-col items-center justify-center h-full text-[var(--app-text-dim)] gap-3">
-        <div className="w-16 h-16 rounded-2xl bg-[var(--app-empty-bg)] flex items-center justify-center">
-          <Box className="w-8 h-7 opacity-20" />
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-[var(--shell-text-dim)]">
+        <div className="flex h-16 w-16 items-center justify-center rounded-[9px] border border-[var(--shell-border)] bg-[var(--shell-well)]">
+          <Box aria-hidden="true" strokeWidth={1.5} className="h-7 w-7 opacity-40" />
         </div>
-        <span className="text-xs">{t("Process job to generate 3D preview")}</span>
+        <span className="text-[12px]">{t("Process job to generate 3D preview")}</span>
       </div>
     )
   }
 
   if (error) {
+    // DESIGN.md section 4 failure mode: show the last known render plus a quiet line
+    // naming the reason. Never an unexplained empty viewport.
     return (
-      <div className="relative flex h-full flex-col items-center justify-center gap-3 overflow-hidden bg-[var(--app-bg)] p-4 text-[var(--app-text-dim)]">
+      <div className="relative flex h-full flex-col items-center justify-center gap-3 overflow-hidden p-4 text-[var(--shell-text-dim)]">
         {job.pngPath ? (
           <>
             <img
@@ -847,15 +1031,15 @@ export function ThreeDViewer({
               alt={t("Rendered CAD preview")}
               className="max-h-full max-w-full object-contain"
             />
-            <div className="absolute left-3 top-3 rounded border border-[color:var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-[11px] text-[var(--app-text-muted)] shadow-sm">
+            <div className="absolute left-3 top-3 rounded-[4px] border border-[var(--shell-border)] bg-[var(--shell-module-solid)] px-2 py-1 text-[11px] text-[var(--shell-text-muted)] shadow-[var(--shell-shadow)]">
               {t("WebGL unavailable. Showing rendered PNG preview.")}
             </div>
           </>
         ) : (
           <>
-            <AlertCircle className="w-8 h-7 text-rose-500/50" />
-            <span className="text-xs text-rose-400">{t("3D preview unavailable")}</span>
-            <span className="text-[13px] text-[var(--app-text-dim)]">{error}</span>
+            <AlertCircle aria-hidden="true" strokeWidth={1.5} className="h-7 w-7 text-[var(--shell-fail)]" />
+            <span className="text-[13px] font-medium text-[var(--shell-text)]">{t("3D preview unavailable")}</span>
+            <span className="text-[12px] text-[var(--shell-text-muted)]">{error}</span>
           </>
         )}
       </div>
@@ -864,18 +1048,52 @@ export function ThreeDViewer({
 
   return (
     <div className="relative w-full h-full cad-viewport-shell overflow-hidden">
-      {isLoading && (
+      {/*
+       * The still frame.
+       *
+       * The viewport used to be an empty rectangle for as long as the geometry
+       * took to arrive - 1.0-2.5s with a warm chunk cache, up to 6.5s on a cold
+       * start where the 3D chunk itself missed. The measurement was made on a
+       * part whose PNG render was already on disk and reachable in one request,
+       * so the wait was paying for something that was already there.
+       *
+       * So the render is laid down as the backdrop and the interactive canvas
+       * is laid over it. The WebGL canvas is opaque once it paints (the scene
+       * carries a background colour), so the backdrop disappears on its own the
+       * moment the real viewport is ready - no swap, no flash, no second
+       * request for the same image.
+       */}
+      {job.pngPath && (
+        <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
+          <img
+            src={job.pngPath}
+            alt=""
+            aria-hidden="true"
+            className="h-full w-full object-contain"
+          />
+        </div>
+      )}
+
+      {isLoading && !job.pngPath && (
         <div className="absolute inset-0 flex items-center justify-center cad-viewport-glass z-10 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3 w-3/4 max-w-xs p-4 rounded-lg bg-[var(--app-surface)]/90 border border-[color:var(--app-border)] shadow-lg">
-            <Skeleton className="w-full h-28 rounded-md" />
-            <div className="flex flex-col items-center gap-1.5 w-full">
-              <Skeleton className="w-3/4 h-3.5 rounded" />
-              <span className="text-[11px] font-mono tracking-wider text-[var(--app-text-muted)]">{t("INITIALIZING 3D VIEWPORT...")}</span>
+          <div className="flex w-3/4 max-w-xs flex-col items-center gap-3 rounded-[9px] border border-[var(--shell-border)] bg-[var(--shell-module)] p-4 shadow-[var(--shell-shadow)]">
+            <Skeleton className="h-28 w-full rounded-[6px]" />
+            <div className="flex w-full flex-col items-center gap-1.5">
+              <Skeleton className="h-3.5 w-3/4 rounded" />
+              <span className="font-mono text-[10px] tracking-[0.08em] text-[var(--shell-text-dim)]">{t("Preparing 3D view")}</span>
             </div>
           </div>
         </div>
       )}
-      <div ref={mountRef} className="w-full h-full" />
+
+      {isLoading && job.pngPath && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
+          <span className="rounded-[4px] border border-[color:var(--shell-border)] bg-[var(--shell-module-solid)] px-2 py-1 font-mono text-[10px] tracking-[0.08em] text-[var(--shell-text-dim)]">
+            {t("Preparing 3D view")}
+          </span>
+        </div>
+      )}
+      <div ref={mountRef} className="relative z-[1] w-full h-full" />
 
       {/* Axis dimension pill — only while the user turns annotation on. Measurements
           belong to the 读数 module (DESIGN.md section 6), and section 4 asks for a

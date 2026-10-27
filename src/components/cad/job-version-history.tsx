@@ -15,8 +15,8 @@ import { fetchJobVersions, JobVersion } from './api'
 
 const FIELD_INFO: Record<string, { label: string; icon: typeof Settings; color: string }> = {
   parameters: { label: 'Parameters', icon: Settings, color: 'text-[var(--app-accent-text)]' },
-  scadSource: { label: 'SCAD Source', icon: FileCode, color: 'text-cyan-400' },
-  notes: { label: 'Notes', icon: StickyNote, color: 'text-amber-400' },
+  scadSource: { label: 'SCAD Source', icon: FileCode, color: 'text-[var(--shell-text-muted)]' },
+  notes: { label: 'Notes', icon: StickyNote, color: 'text-[var(--shell-text-muted)]' },
 }
 
 // ─── Diff helper for parameter changes ────────────────────────────────────
@@ -40,7 +40,7 @@ function ParameterDiff({ oldValue, newValue }: { oldValue: string | null; newVal
   }
 
   if (changes.length === 0) {
-    return <span className="text-xs text-[var(--app-text-dim)] italic">{t("No specific changes detected")}</span>
+    return <span className="text-[12px] text-[var(--app-text-dim)] italic">{t("No specific changes detected")}</span>
   }
 
   return (
@@ -48,9 +48,9 @@ function ParameterDiff({ oldValue, newValue }: { oldValue: string | null; newVal
       {changes.map(c => (
         <div key={c.key} className="flex items-center gap-2 text-[13px] font-mono">
           <span className="text-[var(--app-text-muted)] min-w-[60px]">{c.key}</span>
-          <span className="text-rose-400 line-through">{c.old != null ? String(c.old) : '-'}</span>
+          <span className="text-[var(--shell-fail)] line-through">{c.old != null ? String(c.old) : '-'}</span>
           <span className="text-[var(--app-text-dim)]">→</span>
-          <span className="text-emerald-400">{c.new != null ? String(c.new) : '-'}</span>
+          <span className="text-[var(--shell-ok)]">{c.new != null ? String(c.new) : '-'}</span>
         </div>
       ))}
     </div>
@@ -85,13 +85,13 @@ function ScadDiff({ oldValue, newValue }: { oldValue: string | null; newValue: s
   }
 
   return (
-    <div className="mt-1 font-mono text-xs max-h-32 overflow-y-auto rounded bg-[var(--app-bg)] border border-[color:var(--app-border)]">
+    <div className="mt-1 font-mono text-[12px] max-h-32 overflow-y-auto rounded bg-[var(--app-bg)] border border-[color:var(--app-border)]">
       {diffs.map((d, idx) => (
         <div
           key={idx}
           className={`flex ${
-            d.type === 'removed' ? 'bg-rose-500/10 text-rose-300' :
-            d.type === 'added' ? 'bg-emerald-500/10 text-emerald-300' :
+            d.type === 'removed' ? 'bg-[color-mix(in_srgb,var(--shell-fail)_10%,transparent)] text-[var(--shell-fail)]' :
+            d.type === 'added' ? 'bg-[color-mix(in_srgb,var(--shell-ok)_10%,transparent)] text-[var(--shell-ok)]' :
             'text-[var(--app-text-dim)]'
           }`}
         >
@@ -115,14 +115,14 @@ function NotesDiff({ oldValue, newValue }: { oldValue: string | null; newValue: 
     <div className="mt-1 space-y-1">
       {oldValue && (
         <div>
-          <span className="text-[8px] text-[var(--app-text-dim)] uppercase">{t("Before")}</span>
-          <p className="text-[13px] text-rose-300/80 line-through truncate max-w-full">{oldValue.slice(0, 100)}{oldValue.length > 100 ? '...' : ''}</p>
+          <span className="text-[10px] text-[var(--app-text-dim)] uppercase">{t("Before")}</span>
+          <p className="text-[13px] text-[var(--shell-fail)] line-through truncate max-w-full">{oldValue.slice(0, 100)}{oldValue.length > 100 ? '...' : ''}</p>
         </div>
       )}
       {newValue && (
         <div>
-          <span className="text-[8px] text-[var(--app-text-dim)] uppercase">{t("After")}</span>
-          <p className="text-[13px] text-emerald-300/80 truncate max-w-full">{newValue.slice(0, 100)}{newValue.length > 100 ? '...' : ''}</p>
+          <span className="text-[10px] text-[var(--app-text-dim)] uppercase">{t("After")}</span>
+          <p className="text-[13px] text-[var(--shell-ok)] truncate max-w-full">{newValue.slice(0, 100)}{newValue.length > 100 ? '...' : ''}</p>
         </div>
       )}
     </div>
@@ -171,11 +171,36 @@ export function JobVersionHistory({ job }: JobVersionHistoryProps) {
     return counts
   }, [versions])
 
+  /*
+   * Loading is three rows of the thing that is coming, not a spinner over a blank
+   * panel (UI-16). The skeleton keeps the timeline's dot column and the same 30px
+   * row pitch, so the list does not jump when the real revisions arrive - and it
+   * says what is loading in text for anyone not reading shapes.
+   */
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-[var(--app-text-dim)] gap-3 p-6">
-        <div className="w-8 h-7 border-2 border-[color:var(--app-accent)] border-t-transparent rounded-full animate-spin" />
-        <p className="text-[13px]">{t("Loading history...")}</p>
+      <div className="flex flex-col h-full" data-testid="version-history-loading-skeleton">
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-[color:var(--app-border)] shrink-0">
+          <h3 className="text-eyebrow text-[var(--app-text-muted)] flex items-center gap-1.5">
+            <History className="w-3.5 h-3.5" />
+            {t("Version History")}
+          </h3>
+          <span className="sr-only">{t("Loading history...")}</span>
+        </div>
+        <div className="p-3 space-y-1" aria-hidden="true">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="relative animate-pulse" style={{ animationDelay: `${i * 90}ms` }}>
+              <div className="absolute left-0 top-0 bottom-0 w-4 flex flex-col items-center">
+                <div className="mt-2 h-2 w-2 rounded-full bg-[var(--shell-raise)]" />
+                {i < 2 && <div className="mt-1 w-px flex-1 bg-[var(--shell-hairline)]" />}
+              </div>
+              <div className="ml-5 flex h-[30px] items-center justify-between rounded-[6px] border border-[color:var(--shell-hairline)] bg-[var(--shell-well)] px-3">
+                <div className="h-2 w-[38%] rounded-full bg-[var(--shell-raise)]" />
+                <div className="h-2 w-10 rounded-full bg-[var(--shell-raise)]" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -186,7 +211,7 @@ export function JobVersionHistory({ job }: JobVersionHistoryProps) {
         <div className="w-12 h-12 rounded border border-[color:var(--cad-border-strong)] flex items-center justify-center opacity-40">
           <History className="w-6 h-6" />
         </div>
-        <p className="text-sm">{t("No version history")}</p>
+        <p className="text-[13px]">{t("No version history")}</p>
         <p className="text-[13px] text-[var(--app-text-dim)]">{t("Changes to parameters, SCAD, and notes will be tracked here")}</p>
       </div>
     )
@@ -200,7 +225,7 @@ export function JobVersionHistory({ job }: JobVersionHistoryProps) {
           <History className="w-3.5 h-3.5" />
           {t("Version History")}
         </h3>
-        <Badge variant="outline" className="text-xs h-4 bg-[var(--app-surface-raised)] text-[var(--app-text-muted)] border-[color:var(--app-border)]">
+        <Badge variant="outline" className="text-[12px] h-4 bg-[var(--app-surface-raised)] text-[var(--app-text-muted)] border-[color:var(--app-border)]">
           {versions.length} {t("changes")}
         </Badge>
       </div>
@@ -215,7 +240,7 @@ export function JobVersionHistory({ job }: JobVersionHistoryProps) {
             return (
               <button
                 key={f}
-                className={`shrink-0 text-[8px] font-mono px-1.5 py-0.5 rounded linear-transition ${
+                className={`shrink-0 text-[10px] font-mono px-1.5 py-0.5 rounded linear-transition ${
                   isActive ? 'bg-[var(--app-accent-bg)] text-[var(--app-accent-text)] border border-[color:var(--app-accent-border)]' : 'text-[var(--app-text-dim)] hover:text-[var(--app-text-muted)] border border-transparent'
                 }`}
                 onClick={() => setFilterField(f === 'all' ? null : f)}
@@ -254,21 +279,36 @@ export function JobVersionHistory({ job }: JobVersionHistoryProps) {
 
                   {/* Content */}
                   <div
-                    className="ml-5 rounded-md linear-border bg-[var(--app-surface)] overflow-hidden cursor-pointer hover:bg-[var(--app-surface-hover)] linear-transition"
+                    className="ml-5 rounded-md linear-border bg-[var(--app-surface)] overflow-hidden cursor-pointer hover:bg-[var(--app-surface-hover)] linear-transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-focus-ring)]"
                     onClick={() => setExpandedId(isExpanded ? null : version.id)}
+                    /*
+                     * This row is the only way to open a version diff, so it has to
+                     * be a real tab stop: a div with a click handler is invisible to
+                     * the keyboard and to a screen reader, which made the whole
+                     * revision history unreachable without a mouse.
+                     */
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isExpanded}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setExpandedId(isExpanded ? null : version.id)
+                      }
+                    }}
                   >
                     <div className="flex items-center justify-between px-3 py-1.5">
                       <div className="flex items-center gap-1.5">
                         <FieldIcon className={`w-3.5 h-3.5 ${fieldInfo.color}`} />
                         <span className="text-[13px] font-medium text-[var(--app-text-secondary)]">{fieldInfo.label}</span>
-                        <span className="text-[8px] text-[var(--app-text-dim)]">changed</span>
+                        <span className="text-[10px] text-[var(--app-text-dim)]">changed</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="flex items-center gap-1 text-[8px] text-[var(--app-text-dim)]">
+                        <span className="flex items-center gap-1 text-[10px] text-[var(--app-text-dim)]">
                           <User className="w-2 h-2" />
                           {version.changedBy}
                         </span>
-                        <span className="text-[8px] text-[var(--app-text-dim)]">{timeAgo(version.createdAt)}</span>
+                        <span className="text-[10px] text-[var(--app-text-dim)]">{timeAgo(version.createdAt)}</span>
                         <motion.div
                           animate={{ rotate: isExpanded ? 180 : 0 }}
                           transition={{ duration: 0.15 }}
@@ -298,7 +338,7 @@ export function JobVersionHistory({ job }: JobVersionHistoryProps) {
                             {version.field === 'notes' && (
                               <NotesDiff oldValue={version.oldValue} newValue={version.newValue} />
                             )}
-                            <div className="text-[8px] text-[var(--app-text-dim)] mt-1">
+                            <div className="text-[10px] text-[var(--app-text-dim)] mt-1">
                               {new Date(version.createdAt).toLocaleString(locale)}
                             </div>
                           </div>

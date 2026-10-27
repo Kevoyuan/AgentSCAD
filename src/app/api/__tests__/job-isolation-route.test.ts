@@ -73,6 +73,16 @@ describe("job API browser isolation", () => {
     expect(created.status).toBe(201);
     expect(await created.text()).not.toContain("browserSessionId");
 
+    /*
+     * A job that has not generated anything must not carry parameters. It used to be
+     * created with width 40 / depth 30 / height 15 / wall_thickness 2 marked
+     * `source: "user"`, which put four authoritative steppers and a readout line
+     * saying "Target 15 x 40 x 30 mm" in front of a design nobody had asked for.
+     * Parameters come from the generated OpenSCAD, so before that they do not exist.
+     */
+    expect(rows[0].parameterSchema).toBeUndefined();
+    expect(rows[0].parameterValues).toBeUndefined();
+
     const browserA = await GET(request(
       "https://agentscad.test/api/jobs?summary=true",
       TOKEN_A,

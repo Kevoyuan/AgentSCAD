@@ -1,3 +1,4 @@
+import { recoverStaleJobExecution, readExecutionProgress } from "@/lib/pipeline/job-execution";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
@@ -34,7 +35,8 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ job: toPublicJob(job) });
+    const recovered = await recoverStaleJobExecution(job);
+    return NextResponse.json({ job: { ...toPublicJob(recovered), executionProgress: await readExecutionProgress(recovered) } });
   } catch (error) {
     console.error("Error fetching job:", error);
     return NextResponse.json(

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getJobAccessScope, jobAccessFilter } from '@/lib/job-session'
 import { toPublicJob } from '@/lib/public-job'
+import { appendLog } from '@/lib/stores/job-store'
 
 const CANCELABLE_STATES = ['NEW', 'SCAD_GENERATED', 'RENDERED', 'VALIDATED', 'DEBUGGING', 'REPAIRING']
 
@@ -22,8 +23,12 @@ export async function PATCH(
     }
 
     if (!CANCELABLE_STATES.includes(job.state)) {
+      // The rejectable states are exactly the in-flight ones, so "not
+      // cancelable" means "not running" - and that is what the user needs to
+      // hear. Naming the state would put an internal enum into user-facing
+      // copy, the same rule as never showing a rule id (DESIGN.md §18).
       return NextResponse.json(
-        { error: `Cannot cancel job in state ${job.state}` },
+        { error: 'This job is not running, so there is nothing to cancel.' },
         { status: 400 }
       )
     }
@@ -33,6 +38,20 @@ export async function PATCH(
       data: {
         state: 'CANCELLED',
         completedAt: new Date(),
+        /*
+         * A cancellation used to leave no trace beyond the state itself, so the
+         * log could not tell "the user stopped this" from "the run was killed".
+         * The reason is the whole point of the entry - without it the ledger
+         * records that something ended, not why.
+         *
+         * What it says deliberately avoids the state enum: what the user needs
+         * to know is that they stopped it, and what was kept.
+         */
+        executionLogs: appendLog(
+          job.executionLogs,
+          'CANCELLED',
+          'Stopped by the user before the part was finished.'
+        ),
       },
     })
 

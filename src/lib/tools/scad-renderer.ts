@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import { createHash, randomUUID } from "crypto";
 import os from "os";
 import path from "path";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import {
   cleanupArtifactWorkspace,
@@ -21,34 +21,54 @@ import {
 } from "@/lib/tools/openscad-wasm-runtime";
 import { renderStlFilePreview } from "@/lib/tools/stl-preview";
 import { getOpenScadDefinitionEntries } from "@/lib/tools/scad-definitions";
+import {
+  OPENSCAD_WASM_TIMEOUT_MS,
+  OpenScadTimeoutError,
+  getOpenScadTimeoutMs,
+  isOpenScadTimeoutMessage,
+  toOpenScadExecError,
+  type OpenScadTimeoutStage,
+} from "@/lib/tools/scad-timeout";
 import openScadPolicy from "../../../config/openscad-wasm-runtime.json";
 import type { RenderedArtifacts, RenderLog } from "@/lib/harness/types";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+export interface ScadExecutionOptions {
+  signal?: AbortSignal;
+  onDiagnostic?: (message: string) => void;
+  onStage?: (stage: "rendering" | "previewing") => void;
+}
+
 
 /** Native OpenSCAD is external; serverless uses the reviewed child-process WASM runtime. */
 const OPENSCAD_BIN = process.env.OPENSCAD_BIN || "openscad";
-const RENDER_TIMEOUT_MS = 120_000; // 2 minutes — rendering is slower than validation
-const MAX_VALIDATED_WASM_CACHE_ENTRIES = 2;
-const validatedWasmStlCache = new Map<string, Buffer>();
+const MAX_VALIDATED_STL_CACHE_ENTRIES = 2;
+const validatedStlCache = new Map<string, { stl: Buffer; output: string }>();
 
-function wasmCacheKey(scadSource: string): string {
-  return createHash("sha256").update(scadSource).digest("hex");
+function validatedStlCacheKey(scadSource: string): string {
+  return createHash("sha256").update(`${usesOpenScadWasm() ? "wasm" : "native"}:`).update(scadSource).digest("hex");
 }
 
-function cacheValidatedWasmStl(scadSource: string, stl: Buffer): void {
-  validatedWasmStlCache.set(wasmCacheKey(scadSource), stl);
-  while (validatedWasmStlCache.size > MAX_VALIDATED_WASM_CACHE_ENTRIES) {
-    const oldest = validatedWasmStlCache.keys().next().value;
+/**
+ * Cache the STL produced by compile validation so the following render step can
+ * reuse it. Native OpenSCAD renders are expensive; without this a dense job paid
+ * for the same CGAL compile twice (validation, then STL render).
+ */
+function cacheValidatedStl(scadSource: string, stl: Buffer, output = ""): void {
+  if (stl.length > 32 * 1024 * 1024) return;
+  validatedStlCache.set(validatedStlCacheKey(scadSource), { stl, output });
+  while (validatedStlCache.size > MAX_VALIDATED_STL_CACHE_ENTRIES) {
+    const oldest = validatedStlCache.keys().next().value;
     if (oldest === undefined) break;
-    validatedWasmStlCache.delete(oldest);
+    validatedStlCache.delete(oldest);
   }
 }
 
-function takeValidatedWasmStl(scadSource: string): Buffer | null {
-  const key = wasmCacheKey(scadSource);
-  const stl = validatedWasmStlCache.get(key) ?? null;
-  validatedWasmStlCache.delete(key);
+function takeValidatedStl(scadSource: string): { stl: Buffer; output: string } | null {
+  const key = validatedStlCacheKey(scadSource);
+  const stl = validatedStlCache.get(key) ?? null;
+  validatedStlCache.delete(key);
   return stl;
 }
 
@@ -102,13 +122,65 @@ export function buildOpenScadDefineArgs(definitions?: Record<string, unknown>): 
     .join(" ");
 }
 
-export async function validateGeneratedScadSource(scadSource: string): Promise<void> {
+/**
+ * Run native OpenSCAD with the configured budget. Timeout kills become a typed
+ * {@link OpenScadTimeoutError}; other failures keep stdout/stderr diagnostics so
+ * the compile-repair classifier can still read parser/CGAL messages.
+ */
+async function execNativeOpenScad(
+  args: string[],
+  stage: OpenScadTimeoutStage,
+  failurePrefix: string,
+  options: ScadExecutionOptions = {},
+): Promise<{ stdout: string; stderr: string }> {
+  const timeoutMs = getOpenScadTimeoutMs();
+  const startedAt = Date.now();
+  try {
+    options.signal?.throwIfAborted();
+    const pending = execFileAsync(OPENSCAD_BIN, args, {
+      env: await buildOpenScadExecEnv(),
+      timeout: timeoutMs,
+      signal: options.signal,
+    });
+    pending.child.stderr?.on("data", chunk => options.onDiagnostic?.(String(chunk).trim().slice(-1000)));
+    return await pending;
+  } catch (error) {
+    options.signal?.throwIfAborted();
+    throw toOpenScadExecError({
+      error,
+      stage,
+      timeoutMs,
+      elapsedMs: Date.now() - startedAt,
+      prefix: failurePrefix,
+    });
+  }
+}
+
+/** The WASM child process reports its fixed timeout as a plain error message. */
+function wrapWasmRenderTimeout(
+  error: unknown,
+  stage: OpenScadTimeoutStage,
+  startedAt: number,
+): unknown {
+  if (!isOpenScadTimeoutMessage(error)) return error;
+  return new OpenScadTimeoutError({
+    stage,
+    timeoutMs: OPENSCAD_WASM_TIMEOUT_MS,
+    backend: "wasm",
+    elapsedMs: Date.now() - startedAt,
+  });
+}
+
+export async function validateGeneratedScadSource(scadSource: string, options: ScadExecutionOptions = {}): Promise<void> {
+  options.signal?.throwIfAborted();
   if (usesOpenScadWasm()) {
-    await prepareScadForWasm(scadSource);
-    cacheValidatedWasmStl(
-      scadSource,
-      await renderScadToStlWasm(scadSource)
-    );
+    const startedAt = Date.now();
+    try {
+      await prepareScadForWasm(scadSource);
+      cacheValidatedStl(scadSource, await renderScadToStlWasm(scadSource, undefined, options.signal));
+    } catch (error) {
+      throw wrapWasmRenderTimeout(error, "validation", startedAt);
+    }
     return;
   }
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "agentscad-scad-"));
@@ -117,13 +189,14 @@ export async function validateGeneratedScadSource(scadSource: string): Promise<v
 
   try {
     await fs.writeFile(tempScadPath, scadSource, "utf8");
-    await execAsync(`${OPENSCAD_BIN} -o "${tempStlPath}" "${tempScadPath}"`, {
-      env: await buildOpenScadExecEnv(),
-      timeout: RENDER_TIMEOUT_MS,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown OpenSCAD validation error";
-    throw new Error(`Generated SCAD failed OpenSCAD validation: ${message}`);
+    const { stdout, stderr } = await execNativeOpenScad(
+      ["--export-format", "binstl", "-o", tempStlPath, tempScadPath],
+      "validation",
+      "Generated SCAD failed OpenSCAD validation",
+      options,
+    );
+    // Reuse this STL in the render step instead of paying for a second compile.
+    cacheValidatedStl(scadSource, await fs.readFile(tempStlPath), `${stdout}\n${stderr}`);
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }
@@ -132,24 +205,39 @@ export async function validateGeneratedScadSource(scadSource: string): Promise<v
 export async function renderStl(
   scadFilePath: string,
   stlFilePath: string,
-  definitions?: Record<string, unknown>
+  definitions?: Record<string, unknown>,
+  options: ScadExecutionOptions = {},
 ): Promise<string> {
+  options.signal?.throwIfAborted();
   if (usesOpenScadWasm()) {
     const source = await fs.readFile(scadFilePath, "utf8");
     const hasDefinitions = getOpenScadDefinitionEntries(definitions).length > 0;
-    const stl =
-      (hasDefinitions ? null : takeValidatedWasmStl(source)) ??
-      (await renderScadToStlWasm(source, definitions));
+    const startedAt = Date.now();
+    let stl: Buffer;
+    try {
+      stl =
+        (hasDefinitions ? null : takeValidatedStl(source)?.stl) ??
+        (await renderScadToStlWasm(source, definitions, options.signal));
+    } catch (error) {
+      throw wrapWasmRenderTimeout(error, "render", startedAt);
+    }
     await fs.writeFile(stlFilePath, stl);
     return "";
   }
-  const defineArgs = buildOpenScadDefineArgs(definitions);
-  const { stdout, stderr } = await execAsync(
-    `${OPENSCAD_BIN} ${defineArgs} -o ${quoteShellArg(stlFilePath)} ${quoteShellArg(scadFilePath)}`,
-    {
-      env: await buildOpenScadExecEnv(),
-      timeout: RENDER_TIMEOUT_MS,
-    },
+  if (getOpenScadDefinitionEntries(definitions).length === 0) {
+    const source = await fs.readFile(scadFilePath, "utf8");
+    const cached = takeValidatedStl(source);
+    if (cached) {
+      await fs.writeFile(stlFilePath, cached.stl);
+      return cached.output;
+    }
+  }
+  const defineArgs = getOpenScadDefinitionEntries(definitions).flatMap(([key, value]) => ["-D", `${key}=${value}`]);
+  const { stdout, stderr } = await execNativeOpenScad(
+    [...defineArgs, "--export-format", "binstl", "-o", stlFilePath, scadFilePath],
+    "render",
+    "OpenSCAD STL render failed",
+    options,
   );
   return `${stdout}\n${stderr}`;
 }
@@ -157,15 +245,25 @@ export async function renderStl(
 export async function renderPng(
   scadFilePath: string,
   pngFilePath: string,
-  definitions?: Record<string, unknown>
+  definitions?: Record<string, unknown>,
+  options: ScadExecutionOptions = {},
 ): Promise<string> {
-  const defineArgs = buildOpenScadDefineArgs(definitions);
-  const { stdout, stderr } = await execAsync(
-    `${OPENSCAD_BIN} ${defineArgs} -o ${quoteShellArg(pngFilePath)} --colorscheme=Tomorrow ${quoteShellArg(scadFilePath)}`,
-    {
-      env: await buildOpenScadExecEnv(),
-      timeout: RENDER_TIMEOUT_MS,
-    },
+  options.signal?.throwIfAborted();
+  const defineArgs = getOpenScadDefinitionEntries(definitions).flatMap(([key, value]) => ["-D", `${key}=${value}`]);
+  const { stdout, stderr } = await execNativeOpenScad(
+    [
+      ...defineArgs,
+      "-o",
+      pngFilePath,
+      "--imgsize=800,600",
+      "--viewall",
+      "--autocenter",
+      "--colorscheme=Tomorrow",
+      scadFilePath,
+    ],
+    "preview",
+    "OpenSCAD PNG preview render failed",
+    options,
   );
   return `${stdout}\n${stderr}`;
 }
@@ -182,6 +280,7 @@ export async function renderScadArtifacts(
   scadSource: string,
   definitions?: Record<string, unknown>,
   assertActive?: () => Promise<void>,
+  options: ScadExecutionOptions = {},
 ): Promise<RenderedArtifacts> {
   await assertActive?.();
   if (isEphemeralRuntime()) {
@@ -203,17 +302,37 @@ export async function renderScadArtifacts(
 
   try {
     await assertActive?.();
-    const stlOutput = await renderStl(paths.scadFilePath, paths.stlFilePath, definitions);
+    options.signal?.throwIfAborted();
+    options.onStage?.("rendering");
+    const stlOutput = await renderStl(paths.scadFilePath, paths.stlFilePath, definitions, options);
     await assertActive?.();
+    options.signal?.throwIfAborted();
+    options.onStage?.("previewing");
+    // Colored sources need OpenSCAD's PNG renderer: the fast mesh projection is
+    // monochrome and would drop every color() call (and the cutaway colours) from
+    // the preview. Plain and dense native models keep the cheap projection path,
+    // with an OpenSCAD fallback when its triangle budget is exceeded.
+    const prefersColoredPreview = !usesOpenScadWasm() && /\bcolor\s*\(/.test(scadSource);
     let triangleCount = 0;
     let pngOutput = "";
-    if (usesOpenScadWasm()) {
-      triangleCount = (
-        await renderStlPreview(paths.stlFilePath, paths.pngFilePath)
-      ).triangleCount;
+    if (prefersColoredPreview) {
+      try {
+        pngOutput = await renderPng(paths.scadFilePath, paths.pngFilePath, definitions, options);
+        triangleCount = countStlTriangles(await fs.readFile(paths.stlFilePath));
+      } catch (previewError) {
+        // Never lose a render because the colored preview failed; the mesh
+        // projection is still a valid (if monochrome) preview.
+        console.warn("Colored OpenSCAD preview failed; falling back to mesh projection", previewError);
+        triangleCount = (await renderStlPreview(paths.stlFilePath, paths.pngFilePath)).triangleCount;
+      }
     } else {
-      pngOutput = await renderPng(paths.scadFilePath, paths.pngFilePath, definitions);
-      triangleCount = countStlTriangles(await fs.readFile(paths.stlFilePath));
+      try {
+        triangleCount = (await renderStlPreview(paths.stlFilePath, paths.pngFilePath)).triangleCount;
+      } catch (previewError) {
+        if (usesOpenScadWasm()) throw previewError;
+        pngOutput = await renderPng(paths.scadFilePath, paths.pngFilePath, definitions, options);
+        triangleCount = countStlTriangles(await fs.readFile(paths.stlFilePath));
+      }
     }
     const warnings = collectOpenScadWarnings(stlOutput, pngOutput);
     await assertActive?.();

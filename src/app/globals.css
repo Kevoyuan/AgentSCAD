@@ -1,5 +1,22 @@
-@import "tailwindcss";
-@source "../";
+@import "tailwindcss" source(none);
+/*
+ * Scan scope, spelled out (2026-10-27).
+ *
+ * This used to be `@import "tailwindcss"` plus `@source "../"`. Tailwind v4's
+ * automatic scan walks the project and reads candidate class names out of
+ * whatever it finds. It found the review build directory (`AGENTSCAD_BUILD_DIR=
+ * .next-review`) and the SQLite file, and read raw bytes as utility names. The
+ * emitted CSS then contained `@media (m<0x05> :coarse)` and
+ * `.text-[var(<0x07>7<0x01> <0x12>dim)]`, PostCSS refused to parse either, and
+ * the app served a build-error overlay instead of the shell. Because the broken
+ * output was itself written into the build cache, every subsequent rebuild
+ * inherited it - the failure looked permanent and random.
+ *
+ * `source(none)` turns the automatic scan off; the single `@source` below is now
+ * the whole truth. Only TypeScript sources are candidates, so a binary file can
+ * never become a class name, and a build directory can never feed itself back.
+ */
+@source "../**/*.{ts,tsx}";
 
 
 @custom-variant dark (&:is(.dark *));
@@ -61,7 +78,7 @@
 
   /* the workspace field: one gradient per theme, never a hardcoded dark one */
   --shell-canvas-grad: radial-gradient(ellipse 70% 62% at 50% 46%, #FBFAF7 0%, #F5F2ED 46%, #F0EDE6 78%, #EAE6DE 100%);
-  --shell-grid: rgba(13, 13, 14, 0.045);
+  --shell-grid: rgba(13, 13, 14, 0.062);
   --shell-tick: rgba(13, 13, 14, 0.22);
   --shell-scrim: rgba(28, 24, 20, 0.35);
   --shell-cube-border: rgba(13, 13, 14, 0.18);
@@ -69,6 +86,9 @@
   --shell-cube-face-b: rgba(246, 243, 238, 0.97);
   --shell-cube-face-c: rgba(236, 231, 223, 0.97);
   --shell-cube-shadow: inset 0 0 16px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.90);
+  /* The ViewCube paints no shadow of its own (see ViewCube.tsx): the faces carry
+     their own border and inset highlight, and a wash behind the module turned the
+     118x86 footprint into a grey plate. Do not reintroduce `--shell-scrim` here. */
   /* Machined material for the 正在生成 part (DESIGN.md section 17). Same grey the
      viewport uses for the part, so the loader and the result read as one material. */
   --shell-part-face: #9AA5B1;
@@ -79,37 +99,74 @@
      (DESIGN.md colors.canvas-deep-dark) rather than the old cool #F4F6F8. */
   --shell-canvas-deep: #EDE9E1;
   /* Solid equivalents of the field grid (base + 5.5% ink / + 11%), because the WebGL
-     grid helper takes flat colours and cannot read an rgba token. */
-  --shell-field-grid: #E0DCD5;
-  --shell-field-grid-strong: #D5D2CB;
+     grid helper takes flat colours and cannot read an rgba token.
+     Light theme read 1.06:1 against --shell-canvas-deep, so the "precision bench"
+     the dark theme is known for disappeared on paper. These two steps measure
+     1.19:1 and 1.33:1 - a grid you can see without it becoming a table. */
+  --shell-field-grid: #DDD8CF;
+  --shell-field-grid-strong: #D2CCC1;
   /* Scrollbars are a browser surface the shell owns (DESIGN.md section 22). */
-  --shell-scroll-thumb: #C7C0B4;
-  --shell-scroll-thumb-hover: #AAA294;
+  --shell-scroll-thumb: #A79E92;
+  --shell-scroll-thumb-hover: #857D71;
   --shell-module: rgba(255, 255, 255, 0.92);
   --shell-module-solid: #FFFFFF;
   --shell-inner: #EDF1F5;
   --shell-raise: #E4E1DA;
   --shell-well: rgba(13, 13, 14, 0.045);
   --shell-hover: rgba(13, 13, 14, 0.05);
-  --shell-border: rgba(13, 13, 14, 0.10);
-  --shell-border-strong: rgba(13, 13, 14, 0.20);
-  --shell-hairline: rgba(13, 13, 14, 0.06);
+  --shell-border: rgba(13, 13, 14, 0.12);
+  --shell-border-strong: rgba(13, 13, 14, 0.24);
+  --shell-hairline: rgba(13, 13, 14, 0.07);
   --shell-text: #1B1917;
-  --shell-text-muted: #5C564D;
-  /* Light theme ladder. DESIGN.md section 21 requires sufficient contrast "including
-     the 9px engraved labels and dim values", so every step clears 4.5:1 against the
-     module plate and the canvas: label 5.2:1, dim and placeholder 4.6:1. The previous
-     label/dim pair measured 4.24:1 and 3.11:1 and failed its own rule. */
-  --shell-text-label: #6B6459;
-  --shell-text-dim: #7C7468;
-  --shell-placeholder: #7C7468;
+  /* Against the white solid plate, muted / label / dim measure
+     10.26 / 9.31 / 7.02:1. Semantic text uses darker same-role shades. */
+  --shell-text-muted: #45403A;
+  --shell-text-label: #4C463F;
+  --shell-text-dim: #5F584E;
+  --shell-placeholder: #5F584E;
   --shell-signal: #E0512A;
-  --shell-signal-soft: #B8471F;
-  --shell-ok: #2E9E5B;
-  --shell-warn: #B5821A;
+  /* The same signal as bare channels, for the three places that need it at an
+     alpha (the pulse glows on live state dots and the composer's send halo).
+     Those carried `rgba(255,90,31,…)` - the dark theme's orange - so on the light
+     theme a live dot bloomed in a colour the dot itself no longer used. */
+  --shell-signal-rgb: 224 81 42;
+  /* Ink that sits ON a solid signal fill. One token, so a filled control never
+     hardcodes #1A0F08 in twelve files (DESIGN.md section 22). */
+  --shell-signal-ink: #1A0F08;
+  --shell-signal-hover: #C84A1E;
+  /* Was #B8471F, which reads as a danger/delete red in a light UI. The soft step
+     carries "changed", "target", the selected-tab label and the rail's create
+     action, so it has to stay in the orange half of the hue circle.
+     #C2410C was the first correction, and it is right on the bare plate (5.2:1) -
+     but the selected tab and the row index put this text on a 12% signal tint,
+     where it measured 4.06:1 and 4.18:1: below AA for a 10px label, and the
+     smallest text in the product is exactly where it has to hold. #A8370A keeps
+     the hue and clears every surface it lands on - 5.1:1 on the tint, 5.3:1 on a
+     tinted row, 6.5:1 on the plate. */
+  --shell-signal-soft: #A8370A;
+  --shell-ok: #237A46;
+  --shell-warn: #8A6410;
   --shell-fail: #C0392B;
   --shell-shadow: 0 14px 30px -10px rgba(28, 24, 20, 0.16), 0 3px 8px rgba(28, 24, 20, 0.08);
   --shell-shadow-lift: 0 22px 46px -12px rgba(28, 24, 20, 0.22), 0 0 0 1px rgba(224, 81, 42, 0.40);
+
+  /*
+   * Provider marks. These are the only colours in the product that are NOT the
+   * shell's: a model vendor's identity is not ours to re-tint, and an assistant
+   * list where every dot is the same grey loses the one cue that tells two
+   * providers apart. Declaring them here keeps `#RRGGBB` out of the components
+   * (DESIGN.md section 22: one writer per value) without pretending they are
+   * semantic tokens.
+   */
+  --provider-mimo: #FF6A00;
+  --provider-openai: #10A37F;
+  --provider-anthropic: #D97706;
+  --provider-google: #4285F4;
+  --provider-deepseek: #5B6EF7;
+  --provider-zhipu: #3B82F6;
+  --provider-qwen: #8B5CF6;
+  --provider-mistral: #F97316;
+  --provider-unknown: #71717A;
 
   --radius: 0.625rem;
   /*
@@ -288,6 +345,7 @@
   --shell-cube-face-b: rgba(72, 66, 57, 0.95);
   --shell-cube-face-c: rgba(58, 54, 47, 0.95);
   --shell-cube-shadow: inset 0 0 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  /* No cube shadow in either theme - see the light block and ViewCube.tsx. */
   /* Machined material for the 正在生成 part (DESIGN.md section 17). */
   --shell-part-face: #9BA6B2;
   --shell-part-edge: #5F6874;
@@ -299,29 +357,33 @@
   --shell-canvas-deep: #0E0D0C;
   --shell-field-grid: #191817;
   --shell-field-grid-strong: #242322;
-  --shell-scroll-thumb: #3A362F;
-  --shell-scroll-thumb-hover: #565049;
+  --shell-scroll-thumb: #5E574E;
+  --shell-scroll-thumb-hover: #857D71;
   --shell-module: rgba(34, 31, 28, 0.90);
   --shell-module-solid: #26231F;
   --shell-inner: #211F1C;
   --shell-raise: #3A3631;
   --shell-well: rgba(0, 0, 0, 0.28);
   --shell-hover: rgba(255, 255, 255, 0.06);
-  --shell-border: rgba(255, 255, 255, 0.075);
-  --shell-border-strong: rgba(255, 255, 255, 0.17);
-  --shell-hairline: rgba(255, 255, 255, 0.045);
+  --shell-border: rgba(255, 255, 255, 0.10);
+  --shell-border-strong: rgba(255, 255, 255, 0.21);
+  --shell-hairline: rgba(255, 255, 255, 0.055);
   --shell-text: #EDE8E0;
-  --shell-text-muted: #BEB6AC;
-  /* Dark theme ladder, same rule: label 6.0:1, dim and placeholder 4.6:1 on the plate.
-     The previous pair measured 4.94:1 and 2.95:1; the dim step failed. */
-  --shell-text-label: #A79E92;
-  --shell-text-dim: #92897E;
-  --shell-placeholder: #92897E;
+  /* Readability pass (2026-10-26). Against solid #26231F, muted / label / dim
+     measure 9.64 / 7.63 / 6.59:1. Translucent plates require rendered checks;
+     the small-metadata target is 7:1, with 4.5:1 as the AA minimum. */
+  --shell-text-muted: #D2CABF;
+  --shell-text-label: #BDB4A7;
+  --shell-text-dim: #B0A79B;
+  --shell-placeholder: #B0A79B;
   --shell-signal: #FF5A1F;
+  --shell-signal-rgb: 255 90 31;
+  --shell-signal-ink: #1A0F08;
+  --shell-signal-hover: #FF6E36;
   --shell-signal-soft: #FFB597;
   --shell-ok: #7BD68A;
   --shell-warn: #E8B84B;
-  --shell-fail: #E8583F;
+  --shell-fail: #FF8A73;
   --shell-shadow: 0 14px 30px -10px rgba(0, 0, 0, 0.62), 0 3px 8px rgba(0, 0, 0, 0.34);
   --shell-shadow-lift: 0 22px 46px -12px rgba(0, 0, 0, 0.70), 0 0 0 1px rgba(255, 90, 31, 0.40);
 
@@ -532,10 +594,37 @@
    duplicate used to paint a zinc thumb with a violet hover on every scrollable
    surface through `<body>`, which is not a colour this product uses. */
 :root { scrollbar-color: var(--shell-scroll-thumb) transparent; }
-::-webkit-scrollbar { width: 4px; height: 4px; }
+/* 8px, not 4px: macOS overlay scrollbars hide until a scroll starts, and a 4px dark
+   thumb on a dark plate is invisible anyway. The audit found users could not tell the
+   parts rail or the right column were scrollable, so a mid-height panel read as
+   "cut off". A styled WebKit scrollbar is persistent, which is the affordance. */
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--shell-scroll-thumb); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: var(--shell-scroll-thumb-hover); }
+::-webkit-scrollbar-thumb {
+  background: var(--shell-scroll-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  min-height: 28px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--shell-scroll-thumb-hover); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* Type scale (DESIGN.md section 12, 2026-10-27).
+ *
+ * The product renders five sizes and no others:
+ *   10  engraved  - module titles, badges, telemetry, section headings
+ *   11  label     - row labels, secondary copy, captions
+ *   12  control   - buttons, tabs, chips, verdicts
+ *   13  body      - reading copy, dialog titles, values
+ *   16  display   - the readout's primary value and the one first-run heading
+ *
+ * The previous set had fourteen steps (7, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5,
+ * 12, 12.5, 13, 14, 18) and an unlayered rule below that silently rewrote every
+ * 8-9.5px declaration to 10px. A declaration that does not match what renders is
+ * worse than a wrong declaration: every later type audit reads the source and
+ * reports a size the user never saw. The rule is gone and the call sites now say
+ * what they mean, so this comment is the only place the floor is enforced. */
 
 /* Selection - the shell's own accent, not a legacy near-white that disappears on
    the light canvas. */
@@ -587,7 +676,7 @@
 /* Progress Bar */
 [data-slot="progress-indicator"] {
   background: var(--app-accent);
-  transition: width 0.3s ease;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Resizable Handle */
@@ -601,10 +690,22 @@ pre code { font-variant-ligatures: none; }
 [data-state="active"][role="tab"] { transition: border-color 0.15s ease; }
 
 /* Focus States - one focus colour for the whole product: the shell's signal
-   accent, which is what `--ring` (shadcn focus-visible) resolves to as well. */
+   accent, which is what `--ring` (shadcn focus-visible) resolves to as well.
+ *
+ * DESIGN.md section 21: "visible focus is one amber border rather than a ring
+ * inside a ring". The old rule painted a 2px box-shadow *inside* the element's own
+ * border, so a field that already turned amber on focus showed two amber
+ * rectangles and read as a validation error - worst inside the command palette,
+ * where the ring followed the dialog's rounded corner. An outline drawn at
+ * offset -1 sits on the element's edge, which is the border, not a second frame. */
 input:focus, textarea:focus, select:focus {
   outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
+  box-shadow: none;
+}
+
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 1px solid var(--shell-signal);
+  outline-offset: -1px;
 }
 
 /*
@@ -617,6 +718,12 @@ input:focus, textarea:focus, select:focus {
 .shell-field:focus,
 .shell-field:focus-visible {
   box-shadow: none;
+  /* Not just the shadow: the generic rule paints an outline too, and every
+     `.shell-field` in the product already states focus by turning its own border
+     amber (or, inside the composer, by letting the field's parent do it). Leaving
+     the outline on drew a second amber rectangle just inside the first - the
+     composer input and the command palette were both showing it. */
+  outline: none;
 }
 
 /*
@@ -638,7 +745,75 @@ input:focus, textarea:focus, select:focus {
 }
 
 .rail-create .rail-create-key {
-  color: color-mix(in srgb, var(--shell-signal-soft) 72%, transparent);
+  /* Solid signal-soft, no alpha: at 72% alpha this measured 2.94:1 on the light
+     theme's tinted chip (verifier hard failure). Solid #B8471F clears 5:1 on the
+     same surface; the dark theme's #FFB597 clears 9:1. */
+  color: var(--shell-signal-soft);
+}
+
+/*
+ * Selected state for a segmented control, a tab strip or a filter chip.
+ *
+ * DESIGN.md section 11 allows exactly ONE solid signal element group per screen -
+ * the composer's action and its status line. Every tab that filled itself with
+ * `--shell-signal` was a second one, and on a 390px screen the active "Parts" tab
+ * became the largest block of colour in the product while being the least
+ * important control on it. The accent still marks selection; it just marks it with
+ * a tint, the soft text step and a 1px edge instead of a slab of orange.
+ */
+.shell-selected {
+  background: color-mix(in srgb, var(--shell-signal) 12%, transparent);
+  color: var(--shell-signal-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--shell-signal) 45%, transparent);
+}
+
+/*
+ * The narrow sheet bar's active tab. A bottom rule plus a wash reads as "this
+ * panel is open" without turning half the bar into a solid fill.
+ */
+.shell-tab-active {
+  background: color-mix(in srgb, var(--shell-signal) 9%, transparent);
+  color: var(--shell-text);
+  box-shadow: inset 0 -2px 0 var(--shell-signal);
+}
+
+/*
+ * A Radix tab trigger with the shell's selected treatment.
+ *
+ * It has to be CSS rather than utilities: the Tabs primitive ships
+ * `dark:data-[state=active]:bg-input/30`, which out-ranks an unprefixed utility at
+ * runtime, so every attempt to style the selected tab from the call site needed a
+ * `dark:` twin. Unlayered rules beat Tailwind's utilities layer, so one class wins
+ * in both themes without the duplicate.
+ */
+.shell-tab[data-state="active"] {
+  background: color-mix(in srgb, var(--shell-signal) 12%, transparent);
+  color: var(--shell-signal-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--shell-signal) 45%, transparent);
+}
+
+/*
+ * A scroll container that advertises itself.
+ *
+ * Chromium switches to classic (always-visible) scrollbars as soon as
+ * `::-webkit-scrollbar` is styled - but only while `scrollbar-width` stays `auto`.
+ * Every module body and the right column carried an inline `scrollbarWidth: 'thin'`,
+ * which turns that styling off and hands the bar back to the OS overlay: 8px of
+ * thumb that only appears once you already started scrolling, so a column whose
+ * content was 52px taller than its box looked like a broken empty plate. This class
+ * is the single opt-in and it only states the property, it does not restyle. */
+.scroll-shell {
+  scrollbar-width: auto;
+  scrollbar-color: var(--shell-scroll-thumb) transparent;
+}
+
+/* A dialog / sheet surface. One token per theme: the settings and shortcuts
+   dialogs used to hardcode rgba(34,31,28,0.96), which is the DARK plate - so in
+   the light theme they opened as a dark slab with light-theme text tokens on it. */
+.shell-overlay {
+  background: var(--shell-module-solid);
+  border: 1px solid var(--shell-border);
+  box-shadow: var(--shell-shadow);
 }
 
 
@@ -958,16 +1133,6 @@ pre:hover .code-copy-btn { opacity: 1; }
   100% { opacity: 1; transform: translateY(0); }
 }
 
-/* State change bounce micro-animation */
-.state-bounce {
-  animation: stateBounce 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-@keyframes stateBounce {
-  0% { transform: scale(0.97); }
-  50% { transform: scale(1.02); }
-  100% { transform: scale(1); }
-}
-
 /* Gradient separator between header and content */
 .gradient-separator {
   height: 1px;
@@ -984,9 +1149,11 @@ pre:hover .code-copy-btn { opacity: 1; }
   position: relative;
 }
 .pipeline-mini-progress-fill {
+  width: 100%;
   height: 100%;
   border-radius: 1px;
-  transition: width 0.5s ease;
+  transform-origin: left center;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Reduced motion support */
@@ -1000,7 +1167,8 @@ pre:hover .code-copy-btn { opacity: 1; }
   .skeleton-shimmer::after { animation: none; display: none; }
   .slide-in-right, .slide-in-left { animation: none; }
   .activity-slide-in { animation: none; }
-  .state-bounce { animation: none; }
+  [data-slot="progress-indicator"],
+  .pipeline-mini-progress-fill { transition: none; }
   .empty-float { animation: none; }
 }
 
@@ -1095,7 +1263,16 @@ pre:hover .code-copy-btn { opacity: 1; }
 .linear-surface { background: var(--app-surface); border: 1px solid var(--app-border); }
 .linear-surface-hover:hover { background: var(--app-surface-hover); }
 .linear-border { border: 1px solid var(--app-border); }
-.linear-focus-ring:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--app-focus-ring); }
+/* The one focus treatment for controls that are not fields (DESIGN.md section 21).
+ * It used to be a 2px box-shadow of a 45%-alpha orange, which on the light theme
+ * was a pale halo around a white plate - visible in a screenshot, invisible in
+ * use. A solid 1px signal outline at offset 2 is the same edge the shell's fields
+ * draw, so focus looks the same everywhere and reads at full contrast. */
+.linear-focus-ring:focus-visible {
+  outline: 1px solid var(--shell-signal);
+  outline-offset: 2px;
+  box-shadow: none;
+}
 .linear-selected { border-left: 2px solid var(--app-accent); background: var(--app-selected-bg); }
 .linear-transition { transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease; }
 .linear-shadow-sm { box-shadow: var(--app-shadow-sm); }
@@ -1264,4 +1441,119 @@ html.theme-transition *::after {
 
 .mod-h:active {
   cursor: grabbing;
+}
+
+/* ─── Legacy `--app-*` compatibility layer (2026-10-26) ──────────────────────
+   DESIGN.md section 22 says every alias layer resolves to `--shell-*`. The
+   `--app-*` layer did not: in dark mode `--app-text-dim` was #6E6760 (2.8:1) and
+   several legacy surfaces inside the details dialog and secondary sheets were
+   unreadable while the shell had already moved to a 6.3:1 dim step. These aliases
+   are defined once on the root: because the target is a var() reference, they
+   resolve per theme automatically and no `.dark` duplicate is needed. Surfaces and
+   accents stay where they are; only the readability ladder and the chrome that must
+   agree with the shell are aliased here. */
+:root {
+  --app-text-primary: var(--shell-text);
+  --app-text-secondary: var(--shell-text-muted);
+  --app-text-muted: var(--shell-text-label);
+  --app-text-dim: var(--shell-text-dim);
+  --app-border: var(--shell-border);
+  --app-border-subtle: var(--shell-hairline);
+  --app-border-strong: var(--shell-border-strong);
+  --app-scrollbar-thumb: var(--shell-scroll-thumb);
+  --app-scrollbar-thumb-hover: var(--shell-scroll-thumb-hover);
+  --app-keyboard-border: var(--shell-border);
+  --app-keyboard-text: var(--shell-text-label);
+  --app-skeleton-bg: var(--shell-well);
+  --app-activity-hover: var(--shell-hover);
+  --app-code-copy-hover: var(--shell-hover);
+  --app-empty-bg: var(--shell-well);
+  --app-notification-hover: var(--shell-hover);
+  --app-interactive-hover: var(--shell-hover);
+  --app-surface-hover: var(--shell-hover);
+  --app-footer-separator: var(--shell-hairline);
+  --app-focus-ring: color-mix(in srgb, var(--shell-signal) 45%, transparent);
+}
+
+/* Narrow layout touch targets (DESIGN.md section 20). The compact header's bell and
+   gear render at their desktop size inside the notification/menu primitives, and the
+   composer's circular action is 34px. Under 960px every one of them must be a 44px
+   touch target without changing the other themes' desktop instrument sizing. */
+@media (max-width: 959px) {
+  #mobile-header-actions button {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+  }
+  #mobile-header-actions button svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* Physical 28px desktop targets and 44px touch targets keep adjacent controls
+   separate without relying on overlapping pseudo-elements. */
+.mod-h .cv {
+  position: relative;
+  width: 28px;
+  height: 28px;
+}
+@media (pointer: coarse) {
+  .mod-h .cv {
+    width: 44px;
+    height: 44px;
+  }
+}
+#brand button {
+  min-width: 28px;
+  min-height: 28px;
+}
+
+/* Reduced motion, consolidated at the end of the file.
+ *
+ * Files that come earlier in this stylesheet already handle reduced motion for
+ * seven custom classes (skeleton-shimmer, slide-in-*, empty-float, part-tumble).
+ * What they never covered was everything else:
+ *   - the Tailwind utilities `animate-spin` (19 uses) and `animate-pulse`
+ *     (8 uses) across `src/components/cad/`. Exactly one of those 27 carried its
+ *     own `motion-reduce:animate-none`.
+ *   - four of this file's own infinite animations: `.animate-status-pulse`,
+ *     `.skeleton-loading`, `.online-dot` and `.stop-btn-pulse`, plus
+ *     `.status-icon-pulse`. An "online" dot that breathes forever is decoration
+ *     on a fact its colour and presence already state.
+ *
+ * Handling it globally is deliberate: the correct behaviour should be the
+ * default, and a call site cannot forget to opt in. Same reasoning as counting
+ * model calls at one choke point instead of at every caller.
+ *
+ * Every one of these is decorative — the thing the motion signalled is also
+ * stated in words or by the element's plain presence ("Refining…",
+ * "Loading models…", the lamp strip's sr-only state word) — so the motion can
+ * stop without the information going with it.
+ *
+ * This sits last and unlayered on purpose. The file already records an earlier
+ * reduced-motion block losing the cascade to a later rule, and Tailwind v4 emits
+ * its utilities inside `@layer`, which unlayered rules beat. Together that means
+ * this wins without `!important` or per-element variants.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin,
+  .animate-pulse {
+    animation: none;
+  }
+  .animate-status-pulse,
+  .skeleton-loading,
+  .online-dot,
+  .stop-btn-pulse,
+  .status-icon-pulse {
+    animation: none;
+  }
+  /* `:nth-child(n)` and not the bare class: the wave is animated through
+     `.typing-wave-dot:nth-child(1..3)`, which is one pseudo-class heavier. A
+     bare `.typing-wave-dot` would be outranked and the dots would keep waving. */
+  .typing-wave-dot:nth-child(n) {
+    animation: none;
+    opacity: 1;
+  }
 }

@@ -21,8 +21,8 @@ export function CadPanel({
     <section className={`cad-panel ${className}`}>
       {(title || eyebrow) && (
         <div className="border-b border-[color:var(--cad-border)] px-3 py-2">
-          {eyebrow && <p className="text-[8px] font-mono uppercase tracking-[0.18em] text-[var(--cad-text-muted)]">{eyebrow}</p>}
-          {title && <h3 className="mt-0.5 text-xs font-medium text-[var(--cad-text)]">{title}</h3>}
+          {eyebrow && <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--cad-text-muted)]">{eyebrow}</p>}
+          {title && <h3 className="mt-0.5 text-[12px] font-medium text-[var(--cad-text)]">{title}</h3>}
         </div>
       )}
       {children}
@@ -71,11 +71,11 @@ export function CadMetric({
     <div className="rounded-md border border-[color:var(--cad-border)] bg-black/10 px-2.5 py-2">
       <div className="flex items-center gap-1.5">
         <CadStatusDot tone={tone} />
-        <span className="text-[8px] font-mono uppercase tracking-[0.16em] text-[var(--cad-text-muted)]">{label}</span>
+        <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[var(--cad-text-muted)]">{label}</span>
       </div>
       <div className="mt-1 flex items-baseline gap-1 font-mono tabular-nums">
-        <span className="text-sm text-[var(--cad-text)]">{value}</span>
-        {unit && <span className="text-xs text-[var(--cad-text-muted)]">{unit}</span>}
+        <span className="text-[13px] text-[var(--cad-text)]">{value}</span>
+        {unit && <span className="text-[12px] text-[var(--cad-text-muted)]">{unit}</span>}
       </div>
     </div>
   )
@@ -132,9 +132,9 @@ export function CadExportChecklist({ job }: { job: Job }) {
                 ? <CheckCircle2 className="h-3.5 w-3.5 text-[var(--cad-success)]" />
                 : <CircleAlert className="h-3.5 w-3.5 text-[var(--cad-warning)]" />
               }
-              <span className="text-sm text-[var(--cad-text-secondary)]">{check.label}</span>
+              <span className="text-[13px] text-[var(--cad-text-secondary)]">{check.label}</span>
             </div>
-            <span className="text-xs font-mono text-[var(--cad-text-muted)]">{check.detail}</span>
+            <span className="text-[12px] font-mono text-[var(--cad-text-muted)]">{check.detail}</span>
           </div>
         ))}
         {readiness.warnings.length > 0 && (

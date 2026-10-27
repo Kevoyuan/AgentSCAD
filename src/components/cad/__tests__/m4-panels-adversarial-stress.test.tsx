@@ -140,17 +140,17 @@ describe('M4 Adversarial Challenge: HistoryPanel Single-View Isolation & Extreme
   test('Empty notes: NOTES button displays NO amber indicator dot', () => {
     const jobNull = createTestJob({ notes: null as unknown as string })
     const htmlNull = renderToStaticMarkup(React.createElement(HistoryPanel, { job: jobNull, onUpdate: () => {} }))
-    expect(htmlNull).not.toContain('bg-amber-400')
+    expect(htmlNull).not.toContain('bg-[var(--shell-warn)]')
 
     const jobWhitespace = createTestJob({ notes: '   \n  \t  ' })
     const htmlWhitespace = renderToStaticMarkup(React.createElement(HistoryPanel, { job: jobWhitespace, onUpdate: () => {} }))
-    expect(htmlWhitespace).not.toContain('bg-amber-400')
+    expect(htmlWhitespace).not.toContain('bg-[var(--shell-warn)]')
   })
 
-  test('Notes with content: NOTES button displays amber indicator dot (bg-amber-400)', () => {
+  test('Notes with content: NOTES button displays amber indicator dot (bg-[var(--shell-warn)])', () => {
     const job = createTestJob({ notes: 'Customer requested 4.5mm hole clearance for M4 bolt.' })
     const html = renderToStaticMarkup(React.createElement(HistoryPanel, { job, onUpdate: () => {} }))
-    expect(html).toContain('bg-amber-400')
+    expect(html).toContain('bg-[var(--shell-warn)]')
   })
 
   test('Ultra-long Markdown in NotesPanel: sanitizes XSS and renders rich formatting in preview mode', () => {

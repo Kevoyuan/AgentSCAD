@@ -142,6 +142,34 @@ export function clampOutcomeLimit(limit: unknown): number {
   return Math.min(Math.floor(parsed), JOB_OUTCOME_MAX_LIMIT);
 }
 
+/**
+ * The single place a stored row becomes a domain event.
+ *
+ * Prisma models `kind` and `source` as plain strings, so every caller that wants
+ * the narrowed unions has to cross that boundary somewhere. Doing it in one
+ * function keeps the cast from being copied into every reader — and keeps it
+ * visible, instead of scattering `as JobOutcomeKind` across the codebase.
+ */
+export function toJobOutcomeEvent(row: {
+  id: string;
+  jobId: string;
+  kind: string;
+  source: string;
+  detail: string | null;
+  artifactVersionId: string | null;
+  createdAt: Date;
+}): JobOutcomeEvent {
+  return {
+    id: row.id,
+    jobId: row.jobId,
+    kind: row.kind as JobOutcomeKind,
+    source: row.source as JobOutcomeSource,
+    detail: row.detail,
+    artifactVersionId: row.artifactVersionId,
+    createdAt: row.createdAt,
+  };
+}
+
 export async function listJobOutcomes(
   jobId: string,
   limit: number = JOB_OUTCOME_DEFAULT_LIMIT,
@@ -154,15 +182,7 @@ export async function listJobOutcomes(
     take: clampOutcomeLimit(limit),
   });
 
-  return rows.reverse().map((row) => ({
-    id: row.id,
-    jobId: row.jobId,
-    kind: row.kind as JobOutcomeKind,
-    source: row.source as JobOutcomeSource,
-    detail: row.detail,
-    artifactVersionId: row.artifactVersionId,
-    createdAt: row.createdAt,
-  }));
+  return rows.reverse().map(toJobOutcomeEvent);
 }
 
 export interface JobOutcomeSummary {

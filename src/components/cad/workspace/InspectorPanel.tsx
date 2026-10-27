@@ -26,8 +26,19 @@ import { HistoryPanel } from '@/components/cad/history-panel'
 import { PanelErrorBoundary } from './PanelErrorBoundary'
 import { InspectorEmptyState } from './empty-states'
 
-const ResearchPanel = dynamic(() => import('@/components/cad/research-panel').then(m => ({ default: m.ResearchPanel })), { ssr: false, loading: () => <div className="p-4 text-[var(--app-text-dim)] text-xs">Loading...</div> })
-const ChatPanel = dynamic(() => import('@/components/cad/chat-panel').then(m => ({ default: m.ChatPanel })), { ssr: false, loading: () => <div className="p-4"><Skeleton className="h-40 w-full rounded-[6px]" /></div> })
+/* Both lazily-loaded panels share one placeholder shape: the panel's own row
+   rhythm, three lines of it, no "Loading…" caption (UI-16). A bare word in the
+   corner reads as an error message; a skeleton reads as "this is still arriving". */
+const PanelLoadingSkeleton = ({ testId }: { testId: string }) => (
+  <div className="space-y-2 p-4" data-testid={testId} aria-hidden="true">
+    {['w-full', 'w-[86%]', 'w-[62%]'].map((w, i) => (
+      <Skeleton key={i} className={`h-4 rounded-[3px] ${w}`} />
+    ))}
+  </div>
+)
+
+const ResearchPanel = dynamic(() => import('@/components/cad/research-panel').then(m => ({ default: m.ResearchPanel })), { ssr: false, loading: () => <PanelLoadingSkeleton testId="research-loading-skeleton" /> })
+const ChatPanel = dynamic(() => import('@/components/cad/chat-panel').then(m => ({ default: m.ChatPanel })), { ssr: false, loading: () => <PanelLoadingSkeleton testId="chat-loading-skeleton" /> })
 
 export function InspectorPanel({
   selectedJob,
@@ -107,7 +118,7 @@ export function InspectorPanel({
             <div className="min-h-0 min-w-0 overflow-hidden">
               <ResearchPanel job={selectedJob} />
             </div>
-            <div className="min-h-0 min-w-0 overflow-hidden border-t border-[color:var(--app-border)]">
+            <div className="min-h-0 min-w-0 overflow-hidden border-t border-[color:var(--shell-hairline)]">
               <JobDependencies job={selectedJob} allJobs={allJobs} onUpdate={onUpdate} onNavigateToJob={onNavigateToJob} />
             </div>
           </div>
@@ -119,7 +130,7 @@ export function InspectorPanel({
       case 'CODE':
         return <ScadEditor job={selectedJob} onUpdate={onUpdate} onApply={onApplyScad} />
       case 'HISTORY':
-        return <HistoryPanel job={selectedJob} onUpdate={onUpdate} />
+        return <HistoryPanel key={`${selectedJob.id}:${activeTab}`} job={selectedJob} onUpdate={onUpdate} initialTab={activeTab === 'LOG' ? 'timeline' : undefined} />
       default:
         return <SpecPanel job={selectedJob} onProcess={onProcess} onRepair={onRepair} />
     }
@@ -163,16 +174,25 @@ export function InspectorPanel({
                   onNavigateJobs={onClearSelectedJob}
                 />
               </div>
-              <TabsList className="w-full justify-start gap-0.5 overflow-x-auto overflow-y-hidden px-2 py-0 bg-transparent border-b border-[color:var(--shell-hairline)] h-8 rounded-none shrink-0 shadow-none">
+              {/* Section strip. 36px tall with 12.5px mono labels: this is the only
+                  navigation inside the details dialog, so it must read as a tab strip
+                  (an active underline plus the shell text step) rather than as dim
+                  meta copy. Inactive labels use --shell-text-muted (9.3:1 dark,
+                  10.2:1 light); the active one steps up to --shell-text with a 2px
+                  signal underline, the one signal element on this control. */}
+              <TabsList
+                aria-label={t("Inspector sections")}
+                className="h-9 w-full shrink-0 justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-none border-b border-[color:var(--shell-hairline)] bg-transparent px-2 py-0 shadow-none"
+              >
                 {[
-                  { key: t("SPEC"), label: t("Description"), icon: BoxSelect },
-                  { key: t("CODE"), label: t("Code"), icon: FileCode },
-                  { key: t("HISTORY"), label: t("History"), icon: History },
+                  { key: "SPEC", label: t("Description"), icon: BoxSelect },
+                  { key: "CODE", label: t("Code"), icon: FileCode },
+                  { key: "HISTORY", label: t("History"), icon: History },
                 ].map(tab => (
                   <TabsTrigger
                     key={tab.key}
                     value={tab.key}
-                    className="relative shrink-0 h-8 px-3 py-0 text-[12px] font-mono tracking-normal rounded-none border-b-2 border-transparent bg-transparent text-[var(--shell-text-dim)] shadow-none transition-colors hover:text-[var(--shell-text)] data-[state=active]:border-[var(--shell-signal)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--shell-text)] data-[state=active]:font-semibold data-[state=active]:shadow-none select-none cursor-pointer"
+                    className="relative h-9 shrink-0 cursor-pointer select-none rounded-none border-0 border-b-2 border-transparent bg-transparent px-3.5 py-0 font-mono text-[13px] font-normal tracking-normal text-[var(--shell-text-muted)] shadow-none transition-colors hover:text-[var(--shell-text)] data-[state=active]:border-[var(--shell-signal)] dark:data-[state=active]:border-[var(--shell-signal)] data-[state=active]:bg-transparent dark:data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-[var(--shell-text)] data-[state=active]:shadow-none"
                   >
                     {tab.label}
                   </TabsTrigger>

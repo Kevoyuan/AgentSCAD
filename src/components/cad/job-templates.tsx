@@ -88,7 +88,7 @@ export function JobTemplateCards({
               className="group flex min-w-0 items-center gap-2.5 rounded-[6px] border border-[color:var(--shell-border)] bg-[var(--shell-module-solid)] p-2 text-left transition-colors hover:border-[color:var(--shell-border-strong)] hover:bg-[var(--shell-hover)]"
               onClick={() => onSelect(t(template.template))}
             >
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[5px] border border-[color:var(--shell-border)] bg-[var(--shell-well)]">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[4px] border border-[color:var(--shell-border)] bg-[var(--shell-well)]">
                 <Icon className={`h-3.5 w-3.5 transition-colors ${template.color}`} />
               </div>
               <div className="min-w-0 flex-1">
