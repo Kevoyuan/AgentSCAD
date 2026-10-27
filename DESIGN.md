@@ -1392,6 +1392,15 @@ Appearance copy describes theme selection, without directing narrow-screen users
 to the hidden desktop Panels toolbar. Provider model fields say **Model ID / 模型 ID**;
 **Model / 看模型** names the workspace view mode only.
 
+**Creation follow-up (2026-10-27):** The new-part dialog initially shows the
+description, model selector and Generate action. Tags, refinements, templates,
+recent requests and case suggestions live under a native, keyboard-operable
+“Options” disclosure, closed by default. Collapsing it preserves the draft and
+tags. Refinement labels are localized while their existing description tokens
+remain stable. On narrow screens or coarse pointers, composer controls and
+command-menu rows have physical 44px targets. The dialog's inner flex column must
+allow shrinking (`min-width: 0`) so long descriptions cannot clip its controls.
+
 Under `@media (pointer: coarse)`:
 - Brand controls (`#brand button`), density and command buttons (`#controls button`, `#cmd button`), ViewCube buttons (`#view-cube button`), and design row controls (`[data-testid="design-row"] button`) expand to 44px tall hit areas via vertical pseudo-element expansion (`::after`). Expansion is strictly vertical so adjacent controls sitting shoulder-to-shoulder horizontally do not steal taps from each other.
 - Module collapse controls and numeric steppers use physical 44px touch targets. The narrow composer action is also 44px.
