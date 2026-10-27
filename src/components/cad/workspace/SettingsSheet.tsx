@@ -86,6 +86,7 @@ export function SettingsSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
+        data-settings-sheet
         side="right"
         /* The header below carries the shell's own close control; without this the
            primitive's default X stacks on top of it. */
