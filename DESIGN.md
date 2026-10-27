@@ -1379,6 +1379,19 @@ tablet-sized canvas.
 
 Hit targets are at least 44px, with no hover-only discoverability, and the ViewCube regions are reachable by tap. Orbit uses a single-finger drag, zoom uses pinch.
 
+**Review clarification (2026-10-27):** Below 960px, first-run example buttons have a
+physical 44px minimum height even when the pointer is a mouse. Their descriptive
+text and the empty-list action instruction use at least 11px, not the 10px engraved
+label style. Example buttons may grow when translated text wraps.
+
+The portalled Settings sheet owns its responsive targets independently of the
+workspace: ordinary buttons, inputs and selects have a 44px minimum on narrow
+screens or coarse pointers, and tabs can wrap. Compact switch tracks retain their
+native appearance; their full labelled touch area remains a follow-up check.
+Appearance copy describes theme selection, without directing narrow-screen users
+to the hidden desktop Panels toolbar. Provider model fields say **Model ID / 模型 ID**;
+**Model / 看模型** names the workspace view mode only.
+
 Under `@media (pointer: coarse)`:
 - Brand controls (`#brand button`), density and command buttons (`#controls button`, `#cmd button`), ViewCube buttons (`#view-cube button`), and design row controls (`[data-testid="design-row"] button`) expand to 44px tall hit areas via vertical pseudo-element expansion (`::after`). Expansion is strictly vertical so adjacent controls sitting shoulder-to-shoulder horizontally do not steal taps from each other.
 - Module collapse controls and numeric steppers use physical 44px touch targets. The narrow composer action is also 44px.
