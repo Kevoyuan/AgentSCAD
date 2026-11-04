@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "description": "Original centered slider-crank measurement setup. Frozen dimensions are supplied independently of SCAD evaluation. This is not a physical acceptance contract.",
+  "contract": {
+    "crankRadiusMm": 8,
+    "rodLengthMm": 28,
+    "toleranceMm": 0.02,
+    "sectionYmm": 2.3,
+    "axisProbeMm": 1,
+    "pinRadiusMm": { "min": 1.98, "max": 2.02 },
+    "rodBoreRadiusMm": { "min": 2.18, "max": 2.22 }
+  },
+  "angles": [0, 45, 90, 135, 180, 225, 270, 315, 360],
+  "motionParameter": "motion_angle",
+  "poseParameters": { "agentscad_pose": true },
+  "selectors": { "crank": "crank", "rod": "rod", "slider": "slider", "frame": "frame" }
+}

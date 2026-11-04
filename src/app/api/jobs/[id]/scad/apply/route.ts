@@ -1,5 +1,6 @@
 import { claimJobExecution, canProcessJobState, JobExecutionConflict, JobExecutionStopped } from '@/lib/pipeline/job-execution'
 import { NextRequest, NextResponse } from 'next/server'
+import { appendMotionEvidence } from '@/lib/validation/motion-contract'
 import { sanitizeRenderLogForClient, toPublicJob } from '@/lib/public-job'
 import { db } from '@/lib/db'
 import { getJobAccessScope, jobAccessFilter } from '@/lib/job-session'
@@ -246,6 +247,7 @@ export async function POST(
             wallThickness: parameterState.wallThickness,
             validationTargets: storedValidationTargets,
           })
+          appendMotionEvidence(validationResults, { inputRequest: job.inputRequest ?? 'generic part', intentResult: job.intentResult, scadSource })
           const criticalFailures = getCriticalValidationFailures(validationResults)
           const quality = buildJobQuality({
             state: criticalFailures.length > 0 ? 'HUMAN_REVIEW' : 'DELIVERED',

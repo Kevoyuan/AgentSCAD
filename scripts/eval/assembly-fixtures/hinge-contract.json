@@ -1,0 +1,14 @@
+{
+  "schema_version": "agentscad.assembly-contract-fixture.v1",
+  "id": "original-two-part-hinge-evidence",
+  "description": "Independent example contract. It does not contain a model or measured geometry.",
+  "requirements": [
+    { "id": "intent-preserved", "layer": "intent", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
+    { "id": "distinct-exported-parts", "layer": "parts", "required": true, "applicable": true, "expected": { "kind": "equals", "value": 2 } },
+    { "id": "diametral-clearance", "layer": "assembly", "required": true, "applicable": true, "expected": { "kind": "range", "min": 0.1, "max": 0.3, "unit": "mm" } },
+    { "id": "disassembly-path", "layer": "assembly", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
+    { "id": "sampled-motion", "layer": "motion", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
+    { "id": "physical-assembly", "layer": "physical", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
+    { "id": "elapsed-time", "layer": "performance", "required": false, "applicable": true, "expected": { "kind": "range", "min": 0, "max": 600000, "unit": "ms" } }
+  ]
+}

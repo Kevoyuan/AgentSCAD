@@ -1,5 +1,6 @@
 import { claimJobExecution, JobExecutionConflict, JobExecutionStopped, type JobExecution } from "@/lib/pipeline/job-execution";
 import { NextResponse } from "next/server";
+import { appendMotionEvidence } from "@/lib/validation/motion-contract";
 import { db } from "@/lib/db";
 import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import { appendLog } from "@/lib/stores/job-store";
@@ -186,6 +187,7 @@ export async function POST(
         renderLog,
         validationTargets: cadIntent?.validation_targets as Parameters<typeof validateRenderedArtifacts>[0]["validationTargets"],
       });
+      appendMotionEvidence(revalidationResults, { inputRequest: job.inputRequest, intentResult: job.intentResult, scadSource: sanitized });
     }
 
     const criticalFailures = getCriticalValidationFailures(revalidationResults);

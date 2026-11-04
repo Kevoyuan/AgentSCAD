@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "units": "mm",
+  "coordinateSystem": "right-handed",
+  "parts": [
+    {
+      "id": "fixed",
+      "name": "Fixed leaf and pin",
+      "selector": "fixed",
+      "source": "generated",
+      "material": null
+    },
+    {
+      "id": "moving",
+      "name": "Moving leaf",
+      "selector": "moving",
+      "source": "generated",
+      "material": null
+    }
+  ],
+  "instances": [
+    {
+      "id": "fixed-instance",
+      "partId": "fixed",
+      "subassemblyId": null,
+      "transform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "moving-instance",
+      "partId": "moving",
+      "subassemblyId": null,
+      "transform": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    }
+  ],
+  "subassemblies": [],
+  "groundedInstanceId": "fixed-instance",
+  "connections": [
+    {
+      "id": "hinge",
+      "type": "revolute",
+      "a": "fixed-instance",
+      "b": "moving-instance",
+      "frameA": {
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "direction": [
+          0,
+          0,
+          1
+        ]
+      },
+      "frameB": {
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "direction": [
+          0,
+          0,
+          1
+        ]
+      },
+      "range": {
+        "min": -45,
+        "max": 45,
+        "unit": "deg"
+      },
+      "pitchMm": null,
+      "ratio": null,
+      "boreInstanceId": "moving-instance",
+      "allowedContact": []
+    }
+  ],
+  "motions": [
+    {
+      "id": "turn",
+      "inputConnectionId": "hinge",
+      "range": {
+        "min": -45,
+        "max": 45,
+        "unit": "deg"
+      }
+    }
+  ],
+  "operations": [],
+  "manufacturing": null,
+  "assumptions": [
+    "External axial retention is required in use"
+  ],
+  "unknowns": [
+    "Manufacturing tolerance"
+  ]
+}

@@ -29,6 +29,7 @@ export type JobOutcomeSource = (typeof JOB_OUTCOME_SOURCES)[number];
 export const JOB_OUTCOME_DECISIONS: readonly JobOutcomeKind[] = ["accepted", "rejected"];
 
 export const JOB_OUTCOME_MAX_DETAIL_LENGTH = 500;
+export const JOB_OUTCOME_MAX_STRUCTURED_DETAIL_LENGTH = 16_384;
 export const JOB_OUTCOME_DEFAULT_LIMIT = 50;
 export const JOB_OUTCOME_MAX_LIMIT = 500;
 
@@ -45,6 +46,14 @@ export function sanitizeOutcomeDetail(detail: unknown): string | null {
   if (detail === null || detail === undefined) return null;
   const text = typeof detail === "string" ? detail : JSON.stringify(detail);
   if (!text) return null;
+  // Structured provenance must remain valid JSON; slicing it can silently lose
+  // the source/spec/contract hashes that make an export event auditable.
+  if (typeof detail !== "string") {
+    if (text.length > JOB_OUTCOME_MAX_STRUCTURED_DETAIL_LENGTH) {
+      throw new JobOutcomeValidationError("Structured outcome detail exceeds the size limit");
+    }
+    return text;
+  }
   return text.length > JOB_OUTCOME_MAX_DETAIL_LENGTH
     ? text.slice(0, JOB_OUTCOME_MAX_DETAIL_LENGTH)
     : text;
@@ -65,6 +74,8 @@ export interface RecordJobOutcomeInput {
   kind: JobOutcomeKind;
   source?: JobOutcomeSource;
   detail?: unknown;
+  /** Explicitly bind an event to a known job artifact, or null when none matches. */
+  artifactVersionId?: string | null;
 }
 
 export class JobOutcomeValidationError extends Error {}
@@ -93,7 +104,13 @@ export async function recordJobOutcome(
     );
   }
 
-  const artifactVersionId = await latestArtifactVersionId(input.jobId);
+  const artifactVersionId = input.artifactVersionId === undefined
+    ? await latestArtifactVersionId(input.jobId)
+    : input.artifactVersionId;
+  if (artifactVersionId !== null && input.artifactVersionId !== undefined &&
+      !await db.jobArtifactVersion.findFirst({ where: { id: artifactVersionId, jobId: input.jobId }, select: { id: true } })) {
+    throw new JobOutcomeValidationError("Artifact version does not belong to this job");
+  }
   const created = await db.jobOutcome.create({
     data: {
       jobId: input.jobId,

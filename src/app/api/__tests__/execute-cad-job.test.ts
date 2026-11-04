@@ -334,6 +334,11 @@ beforeAll(() => {
 
   mock.module("@/lib/validation/motion-contract", () => ({
     evaluateMotionContract: mock(() => motionContractResult),
+    unmeasuredMotionEvidence: () => ({
+      rule_id: "M002", rule_name: "Measured Motion", level: "ENGINEERING",
+      passed: false, status: "NOT_RUN", is_critical: false,
+      message: "Actual motion was not measured.",
+    }),
   }));
 });
 
@@ -894,6 +899,7 @@ describe("executeCadJob", () => {
       .map((value) => JSON.parse(value) as Array<{ rule_id?: string; status?: string }>);
     const motionResult = validationPayloads.flat().find((result) => result.rule_id === "M001");
     expect(motionResult?.status).toBe("WARN");
+    expect(validationPayloads.flat().find((result) => result.rule_id === "M002")?.status).toBe("NOT_RUN");
     expect(currentJob.state).toBe("DELIVERED");
   });
 

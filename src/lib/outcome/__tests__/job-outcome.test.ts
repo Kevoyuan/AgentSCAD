@@ -59,6 +59,9 @@ describe("job outcome ledger", () => {
     expect(sanitizeOutcomeDetail(undefined)).toBeNull();
     expect(sanitizeOutcomeDetail({ field: "parameters" })).toBe('{"field":"parameters"}');
     expect(sanitizeOutcomeDetail("x".repeat(900))?.length).toBe(JOB_OUTCOME_MAX_DETAIL_LENGTH);
+    const structured = { sourceSha256: "a".repeat(64), evidence: "x".repeat(700) };
+    expect(JSON.parse(sanitizeOutcomeDetail(structured)!)).toEqual(structured);
+    expect(() => sanitizeOutcomeDetail({ evidence: "x".repeat(20_000) })).toThrow("size limit");
   });
 
   test("rejects an unknown kind instead of writing it", async () => {

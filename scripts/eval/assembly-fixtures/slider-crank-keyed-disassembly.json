@@ -1,0 +1,41 @@
+{
+  "groundedInstanceId": "frame",
+  "steps": [
+    {
+      "instanceId": "eccentric_key",
+      "translationMm": [
+        30,
+        0,
+        0
+      ],
+      "samples": 121
+    },
+    {
+      "instanceId": "slider",
+      "translationMm": [
+        0,
+        20,
+        0
+      ],
+      "samples": 81
+    },
+    {
+      "instanceId": "rod",
+      "translationMm": [
+        0,
+        20,
+        0
+      ],
+      "samples": 81
+    },
+    {
+      "instanceId": "crank",
+      "translationMm": [
+        0,
+        20,
+        0
+      ],
+      "samples": 81
+    }
+  ]
+}

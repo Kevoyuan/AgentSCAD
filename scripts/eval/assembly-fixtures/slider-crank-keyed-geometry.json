@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "description": "Original five-part eccentric-retention candidate; sampled geometry only, main shaft and slider retention unresolved.",
+  "contract": {
+    "crankRadiusMm": 8,
+    "rodLengthMm": 28,
+    "toleranceMm": 0.02,
+    "sectionYmm": 2.3,
+    "axisProbeMm": 1,
+    "pinRadiusMm": {
+      "min": 1.98,
+      "max": 2.02
+    },
+    "rodBoreRadiusMm": {
+      "min": 2.18,
+      "max": 2.22
+    }
+  },
+  "angles": [
+    0,
+    45,
+    90,
+    135,
+    180,
+    225,
+    270,
+    315,
+    360
+  ],
+  "motionParameter": "motion_angle",
+  "poseParameters": {
+    "agentscad_pose": true
+  },
+  "selectors": {
+    "crank": "crank",
+    "rod": "rod",
+    "slider": "slider",
+    "frame": "frame"
+  },
+  "attachments": {
+    "eccentric_key": "eccentric_key"
+  }
+}

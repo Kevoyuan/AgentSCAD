@@ -6,7 +6,8 @@ import type { ValidationResult } from "@/lib/mesh-validator";
  * Static assemblies can look complete while ignoring the motion intent: every
  * piston at the same phase, no crank-angle control, internals buried in a solid
  * block. This check does not prove the kinematics are correct; it verifies the
- * minimum editable contract that makes the model actually movable in the UI.
+ * presence of a particular source-code interface. It cannot establish that
+ * the parameter controls geometry or that a mechanism moves correctly.
  */
 const MOTION_INTENT_PATTERN =
   /(?:motion[-_ ]?ready|functional motion|kinematic|animat(?:e|ed|ion)|moving assembly)/i;
@@ -100,7 +101,26 @@ export function evaluateMotionContract(input: MotionContractInput): ValidationRe
     // loop (and human review) sees it.
     is_critical: true,
     message: passed
-      ? `Motion-ready assembly exposes ${motionParameter} and kinematic function ${kinematicFunction}${phasedCrank ? " with phased crank pins" : ""} and a cutaway view.`
-      : `Motion-ready request is not actually movable: missing ${missing.join("; ")}.`,
+      ? `Source interface patterns found: ${motionParameter} and ${kinematicFunction}${phasedCrank ? " with phased crank pins" : ""}, plus a cutaway switch. Actual motion and collisions were not checked.`
+      : `The expected motion source interface was not found: missing ${missing.join("; ")}. This pattern check does not determine whether the mechanism moves.`,
   };
+}
+
+/** This pipeline has not measured a motion trajectory, even when M001 passes. */
+export function unmeasuredMotionEvidence(): ValidationResult {
+  return {
+    rule_id: "M002",
+    rule_name: "Measured Motion",
+    level: "ENGINEERING",
+    passed: false,
+    status: "NOT_RUN",
+    is_critical: false,
+    message: "Motion, kinematic relationships and collisions over the requested range have not been measured. Source patterns and animation do not prove functional motion.",
+  };
+}
+
+/** Re-evaluate after a source rewrite so old motion evidence is not carried forward or lost. */
+export function appendMotionEvidence(results: ValidationResult[], input: MotionContractInput): void {
+  const contract = evaluateMotionContract(input);
+  if (contract) results.push(contract, unmeasuredMotionEvidence());
 }

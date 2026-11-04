@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { appendMotionEvidence } from "@/lib/validation/motion-contract";
 import { db } from "@/lib/db";
 import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import { appendLog } from "@/lib/stores/job-store";
@@ -241,6 +242,7 @@ async function handleVisualRepair(
       renderLog: artifacts.renderLog,
       skipVisual: true,
     });
+    appendMotionEvidence(validationResults, { inputRequest: job.inputRequest, intentResult: job.intentResult, scadSource: repairedScad });
     validationResults.push(visualValidationResult);
 
     const criticalFailures = getCriticalValidationFailures(validationResults);

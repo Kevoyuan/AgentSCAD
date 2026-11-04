@@ -7,6 +7,7 @@ import { recordJobOutcomeSafe } from "@/lib/outcome/job-outcome";
 import { writeScadParameters } from "@/lib/tools/scad-parameter-writer";
 import { renderScadArtifacts, buildRenderFailureLog } from "@/lib/tools/scad-renderer";
 import { clearValidationCache, validateRenderedArtifacts, getCriticalValidationFailures } from "@/lib/tools/validation-tool";
+import { appendMotionEvidence } from "@/lib/validation/motion-contract";
 import { buildJobQuality } from "@/lib/validation/job-quality";
 
 export class ParameterValidationError extends Error {
@@ -104,6 +105,7 @@ export async function updateJobParameters(job: Job, parameters: Record<string, u
       renderLog: artifacts.renderLog,
       validationTargets: parseJson<CadValidationTargets | undefined>(job.validationTargetsJson, undefined), skipVisual: true,
     });
+    appendMotionEvidence(results, { inputRequest: job.inputRequest, intentResult: job.intentResult, scadSource: source });
     const state = getCriticalValidationFailures(results).length ? "HUMAN_REVIEW" : "DELIVERED";
     const quality = buildJobQuality({ state, scadSource: source, stlPath: artifacts.stlPath, pngPath: artifacts.pngPath, validationResults: results });
     const updated = await execution.update({ data: {

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "frozenAt": "2026-10-29",
+  "taskSetSha256": "15ad2d6797e6f3a22ce97ea63f81b98645f46e57bd005dcfa5ba2b1d8dff1b59",
+  "tasks": [
+    {
+      "id": "hinge-axial-45",
+      "prompt": "做一个两件式铰链，直径间隙 0.35 到 0.45 mm，能转 ±45°，可拆，3D 打印",
+      "intentKind": "revolute-hinge",
+      "maxRepairs": 2,
+      "failureMode": "两片被生成成一体的实体，或孔没有打穿，转动时轴与孔干涉"
+    },
+    {
+      "id": "hinge-axial-90-tight",
+      "prompt": "做一个两件式铰链，直径间隙 0.2 到 0.3 mm，能转 ±90°，可以拆开，3D 打印",
+      "intentKind": "revolute-hinge",
+      "maxRepairs": 2,
+      "failureMode": "沿用 0.4 mm 的宽松间隙，或只声明并做到 ±45°"
+    },
+    {
+      "id": "hinge-with-stop-60",
+      "prompt": "做一个带止挡的两件式铰链，直径间隙 0.35 到 0.45 mm，只能转 ±60°，可拆，3D 打印",
+      "intentKind": "revolute-hinge",
+      "maxRepairs": 2,
+      "failureMode": "止挡缺失导致转得超过 60°，或止挡挡住装配路径使零件拆不出来"
+    },
+    {
+      "id": "hinge-flush-30",
+      "prompt": "做一个两件式铰链，直径间隙 0.1 到 0.2 mm，能转 ±30°，两个零件要能分别导出，可拆",
+      "intentKind": "revolute-hinge",
+      "maxRepairs": 3,
+      "failureMode": "紧配合被做成过盈，或两个零件导出成同一个选择器结果"
+    }
+  ]
+}

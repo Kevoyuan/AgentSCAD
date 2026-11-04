@@ -1,0 +1,8 @@
+{
+  "groundedInstanceId": "frame",
+  "steps": [
+    { "instanceId": "slider", "translationMm": [0, 20, 0], "samples": 81 },
+    { "instanceId": "rod", "translationMm": [0, 20, 0], "samples": 81 },
+    { "instanceId": "crank", "translationMm": [0, 20, 0], "samples": 81 }
+  ]
+}

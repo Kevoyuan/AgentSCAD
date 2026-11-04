@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { JOB_EXECUTION_FIELD } from '@/lib/pipeline/job-execution'
+import { ASSEMBLY_REVISION_FIELD, ASSEMBLY_SPEC_FIELD } from '@/lib/pipeline/assembly-spec-record'
 import { db } from '@/lib/db'
 import { getJobAccessScope, jobAccessFilter } from '@/lib/job-session'
 
@@ -22,7 +23,7 @@ export async function GET(
     }
 
     const versions = await db.jobVersion.findMany({
-      where: { jobId: id, field: { not: JOB_EXECUTION_FIELD } },
+      where: { jobId: id, field: { notIn: [JOB_EXECUTION_FIELD, ASSEMBLY_SPEC_FIELD, ASSEMBLY_REVISION_FIELD] } },
       orderBy: { createdAt: 'desc' },
       take: 50,
     })

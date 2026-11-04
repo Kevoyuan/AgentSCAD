@@ -170,6 +170,7 @@ AgentSCAD strictly follows: **"LLMs write code; deterministic tools govern geome
 ## 📚 Deeper Documentation
 
 - [Architecture](./docs/ARCHITECTURE.md)
+- [Functional Assembly Target & Execution Plan（中文）](./docs/FUNCTIONAL_ASSEMBLY_PLAN.md)
 - [Skills and Routing](./docs/SKILLS.md)
 - [Memory and Outcomes](./docs/MEMORY.md)
 - [Development and CI](./docs/DEVELOPMENT.md)

@@ -82,4 +82,41 @@ describe("repair completion guard", () => {
   expect(prompt).toContain("Reduce repeated hull()/minkowski()");
   expect(prompt).toContain("functional features, fitting surfaces");
   expect(prompt).toContain("syntax and geometry are not yet verified");
+  expect(prompt).toContain("Never merge, omit, or replace any explicitly required parts");
  });
+
+describe("measured assembly failures in the repair prompt", () => {
+  const finding = {
+    kind: "motion" as const, layer: "motion" as const,
+    connectionId: "hinge", instanceIds: ["leaf-b", "leaf-a"],
+    measured: "blocked at 137.50°", required: "-180.00–180.00 deg",
+    atMm: null, atDeg: 137.5,
+    message: "Rotating through the declared range is blocked at 137.50°: leaf-b interferes with leaf-a.",
+  };
+
+  test("a measured failure is carried into the prompt with its numbers and the invariants", () => {
+    const prompt = buildRepairPrompt({
+      originalRequest: "a hinge that opens 180 degrees", partFamily: "unknown",
+      currentScadCode: "generated_part();", validationResults: [],
+      assemblyFindings: [finding],
+    });
+    const block = prompt.split("## Measured Assembly Failures")[1].split("## Repair Goal")[0];
+    expect(block).toContain("blocked at 137.50°");
+    expect(block).toContain("required: -180.00–180.00 deg");
+    expect(block).toContain("instances: leaf-b, leaf-a");
+    expect(block).toContain("connection: hinge");
+    expect(block).toContain("measured on the rendered geometry");
+    expect(block).toContain("Do not change the declared motion range to a smaller one.");
+    expect(block).toContain("Do not change which instance carries the bore.");
+  });
+
+  test("without measured failures the prompt is unchanged", () => {
+    const prompt = buildRepairPrompt({
+      originalRequest: "a hinge", partFamily: "unknown", currentScadCode: "cube(1);", validationResults: [],
+    });
+    expect(prompt).not.toContain("## Measured Assembly Failures");
+    expect(prompt).not.toContain("Do not change which instance carries the bore.");
+    // The existing goal wording is still there, so the block is additive.
+    expect(prompt).toContain("Fix ONLY the failed validation checks listed above.");
+  });
+});

@@ -1,0 +1,66 @@
+{
+  "selectors": {
+    "bolt": "bolt",
+    "nut": "nut"
+  },
+  "geometry": {
+    "external": {
+      "pitchMm": 1.5,
+      "hand": "right",
+      "majorDiameterMm": {
+        "min": 9.95,
+        "max": 10.05
+      },
+      "minorDiameterMm": {
+        "min": 8.15,
+        "max": 8.25
+      },
+      "toleranceMm": 0.01,
+      "searchRadiusMm": 6,
+      "threadRangeMm": {
+        "min": 0.05,
+        "max": 17.95
+      }
+    },
+    "internal": {
+      "pitchMm": 1.5,
+      "hand": "right",
+      "majorDiameterMm": {
+        "min": 10.25,
+        "max": 10.35
+      },
+      "minorDiameterMm": {
+        "min": 8.45,
+        "max": 8.55
+      },
+      "toleranceMm": 0.01,
+      "searchRadiusMm": 6,
+      "threadRangeMm": {
+        "min": 0.05,
+        "max": 5.95
+      }
+    }
+  },
+  "motion": {
+    "pitchMm": 1.5,
+    "hand": "right",
+    "toleranceMm": 0.005,
+    "orientationToleranceDeg": 0.5,
+    "minTurns": 2,
+    "cornerRadiusMm": 9.2
+  },
+  "turns": [
+    0,
+    90,
+    180,
+    270,
+    360,
+    450,
+    540,
+    630,
+    720
+  ],
+  "poseParameters": {
+    "agentscad_pose": true
+  }
+}

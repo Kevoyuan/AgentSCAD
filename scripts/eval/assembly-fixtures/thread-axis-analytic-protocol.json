@@ -1,0 +1,15 @@
+{
+  "name": "exploratory-thread-axis-analytic-protocol-v1",
+  "purpose": "Falsification against independently constructed polygonal cylindrical surfaces, not calibration for threaded solids or manufacturing acceptance.",
+  "stationsMm": [2, 5, 8],
+  "referenceZMm": 5,
+  "errorBoundsForThisExperimentOnly": { "offsetMm": 0.05, "angleDeg": 0.5 },
+  "cases": [
+    { "id": "aligned-64-48", "a": { "radius": 4.5, "segments": 64, "center": [0, 0], "slope": [0, 0] }, "b": { "radius": 4.8, "segments": 48, "center": [0, 0], "slope": [0, 0] } },
+    { "id": "offset-32-64", "a": { "radius": 4.4, "segments": 32, "center": [0, 0], "slope": [0, 0] }, "b": { "radius": 4.7, "segments": 64, "center": [0.37, -0.22], "slope": [0, 0] } },
+    { "id": "tilted-48-64", "a": { "radius": 4.5, "segments": 48, "center": [-0.1, 0.2], "slope": [0.02, -0.01] }, "b": { "radius": 4.6, "segments": 64, "center": [0.1, 0.3], "slope": [-0.03, 0.04] } },
+    { "id": "unsupported-radius", "a": { "radius": 4.5, "segments": 64, "center": [0, 0], "slope": [0, 0] }, "b": { "radius": 2, "segments": 64, "center": [0, 0], "slope": [0, 0] } }
+  ],
+  "truthDefinition": "Each generated polygonal prism has known section centre center + slope * (z - 5). Offset is distance between the two centres at z=5. Angle is the angle between their direction vectors (slope_x,slope_y,1). The polygon is inscribed, so this truth describes its symmetry axis, not a circular exact solid.",
+  "decisionRule": "Report individual numeric errors and availability. Neither success nor failure of these finite cases is a calibrated bound or an assembly verdict. An absent estimate is not a numeric success. Always NOT_RUN for actual coaxiality verification."
+}

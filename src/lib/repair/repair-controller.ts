@@ -23,6 +23,7 @@ import { ModelRequestError, type ModelErrorEvidence } from "@/lib/model-runtime"
 import type { StructuredGenerationResult, CadValidationTargets } from "@/lib/harness/types";
 import type { ValidationResult } from "@/lib/mesh-validator";
 import { getValidationEvidenceStatus } from "@/lib/validation/evidence-status";
+import { ASSEMBLY_REPAIR_INVARIANTS, renderAssemblyFindings, type AssemblyFinding } from "@/lib/assembly/repair-findings";
 
 export interface RepairInput {
   originalRequest: string;
@@ -44,6 +45,14 @@ export interface RepairInput {
    * small or hidden detail for a source that OpenSCAD can compile in budget.
    */
   repairStrategy?: "compile" | "simplify";
+  /**
+   * Measured assembly failures (fit, disassembly path, motion) from the previous
+   * attempt. These are numbers a validator cannot produce, so they are carried
+   * into the prompt verbatim; the same invariants that guard the assembly repair
+   * are stated here, because a model told only "clearance is wrong" will
+   * sometimes delete the bore.
+   */
+  assemblyFindings?: AssemblyFinding[];
 }
 
 export interface RepairResult {
@@ -130,6 +139,18 @@ export function buildRepairPrompt(input: RepairInput): string {
     unavailableRules || "(none)",
     "These statuses are uncertainty, not evidence of a geometry defect. Do not repair them as failed checks.",
     "",
+    ...(input.assemblyFindings && input.assemblyFindings.length > 0
+      ? [
+          "## Measured Assembly Failures",
+          renderAssemblyFindings(input.assemblyFindings),
+          "",
+          "These were measured on the rendered geometry, not inferred from the source. Repairing them means changing dimensions or shapes, and the numbers above are the target.",
+          "",
+          "Invariants — a reply that breaks any of these is rejected, not reviewed:",
+          ...ASSEMBLY_REPAIR_INVARIANTS.map((rule) => `- ${rule}`),
+          "",
+        ]
+      : []),
     "## Repair Goal",
     ...(input.repairStrategy === "simplify"
       ? [
@@ -138,6 +159,7 @@ export function buildRepairPrompt(input: RepairInput): string {
           "Rewrite the source to compile comfortably within budget while preserving the user's requested form:",
           "- Keep the outer silhouette, all required dimensions, functional features, fitting surfaces, and every editable top-level parameter.",
           "- Merge or drop optional internal and hidden detail; preserve functional interfaces and clearances.",
+          "- Never merge, omit, or replace any explicitly required parts, instances, joints, or motion relationships with representative geometry. If these cannot be retained within the budget, do not claim the resulting assembly is complete.",
           "- Reduce repeated hull()/minkowski()/dense-array geometry; prefer a few coarse primitives.",
           "- Use a coarse global resolution: set `$fa = 12;` and `$fs = 2;`, and avoid per-feature `$fn` above 32 unless the request needs it.",
           "- Keep the final boolean tree to roughly 40-60 operations; do not model detail below the requested fidelity.",

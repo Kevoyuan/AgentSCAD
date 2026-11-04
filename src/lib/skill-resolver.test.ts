@@ -4,6 +4,7 @@ import {
   buildScadCodingPrompt,
   buildScadPrompt,
   isExperimentalMemoryPromptEnabled,
+  loadSkill,
   skillInstructions,
 } from "./skill-resolver";
 
@@ -68,5 +69,24 @@ describe("skill resolver containment", () => {
     expect(prompt?.systemPrompt).not.toContain("Part 1 — CAD Intent JSON");
     expect(prompt?.systemPrompt).toContain("# SCAD Planning");
     expect(prompt?.systemPrompt).not.toContain("when_not_to_use:");
+  });
+
+  test("both generation paths and repair receive functional assembly preservation guidance", async () => {
+    const request = "a functional assembly with two separately removable parts";
+    const planned = await buildScadCodingPrompt(request, "unknown", {}, { modeling_plan: [] });
+    const direct = await buildScadPrompt(request, "unknown", {});
+    const repair = await loadSkill("scad-repair");
+
+    expect(planned?.systemPrompt).toContain("preserve every required part instance, connection, motion");
+    expect(planned?.systemPrompt).toContain("Never fuse separate mating bodies");
+    expect(direct?.systemPrompt).toContain("Never replace a required repeated component with a representative block");
+    expect(direct?.systemPrompt).toContain("does not verify kinematics, collision clearance, assembly, or physical function");
+    for (const prompt of [planned, direct]) {
+      expect(prompt?.systemPrompt).toContain("AGENTSCAD_ASSEMBLY_V1");
+      expect(prompt?.systemPrompt).toContain("agentscad_part");
+      expect(prompt?.systemPrompt).toContain("local");
+    }
+    expect(repair).toContain("never merge required separate parts or substitute representative blocks");
+    expect(repair).toContain("A motion parameter or animation is not proof of correct motion");
   });
 });

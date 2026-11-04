@@ -36,7 +36,7 @@ import { deriveExpectedBBox, formatResearchEvidence, runRequestResearch } from "
 import type { ResearchResultV1 } from "@/lib/research/request-research";
 import { buildJobQuality } from "@/lib/validation/job-quality";
 import { isValidationActionable } from "@/lib/validation/evidence-status";
-import { evaluateMotionContract } from "@/lib/validation/motion-contract";
+import { evaluateMotionContract, unmeasuredMotionEvidence } from "@/lib/validation/motion-contract";
 import { toPublicJobOrNull } from "@/lib/public-job";
 import { withLlmCallMeter, llmCallsThisRun } from "@/lib/model-runtime";
 import { analyzeCadRequest } from "@/lib/intake/request-intelligence";
@@ -1039,7 +1039,7 @@ async function runCadJob(
       intentResult: requestIntelligence,
       scadSource: scadCode,
     });
-    if (motionContractResult) validationResults.push(motionContractResult);
+    if (motionContractResult) validationResults.push(motionContractResult, unmeasuredMotionEvidence());
     let finalValidationResults = validationResults;
     const criticalFailures = getCriticalValidationFailures(validationResults);
     const validationQuality = buildJobQuality({
@@ -1178,7 +1178,7 @@ async function runCadJob(
               intentResult: requestIntelligence,
               scadSource: repairedScad,
             });
-            if (repairedMotionContract) revalidationResults.push(repairedMotionContract);
+            if (repairedMotionContract) revalidationResults.push(repairedMotionContract, unmeasuredMotionEvidence());
             const stillFailing = getCriticalValidationFailures(revalidationResults);
             const repairQuality = buildJobQuality({
               state: stillFailing.length > 0 ? "HUMAN_REVIEW" : "DELIVERED",

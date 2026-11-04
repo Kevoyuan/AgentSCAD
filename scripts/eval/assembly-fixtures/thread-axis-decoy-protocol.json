@@ -1,0 +1,8 @@
+{
+  "name": "thread-axis-feature-identity-counterexample-v1",
+  "intent": "The relevant axis is the bore center, not the outside silhouette center.",
+  "geometry": { "outerRadiusMm": 4.8, "outerSegments": 96, "outerCenterMm": [0, 0], "boreRadiusMm": 4.1, "boreSegments": 24, "boreCenterMm": [0.5, 0], "heightMm": 10 },
+  "stationOffsetsMm": [2, 5, 8],
+  "truth": "The bore is an inscribed polygon whose analytic symmetry axis is x=0.5, y=0; the outer silhouette is centered at x=0, y=0. Both are real geometric features. The polygonal bore lies completely inside the outer boundary.",
+  "falsification": "A fit nearer the outer center than the bore center demonstrates that identifying a circular axis does not establish feature identity. This isolated example cannot establish general estimator accuracy or assembly pass/fail."
+}

@@ -55,6 +55,7 @@ public/artifacts/
 .openscad-runtime/
 skills/scad-generation/learned-patterns.json
 benchmark-results.txt
+generation-trial-report.json
 benchmark-render-results.json
 
 # agent/IDE context directories

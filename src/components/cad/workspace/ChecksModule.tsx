@@ -38,6 +38,8 @@ import { Job, JobOutcomeSummary, ValidationResult, getValidationEvidenceStatus, 
 import { fetchJobOutcomeSummary, recordJobOutcome } from '@/components/cad/api'
 import { cn } from '@/lib/utils'
 import { useArtifactSize, downloadArtifact } from './artifacts'
+import { JobAssemblyDetails } from './AssemblyDetails'
+import { JobRequirementContract } from './RequirementContract'
 import {
   ActionButton,
   EmptyNote,
@@ -402,6 +404,10 @@ export function ChecksModule({
           </div>
         )}
       </div>
+
+      <JobRequirementContract key={`req-${job.id}`} jobId={job.id} revision={job.updatedAt ?? ''} />
+
+      <JobAssemblyDetails key={job.id} jobId={job.id} revision={job.updatedAt ?? ''} canExport={job.state === 'DELIVERED' && !hasDraftChanges && !isProcessing} />
 
       {/* ── Outputs: pinned footer ───────────────────────────────────────── */}
       {/* One row, three equal actions, no wrapping and no mid-button cut by the

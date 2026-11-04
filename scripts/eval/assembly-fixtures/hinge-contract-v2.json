@@ -1,0 +1,13 @@
+{
+  "schema_version": "agentscad.assembly-contract-fixture.v1",
+  "id": "original-two-part-hinge-as-designed",
+  "description": "Regression contract for the original axial hinge fixture. The clearance band records the as-designed 0.4 mm diametral fit with a +/-0.05 mm allowance. It was written after measuring the fixture, so it is not independent evidence that the design is correct; it exists so that a later change to the fixture cannot silently change the fit. The earlier hinge-contract.json keeps its 0.1-0.3 mm band and is still expected to fail against this fixture.",
+  "requirements": [
+    { "id": "intent-preserved", "layer": "intent", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
+    { "id": "distinct-exported-parts", "layer": "parts", "required": true, "applicable": true, "expected": { "kind": "equals", "value": 2 } },
+    { "id": "diametral-clearance", "layer": "assembly", "required": true, "applicable": true, "expected": { "kind": "range", "min": 0.35, "max": 0.45, "unit": "mm" } },
+    { "id": "disassembly-path", "layer": "assembly", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
+    { "id": "sampled-motion", "layer": "motion", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
+    { "id": "physical-assembly", "layer": "physical", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } }
+  ]
+}

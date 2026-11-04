@@ -2,7 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
   evaluateMotionContract,
   isMotionReadyIntent,
+  unmeasuredMotionEvidence,
+  appendMotionEvidence,
 } from "@/lib/validation/motion-contract";
+import { buildDeliveryReadiness } from "@/lib/validation/delivery-readiness";
 
 const motionIntent = {
   version: 1,
@@ -88,5 +91,34 @@ describe("motion contract", () => {
     expect(isMotionReadyIntent("functional motion-ready gear train")).toBe(true);
     expect(isMotionReadyIntent("kinematic linkage")).toBe(true);
     expect(isMotionReadyIntent("static display model")).toBe(false);
+  });
+
+  test("unused source patterns can pass M001 but never establish measured motion", () => {
+    const fake = [
+      "crank_angle = 45;",
+      "pin_angles = [0, 90, 270, 180];",
+      "cutaway = true;",
+      "function unused(angle) = sin(angle);",
+      "cube(10);",
+    ].join("\n");
+    const result = evaluateMotionContract({ inputRequest: "motion-ready assembly", scadSource: fake });
+    expect(result?.status).toBe("PASS");
+    expect(result?.message).toContain("Actual motion and collisions were not checked");
+    expect(unmeasuredMotionEvidence()).toMatchObject({ rule_id: "M002", status: "NOT_RUN", passed: false });
+  });
+
+  test("persisted motion intent is reevaluated after a source rewrite and keeps delivery under review", () => {
+    const results: ReturnType<typeof unmeasuredMotionEvidence>[] = [];
+    appendMotionEvidence(results, {
+      inputRequest: "A complete V8 engine",
+      intentResult: JSON.stringify(motionIntent),
+      scadSource: movableV8Scad,
+    });
+    expect(results.map(result => [result.rule_id, result.status])).toEqual([["M001", "PASS"], ["M002", "NOT_RUN"]]);
+    const readiness = buildDeliveryReadiness({
+      state: "DELIVERED", scadSource: movableV8Scad, stlPath: "model.stl", pngPath: "preview.png", validationResults: results,
+    });
+    expect(readiness.status).toBe("review");
+    expect(readiness.counts.notRun).toBe(1);
   });
 });
