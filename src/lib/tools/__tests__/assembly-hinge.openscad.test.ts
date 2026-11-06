@@ -1,4 +1,4 @@
-import {motionRangeObservations, declaredPathObservation} from "../../../../scripts/eval/judge-assembly";
+import {motionRangeObservations, declaredPathObservation, judgeAssemblyCandidate} from "../../../../scripts/eval/judge-assembly";
 import { describe, expect, test } from "bun:test";
 import { createHash } from "crypto";
 import { readFile } from "fs/promises";
@@ -33,6 +33,18 @@ function bounds(stl: Buffer) {
 }
 
 describe("original axial hinge with native OpenSCAD", () => {
+  test("offline trial refuses a false retention experiment even when its other required checks pass",async()=>{
+    const fixture=await readFile("benchmarks/assembly/axial_hinge.scad","utf8");
+    const spec=await hingeSpec();
+    const source=(value:unknown)=>`/* AGENTSCAD_ASSEMBLY_V1\n${JSON.stringify(value)}\nEND_AGENTSCAD_ASSEMBLY */\n${fixture}`;
+    const prompt="两件式铰链，直径间隙0.35到0.45mm";
+    const baseline=await judgeAssemblyCandidate({prompt,scad:source(spec)});
+    expect(baseline.passed,JSON.stringify(baseline)).toBe(true);
+    const challenged={...spec,translationProbes:[{id:"falseAxialRetention",instanceId:"moving-instance",startTransform:spec.instances[1].transform,translationMm:[0,0,30],samples:65,expected:"blocked"}]};
+    const result=await judgeAssemblyCandidate({prompt,scad:source(challenged)});
+    expect(result.passed).toBe(false);
+    expect(result.evidence.find(e=>e.id==="declared-translation-probes")?.status).toBe("FAIL");
+  },60000);
   test("renders distinct selected parts and retains declared poses without claiming fit", async () => {
     const fixture = await readFile("benchmarks/assembly/axial_hinge.scad", "utf8");
     const spec = await hingeSpec();

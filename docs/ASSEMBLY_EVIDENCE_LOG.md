@@ -1113,3 +1113,11 @@ A001 现在保存各项要求与结果：生成的独立零件设计数量基于
 真实原生网格集成复用原创bayonet的三个实际选择器产物，通过共用准备函数执行38次工作探测；raw measuredStatus PASS，但未确认合同使顶层及每个子项status NOT_RUN。把90°、+Z释放姿态标成blocked，得到探测FAIL与assembly FAIL，physical仍NOT_RUN。初次反例错误取用了−Z方向，那里上手柄确实继续阻挡，故得到实测通过、门控NOT_RUN；纠正为设计的+Z释放方向后重新执行，不能把该初次结果解释成工具漏检。归档 `.agentscad/experiments/declared-probes-2026-11-07/` 包含原SCAD、三个STL、正/负声明、完整manifest、执行脚本和直接工具快照，未保存完整传递环境；声明由测试手工构造，并不在原fixture源码里，不是完整自然语言管线或浏览器任务。
 
 这些探测不绑定或证明用户完整工作范围，不证明源码参数实际驱动位姿、连续无碰撞、耦合运动组、防误解锁、接触载荷或物理功能。A001的轴向保持要求仍无自动资格断言，保持NOT_RUN；不能把几何实验期望值当作用户验收。普通回归999 PASS /3 SKIP /0 FAIL（1002项155文件，27.52秒），定向真实原生集成1 PASS（96断言，5.40秒），typecheck、lint及diff通过。未重复整套原生/WASM、制造、浏览器或付费模型实验，无新增模型费用；完整目标active。
+
+## 2026-11-07 · 离线总评补齐声明探测门控
+
+准备真实生成实验时发现：产品A001已通过assembly层接收声明探测结果，但离线 `judgeAssemblyCandidate` 的总评只显式组合旧测量层，没有检查新增translationProbes。它能产生修复finding却仍可能将总评记为通过。现仅在存在声明探测时把其聚合状态加入必过条件和证据列表，缺测为NOT_RUN；无声明不额外宣称保持已验证。不可用结果也进入反馈，不伪造几何失败。
+
+原生反例以原创axial_hinge为基线，请求只含两件铰链和0.35–0.45mm间隙：现有相应数字检查总评PASS；加入向+Z抽出30mm却要求blocked的错误探测后，总评FAIL，declared-translation-probes FAIL。这证明新增实验不能被其余通过覆盖；不证明该基线具备原用户要求的保持或实物功能。单元1000 PASS /3 SKIP /0 FAIL（1003项155文件，26.49秒），定向原生1 PASS，typecheck/lint/diff通过。
+
+另冻结开发任务 `scripts/eval/assembly-generation/service-release-hinge-v1.json`，SHA256 81b4fd42702608fd7fe9f1fde218510f3dccef000cb2057102f80f102cd03381。要求两件连通体、±45°工作、防直接误转到释放角、有意释放和完整装拆及几何探测；FDM材料、机器、载荷和寿命明确未知。先用该提示派生合同，确认当前提取器未为“先释放再转到解锁角”创建独立可执行断言，故必须另行复核，不能将总体几何检查等同完整意图保存。预算上限仍28元，此实验最多两次调用，原累计保守上限2.316040元，新增最大预留1.448576元。协议 `.agentscad/experiments/service-release-protocol-2026-11-07.json` 在调用前保存。实际模型结果及最终费用另记；该任务不是隐藏集，不构成成功率估计。

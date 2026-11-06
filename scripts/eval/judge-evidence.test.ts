@@ -1,9 +1,14 @@
 import {expect,test} from "bun:test";
 import {deriveRequirementContract} from "../../src/lib/requirements/extract-requirements";
-import {motionRangeObservations, declaredPathObservation, unresolvedContractEvidence} from "./judge-assembly";
+import {motionRangeObservations, declaredPathObservation, unresolvedContractEvidence, declaredTranslationProbeEvidence} from "./judge-assembly";
 import {evaluateAssembly} from "./assembly-evidence";
 
 const provenance={artifactSha256:"a".repeat(64),toolVersion:"unit-reference"};
+test("declared experiments cannot disappear when their measurement is missing",()=>{
+  expect(declaredTranslationProbeEvidence({})).toEqual([]);
+  expect(declaredTranslationProbeEvidence({translationProbes:[{}]})).toEqual([{id:"declared-translation-probes",status:"NOT_RUN"}]);
+  expect(declaredTranslationProbeEvidence({translationProbes:[{}]},{status:"FAIL"})).toEqual([{id:"declared-translation-probes",status:"FAIL"}]);
+});
 const requirements=(request:string)=>deriveRequirementContract({request}).requirements.filter(r=>r.id.startsWith("motion-range-"));
 const observed=(status:string,min:number,max:number)=>motionRangeObservations({status,rangeDeg:{min,max},coverage:"Listed ideal test poses only"},provenance);
 
