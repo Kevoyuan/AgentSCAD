@@ -25,9 +25,12 @@ export async function loadSeededRepair(protocolPath: string, tasks: TaskSet) {
     throw new Error("Retained source or feedback hash changed");
   }
   const source = sourceBytes.toString();
-  if (extractEmbeddedAssemblySpec(source).status !== "valid") {
-    throw new Error("The retained source needs a valid embedded assembly declaration");
-  }
+  const extracted = extractEmbeddedAssemblySpec(source);
+  const schemaRepair = protocol.seedMode === "assembly-schema";
+  if (schemaRepair) {
+    if (extracted.status !== "invalid" || !extracted.reason.startsWith("Assembly block does not match the assembly specification:")
+      || protocol.expectedSchemaError !== extracted.reason) throw new Error("Schema repair needs the exact current schema failure, not absent or malformed input");
+  } else if (extracted.status !== "valid") throw new Error("The retained source needs a valid embedded assembly declaration");
   const feedback = JSON.parse(feedbackBytes.toString()) as {
     sourceSha256?: unknown;
     passed?: unknown;
@@ -38,6 +41,7 @@ export async function loadSeededRepair(protocolPath: string, tasks: TaskSet) {
     || !feedback.findings.every(line => typeof line === "string" && line.trim())) {
     throw new Error("Feedback must identify this failed retained source and its findings");
   }
+  if (schemaRepair && !feedback.findings.includes(protocol.expectedSchemaError)) throw new Error("Schema feedback must contain the exact current diagnostic");
   return {
     source,
     feedback: feedback.findings.join("\n"),
@@ -48,6 +52,8 @@ export async function loadSeededRepair(protocolPath: string, tasks: TaskSet) {
       protocolSha256: sha256(protocolBytes),
       sourceSha256: sha256(sourceBytes),
       feedbackSha256: sha256(feedbackBytes),
+      sourceValidation: schemaRepair ? "invalid-schema" : "valid",
+      declarationPreservation: schemaRepair ? "NOT_RUN: invalid original declaration cannot be compared by the assembly preservation guard" : "checked after repair",
     },
   };
 }

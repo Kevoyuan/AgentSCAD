@@ -1137,3 +1137,15 @@ A001 现在保存各项要求与结果：生成的独立零件设计数量基于
 针对上述原始失败，`extractEmbeddedAssemblySpec` 现在返回最多8条schema错误的字段路径及有界消息，超出时保留省略数；仍拒绝原始错误，未自动修改模型声明。矩阵和孔侧反例测试覆盖具体位置及大量错误时的长度限制。两种生成指导明确boreInstanceId取a/b字段中实际实例ID（例如base1），不是字面量a，并给出行主序+12mm Z位移的完整矩阵，最后一行保持[0,0,0,1]。这些指导和反馈在两次失败后才修改，不能声称对先前修复有效。
 
 对两份未改原稿做仅解析重放，`schema-feedback-current-0/1.json`现精确列出四个位姿路径及connections.0.boreInstanceId；没有执行渲染或几何，也未做第三批付费实验。离线runner不再凭关键词缺失将限位越程标SKIP，一律明确该检查/适用性未执行为NOT_RUN。原付费报告未覆盖，status-correction.json作补充订正。最终单元1002 PASS /3 SKIP /0 FAIL（1005项155文件，28.50秒），typecheck、lint及diff通过；本轮新增模型费用保守上界0.607604元，累计2.923644元，21条账本TERMINAL且无active占用。下一项最有信息价值的实验是给同一未改失败稿提供具体schema反馈并测试实际修复，再检查所有原需求及遗漏的探测；不是把格式修好当作功能完成。
+
+## 2026-11-07 · 具体格式反馈的真实修复与原始几何诊断
+
+原seed工具只接受有效声明，不能将上一轮实际非法声明直接作为修复输入。现增加显式assembly-schema模式，要求原稿哈希、反馈哈希、当前精确schema诊断及单任务单调用同时匹配，缺失/畸形输入不能借此冒充格式错误；正常种子规则不放宽。该模式明确记录原声明保留守卫NOT_RUN，因为原声明无效，不能声称已自动比较全合同。嵌入声明解析器也纳入验证器指纹。冻结 `service-release-schema-repair-v1.json`（640caeda693a43be676fdac93da04ddd2fbd7d7a84bb436c9ca7321b5ed3203c），原提示不变，最多一次新修复。协议/具体反馈位于 `service-release-schema-seed-2026-11-07/`，原稿89c62810718941b1716e55156b3006210d3d1b0ab6b20f696a0655917132bea4未先改动；额外反馈指出原请求的探测缺失及应保留的库存，没有伪造几何测量。
+
+实际调用归档 `paid-deepseek-assembly-59yfbi`，经产品完成器而非完整executeCadJob/浏览器。实际无headers请求体证实关闭思考，返回deepseek-flash、7182输入/3622输出token，reasoningCharacters为0；保守费用0.043340元。模型纠正了boreInstanceId为base1，但四个位姿仍将平移写在最后一行，且仍无translationProbes；声明被拒，产品几何NOT_RUN。声明层逐项对照确认两种part、两个instance、单connection及两个operation的ID均保留，但这不是全合同或几何保留证明。新候选源码a79f0a4fd5225fcae1df8aea6269e24d70d30c700a084b7ee9e3023f224cefe8，未做手工修正。直接工具在运行中未变，账本22条TERMINAL，累计2.966984元，无自动再调用。
+
+为避免把全部失败归结为声明格式，对同一未改SCAD做独立的有界诊断，协议在渲染前保存，选择器取自源码，默认work_angle_deg=0、release_mode=false。OpenSCAD 2021.01原生分别渲染base、flap、all；有限identity PASS，base闭合边连通PASS，但flap的闭合表面证明NOT_RUN。独立Python计数定位唯一问题边：x=3、z=0、y=−4.5..4.5，四个三角面共边，不能按合格流形交付。两件默认位置BVH报告三角面相交；不能仅凭INTERSECT称体积穿透，故另存明确标注的诊断副本，仅将根调用换为原两个模块的intersection，模块和参数不改。原生交集含1164三角面、三个闭合表面分量；它的connectivity FAIL仅因这个诊断交集分离，不能说原零件有三个实体。
+
+查看源码后解析选择[3.6,6,0]mm见证点：保持环名义半径4mm大于支承孔3.2mm，处于支承实体范围。独立标准库Python有向边/立体角审计对诊断交集该点为INSIDE、[100,100,100]为OUTSIDE，支持指定位置有实体重叠，而非仅允许接触。该检查依赖同一OpenSCAD生成的诊断交集，不是独立CAD内核重建；点不是盲选，也不证明完整无自交、其他姿态或物理功能。档案 `service-release-raw-geometry-2026-11-07/` 保存原SCAD/STL、诊断副本/交集、协议、报告及runtime。没有将该副本当模型输出或修好后的设计。
+
+原始生成失败稿另以完全相同字节冻结为 `scripts/eval/assembly-fixtures/failures/controlled-release-hinge-2026-11-07.scad`，附说明而不改写其模型注释。原生回归检查它的schema非法、selector身份可用但flap闭合证明不可用、默认相交，防止这些事实被成功编译或identity掩盖。该回归通过表示缺陷被检测，不是候选合格；文件不进入检索示例。最终单元1002 PASS /3 SKIP /0 FAIL（1005项155文件，38.07秒），定向原生2 PASS（101断言，37.83秒），typecheck/lint/diff通过。完整装拆、源驱动运动、防误转、指定工艺实物与用户验收仍NOT_RUN。下一步应将格式错误和安全可独立执行的分件诊断同时送入修复，保留未测层；不应只反复增加生成调用或把声明修好当作功能完成。完整M0–M8目标active。

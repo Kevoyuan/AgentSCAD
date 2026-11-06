@@ -5,6 +5,7 @@ import path from "node:path";
 import {createHash} from "node:crypto";
 import {loadSeededRepair} from "./seeded-repair";
 import {loadTaskSet} from "./generation-trial";
+import {extractEmbeddedAssemblySpec} from "../../src/lib/assembly/embedded-spec";
 const sha=(text:string)=>createHash("sha256").update(text).digest("hex");
 test("retained repair inputs are hash-bound and allow exactly one new call",async()=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),"agentscad-seeded-repair-"));
@@ -25,5 +26,21 @@ test("retained repair inputs are hash-bound and allow exactly one new call",asyn
   const wrongFeedback=JSON.stringify({sourceSha256:"0".repeat(64),passed:false,findings:["Unbound feedback"]});
   await fs.writeFile(feedbackPath,wrongFeedback);await fs.writeFile(protocolPath,JSON.stringify({...protocol,feedbackSha256:sha(wrongFeedback)}));
   await expect(loadSeededRepair(protocolPath,tasks)).rejects.toThrow("identify this failed retained source");
+  const invalidSpec={...spec,groundedInstanceId:"missing"};
+  const invalidSource=`/* AGENTSCAD_ASSEMBLY_V1\n${JSON.stringify(invalidSpec)}\nEND_AGENTSCAD_ASSEMBLY */\ncube(1);`;
+  const invalid=extractEmbeddedAssemblySpec(invalidSource);
+  if(invalid.status!=="invalid")throw new Error("Expected invalid schema fixture");
+  const schemaFeedback=JSON.stringify({sourceSha256:sha(invalidSource),passed:false,findings:[invalid.reason]});
+  await fs.writeFile(sourcePath,invalidSource);await fs.writeFile(feedbackPath,schemaFeedback);
+  const schemaProtocol={...protocol,sourceSha256:sha(invalidSource),feedbackSha256:sha(schemaFeedback)};
+  await fs.writeFile(protocolPath,JSON.stringify(schemaProtocol));
+  await expect(loadSeededRepair(protocolPath,tasks)).rejects.toThrow("valid embedded");
+  await fs.writeFile(protocolPath,JSON.stringify({...schemaProtocol,seedMode:"assembly-schema",expectedSchemaError:invalid.reason}));
+  const schemaSeed=await loadSeededRepair(protocolPath,tasks);
+  expect(schemaSeed.source).toBe(invalidSource);
+  expect(schemaSeed.provenance.sourceValidation).toBe("invalid-schema");
+  expect(schemaSeed.provenance.declarationPreservation).toStartWith("NOT_RUN");
+  await fs.writeFile(protocolPath,JSON.stringify({...schemaProtocol,seedMode:"assembly-schema",expectedSchemaError:"invented error"}));
+  await expect(loadSeededRepair(protocolPath,tasks)).rejects.toThrow("exact current schema failure");
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });

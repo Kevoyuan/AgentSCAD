@@ -6,6 +6,7 @@ export const ASSEMBLY_EVIDENCE_LAYERS=["requirements","identity","geometry","rec
 export const ASSEMBLY_VERIFIER_SOURCES=[
   "src/lib/assembly/verification-types.ts","src/lib/assembly/prepare-assembly.ts","src/lib/assembly/prepare-contract-assembly.ts","src/lib/assembly/automatic-hinge-kinematics.ts",
   "src/lib/assembly/assembly-bundle.ts","src/lib/assembly/assembly-spec.ts","src/lib/assembly/fit-measurement.ts",
+  "src/lib/assembly/embedded-spec.ts",
   "src/lib/assembly/measured-joint-frame.ts","src/lib/assembly/part-identity-check.ts","src/lib/assembly/part-connectivity.ts","src/lib/assembly/path-and-motion.ts",
   "src/lib/assembly/declared-pose-disassembly.ts","src/lib/assembly/declared-pose-assembly.ts","src/lib/assembly/rigid-pose-path.ts","src/lib/geometry/cylindrical-feature.ts",
   "src/lib/assembly/declared-translation-probes.ts","src/lib/assembly/translation-probe.ts",

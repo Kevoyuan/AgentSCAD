@@ -7,6 +7,21 @@ import { rotationAboutAxis } from "../../assembly/path-and-motion";
 import { checkPartConnectivity } from "../../assembly/part-connectivity";
 import { checkPartIdentity } from "../../assembly/part-identity-check";
 import { prepareAssembly } from "../../assembly/prepare-assembly";
+import { extractEmbeddedAssemblySpec } from "../../assembly/embedded-spec";
+import { buildBvh, placeBvh, bvhIntersects } from "../../geometry/mesh-collision";
+import { readBinaryStl } from "../../geometry/stl-mesh";
+
+test("retained generated hinge cannot hide invalid schema, non-manifold contact or default overlap",async()=>{
+  const scadSource=await readFile("scripts/eval/assembly-fixtures/failures/controlled-release-hinge-2026-11-07.scad","utf8");
+  expect(extractEmbeddedAssemblySpec(scadSource).status).toBe("invalid");
+  const rendered=await renderAssemblyParts({scadSource,parts:["hinge_base","hinge_flap","all"].map(id=>({partId:id,selector:id}))});
+  const base=rendered.find(p=>p.partId==="hinge_base")!,flap=rendered.find(p=>p.partId==="hinge_flap")!;
+  expect(checkPartIdentity({parts:[base,flap].map(p=>({...p,selector:p.partId})),assemblyMesh:rendered.find(p=>p.partId==="all")!}).status).toBe("PASS");
+  expect(checkPartConnectivity(flap.stl).status).toBe("NOT_RUN");
+  const collision=bvhIntersects(placeBvh(buildBvh(readBinaryStl(base.stl))),placeBvh(buildBvh(readBinaryStl(flap.stl))));
+  expect(collision.status).toBe("INTERSECT");
+  expect(collision.blocked).toBe(true);
+},60000);
 
 test("original two-part rigid stop allows an explicit rotate-then-withdraw release", async () => {
   const scadSource = await readFile("benchmarks/assembly/bayonet_retention.scad", "utf8");
