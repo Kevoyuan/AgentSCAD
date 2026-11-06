@@ -19,7 +19,7 @@ test("unresolved retention blocks an aggregate pass but cannot hide a measured f
  const source=`/* AGENTSCAD_ASSEMBLY_V1\n${JSON.stringify(spec)}\nEND_AGENTSCAD_ASSEMBLY */\ncube(1);`;
  const ok={status:"PASS",reason:"measured"};
  const evidence={identity:ok,reconstruction:ok,assembly:ok,assemblyPath:ok,disassembly:ok,motion:ok};
- const prepare=(e:typeof evidence)=>async()=>({manifest:{evidence:e,partConnectivity:[{partId:"part",status:"PASS"}],fits:[]},kinematics:null}) as never;
+ const prepare=(e:typeof evidence)=>async()=>({manifest:{evidence:e,partConnectivity:[{partId:"part",status:"PASS"}],fits:[]},parts:[{},{}],fits:[],kinematics:null}) as never;
  const input={inputRequest:"两件式铰链，间隙0.35到0.45mm，能转±45°，可组装可拆卸，3D打印",scadSource:source};
  const [pending]=await validateAssemblyArtifact(input,prepare(evidence));
  expect(pending.status).toBe("NOT_RUN");expect(pending.message).toContain("axial-retention NOT_RUN");
@@ -35,12 +35,19 @@ test("an explicitly confirmed retention assertion is not silently treated as mea
  expect(unverifiedAssemblyRequirements({...contract,requirements:[...contract.requirements,{...requirement,required:false}]}).map(item=>item.id)).not.toContain("axial-retention");
 });
 
-test("A001 does not infer requested count, range or fit from unrelated passing layers",()=>{
+test("count, range and fit are routed to explicit assertions rather than silently omitted",()=>{
  const contract=deriveRequirementContract({request:"两件式铰链，间隙0.35到0.45mm，能转±45°，可拆卸"});
  const ids=unverifiedAssemblyRequirements(contract).map(item=>item.id);
- expect(ids).toContain("distinct-exported-parts");
- expect(ids).toContain("motion-range-negative-end");
- expect(ids).toContain("motion-range-positive-end");
- expect(ids).toContain("diametral-clearance");
+ expect(ids).not.toContain("distinct-exported-parts");
+ expect(ids).not.toContain("motion-range-negative-end");
+ expect(ids).not.toContain("motion-range-positive-end");
+ expect(ids).not.toContain("diametral-clearance");
  expect(ids).not.toContain("intent-preserved");
+});
+
+test("a confirmed path requirement with different semantics is not treated as the standard clear path",()=>{
+ const contract=deriveRequirementContract({request:"两件式铰链，可拆卸"});
+ const changed={...contract,requirements:contract.requirements.map(item=>item.id==="disassembly-path"
+  ? {...item,expected:{kind:"equals" as const,value:false}} : item)};
+ expect(unverifiedAssemblyRequirements(changed).map(item=>item.id)).toContain("disassembly-path");
 });

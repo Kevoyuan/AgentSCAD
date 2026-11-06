@@ -22,6 +22,7 @@ import { requirementContractHash, unknownsInScope, type RequirementContract } fr
 import { toEvidenceRequirements, toFitRequirements } from "../../src/lib/requirements/contract-bridge";
 import { extractEmbeddedAssemblySpec } from "../../src/lib/assembly/embedded-spec";
 import { prepareAssembly } from "../../src/lib/assembly/prepare-assembly";
+import { automaticHingeKinematics } from "../../src/lib/assembly/automatic-hinge-kinematics";
 import { collectAssemblyFindings } from "../../src/lib/assembly/repair-findings";
 import { validateAssemblySpec } from "../../src/lib/assembly/assembly-spec";
 import { renderAssemblyParts } from "../../src/lib/tools/assembly-part-renderer";
@@ -113,13 +114,14 @@ export async function judgeAssemblyCandidate(input: {
   }
 
   const whole = await renderAssemblyParts({ scadSource: input.scad, parts: [{ partId: "assembly", selector: "all" }] });
+  const autoMotion = automaticHingeKinematics(spec);
   const prepared = await prepareAssembly({
     contractSnapshot: { contract, request: input.prompt },
     scadSource: input.scad,
     spec,
     assemblyMesh: { stl: whole[0].stl, sha256: whole[0].sha256 },
     fitRequirements: fits,
-    kinematics: { connectionId: declared.id, pathSteps: input.pathSteps, motionSteps: input.motionSteps },
+    kinematics: autoMotion ? { ...autoMotion, pathSteps: input.pathSteps, motionSteps: input.motionSteps } : undefined,
   });
   await input.onPrepared?.(prepared, whole[0]);
 

@@ -4,6 +4,7 @@ import { validateAssemblySpec } from "./assembly-spec";
 import { renderAssemblyParts } from "../tools/assembly-part-renderer";
 import { RequirementContractSchema } from "../requirements/requirement-contract";
 import { toFitRequirements } from "../requirements/contract-bridge";
+import { automaticHingeKinematics } from "./automatic-hinge-kinematics";
 
 /** Shared by explicit verification and export; never invokes a model. */
 export async function prepareContractAssembly(input:Parameters<typeof prepareAssembly>[0]) {
@@ -20,6 +21,6 @@ export async function prepareContractAssembly(input:Parameters<typeof prepareAss
   const fitRequirements=input.fitRequirements??(autoBound?toFitRequirements(contract!,checked.data):undefined);
   const wantsMotion=contract?.requirements.some(requirement=>requirement.id==="sampled-motion"&&requirement.required&&requirement.applicable);
   const wantsRemoval=contract?.requirements.some(requirement=>requirement.id==="disassembly-path"&&requirement.required&&requirement.applicable);
-  const kinematics=input.kinematics??(autoBound&&(wantsMotion||wantsRemoval)?{connectionId:revolute[0].id}:undefined);
+  const kinematics=input.kinematics??(autoBound&&(wantsMotion||wantsRemoval)?automaticHingeKinematics(checked.data):undefined);
   return prepareAssembly({...input,assemblyMesh,fitRequirements,kinematics});
 }
