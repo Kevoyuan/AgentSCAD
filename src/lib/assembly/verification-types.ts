@@ -2,14 +2,14 @@ import { z } from "zod";
 
 export const ASSEMBLY_VERIFICATION_FIELD="__assembly_verification_record";
 export const ASSEMBLY_VERIFICATION_POINTER_FIELD="__assembly_verification_current";
-export const ASSEMBLY_EVIDENCE_LAYERS=["identity","geometry","reconstruction","jointFrames","assembly","assemblyPath","disassembly","motion","physical"] as const;
+export const ASSEMBLY_EVIDENCE_LAYERS=["requirements","identity","geometry","reconstruction","jointFrames","assembly","assemblyPath","disassembly","motion","physical"] as const;
 export const ASSEMBLY_VERIFIER_SOURCES=[
   "src/lib/assembly/verification-types.ts","src/lib/assembly/prepare-assembly.ts","src/lib/assembly/prepare-contract-assembly.ts",
   "src/lib/assembly/assembly-bundle.ts","src/lib/assembly/assembly-spec.ts","src/lib/assembly/fit-measurement.ts",
   "src/lib/assembly/measured-joint-frame.ts","src/lib/assembly/part-identity-check.ts","src/lib/assembly/part-connectivity.ts","src/lib/assembly/path-and-motion.ts",
   "src/lib/assembly/declared-pose-disassembly.ts","src/lib/assembly/declared-pose-assembly.ts","src/lib/assembly/rigid-pose-path.ts","src/lib/geometry/cylindrical-feature.ts",
   "src/lib/geometry/stl-mesh.ts","src/lib/geometry/mesh-collision.ts","src/lib/tools/assembly-reconstruction.ts",
-  "src/lib/requirements/contract-bridge.ts","src/lib/tools/scad-renderer.ts","src/lib/tools/assembly-part-renderer.ts",
+  "src/lib/requirements/contract-bridge.ts","src/lib/requirements/requirement-contract.ts","src/lib/requirements/extract-requirements.ts","src/lib/tools/scad-renderer.ts","src/lib/tools/assembly-part-renderer.ts",
   "src/lib/assembly/verification-fingerprint.ts","src/lib/pipeline/assembly-verification-record.ts","src/lib/pipeline/assembly-export-guard.ts",
   "config/openscad-wasm-runtime.json","skills/scad-library-policy/manifest.json",
 ] as const;

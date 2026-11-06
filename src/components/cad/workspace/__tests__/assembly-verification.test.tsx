@@ -13,12 +13,13 @@ test('only a current stored report may display passing evidence',()=>{
  expect(currentEvidenceStatus(undefined,'motion')).toBe('NOT_RUN')
  expect(currentEvidenceStatus({verification:{status:'CURRENT',executionStatus:'ERROR'},evidence:{motion:{status:'PASS'}}},'motion')).toBe('NOT_RUN')
 })
-test('the pending report view lists all nine layers and permits a review action',()=>{
+test('the pending report view includes requirement completeness and permits a review action',()=>{
  const html=renderToStaticMarkup(<I18nContext.Provider value={{locale:'en',setLocale(){},t:createTranslator('en')}}>
   <AssemblyVerification jobId="test" sourceSha256={'a'.repeat(64)} specSha256={'b'.repeat(64)} revision="1" canCheck />
  </I18nContext.Provider>)
  expect(html).toContain('Check assembly')
- expect(html.match(/Not checked/g)?.length).toBe(9)
+ expect(html.match(/Not checked/g)?.length).toBe(10)
+ expect(html).toContain('Requirement completeness')
  expect(html).toContain('Assembly path')
  expect(html).toContain('Joint frames')
  expect(html).toContain('Assembly reconstruction')

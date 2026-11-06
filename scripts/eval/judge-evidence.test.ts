@@ -1,11 +1,19 @@
 import {expect,test} from "bun:test";
 import {deriveRequirementContract} from "../../src/lib/requirements/extract-requirements";
-import {motionRangeObservations, declaredPathObservation} from "./judge-assembly";
+import {motionRangeObservations, declaredPathObservation, unresolvedContractEvidence} from "./judge-assembly";
 import {evaluateAssembly} from "./assembly-evidence";
 
 const provenance={artifactSha256:"a".repeat(64),toolVersion:"unit-reference"};
 const requirements=(request:string)=>deriveRequirementContract({request}).requirements.filter(r=>r.id.startsWith("motion-range-"));
 const observed=(status:string,min:number,max:number)=>motionRangeObservations({status,rangeDeg:{min,max},coverage:"Listed ideal test poses only"},provenance);
+
+test("a missing retention condition remains NOT_RUN even when measured paths and motion pass",()=>{
+  const contract=deriveRequirementContract({request:"两件式铰链，间隙0.35到0.45mm，能转±45°，可组装可拆卸，3D打印"});
+  const evidence=unresolvedContractEvidence(contract);
+  expect(evidence.find(item=>item.id==="unresolved-axial-retention")?.status).toBe("NOT_RUN");
+  expect(evidence.some(item=>item.id==="unresolved-material")).toBe(false);
+  expect(unresolvedContractEvidence({...contract,unknowns:contract.unknowns.filter(item=>item.id!=="axial-retention")})).toEqual([]);
+});
 
 test("a declared range on a failed motion check cannot appear as verified reach",()=>{
   const result=evaluateAssembly(requirements("铰链能转±90°"),observed("FAIL",-90,90));

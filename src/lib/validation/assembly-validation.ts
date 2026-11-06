@@ -5,6 +5,7 @@ import { collectAssemblyFindings } from "../assembly/repair-findings";
 import { deriveRequirementContract } from "../requirements/extract-requirements";
 import { toFitRequirements } from "../requirements/contract-bridge";
 import { readRequirementContract } from "../requirements/requirement-contract-record";
+import { requirementsInScope, unknownsInScope, withDerivedUnknowns, type RequirementContract } from "../requirements/requirement-contract";
 import type { ValidationResult } from "../mesh-validator";
 
 export interface AssemblyValidationResult extends ValidationResult {
@@ -12,6 +13,16 @@ export interface AssemblyValidationResult extends ValidationResult {
     sourceSha256: string;
     manifest: Awaited<ReturnType<typeof prepareContractAssembly>>["manifest"];
   };
+}
+
+/** Confirmed assertions without an implementation remain unmeasured. */
+export function unverifiedAssemblyRequirements(contract: RequirementContract) {
+  // A001 evaluates assembly evidence only. Identity checks do not compare the
+  // requested part count, and a collision-free declared interval does not by
+  // itself prove it reaches the requested endpoints.
+  const supported = new Set(["assembly-path", "disassembly-path", "sampled-motion"]);
+  return requirementsInScope(contract).filter(requirement => requirement.layer !== "intent"
+    && requirement.required && requirement.applicable && !supported.has(requirement.id));
 }
 
 /** Required digital checks remain visible even when unavailable or unconfirmed. */
@@ -64,12 +75,16 @@ export async function validateAssemblyArtifact(input: {
     const failures = selected.filter(([, item]) => item.status === "FAIL");
     const disconnected = prepared.manifest.partConnectivity.filter(part => part.status === "FAIL");
     const unresolvedParts = prepared.manifest.partConnectivity.filter(part => part.status !== "PASS");
+    const unresolvedRequirements = unknownsInScope(withDerivedUnknowns(contract, derived));
+    const uncheckedRequirements = unverifiedAssemblyRequirements(contract);
     const status = failures.length || disconnected.length ? "FAIL"
       : selected.some(([, item]) => item.status === "ERROR") ? "ERROR"
-      : selected.some(([, item]) => item.status !== "PASS") || unresolvedParts.length ? "NOT_RUN" : "PASS";
+      : selected.some(([, item]) => item.status !== "PASS") || unresolvedParts.length || unresolvedRequirements.length || uncheckedRequirements.length ? "NOT_RUN" : "PASS";
     const findings = collectAssemblyFindings({ manifest: prepared.manifest, kinematics: prepared.kinematics });
     const details = selected.map(([layer, item]) => `${layer} ${item.status}: ${item.reason}`);
     details.push(...unresolvedParts.map(part => `${part.partId} connectivity ${part.status}: ${part.reason}`));
+    details.push(...unresolvedRequirements.map(unknown => `requirement ${unknown.id} NOT_RUN: ${unknown.question}`));
+    details.push(...uncheckedRequirements.map(requirement => `requirement ${requirement.id} NOT_RUN: No automatic assertion is implemented for this requirement.`));
     return [{ ...row(status, [...details, ...findings.map(finding => finding.message)].join("\n")),
       assemblyEvidence: { sourceSha256: createHash("sha256").update(input.scadSource).digest("hex"), manifest: prepared.manifest } }];
   } catch (error) {

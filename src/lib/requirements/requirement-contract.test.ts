@@ -95,6 +95,21 @@ describe("confirming a requirement contract", () => {
     expect(find(normalized, "axial-retention").provenance).toBe("confirmed");
   });
 
+  test("an unresolved condition cannot silently disappear when confirming", () => {
+    const original = derived();
+    const missing = { ...original, unknowns: original.unknowns.filter(item => item.id !== "axial-retention") };
+    expect(() => normalizeConfirmedContract(missing, original)).toThrow(/cannot disappear/);
+    const waived: RequirementContract = { ...missing, requirements: [...missing.requirements, {
+      id: "axial-retention", layer: "assembly", required: false, applicable: true,
+      expected: { kind: "equals", value: true }, provenance: "confirmed", statement: "Explicitly waived",
+    }] };
+    expect(normalizeConfirmedContract(waived, original).requirements.find(item => item.id === "axial-retention")?.required).toBe(false);
+    const moved: RequirementContract = { ...waived, requirements: waived.requirements.map(item => item.id === "axial-retention" ? { ...item, layer: "physical" } : item) };
+    expect(() => normalizeConfirmedContract(moved, original)).toThrow(/unrelated layer/);
+    const changed = { ...original, unknowns: original.unknowns.map(item => item.id === "axial-retention" ? { ...item, affects: [] } : item) };
+    expect(() => normalizeConfirmedContract(changed, original)).toThrow(/cannot be changed silently/);
+  });
+
   test("switching the target level to physical does not drop digital assertions", () => {
     const physical = normalizeConfirmedContract({ ...derived(), targetLevel: "physical" }, derived());
     expect(physical.targetLevel).toBe("physical");

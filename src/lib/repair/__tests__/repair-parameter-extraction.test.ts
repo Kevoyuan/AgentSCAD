@@ -84,4 +84,19 @@ function registerRepairParameterTests() {
     await runRepair({ originalRequest: "两件式铰链，可组装可拆卸", partFamily: "unknown", currentScadCode: "cube(1);", validationResults: [] });
     expect(systemPrompts.at(-1)).toContain("boreInstanceId");
   });
+
+  test("an isolated completion adapter receives the real repair prompt once", async () => {
+    const { runRepair } = await import("@/lib/repair/repair-controller");
+    const requests: Array<{messages: Array<{role: string; content: unknown}>}> = [];
+    const result = await runRepair({
+      originalRequest: "两件式铰链，可组装可拆卸", partFamily: "unknown",
+      currentScadCode: "cube(1);", validationResults: [],
+    }, { complete: async request => {
+      requests.push(request);
+      return { content: scad, model: "test", provider: "test", finishReason: "stop", responseLength: scad.length, rawSnippet: "" };
+    } });
+    expect(requests).toHaveLength(1);
+    expect(requests[0].messages[0].content).toContain("boreInstanceId");
+    expect(result.generationResult.scad_source).toContain("total_length");
+  });
 }

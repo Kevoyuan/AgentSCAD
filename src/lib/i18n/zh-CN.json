@@ -946,6 +946,7 @@
   "This assembly description belongs to an earlier source version.": "此装配描述对应较早的源码版本。",
   "Assembly requirements are recorded. Part identity, fit, motion and physical function are not verified by this description.": "已记录装配要求。此描述不能验证零件身份、配合、运动或实物功能。",
   "Assembly evidence": "装配验证证据",
+  "Requirement completeness": "需求条件是否明确",
   "Part identity": "零件身份",
   "Part geometry": "零件几何",
   "Assembly fit": "装配配合",

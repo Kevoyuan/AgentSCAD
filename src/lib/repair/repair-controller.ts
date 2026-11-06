@@ -234,7 +234,10 @@ export function assertRepairCompletionUsable(completion: ModelCompletionResponse
  * Loads the scad-repair skill, builds a repair context from validation failures,
  * calls the LLM once, and returns the repaired result.
  */
-export async function runRepair(input: RepairInput): Promise<{
+export async function runRepair(input: RepairInput, dependencies?: {
+  /** Optional bounded transport adapter for isolated evaluation; production uses the router directly. */
+  complete?: typeof createChatCompletionDetailed;
+}): Promise<{
   generationResult: StructuredGenerationResult;
   repairMeta: RepairResult;
 }> {
@@ -257,7 +260,7 @@ export async function runRepair(input: RepairInput): Promise<{
   const userPrompt = buildRepairPrompt(input);
 
   const modelStartedAt = Date.now();
-  const completion = await createChatCompletionDetailed({
+  const completion = await (dependencies?.complete ?? createChatCompletionDetailed)({
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },

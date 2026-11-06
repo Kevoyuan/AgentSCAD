@@ -34,6 +34,32 @@ test("a stale contract overrides a caller claiming current evidence", async () =
   expect(result.manifest.contract.reason).toContain("stale");
   expect(Object.values(result.manifest.evidence).some(item => item.status === "PASS")).toBe(false);
 });
+
+test("confirmation does not erase an unresolved retention condition", async () => {
+  const request = "两件式铰链，间隙0.35到0.45mm，能转±45°，可组装可拆卸，3D打印";
+  const contract = deriveRequirementContract({ request });
+  const input = { scadSource: "cube(1);", spec: spec(), contractSnapshot: { contract, request },
+    contractGate: { evidenceCurrent: true }, render: async () => output() };
+  const unresolved = await prepareAssembly(input);
+  expect(unresolved.manifest.evidence.requirements.status).toBe("NOT_RUN");
+  expect(unresolved.manifest.evidence.requirements.reason).toContain("axial-retention");
+  const omitted = { ...contract, unknowns: contract.unknowns.filter(item => item.id !== "axial-retention") };
+  const oldRecord = await prepareAssembly({ ...input, contractSnapshot: { contract: omitted, request } });
+  expect(oldRecord.manifest.evidence.requirements.reason).toContain("axial-retention");
+  const weakened = { ...contract, unknowns: contract.unknowns.map(item => item.id === "axial-retention" ? { ...item, affects: [] } : item) };
+  const alteredRecord = await prepareAssembly({ ...input, contractSnapshot: { contract: weakened, request } });
+  expect(alteredRecord.manifest.evidence.requirements.reason).toContain("axial-retention");
+  const wrongLayer = { ...omitted, requirements: [...omitted.requirements, { id: "axial-retention", layer: "physical" as const,
+    required: true, applicable: true, expected: { kind: "equals" as const, value: true }, provenance: "confirmed" as const, statement: null }] };
+  const misplaced = await prepareAssembly({ ...input, contractSnapshot: { contract: wrongLayer, request } });
+  expect(misplaced.manifest.evidence.requirements.reason).toContain("axial-retention");
+  const resolved = await prepareAssembly({ ...input, contractSnapshot: { contract: { ...omitted,
+    requirements: [...omitted.requirements, { id: "axial-retention", layer: "assembly", required: true, applicable: true,
+      expected: { kind: "equals", value: true }, provenance: "confirmed", statement: null }] }, request } });
+  expect(resolved.manifest.evidence.requirements.status).toBe("PASS");
+  expect(resolved.manifest.evidence.requirements.reason).toContain("does not verify geometry");
+  expect(resolved.manifest.evidence.physical.status).toBe("NOT_RUN");
+});
 const spec = () => ({
   schemaVersion: 1, units: "mm", coordinateSystem: "right-handed",
   parts: [

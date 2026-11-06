@@ -5,7 +5,7 @@ import { useI18n } from '@/components/i18n-provider'
 import { ASSEMBLY_EVIDENCE_LAYERS, type AssemblyVerificationView, type VerificationEvidence } from '@/lib/assembly/verification-types'
 
 export type VerificationResponse = { verification: AssemblyVerificationView; evidence: VerificationEvidence }
-const labels = { identity: 'Part identity', geometry: 'Part geometry', reconstruction: 'Assembly reconstruction', jointFrames: 'Joint frames', assembly: 'Assembly fit', assemblyPath: 'Assembly path', disassembly: 'Disassembly', motion: 'Motion', physical: 'Physical function' }
+const labels = { requirements: 'Requirement completeness', identity: 'Part identity', geometry: 'Part geometry', reconstruction: 'Assembly reconstruction', jointFrames: 'Joint frames', assembly: 'Assembly fit', assemblyPath: 'Assembly path', disassembly: 'Disassembly', motion: 'Motion', physical: 'Physical function' }
 
 export function currentEvidenceStatus(report: VerificationResponse | undefined, layer: string) {
   return report?.verification.status === 'CURRENT' && report.verification.executionStatus !== 'ERROR' ? report.evidence[layer]?.status ?? 'NOT_RUN' : 'NOT_RUN'

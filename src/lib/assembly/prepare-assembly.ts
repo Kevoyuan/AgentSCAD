@@ -11,7 +11,8 @@ import { renderAssemblySpecParts, type RenderedAssemblyPart } from "../tools/ass
 import type { ScadExecutionOptions } from "../tools/scad-renderer";
 import { checkAssemblyReconstruction } from "../tools/assembly-reconstruction";
 import { checkMeasuredJointFrames, JOINT_FRAME_CONSISTENCY_LIMITS } from "./measured-joint-frame";
-import { RequirementContractSchema, requirementContractHash } from "../requirements/requirement-contract";
+import { RequirementContractSchema, requirementContractHash, unknownsInScope, withDerivedUnknowns } from "../requirements/requirement-contract";
+import { deriveRequirementContract } from "../requirements/extract-requirements";
 
 const sha256 = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
 type Rendered = { parts: RenderedAssemblyPart[]; purchasedPartIds: string[] };
@@ -204,6 +205,13 @@ export async function prepareAssembly(input: {
     "Declared poses and connections were not checked against geometry.",
   );
   const identityEvidence = applyContractGate(identity.status as EvidenceStatus, identity.reason, gateReason);
+  const missingRequirements = contract ? unknownsInScope(withDerivedUnknowns(contract,
+    deriveRequirementContract({ request: input.contractSnapshot!.request, targetLevel: contract.targetLevel }))) : [];
+  const requirementsEvidence = !contract || !input.contractGate?.evidenceCurrent || gateReason
+    ? { status: "NOT_RUN" as const, reason: gateReason ?? "A confirmed requirement contract was not supplied." }
+    : missingRequirements.length
+      ? { status: "NOT_RUN" as const, reason: missingRequirements.map(item => `${item.id}: ${item.question}`).join(" ") }
+      : { status: "PASS" as const, reason: "No in-scope requirement gaps are recorded. This does not verify geometry or physical function." };
   const manifest = {
     schemaVersion: 1 as const,
     sourceSha256,
@@ -241,6 +249,7 @@ export async function prepareAssembly(input: {
         : "Confirmation was not evaluated; a bound contract does not imply user approval."),
     },
     evidence: {
+      requirements: requirementsEvidence,
       identity: identityEvidence,
       geometry: partConnectivity.some(p=>p.status==="FAIL")
         ? {status:"FAIL" as const,reason:partConnectivity.filter(p=>p.status==="FAIL").map(p=>`${p.partId}: ${p.reason}`).join(" ")}

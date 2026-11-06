@@ -18,7 +18,7 @@
  *   model from an unconfirmed contract.
  */
 import { deriveRequirementContract } from "../../src/lib/requirements/extract-requirements";
-import { requirementContractHash } from "../../src/lib/requirements/requirement-contract";
+import { requirementContractHash, unknownsInScope, type RequirementContract } from "../../src/lib/requirements/requirement-contract";
 import { toEvidenceRequirements, toFitRequirements } from "../../src/lib/requirements/contract-bridge";
 import { extractEmbeddedAssemblySpec } from "../../src/lib/assembly/embedded-spec";
 import { prepareAssembly } from "../../src/lib/assembly/prepare-assembly";
@@ -62,6 +62,11 @@ export interface Judgement {
   findings: string[];
   /** Why the candidate failed before any measurement could happen, if it did. */
   blockedBy: string | null;
+}
+
+/** Missing requirements do not invalidate individual measurements, but cannot yield a trial pass. */
+export function unresolvedContractEvidence(contract: RequirementContract) {
+  return unknownsInScope(contract).map((unknown) => ({ id: `unresolved-${unknown.id}`, status: "NOT_RUN" as const, question: unknown.question }));
 }
 
 /** Which declared connection type the request is asking for. */
@@ -162,12 +167,14 @@ export async function judgeAssemblyCandidate(input: {
   const requirements = toEvidenceRequirements(contract);
   const known = new Set(requirements.map((requirement) => requirement.id));
   const report = evaluateAssembly(requirements, Object.values(observations).filter((observation) => known.has(observation.id)));
+  const unresolved = unresolvedContractEvidence(contract);
 
   const findings = collectAssemblyFindings({
     manifest: prepared.manifest,
     fitRequirements: fits,
     kinematics: prepared.kinematics,
   }).map((finding) => finding.message);
+  findings.push(...unresolved.map((item) => `Unresolved requirement (${item.id}, NOT_RUN): ${item.question}`));
   for(const part of prepared.manifest.partConnectivity) if(part.status==="NOT_RUN"||part.status==="ERROR") findings.push(`Unresolved connectivity for ${part.partId} (${part.status}): ${part.reason}. Do not infer disconnected solids from nested surfaces alone.`);
   if(prepared.reconstruction.status==="ERROR"||prepared.reconstruction.status==="NOT_RUN") {
     findings.push(`Unresolved assembly reconstruction (${prepared.reconstruction.status}): ${prepared.reconstruction.reason} This is not a measured placement mismatch; review the input meshes and complete instance coverage without weakening the required assembly.`);
@@ -187,13 +194,14 @@ export async function judgeAssemblyCandidate(input: {
   }
 
   return {
-    passed: report.gate_passed && prepared.manifest.partConnectivity.every(p=>p.status==="PASS") && prepared.manifest.evidence.identity.status === "PASS" && prepared.reconstruction.status === "PASS" && prepared.manifest.evidence.jointFrames.status === "PASS",
+    passed: report.gate_passed && unresolved.length === 0 && prepared.manifest.partConnectivity.every(p=>p.status==="PASS") && prepared.manifest.evidence.identity.status === "PASS" && prepared.reconstruction.status === "PASS" && prepared.manifest.evidence.jointFrames.status === "PASS",
     contractSha256,
     evidence: [...report.evidence.map((item) => ({ id: item.id, status: item.status })),
       {id:"part-connectivity",status:prepared.manifest.partConnectivity.some(p=>p.status==="FAIL")?"FAIL":prepared.manifest.partConnectivity.some(p=>p.status==="ERROR")?"ERROR":prepared.manifest.partConnectivity.every(p=>p.status==="PASS")?"PASS":"NOT_RUN"},
       {id:"measured-part-identity",status:prepared.manifest.evidence.identity.status},
       {id:"assembly-reconstruction",status:prepared.reconstruction.status},
-      {id:"measured-joint-frames",status:prepared.manifest.evidence.jointFrames.status}],
+      {id:"measured-joint-frames",status:prepared.manifest.evidence.jointFrames.status},
+      ...unresolved.map(({id,status})=>({id,status}))],
     findings,
     blockedBy: null,
   };
