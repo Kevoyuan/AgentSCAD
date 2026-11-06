@@ -6,6 +6,7 @@ import { checkRigidPosePath } from "../../assembly/rigid-pose-path";
 import { rotationAboutAxis } from "../../assembly/path-and-motion";
 import { checkPartConnectivity } from "../../assembly/part-connectivity";
 import { checkPartIdentity } from "../../assembly/part-identity-check";
+import { prepareAssembly } from "../../assembly/prepare-assembly";
 
 test("original two-part rigid stop allows an explicit rotate-then-withdraw release", async () => {
   const scadSource = await readFile("benchmarks/assembly/bayonet_retention.scad", "utf8");
@@ -45,4 +46,24 @@ test("original two-part rigid stop allows an explicit rotate-then-withdraw relea
   expect(6/Math.sqrt(2)).toBeGreaterThan(2.6);
   // At 90°, the 2 x 6 mm lug fits the centred 2.6 x 6.6 mm opening.
   expect(2).toBeLessThan(2.6); expect(6).toBeLessThan(6.6);
+  // Exercise the same declaration path used by production verification/export,
+  // reusing actual native meshes rather than replacing geometry with a mock.
+  const spec = {
+    schemaVersion:1,units:"mm",coordinateSystem:"right-handed",
+    parts:parts.map(p=>({id:p.partId,name:p.partId,selector:p.partId,source:"generated",material:null})),
+    instances:parts.map(p=>({id:p.partId,partId:p.partId,subassemblyId:null,transform:rotationAboutAxis([0,0,0],[0,0,1],0)})),
+    subassemblies:[],connections:[],groundedInstanceId:"support",motions:[],operations:[],manufacturing:null,assumptions:[],unknowns:[],
+    translationProbes:workPoses.flatMap((startTransform,i)=>[-1,1].map((sign,j)=>({id:`hold${i}_${j}`,instanceId:"rotor",startTransform,translationMm:[0,0,sign*4],samples:33,expected:"blocked"}))),
+  };
+  const input = {scadSource,spec,assemblyMesh:all,render:async()=>({parts,purchasedPartIds:[]}),contractGate:{evidenceCurrent:false}};
+  const prepared = await prepareAssembly(input);
+  expect(prepared.manifest.translationProbes.measuredStatus).toBe("PASS");
+  expect(prepared.manifest.translationProbes.status).toBe("NOT_RUN");
+  expect(prepared.manifest.translationProbes.results).toHaveLength(38);
+  expect(prepared.manifest.translationProbes.results.every(p=>p.status==="NOT_RUN"&&p.measuredStatus==="PASS")).toBe(true);
+  const bad = {...spec,translationProbes:[{...spec.translationProbes[1],id:"releaseMislabelledAsRetained",startTransform:poses[18]}]};
+  const failed = await prepareAssembly({...input,spec:bad});
+  expect(failed.manifest.translationProbes.status).toBe("FAIL");
+  expect(failed.manifest.evidence.assembly.status).toBe("FAIL");
+  expect(failed.manifest.evidence.physical.status).toBe("NOT_RUN");
 }, 60000);

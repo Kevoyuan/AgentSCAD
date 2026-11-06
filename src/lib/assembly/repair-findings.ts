@@ -16,8 +16,9 @@ import { validateAssemblySpec, type AssemblySpec } from "./assembly-spec";
 import type { DisassemblyPathEvidence, MotionRangeEvidence } from "./path-and-motion";
 import type { RequirementContract } from "../requirements/requirement-contract";
 import type { AssemblyFitRequirement } from "./prepare-assembly";
+import { canonicalJson } from "../canonical-json";
 
-export type FindingKind = "connectivity" | "identity" | "reconstruction" | "joint-frame" | "fit" | "path" | "motion";
+export type FindingKind = "connectivity" | "identity" | "reconstruction" | "joint-frame" | "fit" | "path" | "motion" | "translation-probe";
 
 export interface AssemblyFinding {
   kind: FindingKind;
@@ -66,6 +67,7 @@ export interface AssemblyEvidenceManifest {
     jointFrames?:{measuredStatus:string;measuredReason:string;limits:{maxOffsetMm:number;maxAngleDeg:number}};
   }>;
   partConnectivity?: Array<{partId:string;status:string;reason:string;separator?:{axis:number;lower:number;upper:number}|null}>;
+  translationProbes?: { results: Array<{id:string;instanceId:string;status:string;reason:string;probe?:{translationMm:number[];samples:number;expected:string}}> };
   declaredDisassembly?: DeclaredPathResults;
   declaredAssembly?: { method: string; reversedEvaluation?: DeclaredPathResults };
 }
@@ -86,6 +88,12 @@ export function collectAssemblyFindings(input: {
   kinematics: { path: DisassemblyPathEvidence; motion: MotionRangeEvidence } | null;
 }): AssemblyFinding[] {
   const findings: AssemblyFinding[] = [];
+  for (const probe of input.manifest.translationProbes?.results ?? []) {
+    const measured = `${probe.reason}${probe.probe ? ` World displacement [${probe.probe.translationMm.map(n=>n.toFixed(3)).join(", ")}] mm, ${probe.probe.samples} samples, expected ${probe.probe.expected}.` : ""}`;
+    if (probe.status === "FAIL") findings.push({kind:"translation-probe",layer:"assembly",connectionId:null,instanceIds:[probe.instanceId],
+      measured,required:"Preserve the declared start pose, direction, displacement, sampling and expected geometric outcome.",atMm:null,atDeg:null,
+      message:`Declared translation probe ${probe.id} failed for ${probe.instanceId}: ${measured} Repair geometry without deleting or weakening the experiment; this does not measure holding force.`});
+  }
   for (const [layer, action, sequence] of [
     ["assemblyPath", "insertion", input.manifest.declaredAssembly?.reversedEvaluation],
     ["disassembly", "removal", input.manifest.declaredDisassembly],
@@ -192,6 +200,7 @@ export const ASSEMBLY_REPAIR_INVARIANTS: readonly string[] = [
   "Do not change the declared motion range to a smaller one.",
   "Do not change which instance carries the bore.",
   "Keep the grounded instance and every declared operation's ID, action and instance. Paths and order may be corrected but must be measured again; deleting a failed operation is not a repair.",
+  "Keep every declared translation probe unchanged, including its start pose, displacement, samples and expected result. It is a geometric experiment, not force evidence.",
   "Do not change the requirement. The requirement belongs to the user; only the geometry may change.",
   "If a failure cannot be fixed without breaking an invariant, say so and leave the source unchanged. A wrong part that reports its own defect is better than a part that hides it.",
 ];
@@ -248,7 +257,7 @@ export function buildAssemblyRepairPrompt(input: {
 }
 
 export interface RepairViolation {
-  code: "part-removed" | "instance-removed" | "connection-removed" | "connection-changed" | "range-shrunk" | "bore-changed" | "ground-changed" | "operation-removed" | "operation-changed" | "invalid" | "requirement-relaxed";
+  code: "part-removed" | "instance-removed" | "connection-removed" | "connection-changed" | "range-shrunk" | "bore-changed" | "ground-changed" | "operation-removed" | "operation-changed" | "probe-changed" | "invalid" | "requirement-relaxed";
   message: string;
 }
 
@@ -270,6 +279,10 @@ export function assertRepairPreservesAssembly(input: {
 
   if (before.data.groundedInstanceId !== after.data.groundedInstanceId) violations.push({ code: "ground-changed", message: "The grounded instance changed." });
   const afterOperations = new Map(after.data.operations.map(operation => [operation.id, operation]));
+  const afterProbes = new Map((after.data.translationProbes ?? []).map(probe => [probe.id,probe]));
+  for (const probe of before.data.translationProbes ?? []) {
+    if (canonicalJson(probe) !== canonicalJson(afterProbes.get(probe.id) ?? null)) violations.push({code:"probe-changed",message:`Translation probe "${probe.id}" was removed or changed.`});
+  }
   for (const operation of before.data.operations) {
     const repaired = afterOperations.get(operation.id);
     if (!repaired) violations.push({ code: "operation-removed", message: `Operation "${operation.id}" was removed.` });

@@ -88,6 +88,12 @@ const operation = z.object({
     ctx.addIssue({ code: "custom", path: ["screwTrajectory"], message: "Screw trajectory must have nonzero travel" });
 });
 
+const translationProbe = z.object({
+  id, instanceId: id, startTransform: transform,
+  translationMm: axis, samples: z.number().int().min(2).max(65),
+  expected: z.enum(["blocked", "clear"]),
+}).strict();
+
 export const AssemblySpecSchema = z.object({
   schemaVersion: z.literal(1),
   units: z.literal("mm"),
@@ -99,6 +105,8 @@ export const AssemblySpecSchema = z.object({
   groundedInstanceId: id.nullable(),
   motions: z.array(motion).max(100),
   operations: z.array(operation).max(1000),
+  /** Optional declared geometric experiments, never load or physical qualification. */
+  translationProbes: z.array(translationProbe).max(64).optional(),
   manufacturing: manufacturing.nullable(),
   assumptions: z.array(text).max(100),
   unknowns: z.array(text).max(100),
@@ -118,6 +126,7 @@ export const AssemblySpecSchema = z.object({
   const connections = checkUnique(spec.connections, "connections");
   checkUnique(spec.motions, "motions");
   checkUnique(spec.operations, "operations");
+  checkUnique(spec.translationProbes ?? [], "translationProbes");
   const selectors = new Set<string>();
   spec.parts.forEach((p, i) => {
     if (selectors.has(p.selector)) issue(["parts", i, "selector"], `Duplicate selector: ${p.selector}`);
@@ -151,6 +160,10 @@ export const AssemblySpecSchema = z.object({
   });
   spec.operations.forEach((o, i) => {
     if (!instances.has(o.instanceId)) issue(["operations", i, "instanceId"], "Unknown instance ID");
+  });
+  spec.translationProbes?.forEach((probe, i) => {
+    if (!instances.has(probe.instanceId)) issue(["translationProbes", i, "instanceId"], "Unknown instance ID");
+    if (probe.instanceId === spec.groundedInstanceId) issue(["translationProbes", i, "instanceId"], "Cannot probe the grounded instance as moving");
   });
 });
 

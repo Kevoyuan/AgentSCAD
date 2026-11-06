@@ -13,6 +13,7 @@ import { checkAssemblyReconstruction } from "../tools/assembly-reconstruction";
 import { checkMeasuredJointFrames, JOINT_FRAME_CONSISTENCY_LIMITS } from "./measured-joint-frame";
 import { RequirementContractSchema, requirementContractHash, unknownsInScope, withDerivedUnknowns } from "../requirements/requirement-contract";
 import { deriveRequirementContract } from "../requirements/extract-requirements";
+import { checkDeclaredTranslationProbes } from "./declared-translation-probes";
 
 const sha256 = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
 type Rendered = { parts: RenderedAssemblyPart[]; purchasedPartIds: string[] };
@@ -127,6 +128,7 @@ export async function prepareAssembly(input: {
     instances: spec.instances,
   });
   const meshes = Object.fromEntries(result.parts.map((part) => [part.partId, part.stl]));
+  const translationProbes = checkDeclaredTranslationProbes({ spec, meshes, signal: input.options?.signal });
   const gateReason = contractBinding?.requestMatches === false
     ? "The requirement contract belongs to a different request; its evidence is stale."
     : input.contractGate
@@ -200,8 +202,8 @@ export async function prepareAssembly(input: {
   const jointFrameEvidence=combine([...fits.map(fit=>fit.jointFrames.status),...(uncheckedConnections.length?["NOT_RUN" as const]:[])],
     [...fits.map(fit=>`${fit.connectionId}: ${fit.jointFrames.reason}`),...(uncheckedConnections.length?[`No measured axes for: ${uncheckedConnections.map(connection=>connection.id).join(", ")}.`]:[])],"No actual joint feature axes were measured.");
   const assemblyEvidence = combine(
-    [reconstructionEvidence.status,...fits.map((fit) => fit.status as EvidenceStatus),...(spec.connections.length?[jointFrameEvidence.status]:[]), ...(uncheckedConnections.length?["NOT_RUN" as const]:[])],
-    [`reconstruction: ${reconstructionEvidence.reason}`,...fits.map((fit) => `${fit.connectionId}: ${fit.reason}`),...(spec.connections.length?[`joint frames: ${jointFrameEvidence.reason}`]:[]),...(uncheckedConnections.length?[`Connection features were not measured: ${uncheckedConnections.map(connection=>connection.id).join(", ")}.`]:[])],
+    [reconstructionEvidence.status,...fits.map((fit) => fit.status as EvidenceStatus),...(spec.connections.length?[jointFrameEvidence.status]:[]), ...(uncheckedConnections.length?["NOT_RUN" as const]:[]),...(spec.translationProbes?.length?[translationProbes.status]:[])],
+    [`reconstruction: ${reconstructionEvidence.reason}`,...fits.map((fit) => `${fit.connectionId}: ${fit.reason}`),...(spec.connections.length?[`joint frames: ${jointFrameEvidence.reason}`]:[]),...(uncheckedConnections.length?[`Connection features were not measured: ${uncheckedConnections.map(connection=>connection.id).join(", ")}.`]:[]),...(spec.translationProbes?.length?[`translation probes: ${translationProbes.reason}`]:[])],
     "Declared poses and connections were not checked against geometry.",
   );
   const identityEvidence = applyContractGate(identity.status as EvidenceStatus, identity.reason, gateReason);
@@ -229,6 +231,9 @@ export async function prepareAssembly(input: {
     kinematics,
     reconstruction: { ...reconstruction, ...reconstructionEvidence, measuredStatus: reconstruction.status, measuredReason: reconstruction.reason },
     partConnectivity,
+    translationProbes: { ...translationProbes, ...applyContractGate(translationProbes.status, translationProbes.reason, gateReason), measuredStatus: translationProbes.status, measuredReason: translationProbes.reason,
+      results: translationProbes.results.map(probe => ({...probe,...applyContractGate(probe.status as EvidenceStatus,probe.reason,gateReason),measuredStatus:probe.status,measuredReason:probe.reason})),
+    },
     declaredDisassembly: declaredDisassemblyRecord,
     declaredAssembly: {
       ...declaredAssembly,

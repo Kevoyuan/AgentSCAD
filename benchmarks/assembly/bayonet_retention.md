@@ -30,6 +30,16 @@ The rectangular projection bound independently supports the
 geometric obstruction claim in the stated interval. Sampling is not a
 continuous collision proof.
 
+The native test also builds an explicit `translationProbes` declaration and
+passes the real rendered meshes through `prepareAssembly`, the shared product
+verification/export preparation function. Its manifest retains the 38 raw
+measurements, downgrades passing verdicts when confirmation is missing, and
+propagates the mislabelled release-pose failure into assembly evidence. This
+fixture's source does not contain that declaration; the test constructs it.
+These experiments are not assertions that the user's complete retention
+requirement was measured. In particular, `axial-retention` remains unsupported
+as a force/accidental-release requirement in A001.
+
 There is no detent or mechanical operating-angle limit preventing unintended
 rotation to the release orientation. Holding force, contact stress, handle
 strength, friction, wear, machine accuracy, material, print orientation and
