@@ -8,7 +8,7 @@ import { assertAssemblySourcePreserved } from "./assembly-preservation";
 // ---------------------------------------------------------------------------
 
 import { createHash } from "crypto";
-import { loadSkill, skillInstructions } from "@/lib/skill-resolver";
+import { assemblyContractGuidance, loadSkill, skillInstructions } from "@/lib/skill-resolver";
 import { buildScadLibraryPrompt } from "@/lib/tools/scad-library-resolver";
 import {
   createChatCompletionDetailed,
@@ -25,6 +25,7 @@ import type { StructuredGenerationResult, CadValidationTargets } from "@/lib/har
 import type { ValidationResult } from "@/lib/mesh-validator";
 import { getValidationEvidenceStatus } from "@/lib/validation/evidence-status";
 import { ASSEMBLY_REPAIR_INVARIANTS, renderAssemblyFindings, type AssemblyFinding } from "@/lib/assembly/repair-findings";
+import { deriveRequirementContract } from "@/lib/requirements/extract-requirements";
 
 export interface RepairInput {
   originalRequest: string;
@@ -48,7 +49,7 @@ export interface RepairInput {
   repairStrategy?: "compile" | "simplify";
   /**
    * Measured assembly failures (fit, disassembly path, motion) from the previous
-   * attempt. These are numbers a validator cannot produce, so they are carried
+   * attempt. These are numbers produced by a validator, so they are carried
    * into the prompt verbatim; the same invariants that guard the assembly repair
    * are stated here, because a model told only "clearance is wrong" will
    * sometimes delete the bore.
@@ -149,7 +150,7 @@ export function buildRepairPrompt(input: RepairInput): string {
           "",
           "These were measured on the rendered geometry, not inferred from the source. Repairing them means changing dimensions or shapes, and the numbers above are the target.",
           "",
-          "Invariants — a reply that breaks any of these is rejected, not reviewed:",
+          "Preserve these invariants. When the original declaration is valid, its identities are checked before persistence; geometry and function require revalidation:",
           ...ASSEMBLY_REPAIR_INVARIANTS.map((rule) => `- ${rule}`),
           "",
         ]
@@ -237,13 +238,21 @@ export async function runRepair(input: RepairInput): Promise<{
   generationResult: StructuredGenerationResult;
   repairMeta: RepairResult;
 }> {
-  const [skillContent, libraryPrompt] = await Promise.all([
+  const requiresAssembly = input.validationResults.some(result => result.rule_id === "A001")
+    || input.currentScadCode.includes("AGENTSCAD_ASSEMBLY_V1")
+    || deriveRequirementContract({ request: input.originalRequest }).requirements.some(requirement =>
+      requirement.id === "assembly-path" || requirement.id === "disassembly-path"
+      || (requirement.id === "distinct-exported-parts" && requirement.expected.kind === "equals"
+        && Number(requirement.expected.value) > 1));
+  const [skillContent, libraryPrompt, codingSkill] = await Promise.all([
     loadSkill("scad-repair"),
     buildScadLibraryPrompt(),
+    requiresAssembly ? loadSkill("scad-coding") : Promise.resolve(null),
   ]);
+  const assemblyGuidance = codingSkill ? assemblyContractGuidance(codingSkill) : null;
   const systemPrompt = skillContent
-    ? [skillInstructions(skillContent), libraryPrompt].filter(Boolean).join("\n\n")
-    : "You are a CAD repair engineer. Fix the SCAD code to pass all validation checks.";
+    ? [skillInstructions(skillContent), assemblyGuidance, libraryPrompt].filter(Boolean).join("\n\n")
+    : ["You are a CAD repair engineer. Fix the SCAD code to pass all validation checks.", assemblyGuidance].filter(Boolean).join("\n\n");
 
   const userPrompt = buildRepairPrompt(input);
 

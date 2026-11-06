@@ -16,6 +16,7 @@ if (process.env.AGENTSCAD_REPAIR_PARAM_TEST_CHILD === "1") {
 }
 
 function registerRepairParameterTests() {
+  const systemPrompts: string[] = [];
   const scad = [
     "// repaired V8",
     "total_length = 842;",
@@ -27,14 +28,17 @@ function registerRepairParameterTests() {
   ].join("\n");
 
   mock.module("@/lib/tools/model-router", () => ({
-    createChatCompletionDetailed: mock(async () => ({
-      content: scad,
-      model: "deepseek-v4-flash",
-      provider: "DeepSeek",
-      finishReason: "stop",
-      responseLength: scad.length,
-      rawSnippet: "module generated_part() { ... }",
-    })),
+    createChatCompletionDetailed: mock(async (request: { messages: Array<{ role: string; content: string }> }) => {
+      systemPrompts.push(request.messages.find(message => message.role === "system")?.content ?? "");
+      return {
+        content: scad,
+        model: "deepseek-v4-flash",
+        provider: "DeepSeek",
+        finishReason: "stop",
+        responseLength: scad.length,
+        rawSnippet: "module generated_part() { ... }",
+      };
+    }),
   }));
 
   test("re-extracts repaired SCAD parameters so callers do not persist the stale schema", async () => {
@@ -51,5 +55,33 @@ function registerRepairParameterTests() {
       "total_length",
       "bore",
     ]);
+  });
+
+  test("a missing assembly declaration gets the contract and bore role in the real repair prompt", async () => {
+    const { runRepair } = await import("@/lib/repair/repair-controller");
+    await runRepair({
+      originalRequest: "A removable two-part hinge", partFamily: "unknown",
+      currentScadCode: "cube(1);",
+      validationResults: [{ rule_id: "A001", rule_name: "Assembly contract evidence", level: "ENGINEERING",
+        status: "FAIL", passed: false, is_critical: true, message: "Missing assembly declaration" }],
+    });
+    const prompt = systemPrompts.at(-1)!;
+    expect(prompt).toContain("AGENTSCAD_ASSEMBLY_V1");
+    expect(prompt).toContain("boreInstanceId");
+    expect(prompt).toContain("agentscad_part");
+    expect(prompt).toContain("Part 1 — CAD Intent JSON");
+    expect(prompt).not.toContain("Return only one ```scad fenced block");
+  });
+
+  test("ordinary single-part repair does not receive the assembly schema", async () => {
+    const { runRepair } = await import("@/lib/repair/repair-controller");
+    await runRepair({ originalRequest: "A simple cube", partFamily: "unknown", currentScadCode: "cube(1);", validationResults: [] });
+    expect(systemPrompts.at(-1)).not.toContain("AGENTSCAD_ASSEMBLY_V1");
+  });
+
+  test("a compile failure on an explicit assembly also receives the schema", async () => {
+    const { runRepair } = await import("@/lib/repair/repair-controller");
+    await runRepair({ originalRequest: "两件式铰链，可组装可拆卸", partFamily: "unknown", currentScadCode: "cube(1);", validationResults: [] });
+    expect(systemPrompts.at(-1)).toContain("boreInstanceId");
   });
 }

@@ -64,6 +64,17 @@ export function skillInstructions(content: string): string {
   return content.replace(/^---\r?\n[\s\S]*?\r?\n---\s*/, "").trim();
 }
 
+/** Share the generation contract with repair without importing its output format. */
+export function assemblyContractGuidance(content: string): string | null {
+  const start = "<!-- ASSEMBLY_CONTRACT_GUIDANCE_START -->";
+  const end = "<!-- ASSEMBLY_CONTRACT_GUIDANCE_END -->";
+  const first = content.indexOf(start);
+  const last = content.indexOf(end);
+  if (first < 0 || last <= first || content.indexOf(start, first + start.length) !== -1
+      || content.indexOf(end, last + end.length) !== -1) return null;
+  return content.slice(first + start.length, last).trim() || null;
+}
+
 export function isExperimentalMemoryPromptEnabled(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
