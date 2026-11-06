@@ -1,3 +1,5 @@
+import { claimAssemblyExport } from "@/lib/pipeline/assembly-export-lock";
+import { JobExecutionConflict } from "@/lib/pipeline/job-execution";
 import { hasUnresolvedAssemblyEvidence } from "@/lib/validation/evidence-status";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
@@ -54,6 +56,8 @@ async function handleVisualRepair(
   { params }: RouteParams
 ) {
   let activeJobId: string | null = null;
+  let execution: Awaited<ReturnType<typeof claimAssemblyExport>> | null = null;
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
   let repairClaimLog: string | null = null;
   let existingExecutionLogs: string | null = null;
   try {
@@ -88,6 +92,12 @@ async function handleVisualRepair(
       );
     }
 
+    // Share the generation/export mutex so requirement confirmations cannot race this run.
+    execution = await claimAssemblyExport(job);
+    heartbeat = setInterval(() => {
+      void execution?.heartbeat().catch(() => undefined);
+    }, 20_000);
+
     // Get the preview image path
     const preview = await materializeStoredArtifact(
       id,
@@ -106,6 +116,7 @@ async function handleVisualRepair(
     // click/request receives 409 instead of racing artifacts and database state.
     repairClaimLog = appendLog(job.executionLogs, "VISUAL_REPAIRING",
       `User triggered visual repair [${randomUUID()}]`);
+    await execution.heartbeat();
     const claim = await db.job.updateMany({
       where: {
         id,
@@ -261,6 +272,7 @@ async function handleVisualRepair(
       validationResults,
     });
 
+    await execution.heartbeat();
     // Update job with repaired result
     const committed = await db.job.updateMany({
       where: { id, state: "REPAIRING", executionLogs: repairClaimLog },
@@ -303,6 +315,9 @@ async function handleVisualRepair(
     console.error("Visual repair failed", {
       name: error instanceof Error ? error.name : "UnknownError",
     });
+    if (error instanceof JobExecutionConflict) {
+      return NextResponse.json({error:"This job is processing. Retry after its current operation finishes."},{status:409});
+    }
     if (activeJobId) {
       try {
         await db.job.updateMany({
@@ -326,6 +341,7 @@ async function handleVisualRepair(
       { status: 500 }
     );
   } finally {
+    if (heartbeat) clearInterval(heartbeat);
     const calls = llmCallsThisRun();
     if (activeJobId && calls > 0) {
       try {
@@ -339,5 +355,6 @@ async function handleVisualRepair(
         });
       }
     }
+    if (execution) await execution.release();
   }
 }

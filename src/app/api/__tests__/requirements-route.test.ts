@@ -94,6 +94,9 @@ if (process.env.AGENTSCAD_REQUIREMENTS_ROUTE_CHILD !== "1") {
     expect(response.status).toBe(200);
     const saved = await response.json();
     expect(saved.confirmed).toBe(true);
+    expect(saved.derived.requirements).toEqual(derived.requirements);
+    expect(saved.derived.requestSha256).toBe(derived.requestSha256);
+    expect(saved.derivedSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(saved.revision).toBe(1);
     expect(saved.edited).toBe(false);
     expect(saved.evidenceCurrent).toBe(true);

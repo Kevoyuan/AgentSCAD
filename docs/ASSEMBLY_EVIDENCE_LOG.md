@@ -988,3 +988,16 @@ A001保存sourceSha256和完整manifest至原validationResults，并随现有art
 最终全单元971 PASS /3 SKIP /0 FAIL（974测试、147文件、38.78秒）。新增原生1 PASS，10.90秒。最终typecheck/lint退出0，diff通过。最初新增重依赖导入影响pipeline隔离mock，改为低依赖证据状态判断后通过。归档 .agentscad/experiments/pipeline-assembly-validation-n1ydsbur/index.json，源码运行后快照。模型调用0，累计费用上界1.701554 CNY。完整M0–M8目标继续active。
 
 下一步完善需求确认后复核流程及原子版本绑定，给模型修复提供完整装配声明格式指引，再验证同一真实失败件能否依据数值反馈保留功能地修复。特征定位、接触域、实际SCAD运动、保持防脱、多关节/V8、实物与独立隐藏评估仍待完成。
+
+
+## 2026-11-06 Confirmation response and shared visual repair mutex
+
+Visual repair now holds claimAssemblyExport's shared execution lock, renews it every 20 seconds, checks it before writing results and releases it in finally. Requirement storage already refuses jobs with __execution_lock. Request-level processing-state and updatedAt checks already rejected common concurrent confirmations. This change extends storage-layer mutex protection to visual repair. The earlier suggestion of an observed request-level confirmation vulnerability was an inference and was not established.
+
+An isolated SQLite regression attempts requirement confirmation inside the mocked visual repair callback. Storage rejects it while locked. A concurrent visual repair POST returns 409 without more model calls. On completion the lock count is zero, and fresh requirement confirmation succeeds. Two mocked model calls increment the job counter from 7 to 9. Existing preflight failure and replaced-owner negatives still pass.
+
+Requirements PUT now returns derived and derivedSha256, matching the response shape consumed by ContractView. API regression checks derived assertions and request hash. Browser describeAssertions needs derived.requirements. Current browser interaction was not rerun.
+
+Final unit suite passes 971 tests with 3 skips, 974 tests across 147 files in 33.05 seconds. Typecheck, lint and diff checks pass. Sources and logs are archived at .agentscad/experiments/confirmation-visual-lock-ez71r7cr/index.json after execution. No new paid calls. Accumulated cost upper bound remains 1.701554 CNY. Geometry, native and WASM validation were not repeated in this route-only change.
+
+Automatic A001 evidence is retained with artifact versions. Dedicated CURRENT/STALE report integration, confirmation-to-recheck UI, real model repair, multi-joint/V8 and manufacturing/function acceptance remain open. Full M0-M8 goal is active.

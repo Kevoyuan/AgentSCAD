@@ -67,4 +67,30 @@ if (process.env.AGENTSCAD_VISUAL_CLAIM_CHILD !== "1") {
       expect(saved.llmCallCount).toBe(9);
     } finally {replaceClaim = null;}
   });
+  test("shared execution lock rejects requirement changes and concurrent visual repairs", async () => {
+    previewFails = false;
+    const job = await db.job.create({data:{inputRequest:"两件式铰链，可拆",state:"DELIVERED",scadSource:"cube(1);",llmCallCount:7}});
+    const {deriveRequirementContract} = await import("@/lib/requirements/extract-requirements");
+    const {saveRequirementContract} = await import("@/lib/requirements/requirement-contract-record");
+    const request = () => new Request("http://localhost/api/jobs/x/visual-repair",{method:"POST",headers:{authorization:"Bearer requirements-test-secret"}});
+    let blockedConfirmation = false;
+    let concurrentStatus = 0;
+    replaceClaim = async () => {
+      const current = await db.job.findUniqueOrThrow({where:{id:job.id}});
+      await expect(saveRequirementContract({job:current,contract:deriveRequirementContract({request:current.inputRequest}),expectedContractSha256:null})).rejects.toThrow("processing");
+      blockedConfirmation = true;
+      concurrentStatus = (await POST(request(),{params:Promise.resolve({id:job.id})})).status;
+    };
+    try {
+      await POST(request(),{params:Promise.resolve({id:job.id})});
+      expect(blockedConfirmation).toBe(true);
+      expect(concurrentStatus).toBe(409);
+      expect(await db.jobVersion.count({where:{jobId:job.id,field:"__execution_lock"}})).toBe(0);
+      const current = await db.job.findUniqueOrThrow({where:{id:job.id}});
+      expect(current.llmCallCount).toBe(9);
+      const confirmed = await saveRequirementContract({job:current,contract:deriveRequirementContract({request:current.inputRequest}),expectedContractSha256:null});
+      expect(confirmed).toBeTruthy();
+    } finally {replaceClaim = null;}
+  });
+
 }
