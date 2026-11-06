@@ -63,6 +63,8 @@ benchmark-render-results.json
 .context/
 .agent-ctx/
 agent-ctx/
+/.workbuddy/
+.workbuddy-ai/
 
 # development artifacts
 download/
