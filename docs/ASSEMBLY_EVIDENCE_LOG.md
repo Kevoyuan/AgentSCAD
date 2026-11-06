@@ -1121,3 +1121,13 @@ A001 现在保存各项要求与结果：生成的独立零件设计数量基于
 原生反例以原创axial_hinge为基线，请求只含两件铰链和0.35–0.45mm间隙：现有相应数字检查总评PASS；加入向+Z抽出30mm却要求blocked的错误探测后，总评FAIL，declared-translation-probes FAIL。这证明新增实验不能被其余通过覆盖；不证明该基线具备原用户要求的保持或实物功能。单元1000 PASS /3 SKIP /0 FAIL（1003项155文件，26.49秒），定向原生1 PASS，typecheck/lint/diff通过。
 
 另冻结开发任务 `scripts/eval/assembly-generation/service-release-hinge-v1.json`，SHA256 81b4fd42702608fd7fe9f1fde218510f3dccef000cb2057102f80f102cd03381。要求两件连通体、±45°工作、防直接误转到释放角、有意释放和完整装拆及几何探测；FDM材料、机器、载荷和寿命明确未知。先用该提示派生合同，确认当前提取器未为“先释放再转到解锁角”创建独立可执行断言，故必须另行复核，不能将总体几何检查等同完整意图保存。预算上限仍28元，此实验最多两次调用，原累计保守上限2.316040元，新增最大预留1.448576元。协议 `.agentscad/experiments/service-release-protocol-2026-11-07.json` 在调用前保存。实际模型结果及最终费用另记；该任务不是隐藏集，不构成成功率估计。
+
+## 2026-11-07 · 同提示思考模式实验及请求适配根因
+
+高思考模式真实调用归档 `paid-deepseek-assembly-wiqHnf`：约数分钟后以LLM_OUTPUT_TRUNCATED结束，2940输入、65536输出token，输出全部为reasoning token，未取得完整SCAD。没有做几何检查或修复调用；错误、usage、请求和直接工具快照留档，codeUnchangedDuringRun为true。本轮保守费用0.530168元，累计2.846208元。此证据不能说明几何设计可行或不可行，也不是更换CAD内核的依据。
+
+依据当日[官方思考模式文档](https://api-docs.deepseek.com/zh-cn/guides/thinking_mode/)，DeepSeek OpenAI格式使用独立thinking开关，effort只控制low/high/max。检查发现配置provider路径此前只发reasoning_effort:none，旧测试也断言了该错误契约，故不能仅凭实验的non-thinking标签证明实际关闭。现对deepseek类型及官方api.deepseek.com发送thinking.disabled并省略none effort；显式low/high/max发送enabled及对应effort，其他兼容provider的语义保持。未指定effort则保留原默认。模型路由、调用计数和重试策略未改变。定向provider测试9 PASS，完整回归1001 PASS /3 SKIP /0 FAIL（1004项155文件，29.15秒），typecheck/lint/diff通过。
+
+在首批已知用量且TERMINAL后另冻结自适应对照协议 `service-release-nonthinking-protocol-2026-11-07/protocol.json`，不是自动重发或隐藏集。请求提示字节相同，仅明确关闭思考，最多两次、额外预留1.448576元。实际请求体通过本轮预加载记录器保存（不保存headers），证实thinking.disabled、无reasoning_effort、stream:true、65536 cap；首次预加载因相对路径无法解析在联网前失败，改绝对路径后才启动。归档 `paid-deepseek-assembly-qCokPk`：初稿2915/3426、修复6387/3928输入/输出token，返回deepseek-flash，两稿reasoningCharacters均0。官方[价格/版本说明](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)将请求的旧deepseek-v4-flash路由到V4.1-Flash-1017，不能称测试了已下线原版本。直接工具在运行中未变。
+
+两稿声明都被schema拒绝，未进入几何：operations的四个位姿把平移放进最后一行；boreInstanceId为字面量a而非base1。`schema-issues-0/1.json`保留具体路径。两稿均未给出要求的translationProbes；没有修改原稿或将手工更正当生成成功。当前通用“声明不匹配”反馈没有指出字段，修复重复相同错误；生成指导中的“设为a或b”亦有误导字面量的风险，需修正。报告的hardStopOvertravel因旧关键词启发式错误标SKIP，本请求明确适用却未执行，应解释为NOT_RUN，原报告保留不覆盖。两次费用上界合计0.077436元，授权账本21条、TERMINAL、累计2.923644元；余额变化含时延/其他归属不明扣款，不用来替代按usage的保守记账。临时凭据已清除。原生制造、SCAD驱动关系、防误转、物理及用户验收均NOT_RUN。完整目标继续active。

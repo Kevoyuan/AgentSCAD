@@ -421,6 +421,14 @@ export async function createProviderChatCompletion(args: {
   }
   if (args.reasoningEffort !== undefined && !["none", "low", "high", "max"].includes(args.reasoningEffort)) throw new ProviderValidationError("Invalid reasoning effort");
   const baseUrl = validateProviderBaseUrl(args.provider.baseUrl);
+  // DeepSeek Chat Completions uses a separate switch; effort "none" alone
+  // does not disable its default thinking mode (official thinking-mode docs).
+  const deepseek = args.provider.type === "deepseek" || new URL(baseUrl).hostname === "api.deepseek.com";
+  const reasoning = args.reasoningEffort === undefined ? {}
+    : deepseek
+      ? { thinking: { type: args.reasoningEffort === "none" ? "disabled" : "enabled" },
+          ...(args.reasoningEffort === "none" ? {} : { reasoning_effort: args.reasoningEffort }) }
+      : { reasoning_effort: args.reasoningEffort };
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -444,7 +452,7 @@ export async function createProviderChatCompletion(args: {
       messages: args.messages,
       stream: args.stream ?? false,
       ...(args.maxOutputTokens === undefined ? {} : { max_tokens: args.maxOutputTokens }),
-      ...(args.reasoningEffort === undefined ? {} : { reasoning_effort: args.reasoningEffort }),
+      ...reasoning,
     }),
   });
 

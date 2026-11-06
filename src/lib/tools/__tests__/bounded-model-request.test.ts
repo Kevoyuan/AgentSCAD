@@ -20,7 +20,23 @@ test("explicit bounded provider requests cap output and use the single call mete
   });
   expect(body.max_tokens).toBe(65536);
   expect(body.model).toBe("deepseek-v4-flash");
-  expect(body.reasoning_effort).toBe("none");
+  expect(body.thinking).toEqual({type:"disabled"});
+  expect(Object.hasOwn(body,"reasoning_effort")).toBe(false);
+});
+
+test("DeepSeek native effort and its switch are distinct from generic provider effort",async()=>{
+  const bodies:Record<string,unknown>[]=[];
+  globalThis.fetch=(async(_url,init)=>{bodies.push(JSON.parse(String(init?.body)));return new Response("{}");}) as typeof fetch;
+  for(const reasoningEffort of ["low","high","max"] as const) {
+    await createProviderChatCompletion({provider,messages:[],reasoningEffort});
+    expect(bodies.at(-1)!.thinking).toEqual({type:"enabled"});
+    expect(bodies.at(-1)!.reasoning_effort).toBe(reasoningEffort);
+  }
+  await createProviderChatCompletion({provider:{...provider,type:"openai-compatible"},messages:[],reasoningEffort:"none"});
+  expect(bodies.at(-1)!.thinking).toEqual({type:"disabled"});
+  await createProviderChatCompletion({provider:{...provider,type:"openai-compatible",baseUrl:"https://example.test/v1"},messages:[],reasoningEffort:"none"});
+  expect(Object.hasOwn(bodies.at(-1)!,"thinking")).toBe(false);
+  expect(bodies.at(-1)!.reasoning_effort).toBe("none");
 });
 
 test("a bounded truncated reasoning reply cannot be admitted as a complete artifact",async()=>{
@@ -39,6 +55,7 @@ test("ordinary provider requests omit the optional cap",async()=>{
   globalThis.fetch=(async(_url,init)=>{body=JSON.parse(String(init?.body));return new Response("{}");}) as typeof fetch;
   await createProviderChatCompletion({provider,messages:[{role:"user",content:"test"}]});
   expect(Object.hasOwn(body,"max_tokens")).toBe(false);
+  expect(Object.hasOwn(body,"thinking")).toBe(false);
 });
 
 test("invalid caps fail before a network request and provider errors do not retry",async()=>{
