@@ -20,6 +20,7 @@ if (process.env.AGENTSCAD_VISUAL_CLAIM_CHILD !== "1") {
   const {countLlmCall} = await import("@/lib/model-runtime");
   let previewFails = true;
   let replaceClaim: (() => Promise<void>) | null = null;
+  let visualRequirementContext: string | undefined;
   const artifactStore = await import("@/lib/tools/artifact-store");
   mock.module("@/lib/tools/artifact-store", () => ({
     ...artifactStore,
@@ -30,7 +31,7 @@ if (process.env.AGENTSCAD_VISUAL_CLAIM_CHILD !== "1") {
     cleanupArtifactWorkspace: async () => {},
   }));
   mock.module("@/lib/repair/visual-repair-controller", () => ({
-    runVisualRepair: async () => {countLlmCall(); countLlmCall(); if (replaceClaim) await replaceClaim(); throw new Error("Injected assembly rejection");},
+    runVisualRepair: async (input: {confirmedRequirementsContext?: string}) => {visualRequirementContext=input.confirmedRequirementsContext;countLlmCall(); countLlmCall(); if (replaceClaim) await replaceClaim(); throw new Error("Injected assembly rejection");},
     runVisualAnalysis: async () => {},
     resolvePostRepairOutcome: () => {},
     visualRepairReportToValidationResult: () => {},
@@ -91,6 +92,20 @@ if (process.env.AGENTSCAD_VISUAL_CLAIM_CHILD !== "1") {
       const confirmed = await saveRequirementContract({job:current,contract:deriveRequirementContract({request:current.inputRequest}),expectedContractSha256:null});
       expect(confirmed).toBeTruthy();
     } finally {replaceClaim = null;}
+  });
+
+  test("visual repair receives the current confirmed retention condition under the shared lock", async () => {
+    previewFails = false;
+    visualRequirementContext = undefined;
+    const {deriveRequirementContract} = await import("@/lib/requirements/extract-requirements");
+    const {setAxialRetention} = await import("@/lib/requirements/retention-input");
+    const {saveRequirementContract} = await import("@/lib/requirements/requirement-contract-record");
+    const job = await db.job.create({data:{inputRequest:"两件式铰链，可拆",state:"DELIVERED",scadSource:"cube(1);",llmCallCount:0}});
+    const derived = deriveRequirementContract({request:job.inputRequest});
+    const contract = setAxialRetention(derived, derived, {kind:"require", condition:"轴向保持10N，按压后拆卸"});
+    await saveRequirementContract({job,contract,expectedContractSha256:null});
+    await POST(new Request("http://localhost/api/jobs/x/visual-repair",{method:"POST",headers:{authorization:"Bearer requirements-test-secret"}}),{params:Promise.resolve({id:job.id})});
+    expect(String(visualRequirementContext)).toContain("轴向保持10N，按压后拆卸");
   });
 
 }

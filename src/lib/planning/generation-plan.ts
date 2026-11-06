@@ -21,6 +21,7 @@ function fingerprintPayload(
   family: PartFamily,
   parameterValues: Record<string, unknown>,
   intelligence: RequestIntelligenceV1,
+  requirementContractSha256?: string | null,
 ): string {
   return JSON.stringify({
     request,
@@ -30,6 +31,7 @@ function fingerprintPayload(
     ),
     approvedInterpretation: intelligence.interpretations[0]?.id ?? null,
     brief: intelligence.brief ?? null,
+    ...(requirementContractSha256 ? { requirementContractSha256 } : {}),
   });
 }
 
@@ -38,9 +40,10 @@ export function generationPlanFingerprint(
   family: PartFamily,
   parameterValues: Record<string, unknown>,
   intelligence: RequestIntelligenceV1,
+  requirementContractSha256?: string | null,
 ): string {
   return createHash("sha256")
-    .update(fingerprintPayload(request, family, parameterValues, intelligence))
+    .update(fingerprintPayload(request, family, parameterValues, intelligence, requirementContractSha256))
     .digest("hex");
 }
 
@@ -84,8 +87,9 @@ export function buildGenerationPlan(args: {
   parameterValues: Record<string, unknown>;
   parameterSchema: ParameterDef[];
   intelligence: RequestIntelligenceV1;
+  requirementContractSha256?: string | null;
 }): PersistedGenerationPlan {
-  const { request, family, parameterValues, parameterSchema, intelligence } = args;
+  const { request, family, parameterValues, parameterSchema, intelligence, requirementContractSha256 } = args;
   const validationMode = explicitValidationMode(request, intelligence);
   const features = plannedFeatures(intelligence);
   const dimensions = numericDimensions(parameterSchema);
@@ -108,7 +112,7 @@ export function buildGenerationPlan(args: {
 
   return {
     schema_version: 2,
-    fingerprint: generationPlanFingerprint(request, family, parameterValues, intelligence),
+    fingerprint: generationPlanFingerprint(request, family, parameterValues, intelligence, requirementContractSha256),
     plan: {
       part_type: family === "unknown"
         ? intelligence.interpretations[0]?.objectKind ?? "freeform_part"

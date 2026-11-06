@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import { appendLog } from "@/lib/stores/job-store";
 import { runRepair } from "@/lib/repair/repair-controller";
+import { readRequirementContract } from "@/lib/requirements/requirement-contract-record";
+import { confirmedRequirementContext } from "@/lib/requirements/confirmed-context";
 import {
   buildRenderFailureLog,
   renderScadArtifacts,
@@ -108,8 +110,10 @@ export async function POST(
     // Run repair
     const retryRound = (await execution.update({ data: { retryCount: { increment: 1 } } })).retryCount;
     await execution.assertActive();
+    const confirmedRequirements = confirmedRequirementContext(await readRequirementContract(id, job.inputRequest));
     const { generationResult: repaired, repairMeta } = await runRepair({
       originalRequest: job.inputRequest,
+      confirmedRequirementsContext: confirmedRequirements?.text,
       partFamily: job.partFamily || "unknown",
       currentScadCode: job.scadSource,
       validationResults: validationResults as Parameters<typeof runRepair>[0]["validationResults"],

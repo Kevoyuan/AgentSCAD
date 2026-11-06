@@ -1,4 +1,6 @@
 import { claimAssemblyExport } from "@/lib/pipeline/assembly-export-lock";
+import { readRequirementContract } from "@/lib/requirements/requirement-contract-record";
+import { confirmedRequirementContext } from "@/lib/requirements/confirmed-context";
 import { JobExecutionConflict } from "@/lib/pipeline/job-execution";
 import { hasUnresolvedAssemblyEvidence } from "@/lib/validation/evidence-status";
 import { randomUUID } from "node:crypto";
@@ -140,8 +142,10 @@ async function handleVisualRepair(
     activeJobId = id;
     let visualRepairResult: Awaited<ReturnType<typeof runVisualRepair>>;
     try {
+      const confirmedRequirements = confirmedRequirementContext(await readRequirementContract(id, job.inputRequest));
       visualRepairResult = await runVisualRepair({
         originalRequest: job.inputRequest,
+        confirmedRequirementsContext: confirmedRequirements?.text,
         partFamily: job.partFamily,
         scadSource: job.scadSource,
         previewImagePath: preview.filePath,

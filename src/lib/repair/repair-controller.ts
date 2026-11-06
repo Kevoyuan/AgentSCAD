@@ -40,6 +40,8 @@ export interface RepairInput {
     validation_targets?: CadValidationTargets;
   };
   requestedModel?: string | null;
+  /** Exact current human-confirmed requirements; these are constraints, not evidence. */
+  confirmedRequirementsContext?: string;
   signal?: AbortSignal;
   /**
    * "simplify" is selected when the generated source was rejected by the compile
@@ -119,6 +121,7 @@ export function buildRepairPrompt(input: RepairInput): string {
     "## Original Request",
     input.originalRequest,
     "",
+    ...(input.confirmedRequirementsContext ? [input.confirmedRequirementsContext, ""] : []),
     "## Part Family",
     input.partFamily,
     "",
@@ -174,6 +177,7 @@ export function buildRepairPrompt(input: RepairInput): string {
           "Fix ONLY the failed validation checks listed above.",
           "Do NOT change dimensions or features that already pass validation.",
           "Preserve all required features from the CAD intent.",
+          "Preserve user-confirmed requirements even when their verification is unavailable; never claim they passed without evidence.",
           "Use AgentSCAD standard library modules (include <agentscad_std.scad>) when possible.",
           "Keep parameters as top-level assignments.",
         ]),

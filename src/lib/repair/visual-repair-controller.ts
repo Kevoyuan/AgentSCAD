@@ -209,6 +209,7 @@ export async function runVisualAnalysis(input: {
  */
 export async function runVisualRepair(input: {
   originalRequest: string;
+  confirmedRequirementsContext?: string;
   partFamily: string | null;
   scadSource: string;
   previewImagePath: string;
@@ -241,6 +242,7 @@ export async function runVisualRepair(input: {
     "## Original Request",
     input.originalRequest,
     "",
+    ...(input.confirmedRequirementsContext ? [input.confirmedRequirementsContext, ""] : []),
     "## Current SCAD Code",
     "```scad",
     input.scadSource,
@@ -256,6 +258,7 @@ export async function runVisualRepair(input: {
     "",
     "## Task",
     "Fix the SCAD code to address ALL visual issues listed above.",
+    "Preserve user-confirmed requirements, including nonvisual requirements; visual inspection does not verify them.",
     "Preserve features and dimensions that are visually correct.",
     "Use AgentSCAD standard library modules when possible.",
     "Return structured JSON with updated scad_source, then the SCAD code in a fence.",

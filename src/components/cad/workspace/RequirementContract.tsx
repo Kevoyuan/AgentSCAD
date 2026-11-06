@@ -4,10 +4,12 @@ import * as React from 'react'
 import { useI18n } from '@/components/i18n-provider'
 import {
   validateRequirementContract,
+  withDerivedUnknowns,
   type ContractRequirement,
   type RequirementContract,
   type RequirementLayer,
 } from '@/lib/requirements/requirement-contract'
+import { setAxialRetention } from '@/lib/requirements/retention-input'
 import type { RequirementContractRecord } from '@/lib/requirements/requirement-contract-record'
 
 /** Read-only shape shared with the API; the record itself is server-only. */
@@ -181,21 +183,28 @@ export function RequirementContractSummary({ record }: { record: ContractView })
   </section>
 }
 
-export function JobRequirementContract({ jobId, revision }: { jobId: string; revision: string }) {
+export function JobRequirementContract({ jobId, revision, onConfirmed }: { jobId: string; revision: string; onConfirmed?: (changed: boolean, contractSha256: string) => void }) {
   const { t } = useI18n()
   const [state, setState] = React.useState<{ data?: ContractView; error?: boolean }>({})
   const [draft, setDraft] = React.useState<RequirementContract | null>(null)
   const [message, setMessage] = React.useState('')
   const [details, setDetails] = React.useState<string[]>([])
   const [saving, setSaving] = React.useState(false)
+  const [retentionText, setRetentionText] = React.useState('')
 
   React.useEffect(() => {
     const controller = new AbortController()
     setState({})
     setDraft(null)
+    setRetentionText('')
     fetch(`/api/jobs/${encodeURIComponent(jobId)}/requirements`, { credentials: 'include', signal: controller.signal })
       .then((response) => { if (!response.ok) throw new Error('Requirement contract request failed'); return response.json() })
-      .then((data) => { if (!controller.signal.aborted) setState({ data: data as ContractView }) })
+      .then((data) => { if (!controller.signal.aborted) {
+        const view = data as ContractView
+        setState({ data: view })
+        const retained = view.contract.requirements.find(item => item.id === 'axial-retention' && item.required)
+        setRetentionText(retained?.statement ?? '')
+      } })
       .catch(() => { if (!controller.signal.aborted) setState({ error: true }) })
     return () => controller.abort()
   }, [jobId, revision])
@@ -203,9 +212,22 @@ export function JobRequirementContract({ jobId, revision }: { jobId: string; rev
   if (state.error) return <p role="status" className="py-2 text-xs text-[var(--shell-text-label)]">{t('Requirement information is unavailable.')}</p>
   if (!state.data) return null
   const data = state.data
-  const working = draft ?? data.contract
+  const working = draft ?? withDerivedUnknowns(data.contract, data.derived)
   const editable = !data.confirmed || data.stale || draft !== null
   const view: ContractView = { ...data, contract: working }
+  const hasRetentionQuestion = data.derived.unknowns.some(item => item.id === 'axial-retention')
+  const recordedRetention = working.requirements.find(item => item.id === 'axial-retention')
+  const pendingRetentionText = retentionText.trim().length > 0
+    && retentionText.trim() !== (recordedRetention?.required ? recordedRetention.statement ?? '' : '')
+
+  const recordRetention = (kind: 'require' | 'waive' | 'unanswered') => {
+    try {
+      const answer = kind === 'require' ? { kind, condition: retentionText } as const : { kind } as const
+      setDraft(setAxialRetention(working, data.derived, answer))
+      if (kind !== 'require') setRetentionText('')
+      setMessage('')
+    } catch { setMessage('Describe the required retention condition before recording it.') }
+  }
 
   const confirm = async () => {
     setSaving(true)
@@ -213,7 +235,11 @@ export function JobRequirementContract({ jobId, revision }: { jobId: string; rev
     const result = await saveRequirementContract(jobId, working, data.confirmedContractSha256)
     setSaving(false)
     if (result.error) { setMessage(result.error); setDetails('details' in result ? (result.details ?? []) as string[] : []); return }
-    if (result.data) { setState({ data: result.data }); setDraft(null) }
+    if (result.data) {
+      const changed = result.data.contractSha256 !== data.confirmedContractSha256
+      setState({ data: result.data }); setDraft(null)
+      onConfirmed?.(changed, result.data.contractSha256)
+    }
   }
 
   return <>
@@ -242,16 +268,30 @@ export function JobRequirementContract({ jobId, revision }: { jobId: string; rev
           </label>
         </li>)}
       </ul>
+      {hasRetentionQuestion && <div className="mt-3 space-y-2">
+        <label htmlFor="axial-retention-condition" className="block font-medium">{t('How should the parts stay together during use?')}</label>
+        <p className="text-[var(--shell-text-label)]">{t('Describe the holding condition, expected load and how it is released for disassembly, if known.')}</p>
+        <textarea id="axial-retention-condition" maxLength={500} value={retentionText}
+          onChange={event => setRetentionText(event.target.value)}
+          className="min-h-16 w-full rounded border border-[color:var(--shell-hairline)] bg-transparent px-2 py-1" />
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => recordRetention('require')} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{t('Record retention requirement')}</button>
+          <button type="button" onClick={() => recordRetention('waive')} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{t('Waive retention requirement')}</button>
+          {recordedRetention && <button type="button" onClick={() => recordRetention('unanswered')} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{t('Leave retention unanswered')}</button>}
+        </div>
+        <p className="text-[var(--shell-text-label)]">{t('Recording a condition does not verify retention or physical function.')}</p>
+        {pendingRetentionText && <p role="status">{t('Record the condition before confirming.')}</p>}
+      </div>}
       {message && <p role="alert" className="mt-2 text-[var(--shell-fail)]">{t(message)}</p>}
       {details.length > 0 && <ul className="mt-1 text-[var(--shell-text-label)]">{details.map((detail, index) => <li key={index}>{detail}</li>)}</ul>}
       <div className="mt-2 flex flex-wrap gap-2">
-        <button type="button" className="rounded border border-[color:var(--shell-hairline)] px-2 py-1" disabled={saving} onClick={() => void confirm()}>
+        <button type="button" className="rounded border border-[color:var(--shell-hairline)] px-2 py-1" disabled={saving || pendingRetentionText} onClick={() => void confirm()}>
           {saving ? t('Saving…') : t('Confirm requirements')}
         </button>
-        {draft !== null && <button type="button" className="rounded border border-[color:var(--shell-hairline)] px-2 py-1" disabled={saving} onClick={() => { setDraft(null); setMessage(''); setDetails([]) }}>
+        {draft !== null && <button type="button" className="rounded border border-[color:var(--shell-hairline)] px-2 py-1" disabled={saving} onClick={() => { setDraft(null); setMessage(''); setDetails([]); setRetentionText(data.contract.requirements.find(item => item.id === 'axial-retention' && item.required)?.statement ?? '') }}>
           {t('Discard changes')}
         </button>}
       </div>
-    </section> : null}
+    </section> : <button type="button" onClick={() => { setDraft(working); setMessage('') }} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1 text-xs">{t('Edit requirements')}</button>}
   </>
 }

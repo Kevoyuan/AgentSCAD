@@ -35,6 +35,13 @@ test("repair prompt separates failed geometry from unavailable evidence and reta
   expect(prompt).toContain("two separate moving parts");
 });
 
+test("repair receives the current confirmed condition without claiming it passed", () => {
+  const prompt = buildRepairPrompt({ originalRequest: "hinge", partFamily: "unknown", currentScadCode: "cube(1);", validationResults: [],
+    confirmedRequirementsContext: "## User-confirmed requirement contract\n{\"statement\":\"resist 10 N\"}" });
+  expect(prompt).toContain("resist 10 N");
+  expect(prompt).toContain("never claim they passed without evidence");
+});
+
 describe("repair completion guard", () => {
   test("accepts a complete repair reply", () => {
     expect(() => assertRepairCompletionUsable(completion())).not.toThrow();

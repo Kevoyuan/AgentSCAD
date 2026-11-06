@@ -25,10 +25,11 @@ if(process.env.AGENTSCAD_VISUAL_ASSEMBLY_CHILD!=="1") {
     fs.writeFileSync(image,Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=","base64"));
     try {
       const {runVisualRepair}=await import("../visual-repair-controller");
-      const input={originalRequest:"两件式铰链，可组装可拆，能转±45°",partFamily:null,scadSource:source,previewImagePath:image};
+      const input={originalRequest:"两件式铰链，可组装可拆，能转±45°",confirmedRequirementsContext:"Confirmed retention: 10 N",partFamily:null,scadSource:source,previewImagePath:image};
       responses=[JSON.stringify({confidence:0.8,visual_issues:[{requirement:"leaf",observed:"missing leaf",severity:"high",repair_hint:"restore leaf"}]}),"```scad\nmodule generated_part(){cube(2);}\ngenerated_part();\n```"];
       await expect(runVisualRepair(input)).rejects.toThrow("Assembly repair rejected");
       expect(requests.length).toBe(2);
+      expect(JSON.stringify(requests[1])).toContain("Confirmed retention: 10 N");
       expect(input.scadSource).toBe(source);
       responses=[JSON.stringify({confidence:0.8,visual_issues:[]})];
       const result=await runVisualRepair(input);

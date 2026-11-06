@@ -19,6 +19,7 @@ if (process.env.AGENTSCAD_REQUIREMENTS_ROUTE_CHILD !== "1") {
 } else {
   const { db } = await import("@/lib/db");
   const { GET, PUT } = await import("@/app/api/jobs/[id]/requirements/route");
+  const { setAxialRetention } = await import("@/lib/requirements/retention-input");
   afterAll(async () => db.$disconnect());
 
   const read = (authenticated = true) => new Request("http://localhost/api/jobs/x/requirements", {
@@ -110,6 +111,35 @@ if (process.env.AGENTSCAD_REQUIREMENTS_ROUTE_CHILD !== "1") {
     expect(reread.contractSha256).toBe(saved.contractSha256);
     expect(reread.stale).toBe(false);
     expect(await db.jobVersion.count({ where: { jobId: job.id, field: "__requirement_contract_revision" } })).toBe(1);
+  });
+
+  test("changing a confirmed retention condition invalidates A001 atomically without deleting prior evidence", async () => {
+    const old = [{ rule_id: "A001", status: "FAIL", passed: false, message: "collision at 20°" },
+      { rule_id: "C001", status: "PASS", passed: true, message: "compiled" }];
+    const job = await db.job.create({ data: { inputRequest: HINGE, state: "HUMAN_REVIEW", validationResults: JSON.stringify(old),
+      validationReportJson: '{"delivery":"previous"}', qualityScore: 100 } });
+    const first = await (await GET(read(), context(job.id))).json();
+    const confirmed = await (await PUT(write({ contract: first.contract, expectedContractSha256: null }), context(job.id))).json();
+    const staleJob = await db.job.findUniqueOrThrow({ where: { id: job.id } });
+    expect(staleJob.validationReportJson).toBeNull();expect(staleJob.qualityScore).toBeNull();
+    let saved = JSON.parse(staleJob.validationResults!);
+    expect(saved[0].status).toBe("NOT_RUN");
+    expect(saved[0].staleAssemblyValidation.message).toBe("collision at 20°");
+    expect(saved[1]).toEqual(old[1]);
+    // An unchanged reconfirmation must not invalidate fresh results.
+    const fresh = [{ rule_id: "A001", status: "PASS", passed: true, message: "new check" }, old[1]];
+    await db.job.update({ where: { id: job.id }, data: { validationResults: JSON.stringify(fresh) } });
+    expect((await PUT(write({ contract: confirmed.contract, expectedContractSha256: confirmed.contractSha256 }), context(job.id))).status).toBe(200);
+    saved = JSON.parse((await db.job.findUniqueOrThrow({ where: { id: job.id } })).validationResults!);
+    expect(saved[0].status).toBe("PASS");
+    const condition = setAxialRetention(confirmed.contract, first.derived, { kind: "require", condition: "承受10N轴向拉力，按压后拆卸" });
+    const response = await PUT(write({ contract: condition, expectedContractSha256: confirmed.contractSha256 }), context(job.id));
+    expect(response.status).toBe(200);
+    const updated = await response.json();
+    expect(updated.contract.requirements.find((item: { id: string }) => item.id === "axial-retention").statement).toContain("10N");
+    saved = JSON.parse((await db.job.findUniqueOrThrow({ where: { id: job.id } })).validationResults!);
+    expect(saved[0].status).toBe("NOT_RUN");
+    expect(saved[0].staleAssemblyValidation.message).toBe("new check");
   });
 
   test("an edit is accepted, renumbered and marked confirmed provenance", async () => {

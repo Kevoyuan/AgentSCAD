@@ -33,6 +33,8 @@ import {
   validateRenderedArtifacts,
 } from "@/lib/tools/validation-tool";
 import { runRepair } from "@/lib/repair/repair-controller";
+import { readRequirementContract } from "@/lib/requirements/requirement-contract-record";
+import { confirmedRequirementContext } from "@/lib/requirements/confirmed-context";
 import { deriveExpectedBBox, formatResearchEvidence, runRequestResearch } from "@/lib/research/request-research";
 import type { ResearchResultV1 } from "@/lib/research/request-research";
 import { buildJobQuality } from "@/lib/validation/job-quality";
@@ -441,7 +443,8 @@ async function runCadJob(
       return;
     }
 
-    const generationRequest = buildApprovedGenerationRequest(inputRequest, requestIntelligence);
+    const confirmedRequirements = confirmedRequirementContext(await readRequirementContract(jobId, inputRequest));
+    const generationRequest = [buildApprovedGenerationRequest(inputRequest, requestIntelligence), confirmedRequirements?.text].filter(Boolean).join("\n\n");
     // Classify only the user's request. Internal intent IDs/labels must not
     // silently route an approved assembly to an unrelated product template.
     const partFamily = detectPartFamily(inputRequest);
@@ -452,6 +455,7 @@ async function runCadJob(
       partFamily,
       paramValues,
       requestIntelligence,
+      confirmedRequirements?.contractSha256,
     );
     let generationPlanCheckpoint = restoreGenerationPlan(job.cadIntentJson, planFingerprint);
     let generationExecutionLogs = job.executionLogs;
@@ -475,6 +479,7 @@ async function runCadJob(
         parameterValues: paramValues,
         parameterSchema,
         intelligence: requestIntelligence,
+        requirementContractSha256: confirmedRequirements?.contractSha256,
       });
       generationExecutionLogs = appendLog(
         job.executionLogs,
@@ -667,6 +672,7 @@ async function runCadJob(
         try {
           const repairResult = await runRepair({
             originalRequest: inputRequest,
+            confirmedRequirementsContext: confirmedRequirements?.text,
             partFamily,
             currentScadCode: failedScad,
             validationResults: [compileFailure],
@@ -1086,6 +1092,7 @@ async function runCadJob(
 
           const repairResult = await runRepair({
             originalRequest: inputRequest,
+            confirmedRequirementsContext: confirmedRequirements?.text,
             partFamily: partFamily ?? "unknown",
             currentScadCode: scadCode,
             validationResults,

@@ -36,6 +36,7 @@ const isRunMetricsWrite = (data: Record<string, unknown>) =>
 // State-transition assertions have to look past it.
 const stateUpdates = () => updates.filter((update) => !isRunMetricsWrite(update.data));
 let currentJob: Record<string, unknown>;
+let requirementRow: { newValue: string } | null = null;
 let generationCalls = 0;
 let templateCalls = 0;
 let renderCalls = 0;
@@ -50,6 +51,7 @@ let generationError: Error | null = null;
 let repairError: Error | null = null;
 let repairCalls = 0;
 let repairStrategy: string | undefined;
+let repairContext: string | undefined;
 let repairedScad = "cube([12, 12, 12]);";
 let repairUsesParameters = false;
 let repairValidationResults: Array<{ message: string }> = [];
@@ -106,6 +108,7 @@ function renderableArtifacts(): Record<string, unknown> {
 beforeAll(() => {
   mock.module("@/lib/db", () => ({
     db: {
+      jobVersion: { findUnique: mock(async () => requirementRow) },
       job: {
         findUnique: mock(async () => currentJob),
         update: mock(async (args: { where: { id: string }; data: Record<string, unknown> }) => {
@@ -275,9 +278,10 @@ beforeAll(() => {
   }));
 
   mock.module("@/lib/repair/repair-controller", () => ({
-    runRepair: mock(async (input: { validationResults: Array<{ message: string }>; repairStrategy?: string }) => {
+    runRepair: mock(async (input: { validationResults: Array<{ message: string }>; repairStrategy?: string; confirmedRequirementsContext?: string }) => {
       repairCalls += 1;
       repairStrategy = input.repairStrategy;
+      repairContext = input.confirmedRequirementsContext;
       repairValidationResults = input.validationResults;
       if (repairError) throw repairError;
       if (cancelDuringRepair) currentJob = { ...currentJob, state: "CANCELLED" };
@@ -347,6 +351,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  requirementRow = null;
   updates.length = 0;
   generationCalls = 0;
   templateCalls = 0;
@@ -361,6 +366,7 @@ beforeEach(() => {
   repairError = null;
   repairCalls = 0;
   repairStrategy = undefined;
+  repairContext = undefined;
   repairedScad = "cube([12, 12, 12]);";
   repairUsesParameters = false;
   repairValidationResults = [];
@@ -507,6 +513,22 @@ describe("executeCadJob", () => {
     expect(currentJob.state).toBe("HUMAN_REVIEW");
     expect(JSON.parse(String(currentJob.validationResults))[0].status).toBe("NOT_RUN");
     expect(events.some(event=>event.step === "delivered")).toBe(false);
+  });
+
+  test("a current confirmed condition reaches generation and validation repair", async () => {
+    const { deriveRequirementContract } = await import("@/lib/requirements/extract-requirements");
+    const contract = deriveRequirementContract({ request: String(currentJob.inputRequest) });
+    contract.requirements.push({ id: "axial-retention", layer: "assembly", required: true, applicable: true,
+      expected: { kind: "equals", value: true }, provenance: "confirmed", statement: "抵抗轴向10N，按压后拆卸" });
+    requirementRow = { newValue: JSON.stringify({ contract, revision: 1, confirmedAt: new Date().toISOString() }) };
+    renderedArtifactsResult = renderableArtifacts();
+    const failure = { rule_id: "A001", rule_name: "Assembly", level: "ENGINEERING", passed: false, is_critical: true, status: "FAIL", message: "collision" };
+    renderedValidationQueue = [[failure], [{ ...failure, status: "NOT_RUN", message: "retention unmeasured" }]];
+    const { executeCadJob } = await import("@/lib/pipeline/execute-cad-job");
+    await executeCadJob("job-pipeline", () => {});
+    expect(generationRequests[0]).toContain("抵抗轴向10N，按压后拆卸");
+    expect(repairContext).toContain("抵抗轴向10N，按压后拆卸");
+    expect(currentJob.state).toBe("HUMAN_REVIEW");
   });
 
   test("unresolved assembly evidence pauses delivery without spending a repair call", async () => {
