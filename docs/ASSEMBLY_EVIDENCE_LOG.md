@@ -949,3 +949,25 @@ ZIP SHA256：确认包 `07ce75fbee2233980b50e7bca285f71a584f39fb58c984e873164a86
 **产品限制（不是测试问题，需单列）**：`closedShellSamples` 把「同一网格内包围盒重叠的多个闭合壳」判为 UNKNOWN。真实的轮毂+臂、螺栓头+杆这类连通多壳零件都会落入这一类，其路径/运动证据会保守地变成 NOT_RUN。本次只调整测试夹具，**没有改这条规则**；要不要支持连通多壳的可靠包含判定，需要独立设计与校准，不能靠放宽阈值解决。螺栓本来就有「两个相接壳体」的已知缺陷（见 2026-10-31 节），这一限制与之叠加。
 
 修正后本日验证：`bun test` **946 PASS / 4 SKIP / 0 FAIL**（950 测试 / 140 文件）、`bun x tsc --noEmit` 通过、`bun run lint` 通过、`git diff --check` 干净。未重跑原生 OpenSCAD 全套、WASM 全套、浏览器端到端、付费生成或实物试验；上文所有实验结论仍按其各自边界有效。
+
+
+## 2026-11-06 Workspace reconciliation after reset
+
+Current git reflog records a reset to 891f802. Tracked implementations differ from previously tested archives while newer untracked tests and API files remain. Earlier green logs describe the earlier source versions. Current verification reproduced visual recovery failure, then restored claim ownership, call counting and shared source preservation. The focused seven-file suite passes 45 tests. The source guard also protects grounded instance and operation identities.
+
+Restored 12 clean tracked source files from retained-station-probe-SSeylZ and paid-deepseek-assembly-6SuXtv archives, preserving originals and exact source hashes in .agentscad/experiments/reset-reconcile-8rs_yshh/restoration.json. This restoration is incomplete. Latest full run is 930 PASS, 3 SKIP, 28 FAIL, 1 ERROR across 961 tests. Typecheck reports missing interfaces in the retained evaluator, thread prototype, export-lock token and provider settings. Test fixture changes for actual bore voids, contact semantics and new gating also need reconciliation. Logs are retained beside the restoration manifest.
+
+Next restore evaluator and provider interfaces, export-lock token contract, then reconcile archived fixture regressions without weakening product checks. Run the resulting full suite and native affected cases. User authorized commits at appropriate milestones. Commit a coherent verified stage with its evidence, then record its hash in the handoff. Full functional assembly goal remains active. No new paid model requests.
+
+
+## 2026-11-06 · 版本恢复阶段完成验证并准备提交
+
+当前版本已恢复导出证据接口、模型预算参数、局部孔轴材料角色、实测关节帧、零件连通性、重装一致性和显式装配路径依赖。两批源码恢复前文件保存在 .agentscad/experiments/reset-reconcile-8rs_yshh。新增未跟踪研究代码与回归也纳入此阶段版本，后续可通过Git复核。
+
+恢复旧测试时保留较强的产品检查。实心bore正例改真实tube，交换孔轴角色返回ERROR。仅局部配合通过而缺重装、帧或完整序列时，整体仍NOT_RUN，独立fits测量保留PASS。接触字符串缺区域证据时不能豁免碰撞。闭合多壳并集查询已有正例，宽范围干涉及预算耗尽负例继续阻挡通过。导出路由fake CLI的all改为包围全部零件的测试包围盒，重装几何质量须由真实OpenSCAD测试另验。
+
+真实原生铰链的完整数字合同测试使用单独版本的显式装拆声明，以declaredPathObservation和有符号motionRangeObservations取证。原始空操作声明保留。一次迁移重复提供motion-range-deg使观察器拒绝，移除重复后完成重跑。修复闭环的局部测量测试补充真实整机渲染后再要求assembly PASS。
+
+最终全单元966 PASS /3 SKIP /0 FAIL，969测试、146文件、33.66秒。受影响原生铰链与重装11 PASS /0 FAIL，33.82秒。typecheck、lint和diff检查通过。当前测试数对应恢复后的实际文件，历史1000 PASS仅适用于历史版本，当前尚未复原全部历史新增用例。日志归档上述恢复目录。模型调用0，累计付费上界继续为1.701554 CNY。
+
+本阶段提供可提交的代码恢复与回归。浏览器九层展示、完整WASM、完整原生、生产构建部署、自动生成流水线的完整装配反馈、特征定位、多关节/V8、独立隐藏评估和实物退出条件仍待验收。用户授权适时提交，此阶段检查已完成。完整目标active。

@@ -3,6 +3,7 @@ import { createHash } from "crypto";
 import { deriveRequirementContract } from "./extract-requirements";
 import { toEvidenceRequirements, toFitRequirements } from "./contract-bridge";
 import { prepareAssembly } from "../assembly/prepare-assembly";
+import { tubeStl } from "../geometry/__tests__/solids";
 import { prismStl } from "../geometry/__tests__/prism";
 
 const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
@@ -83,7 +84,7 @@ describe("contract to fit requirement", () => {
 describe("request to measured evidence", () => {
   const render = async () => {
     const meshes = {
-      bore: prismStl({ radius: 3.2, height: 10, segments: 64 }),
+      bore: tubeStl({innerRadius:3.2,outerRadius:5,height:10,segments:64}),
       shaft: prismStl({ radius: 3, height: 12, segments: 64, z0: -1 }),
     };
     return {
@@ -96,7 +97,8 @@ describe("request to measured evidence", () => {
     const contract = deriveRequirementContract({ request: "两件式铰链，直径间隙 0.35 到 0.45 mm，可拆" });
     const fits = toFitRequirements(contract, spec(), { boreInstanceId: "bore-instance" });
     const result = await prepareAssembly({ scadSource: "cube(1);", spec: spec(), render, fitRequirements: fits });
-    expect(result.manifest.evidence.assembly.status).toBe("PASS");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
+    expect(result.fits[0].measuredStatus).toBe("PASS");
     expect(result.fits[0].diametralClearanceMm!.min).toBeCloseTo(0.3923, 3);
   });
 

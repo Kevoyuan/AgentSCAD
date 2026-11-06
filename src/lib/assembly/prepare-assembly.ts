@@ -1,4 +1,6 @@
+import {checkPartConnectivity} from "./part-connectivity";
 import { checkDeclaredPoseDisassembly } from "./declared-pose-disassembly";
+import { checkDeclaredPoseAssembly } from "./declared-pose-assembly";
 import { createHash } from "crypto";
 import { validateAssemblySpec, type AssemblySpec } from "./assembly-spec";
 import { assemblySpecificationHash } from "./spec-hash";
@@ -7,6 +9,8 @@ import { assessFit, measureRevoluteFit, type FitRequirement } from "./fit-measur
 import { checkKinematics } from "./path-and-motion";
 import { renderAssemblySpecParts, type RenderedAssemblyPart } from "../tools/assembly-part-renderer";
 import type { ScadExecutionOptions } from "../tools/scad-renderer";
+import { checkAssemblyReconstruction } from "../tools/assembly-reconstruction";
+import { checkMeasuredJointFrames, JOINT_FRAME_CONSISTENCY_LIMITS } from "./measured-joint-frame";
 import { RequirementContractSchema, requirementContractHash } from "../requirements/requirement-contract";
 
 const sha256 = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
@@ -114,9 +118,12 @@ export async function prepareAssembly(input: {
   // Hash the validated snapshot with the same canonical form used by the API.
   const sourceSha256 = sha256(input.scadSource);
   const specificationSha256 = assemblySpecificationHash(spec);
+  if(input.assemblyMesh?.sha256 && sha256(input.assemblyMesh.stl)!==input.assemblyMesh.sha256) throw new Error("Assembly artifact hash mismatch");
+  const partConnectivity = result.parts.map(part=>({partId:part.partId,sha256:part.sha256,...checkPartConnectivity(part.stl)}));
   const identity = checkPartIdentity({
     parts: result.parts.map((part) => ({ ...part, selector: spec.parts.find((item) => item.id === part.partId)!.selector })),
     assemblyMesh: input.assemblyMesh ?? null,
+    instances: spec.instances,
   });
   const meshes = Object.fromEntries(result.parts.map((part) => [part.partId, part.stl]));
   const gateReason = contractBinding?.requestMatches === false
@@ -124,6 +131,8 @@ export async function prepareAssembly(input: {
     : input.contractGate
     ? (input.contractGate.evidenceCurrent ? null : input.contractGate.reason?.trim() || "The requirement contract has not been confirmed against the current request, so its results cannot count.")
     : null;
+  const reconstruction = await checkAssemblyReconstruction({ spec, meshes, assemblyMesh: input.assemblyMesh?.stl, options: input.options });
+  const reconstructionEvidence = applyContractGate(reconstruction.status, reconstruction.reason, gateReason);
   const fits = (input.fitRequirements ?? []).map((requirement) => {
     const measurement = measureRevoluteFit({
       spec, connectionId: requirement.connectionId, meshes,
@@ -131,6 +140,8 @@ export async function prepareAssembly(input: {
     });
     const assessment = assessFit(measurement, requirement);
     const gated = applyContractGate(assessment.status, assessment.reason, gateReason);
+    const frameCheck=checkMeasuredJointFrames({spec,measurement,limits:JOINT_FRAME_CONSISTENCY_LIMITS});
+    const frameVerdict=applyContractGate(frameCheck.status,frameCheck.reason,gateReason);
     return {
       connectionId: requirement.connectionId,
       status: gated.status,
@@ -144,6 +155,7 @@ export async function prepareAssembly(input: {
       axisAngleDeg: measurement.axis?.angleDeg ?? null,
       seedOffsetMm: measurement.bore?.seedOffsetMm ?? null,
       unknowns: measurement.unknowns,
+      jointFrames:{...frameCheck,...frameVerdict,measuredStatus:frameCheck.status,measuredReason:frameCheck.reason},
     };
   });
   // Kinematics runs after the gate is known so its own verdicts are downgraded
@@ -159,6 +171,8 @@ export async function prepareAssembly(input: {
       })
     : null;
   const declaredDisassembly = checkDeclaredPoseDisassembly({ spec, meshes });
+  const declaredAssembly = checkDeclaredPoseAssembly({ spec, meshes });
+  const declaredAssemblyEvidence = applyContractGate(declaredAssembly.status, declaredAssembly.reason, gateReason);
   const declaredPathEvidence = applyContractGate(declaredDisassembly.status, declaredDisassembly.reason, gateReason);
   /**
    * The detailed record follows the same rule as `fits`: `status` is the
@@ -174,15 +188,19 @@ export async function prepareAssembly(input: {
     measuredStatus: declaredDisassembly.status,
     measuredReason: declaredDisassembly.reason,
   };
-  const pathEvidence = kinematics
-    ? applyContractGate(kinematics.path.status as EvidenceStatus, kinematics.path.reason, gateReason)
-    : { status: "NOT_RUN" as EvidenceStatus, reason: "Disassembly was not checked." };
-  const motionEvidence = kinematics
+  let motionEvidence = kinematics
     ? applyContractGate(kinematics.motion.status as EvidenceStatus, kinematics.motion.reason, gateReason)
     : { status: "NOT_RUN" as EvidenceStatus, reason: "Motion was not checked." };
+  const motionFrames=fits.find(fit=>fit.connectionId===input.kinematics?.connectionId)?.jointFrames;
+  if(kinematics?.motion.status==="PASS"&&motionEvidence.status==="PASS"&&motionFrames?.status!=="PASS") {
+    motionEvidence={status:motionFrames?.status??"NOT_RUN",reason:`Rigid-pose collision samples passed, but the actual mating feature axes were not verified against the declared motion frame: ${motionFrames?.reason??"No measured mating feature axes."}`};
+  }
+  const uncheckedConnections=spec.connections.filter(connection=>!fits.some(fit=>fit.connectionId===connection.id));
+  const jointFrameEvidence=combine([...fits.map(fit=>fit.jointFrames.status),...(uncheckedConnections.length?["NOT_RUN" as const]:[])],
+    [...fits.map(fit=>`${fit.connectionId}: ${fit.jointFrames.reason}`),...(uncheckedConnections.length?[`No measured axes for: ${uncheckedConnections.map(connection=>connection.id).join(", ")}.`]:[])],"No actual joint feature axes were measured.");
   const assemblyEvidence = combine(
-    [...fits.map((fit) => fit.status as EvidenceStatus), ...(kinematics ? [pathEvidence.status] : [])],
-    [...fits.map((fit) => `${fit.connectionId}: ${fit.reason}`), ...(kinematics ? [`path: ${pathEvidence.reason}`] : [])],
+    [reconstructionEvidence.status,...fits.map((fit) => fit.status as EvidenceStatus),...(spec.connections.length?[jointFrameEvidence.status]:[]), ...(uncheckedConnections.length?["NOT_RUN" as const]:[])],
+    [`reconstruction: ${reconstructionEvidence.reason}`,...fits.map((fit) => `${fit.connectionId}: ${fit.reason}`),...(spec.connections.length?[`joint frames: ${jointFrameEvidence.reason}`]:[]),...(uncheckedConnections.length?[`Connection features were not measured: ${uncheckedConnections.map(connection=>connection.id).join(", ")}.`]:[])],
     "Declared poses and connections were not checked against geometry.",
   );
   const identityEvidence = applyContractGate(identity.status as EvidenceStatus, identity.reason, gateReason);
@@ -201,7 +219,15 @@ export async function prepareAssembly(input: {
     subassemblies: spec.subassemblies.map((subassembly) => ({ ...subassembly })),
     fits,
     kinematics,
+    reconstruction: { ...reconstruction, ...reconstructionEvidence, measuredStatus: reconstruction.status, measuredReason: reconstruction.reason },
+    partConnectivity,
     declaredDisassembly: declaredDisassemblyRecord,
+    declaredAssembly: {
+      ...declaredAssembly,
+      ...declaredAssemblyEvidence,
+      measuredStatus: declaredAssembly.status,
+      measuredReason: declaredAssembly.reason,
+    },
     /**
      * `evidenceCurrent: null` means no contract was supplied, so the question
      * "is this the user's actual requirement" was never asked. It is not a
@@ -216,12 +242,17 @@ export async function prepareAssembly(input: {
     },
     evidence: {
       identity: identityEvidence,
-      geometry: { status: "NOT_RUN" as const, reason: "Topology and dimensions were not independently checked." },
+      geometry: partConnectivity.some(p=>p.status==="FAIL")
+        ? {status:"FAIL" as const,reason:partConnectivity.filter(p=>p.status==="FAIL").map(p=>`${p.partId}: ${p.reason}`).join(" ")}
+        : { status: "NOT_RUN" as const, reason: "Full topology and dimensions were not independently checked; see partConnectivity for the limited surface check." },
       assembly: assemblyEvidence,
+      assemblyPath: declaredAssemblyEvidence,
+      reconstruction: reconstructionEvidence,
+      jointFrames:jointFrameEvidence,
       disassembly: declaredPathEvidence,
       motion: motionEvidence,
       physical: { status: "NOT_RUN" as const, reason: "Physical manufacture and function were not tested." },
     },
   };
-  return { spec, manifest, parts: result.parts, purchasedPartIds: result.purchasedPartIds, identity, fits, kinematics };
+  return { spec, manifest, parts: result.parts, purchasedPartIds: result.purchasedPartIds, identity, fits, kinematics, reconstruction };
 }

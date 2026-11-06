@@ -1,3 +1,4 @@
+import { assertAssemblySourcePreserved } from "./assembly-preservation";
 // ---------------------------------------------------------------------------
 // Repair Controller — orchestrates validation-driven LLM repair
 //
@@ -128,6 +129,8 @@ export function buildRepairPrompt(input: RepairInput): string {
     input.currentScadCode,
     "```",
     "",
+    "## Preserve the existing assembly",
+    "Keep every valid embedded assembly declaration and its required parts, joints, ranges, grounded instance and operation identities during repair.",
     "## Validation Results",
     "### Failed Rules",
     failedRules || "(none — all passed)",
@@ -276,6 +279,11 @@ export async function runRepair(input: RepairInput): Promise<{
   }
 
   const sanitizedScadSource = sanitizeGeneratedScadSource(generationResult.scad_source);
+  assertAssemblySourcePreserved({
+    originalSource: input.currentScadCode,
+    proposedSource: sanitizedScadSource,
+    originalRequest: input.originalRequest,
+  });
   // A repair can rewrite the whole artifact. Re-extract the editable controls from
   // the repaired source so callers persist the real parameters instead of the
   // stale generation-era schema.

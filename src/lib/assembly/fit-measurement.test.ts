@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { tubeStl } from "../geometry/__tests__/solids";
 import { prismStl } from "../geometry/__tests__/prism";
 import { assessFit, measureRevoluteFit } from "./fit-measurement";
 
@@ -27,7 +28,7 @@ function spec(options: { shaftTransform?: number[]; frameB?: typeof axisFrame | 
 }
 
 const meshes = {
-  bore: prismStl({ radius: 3.2, height: 10, segments: 64 }),
+  bore: tubeStl({innerRadius:3.2,outerRadius:5,height:10,segments:64}),
   shaft: prismStl({ radius: 3, height: 12, segments: 64, z0: -1 }),
 };
 
@@ -56,11 +57,10 @@ describe("revolute fit measurement", () => {
     expect(documented.status).toBe("PASS");
   });
 
-  test("declaring the shaft as the bore produces a negative clearance instead of a pass", () => {
+  test("declaring the shaft as the bore rejects its material role", () => {
     const result = measureRevoluteFit({ spec: spec(), connectionId: "joint", meshes, boreInstanceId: "shaft-instance" });
-    expect(result.status).toBe("MEASURED");
-    expect(result.clearanceMm!.max).toBeLessThan(0);
-    expect(assessFit(result, { connectionId: "joint", diametralClearanceMm: { min: 0.35, max: 0.45 } }).status).toBe("FAIL");
+    expect(result.status).toBe("ERROR");
+    expect(result.clearanceMm).toBeNull();
   });
 
   test("a translated instance is measured in the assembly frame", () => {

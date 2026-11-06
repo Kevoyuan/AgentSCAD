@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "purpose": "Falsify nearest-surface seed binding against the existing eccentric bore counterexample. This is development evidence and cannot calibrate uncertainty.",
+  "input": ".agentscad/experiments/thread-axis-decoy-yphCRx/mesh.stl",
+  "inputSha256": "a4591878735c1558b2ddc7811c757cc86cc53b36e17d8907e86da51142ee092f",
+  "stationsMm": [2, 5, 8],
+  "cases": [
+    { "id": "eccentric-bore", "translateXmm": 0, "role": "bore", "seedMm": [0.5, 0], "targetCenterMm": [0.5, 0] },
+    { "id": "translated-bore", "translateXmm": 0.25, "role": "bore", "seedMm": [0.75, 0], "targetCenterMm": [0.75, 0] },
+    { "id": "role-mismatch", "translateXmm": 0, "role": "shaft", "seedMm": [0.5, 0], "targetCenterMm": null },
+    { "id": "seed-outside-part", "translateXmm": 0, "role": "bore", "seedMm": [10, 0], "targetCenterMm": null }
+  ],
+  "decision": "Report estimates and distances without acceptance thresholds. Role mismatch and an incomplete radial profile must withhold the axis. Every assembly verdict remains NOT_RUN. This finite visible set is not an independent hidden set."
+}

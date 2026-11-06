@@ -1,3 +1,4 @@
+import {motionRangeObservations, declaredPathObservation} from "../../../../scripts/eval/judge-assembly";
 import { describe, expect, test } from "bun:test";
 import { createHash } from "crypto";
 import { readFile } from "fs/promises";
@@ -160,7 +161,8 @@ describe("original axial hinge with native OpenSCAD", () => {
     const scadSource = `/* AGENTSCAD_ASSEMBLY_V1\n${JSON.stringify(spec)}\nEND_AGENTSCAD_ASSEMBLY */\n${fixture}`;
     const result = await prepareAssembly({ scadSource, spec, fitRequirements: fits, contractGate: { evidenceCurrent: true } });
 
-    expect(result.manifest.evidence.assembly.status).toBe("PASS");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
+    expect(result.fits[0].measuredStatus).toBe("PASS");
     expect(result.manifest.contract.evidenceCurrent).toBe(true);
     expect(result.fits[0].diametralClearanceMm!.min).toBeCloseTo(0.4, 2);
     expect(result.fits[0].diametralClearanceMm!.max).toBeCloseTo(0.415, 2);
@@ -207,9 +209,9 @@ describe("original axial hinge with native OpenSCAD", () => {
     expect(shifted(radialClearanceMm * 1.5).status).toBe("INTERSECT");
   }, 120000);
 
-  test("one hinge request closes L1 to L4 with measured evidence and leaves L5 open", async () => {
+  test("a declared hinge sequence covers the digital contract while physical evidence remains open", async () => {
     const fixture = await readFile("benchmarks/assembly/axial_hinge.scad", "utf8");
-    const spec = await hingeSpec();
+    const spec = JSON.parse(await readFile("scripts/eval/assembly-fixtures/axial-hinge-operations-v2.spec.json", "utf8"));
     const request = "做一个两件式铰链，直径间隙 0.35 到 0.45 mm，能转 ±45°，可拆，3D 打印";
 
     // L1: the request becomes a contract, and a human confirms it unchanged.
@@ -255,25 +257,17 @@ describe("original axial hinge with native OpenSCAD", () => {
         method: "Planar section at three axial stations, radial ray casting, regular-polygon fit.",
         coverage: "Three stations over the axial overlap; 64-facet bore and pin; radial fit only.",
       },
-      {
-        id: "disassembly-path", status: "MEASURED" as const, value: result.kinematics!.path.status === "PASS", ...provenance,
-        method: "BVH triangle collision over sampled offsets along the joint axis.",
-        coverage: result.kinematics!.path.coverage,
-      },
+      declaredPathObservation("disassembly-path", result.manifest.evidence.disassembly,
+        result.manifest.declaredDisassembly.coverage, provenance),
       {
         id: "sampled-motion", status: "MEASURED" as const, value: result.kinematics!.motion.status === "PASS", ...provenance,
         method: "BVH triangle collision over sampled rotation angles.",
         coverage: result.kinematics!.motion.coverage,
       },
-      {
-        id: "motion-range-deg", status: "MEASURED" as const,
-        value: Math.max(Math.abs(result.kinematics!.motion.rangeDeg!.min), Math.abs(result.kinematics!.motion.rangeDeg!.max)),
-        uncertainty: 0, unit: "deg", ...provenance,
-        method: "Largest sampled angle that was free of interference.",
-        coverage: result.kinematics!.motion.coverage,
-      },
+
     ];
 
+    observations.push(...motionRangeObservations(result.kinematics!.motion, provenance));
     const report = evaluateAssembly(toEvidenceRequirements(confirmed), observations);
     expect(report.evidence.map((item) => `${item.id}:${item.status}`)).toEqual([
       "intent-preserved:PASS",
@@ -281,6 +275,8 @@ describe("original axial hinge with native OpenSCAD", () => {
       "disassembly-path:PASS",
       "sampled-motion:PASS",
       "motion-range-deg:PASS",
+      "motion-range-negative-end:PASS",
+      "motion-range-positive-end:PASS",
       "diametral-clearance:PASS",
     ]);
     expect(report.gate_passed).toBe(true);
@@ -347,7 +343,9 @@ generated_part();
     const measure = async (scadSource: string) => {
       const extracted = extractEmbeddedAssemblySpec(scadSource);
       if (extracted.status !== "valid") throw new Error("The source carries no assembly specification");
+      const whole = (await renderAssemblyParts({scadSource,parts:[{partId:"all",selector:"all"}]}))[0];
       const prepared = await prepareAssembly({
+        assemblyMesh:whole,
         scadSource, spec: extracted.spec, fitRequirements: fits,
         kinematics: { connectionId: "hinge", pathSteps: 12, motionSteps: 24 },
       });

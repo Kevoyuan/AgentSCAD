@@ -151,6 +151,8 @@ export interface RadialProfile {
   radii: Float64Array;
   /** Two coordinates per ray, in section coordinates. */
   points: Float64Array;
+  /** Index of the nearest intersected section segment for each ray, -1 on a miss. */
+  segmentIndices: Int32Array;
   misses: number;
 }
 
@@ -164,6 +166,7 @@ export function castRadialProfile(section: MeshSection, center: [number, number]
   if (!Number.isFinite(maxRadiusMm) || maxRadiusMm <= 0) throw new Error("Search radius must be finite and positive");
   const radii = new Float64Array(rays);
   const points = new Float64Array(rays * 2);
+  const segmentIndices = new Int32Array(rays).fill(-1);
   const segments = section.segments;
   let misses = 0;
   for (let r = 0; r < rays; r++) {
@@ -181,6 +184,7 @@ export function castRadialProfile(section: MeshSection, center: [number, number]
       const u = (ox * dy - oy * dx) / denominator;
       if (u < -1e-9 || u > 1 + 1e-9) continue;
       best = t;
+      segmentIndices[r] = s;
     }
     if (best === Infinity) {
       misses++;
@@ -193,7 +197,7 @@ export function castRadialProfile(section: MeshSection, center: [number, number]
       points[r * 2 + 1] = center[1] + dy * best;
     }
   }
-  return { center, radii, points, misses };
+  return { center, radii, points, segmentIndices, misses };
 }
 
 /**

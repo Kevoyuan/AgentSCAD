@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "scope": "Visible synthetic mesh probes of digital axis/frame consistency; not model generation, universal calibration or physical function.",
+  "cases": [
+    {"id":"baseline","shiftXmm":0,"tiltYdeg":0,"worldQuarterTurn":false,"expected":"PASS"},
+    {"id":"shared-shift","shiftXmm":0.1,"tiltYdeg":0,"worldQuarterTurn":false,"expected":"FAIL"},
+    {"id":"shared-tilt","shiftXmm":0,"tiltYdeg":0.2,"worldQuarterTurn":false,"expected":"FAIL"},
+    {"id":"shift-in-world-pose","shiftXmm":0.1,"tiltYdeg":0,"worldQuarterTurn":true,"expected":"FAIL"}
+  ],
+  "fixedGeometry": {"facets":64,"shaftRadiusMm":3,"shaftZmm":[-1,11],"boreInnerRadiusMm":3.2,"boreOuterRadiusMm":5,"boreZmm":[0,10]},
+  "digitalLimits": {"maxOffsetMm":0.01,"maxAngleDeg":0.1},
+  "arithmeticReplayTolerance": {"distanceMm":1e-8,"angleDeg":1e-8,"transformedVerticesMm":0.000001},
+  "referenceErrorBar": "Record finite axis-to-construction-reference errors; do not turn their maximum into a guaranteed bound."
+}

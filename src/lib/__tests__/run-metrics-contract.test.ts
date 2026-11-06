@@ -139,6 +139,8 @@ describe('llmCallCount accumulates instead of overwriting', () => {
     // Visual repair happens in a later, separate HTTP request, so it is outside
     // the pipeline's scope — and it makes two model calls of its own.
     expect(visualRepairRoute).toContain('withLlmCallMeter(() => handleVisualRepair(')
-    expect(visualRepairRoute).toContain('llmCallCount: { increment: llmCallsThisRun() }')
+    expect(visualRepairRoute).toContain('const calls = llmCallsThisRun()')
+    expect(visualRepairRoute).toContain('llmCallCount: { increment: calls }')
+    expect(visualRepairRoute.match(/llmCallCount:/g)).toHaveLength(1)
   })
 })

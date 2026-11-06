@@ -4,7 +4,10 @@ import { prepareAssembly, type AssemblyFitRequirement } from "./prepare-assembly
 import type { RenderedAssemblyPart } from "../tools/assembly-part-renderer";
 import type { ScadExecutionOptions } from "../tools/scad-renderer";
 import type { AssemblySpec } from "./assembly-spec";
+import { collectOpenScadWarnings } from "../tools/scad-renderer";
 import { canonicalJson } from "../canonical-json";
+import { prepareContractAssembly } from "./prepare-contract-assembly";
+import type { checkDeclaredPoseDisassembly } from "./declared-pose-disassembly";
 
 /** Exporting N identical files labelled as different parts would be a lie, so it is refused. */
 export class AssemblyIdentityError extends Error {
@@ -20,7 +23,8 @@ type Renderer = (source: string, spec: AssemblySpec, options?: ScadExecutionOpti
  * evidence, coverage and verdict. A timed-out run is still NOT_RUN: under load
  * a different verdict legitimately produces different archive bytes.
  */
-function stableDisassemblyRecord(record: Awaited<ReturnType<typeof prepareAssembly>>["manifest"]["declaredDisassembly"]) {
+type RemovalResult = ReturnType<typeof checkDeclaredPoseDisassembly>["results"][number];
+function stableDisassemblyRecord<T extends { results: RemovalResult[]; elapsedMs?: number }>(record: T) {
   const { elapsedMs: _elapsedMs, ...stable } = record as typeof record & { elapsedMs?: number };
   const stableReason = (reason: string) => /^Path exceeded its [0-9.eE+-]+ ms evaluation budget$/.test(reason)
     ? "Path exceeded its remaining sequence evaluation budget"
@@ -33,6 +37,13 @@ function stableDisassemblyRecord(record: Awaited<ReturnType<typeof prepareAssemb
       return { ...result, reason: stableReason(result.reason), path: { ...path, reason: stableReason(path.reason) } };
     }),
   };
+}
+
+function stableAssemblyRecord(record: Awaited<ReturnType<typeof prepareAssembly>>["manifest"]["declaredAssembly"]) {
+  const { elapsedMs: _elapsedMs, ...stable } = record as typeof record & { elapsedMs?: number };
+  return "reversedEvaluation" in stable
+    ? { ...stable, reversedEvaluation: stableDisassemblyRecord(stable.reversedEvaluation) }
+    : stable;
 }
 
 /**
@@ -49,7 +60,7 @@ function readme(
   },
   parts: RenderedAssemblyPart[],
 ): string {
-  const layers = ["identity", "assembly", "disassembly", "motion", "physical"];
+  const layers = ["identity", "reconstruction", "jointFrames", "assembly", "assemblyPath", "disassembly", "motion", "physical"];
   const contract = manifest.contract;
   const standing = contract === undefined || contract.evidenceCurrent === null
     ? "confirmation not evaluated"
@@ -103,13 +114,17 @@ export async function buildAssemblyBundle(input: {
   assemblyMesh?: { stl: Buffer; sha256?: string } | null;
   /** Frozen fit requirements; without them the assembly layer stays NOT_RUN. */
   fitRequirements?: AssemblyFitRequirement[];
+  kinematics?:Parameters<typeof prepareAssembly>[0]["kinematics"];
   /** Confirmation state of the contract the results are judged against. */
   contractGate?: { evidenceCurrent: boolean; reason?: string | null };
   contractSnapshot?: Parameters<typeof prepareAssembly>[0]["contractSnapshot"];
   /** Fixes archive timestamps; identical evidence produces identical bytes. */
   modifiedAt?: Date;
+  /** Runs before selector refusal so a failed check can still be recorded. */
+  onPrepared?:(prepared:Awaited<ReturnType<typeof prepareAssembly>>)=>Promise<void|{id:string;reportSha256:string}>;
 }) {
-  const prepared = await prepareAssembly(input);
+  const prepared = await prepareContractAssembly(input);
+  const verificationRecord=await input.onPrepared?.(prepared);
   if (prepared.identity.distinctness.status === "FAIL") {
     throw new AssemblyIdentityError(prepared.identity.distinctness.reason);
   }
@@ -124,7 +139,12 @@ export async function buildAssemblyBundle(input: {
   const triangles = new Map(prepared.parts.map((part) => [part.partId, part.triangleCount]));
   const manifest = {
     ...prepared.manifest,
+    ...(verificationRecord?{verificationRecord}:{}),
+    // Raw render timing remains in the prepared result; it must not change
+    // archive bytes when the measured geometry and verdict are identical.
+    reconstruction: {...prepared.manifest.reconstruction,diagnostics:collectOpenScadWarnings(prepared.manifest.reconstruction.diagnostics).join("\n")},
     declaredDisassembly: stableDisassemblyRecord(prepared.manifest.declaredDisassembly),
+    declaredAssembly: stableAssemblyRecord(prepared.manifest.declaredAssembly),
     bundleSchemaVersion: 1 as const,
     parts: prepared.manifest.parts.map((part) => ({
       ...part,

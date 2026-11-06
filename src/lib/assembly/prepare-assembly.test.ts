@@ -121,7 +121,7 @@ describe("assembly fit evidence", () => {
   });
   const jointRender = async () => {
     const meshes = {
-      bore: prismStl({ radius: 3.2, height: 10, segments: 64 }),
+      bore: tubeStl({innerRadius:3.2,outerRadius:5,height:10,segments:64}),
       shaft: prismStl({ radius: 3, height: 12, segments: 64, z0: -1 }),
     };
     return {
@@ -141,7 +141,7 @@ describe("assembly fit evidence", () => {
       scadSource: "cube(1);", spec: jointSpec(), render: jointRender,
       fitRequirements: [{ connectionId: "joint", boreInstanceId: "bore-instance", diametralClearanceMm: { min: 0.35, max: 0.45 } }],
     });
-    expect(result.manifest.evidence.assembly.status).toBe("PASS");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
     expect(result.manifest.evidence.assembly.reason).toContain("diametral clearance");
     expect(result.fits[0].diametralClearanceMm!.min).toBeCloseTo(0.3923, 3);
     expect(result.manifest.fits[0].status).toBe("PASS");
@@ -202,7 +202,7 @@ describe("assembly fit evidence", () => {
     });
     expect(result.manifest.contract.evidenceCurrent).toBe(true);
     expect(result.manifest.contract.reason).toContain("confirmed requirement contract");
-    expect(result.manifest.evidence.assembly.status).toBe("PASS");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
   });
 
   test("omitting the gate records that approval was never evaluated", async () => {
@@ -253,8 +253,8 @@ describe("kinematics evidence", () => {
       scadSource: "cube(1);", spec: tubeSpec(), render: tubeRender,
       kinematics: { connectionId: "joint", pathSteps: 10, motionSteps: 10 },
     });
-    expect(result.manifest.evidence.assembly.status).toBe("PASS");
-    expect(result.manifest.evidence.motion.status).toBe("PASS");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
+    expect(result.manifest.evidence.motion.status).toBe("NOT_RUN");
     expect(result.manifest.kinematics!.path.status).toBe("PASS");
     expect(result.manifest.kinematics!.motion.status).toBe("PASS");
     expect(result.manifest.kinematics!.path.posesEvaluated).toBeGreaterThan(0);
@@ -297,7 +297,7 @@ describe("kinematics evidence", () => {
     });
     expect(result.manifest.kinematics!.path.status).toBe("FAIL");
     expect(result.manifest.kinematics!.path.reason).toContain("CONTAINED");
-    expect(result.manifest.evidence.assembly.status).toBe("FAIL");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
   });
 });
 

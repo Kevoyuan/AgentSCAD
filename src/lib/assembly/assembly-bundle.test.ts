@@ -3,7 +3,8 @@ import { createHash } from "crypto";
 import { strFromU8, unzipSync } from "fflate";
 import { AssemblyIdentityError, buildAssemblyBundle } from "./assembly-bundle";
 import { prismStl } from "../geometry/__tests__/prism";
-import { boxStl as solidBox, mergeStl } from "../geometry/__tests__/solids";
+import { boxStl as solidBox, mergeStl, tubeStl } from "../geometry/__tests__/solids";
+import { deriveRequirementContract } from "../requirements/extract-requirements";
 
 const pose = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
@@ -39,6 +40,22 @@ const renderWith = (meshes: Record<string, Buffer>) => async () => ({
 });
 
 describe("assembly part bundle", () => {
+  test("automatic hinge checks require a current confirmed contract and one explicitly role-bound joint",async()=>{
+    const request="两件式铰链，直径间隙 0.35 到 0.45 mm，能转 ±45°，可拆";
+    const contract=deriveRequirementContract({request});
+    const joint={id:"joint",type:"revolute",a:"bore-1",b:"shaft-1",frameA:{origin:[0,0,0],direction:[0,0,1]},frameB:{origin:[0,0,0],direction:[0,0,1]},range:{min:-45,max:45,unit:"deg"},pitchMm:null,ratio:null,allowedContact:[],boreInstanceId:"bore-1"};
+    const declaration={...spec([{id:"bore",selector:"bore",source:"generated"},{id:"shaft",selector:"shaft",source:"generated"}]),connections:[joint]};
+    const parts={bore:tubeStl({innerRadius:3.2,outerRadius:5,height:10,segments:64}),shaft:prismStl({radius:3,height:12,z0:-1,segments:64})};
+    const run=(currentSpec:unknown,confirmed:boolean,currentRequest=request)=>buildAssemblyBundle({scadSource:"cube(1);",spec:currentSpec,render:renderWith(parts),contractSnapshot:{contract,request:currentRequest},contractGate:{evidenceCurrent:confirmed}});
+    expect((await run(declaration,true)).manifest.fits).toHaveLength(1);
+    expect((await run(declaration,false)).manifest.fits).toHaveLength(0);
+    expect((await run(declaration,true,"a different request")).manifest.fits).toHaveLength(0);
+    const missingRole=structuredClone(declaration) as {connections:Array<{boreInstanceId?:string}>};
+    delete missingRole.connections[0].boreInstanceId;
+    expect((await run(missingRole,true)).manifest.fits).toHaveLength(0);
+    const several={...declaration,connections:[joint,{...joint,id:"second"}]};
+    expect((await run(several,true)).manifest.fits).toHaveLength(0);
+  });
   const meshes = { base: boxStl([10, 10, 2]), lid: boxStl([10, 10, 2], [0, 0, 4]) };
 
   test("archives every generated part with a manifest that binds the exact bytes", async () => {
@@ -113,7 +130,7 @@ describe("assembly part bundle", () => {
       }],
     };
     const meshes = {
-      bore: prismStl({ radius: 3.2, height: 10, segments: 64 }),
+      bore: tubeStl({ innerRadius:3.2,outerRadius:5,height:10,segments:64 }),
       shaft: prismStl({ radius: 3, height: 12, segments: 64, z0: -1 }),
     };
     const bundle = await buildAssemblyBundle({
@@ -123,7 +140,9 @@ describe("assembly part bundle", () => {
     });
     const entries = unzipSync(new Uint8Array(bundle.zip));
     const readme = strFromU8(entries["README.txt"]);
-    expect(readme).toContain("- assembly: PASS");
+    expect(readme).toContain("- assembly: NOT_RUN");
+    expect(readme).toContain("- reconstruction: NOT_RUN");
+    expect(bundle.manifest.fits[0].measuredStatus).toBe("PASS");
     expect(readme).toContain("diametral clearance");
     expect(readme).toContain("- motion: NOT_RUN");
     expect(bundle.manifest.fits[0].status).toBe("PASS");

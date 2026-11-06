@@ -1,3 +1,4 @@
+import { assertAssemblySourcePreserved } from "./assembly-preservation";
 // ---------------------------------------------------------------------------
 // Visual Repair Controller — user-triggered VLM-based repair
 //
@@ -280,6 +281,11 @@ export async function runVisualRepair(input: {
   );
 
   const repairedScad = sanitizeGeneratedScadSource(generationResult.scad_source);
+  assertAssemblySourcePreserved({
+    originalSource: input.scadSource,
+    proposedSource: repairedScad,
+    originalRequest: input.originalRequest,
+  });
 
   return {
     repairedScad,

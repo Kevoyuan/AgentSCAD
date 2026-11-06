@@ -18,12 +18,19 @@ export function checkDeclaredPoseDisassembly(input: {
   maxRotationStepDeg?: number;
   /** Ceiling for the whole sequence. Callers that need a shorter run pass less. */
   budgetMs?: number;
+  /** Triangle-pair ceiling for each pose/obstacle query; reported in the result. */
+  maxPairTestsPerPose?: number;
+  /** Offline evaluation may declare a longer deadline. Product callers leave it unset. */
+  offlineEvaluation?: boolean;
 }) {
   const started=performance.now();
   const parsed=validateAssemblySpec(input.spec);
   if(!parsed.success)throw new Error("Invalid assembly specification");
   const spec=parsed.data;
+  const offline=input.offlineEvaluation===true;
+  const maxPairTestsPerPose=input.maxPairTestsPerPose??200000;
   const base={method:"declared-dense-pose-disassembly/v1",specificationSha256:assemblySpecificationHash(spec),
+    maxPairTestsPerPose,offlineEvaluation:offline,
     coverage:"Declared instances and explicit or ideal screw sampled poses only. Removed parts are taken to external storage; transport, support, continuous clearance, thread engagement, tools and physical function are not checked."};
   if(!spec.groundedInstanceId)return {...base,status:"NOT_RUN" as const,reason:"No grounded instance was declared",results:[]};
   const operations=spec.operations.filter(o=>o.action==='disassemble');
@@ -35,7 +42,8 @@ export function checkDeclaredPoseDisassembly(input: {
   const maxTranslationStepMm=input.maxTranslationStepMm??0.25;
   const maxRotationStepDeg=input.maxRotationStepDeg??5.001;
   const budgetMs=input.budgetMs??5000;
-  if(!Number.isFinite(maxTranslationStepMm)||maxTranslationStepMm<=0||!Number.isFinite(maxRotationStepDeg)||maxRotationStepDeg<=0||maxRotationStepDeg>180||!Number.isFinite(budgetMs)||budgetMs<=0||budgetMs>60000) {
+  if(!Number.isFinite(maxTranslationStepMm)||maxTranslationStepMm<=0||!Number.isFinite(maxRotationStepDeg)||maxRotationStepDeg<=0||maxRotationStepDeg>180||!Number.isFinite(budgetMs)||budgetMs<=0||budgetMs>(offline?900000:60000)||
+     !Number.isInteger(maxPairTestsPerPose)||maxPairTestsPerPose<1||maxPairTestsPerPose>20_000_000) {
     return {...base,status:"ERROR" as const,reason:"Invalid sampling bounds",results:[]};
   }
   const rotationGapDeg=(a:number[],b:number[])=>Math.acos(Math.max(-1,Math.min(1,([0,1,2,4,5,6,8,9,10].reduce((sum,k)=>sum+a[k]*b[k],0)-1)/2)))*180/Math.PI;
@@ -112,7 +120,8 @@ export function checkDeclaredPoseDisassembly(input: {
       const path=checkRigidPosePath({moving:input.meshes[instance.partId],
         obstacles:Object.fromEntries(others.map(i=>[i.id,input.meshes[i.partId]])),
         obstacleTransforms:Object.fromEntries(others.map(i=>[i.id,i.transform])),
-        poses:op.waypoints,maxTranslationStepMm,maxRotationStepDeg,requireSeparatedEnd:true,budgetMs:remainingMs});
+        poses:op.waypoints,maxTranslationStepMm,maxRotationStepDeg,requireSeparatedEnd:true,budgetMs:remainingMs,
+        maxPairTestsPerPose,offlineEvaluation:offline});
       status=path.status;
       if(status==="PASS" && performance.now()-started>budgetMs) {
         status="NOT_RUN";results.push({...entry,status,reason:`Declared sequence exceeded its ${budgetMs} ms evaluation budget`,path});continue;
@@ -126,5 +135,7 @@ export function checkDeclaredPoseDisassembly(input: {
   const elapsed=performance.now()-started;
   const expiredAtCompletion=status==="PASS" && elapsed>budgetMs;
   if(expiredAtCompletion)status="NOT_RUN";
-  return {...base,status,budgetMs,elapsedMs:Math.round(elapsed),reason:expiredAtCompletion?`Declared sequence exceeded its ${budgetMs} ms evaluation budget`:status==='PASS'?"Every declared removal passed at its sampled poses":"The declared removal sequence is not verified",partHashes,results,remainingInstanceIds:[...remaining]};
+  const firstUnverified=results.find(result=>result.status!=="PASS");
+  const failureReason=firstUnverified?`Operation ${firstUnverified.operationId} for instance ${firstUnverified.instanceId} (${firstUnverified.status}): ${firstUnverified.reason}`:"The declared removal sequence is not verified";
+  return {...base,status,budgetMs,elapsedMs:Math.round(elapsed),reason:expiredAtCompletion?`Declared sequence exceeded its ${budgetMs} ms evaluation budget`:status==='PASS'?"Every declared removal passed at its sampled poses":failureReason,partHashes,results,remainingInstanceIds:[...remaining]};
 }

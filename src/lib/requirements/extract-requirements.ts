@@ -111,18 +111,30 @@ export function deriveRequirementContract(input: {
     draft.requirements.push(requirement("distinct-exported-parts", "parts", { kind: "equals", value: partCount }, "request", partMatch![0].trim()));
   }
 
+  // --- explicit assembly paths ----------------------------------------------
+  // "disassemble" must not match "assemble", and a noun such as "assembly"
+  // alone does not assert that a complete insertion route has been supplied.
+  const forbidsAssembly = /不可(?:以)?(?:组装|装配|装拆)|不能(?:组装|装配|装拆)|not\s+assemblable/i.test(normalized);
+  const assemblyStatement = firstMatch(normalized, [
+    /可(?:以)?(?:组装|装配|装拆)|能(?:组装|装配)|可装(?:可拆|可卸|上)|装上|(?:安装|装配|组装)(?:路径|顺序)/,
+    /\bassemblable\b|\b(?:can\s+be|can|must\s+be)\s+assembled\b|\bassembly\s+(?:path|sequence)\b|\breassembl\w*/i,
+  ]);
+  if (!forbidsAssembly && assemblyStatement) {
+    draft.requirements.push(requirement("assembly-path", "assembly", { kind: "equals", value: true }, "request", assemblyStatement[0].trim()));
+  }
+
   // --- disassembly ----------------------------------------------------------
-  const forbidsDisassembly = /不可拆|不可拆卸|不能拆|non-?removable|not\s+removable|permanent(?:ly)?\s+(?:fixed|joined)/i.test(normalized);
-  const wantsDisassembly = !forbidsDisassembly && /可拆|可拆卸|拆下|拆卸|抽离|拔出|取出|removab|disassembl|detach|pull(?:ed)?\s*out|take\s+apart/i.test(normalized);
+  const forbidsDisassembly = /不可(?:以)?(?:拆|装拆)|不能(?:拆|装拆)|non-?removable|not\s+removable|permanent(?:ly)?\s+(?:fixed|joined)/i.test(normalized);
+  const wantsDisassembly = !forbidsDisassembly && /可(?:以)?拆(?:开|卸)?|可(?:以)?装拆|能拆(?:开|卸)?|拆下|拆卸|抽离|拔出|取出|removab|disassembl|detach|pull(?:ed)?\s*out|take\s+apart/i.test(normalized);
   if (wantsDisassembly) {
-    const statement = firstMatch(normalized, [/可拆|可拆卸|拆下|拆卸|抽离|拔出|取出/i, /removab\w*|disassembl\w*|detach\w*|pull(?:ed)?\s*out|take\s+apart/i]);
+    const statement = firstMatch(normalized, [/可(?:以)?拆(?:开|卸)?|可(?:以)?装拆|能拆(?:开|卸)?|拆下|拆卸|抽离|拔出|取出/i, /removab\w*|disassembl\w*|detach\w*|pull(?:ed)?\s*out|take\s+apart/i]);
     draft.requirements.push(requirement("disassembly-path", "assembly", { kind: "equals", value: true }, "request", statement?.[0].trim() ?? null));
   }
 
   // --- motion ---------------------------------------------------------------
   const motionWord = firstMatch(normalized, [/转动|旋转|回转|能转|转起来|rotate|rotat\w*|turn|spin|swivel/i]);
   const rangeMatch = firstMatch(normalized, [
-    /(-?\d+(?:\.\d+)?)\s*(?:°|度|deg(?:rees)?)?\s*(?:到|至|~|～|to|through)\s*(\+?\d+(?:\.\d+)?)\s*(?:°|度|deg(?:rees)?)/i,
+    /(-?\d+(?:\.\d+)?)\s*(?:°|度|deg(?:rees)?)?\s*(?:到|至|~|～|to|through)\s*([+-]?\d+(?:\.\d+)?)\s*(?:°|度|deg(?:rees)?)/i,
     /(?:±|\+\/-)\s*(\d+(?:\.\d+)?)\s*(?:°|度|deg(?:rees)?)?/,
   ]);
   let motionRange: { min: number; max: number } | null = null;
@@ -146,6 +158,10 @@ export function deriveRequirementContract(input: {
     // request asks for. The magnitude of the largest reach is the assertion.
     const reach = Math.max(Math.abs(motionRange.min), Math.abs(motionRange.max));
     draft.requirements.push(requirement("motion-range-deg", "motion", { kind: "atLeast", min: reach, unit: "deg" }, "request", rangeMatch![0].trim()));
+    // Encode both signed endpoints using the existing lower-bound comparator.
+    // Negating the minimum expresses actual.min <= requested.min.
+    draft.requirements.push(requirement("motion-range-negative-end", "motion", { kind: "atLeast", min: -motionRange.min, unit: "deg" }, "request", rangeMatch![0].trim()));
+    draft.requirements.push(requirement("motion-range-positive-end", "motion", { kind: "atLeast", min: motionRange.max, unit: "deg" }, "request", rangeMatch![0].trim()));
   } else if (motionWord) {
     addUnknown("motion-range", "转动范围未给出：需要明确角度上下限才能验收运动。", ["motion"]);
   }

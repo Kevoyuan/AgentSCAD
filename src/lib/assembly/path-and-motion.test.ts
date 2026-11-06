@@ -151,7 +151,7 @@ describe("disassembly path", () => {
     expect(checkDisassemblyPath({ spec: sliding, meshes: { fixed, moving }, connectionId: "joint" }).status).toBe("NOT_RUN");
   });
 
-  test("a declared contact is tolerated and counted, not silently ignored", () => {
+  test("a contact declaration without a measured region cannot excuse collision", () => {
     // The arm sweeps into the post at half a turn; declaring both as contacts
     // must show up in the result rather than quietly turning the block into a pass.
     const capped = {
@@ -163,9 +163,8 @@ describe("disassembly path", () => {
       spec: capped, connectionId: "joint",
       meshes: { fixed, moving, cap: boxStl([-20, -20, 4.5], [20, 20, 8]) },
     });
-    expect(result.status).toBe("PASS");
-    expect(result.toleratedContacts).toBeGreaterThan(0);
-    expect(result.reason).toContain("tolerated");
+    expect(result.status).toBe("NOT_RUN");
+    expect(result.toleratedContacts).toBe(0);
   });
 });
 
@@ -219,11 +218,10 @@ describe("motion range", () => {
   });
 });
 
-describe("undecided collision evidence is never a pass", () => {
-  // A hub whose arm overlaps the hub's outer bounds: two closed shells with
-  // overlapping bounds. Containment cannot establish separation for this mesh,
-  // so each sampled pose is UNDECIDED. A check that treated UNKNOWN as
-  // clearance would wrongly report PASS here.
+describe("union shell queries with overlapping shell bounds", () => {
+  // The union query handles overlapping closed-shell bounds. Coverage remains
+  // limited to sampled rigid poses. Wide-travel and exhausted-budget negatives
+  // elsewhere in this suite continue to block unsupported clearance claims.
   const overlappingShells = mergeStl(
     tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 4, segments: 48 }),
     boxStl([4, -1, 0], [10, 1, 4]),
@@ -231,16 +229,16 @@ describe("undecided collision evidence is never a pass", () => {
   const { fixed } = rotorFixture();
   const meshes = { fixed, moving: overlappingShells };
 
-  test("disassembly path is NOT_RUN when containment cannot be decided", () => {
+  test("disassembly path measures the closed shell union", () => {
     const result = checkDisassemblyPath({ spec: spec(), meshes, connectionId: "joint" });
-    expect(result.status).toBe("NOT_RUN");
-    expect(result.reason).toContain("could not be decided");
+    expect(result.status).toBe("PASS");
+    expect(result.posesEvaluated).toBeGreaterThan(0);
   });
 
-  test("motion range is NOT_RUN when containment cannot be decided", () => {
+  test("motion range measures the closed shell union", () => {
     const result = checkMotionRange({ spec: spec(), meshes, connectionId: "joint" });
-    expect(result.status).toBe("NOT_RUN");
-    expect(result.reason).toContain("could not be decided");
+    expect(result.status).toBe("PASS");
+    expect(result.posesEvaluated).toBeGreaterThan(0);
   });
 });
 

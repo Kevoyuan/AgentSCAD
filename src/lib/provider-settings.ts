@@ -413,7 +413,13 @@ export async function createProviderChatCompletion(args: {
   messages: MimoMessage[];
   stream?: boolean;
   signal?: AbortSignal;
+  maxOutputTokens?: number;
+  reasoningEffort?: "none" | "low" | "high" | "max";
 }) {
+  if (args.maxOutputTokens !== undefined && (!Number.isInteger(args.maxOutputTokens) || args.maxOutputTokens < 1 || args.maxOutputTokens > 393216)) {
+    throw new ProviderValidationError("Invalid completion token limit");
+  }
+  if (args.reasoningEffort !== undefined && !["none", "low", "high", "max"].includes(args.reasoningEffort)) throw new ProviderValidationError("Invalid reasoning effort");
   const baseUrl = validateProviderBaseUrl(args.provider.baseUrl);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -437,6 +443,8 @@ export async function createProviderChatCompletion(args: {
       model: args.model || args.provider.defaultModel,
       messages: args.messages,
       stream: args.stream ?? false,
+      ...(args.maxOutputTokens === undefined ? {} : { max_tokens: args.maxOutputTokens }),
+      ...(args.reasoningEffort === undefined ? {} : { reasoning_effort: args.reasoningEffort }),
     }),
   });
 

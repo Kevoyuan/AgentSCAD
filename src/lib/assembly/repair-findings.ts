@@ -17,7 +17,7 @@ import type { DisassemblyPathEvidence, MotionRangeEvidence } from "./path-and-mo
 import type { RequirementContract } from "../requirements/requirement-contract";
 import type { AssemblyFitRequirement } from "./prepare-assembly";
 
-export type FindingKind = "identity" | "fit" | "path" | "motion";
+export type FindingKind = "connectivity" | "identity" | "reconstruction" | "joint-frame" | "fit" | "path" | "motion";
 
 export interface AssemblyFinding {
   kind: FindingKind;
@@ -63,7 +63,16 @@ export interface AssemblyEvidenceManifest {
     diametralClearanceMm: { min: number; max: number } | null;
     boreDiameterMm: { min: number; max: number } | null;
     shaftDiameterMm: { min: number; max: number } | null;
+    jointFrames?:{measuredStatus:string;measuredReason:string;limits:{maxOffsetMm:number;maxAngleDeg:number}};
   }>;
+  partConnectivity?: Array<{partId:string;status:string;reason:string}>;
+  declaredDisassembly?: DeclaredPathResults;
+  declaredAssembly?: { method: string; reversedEvaluation?: DeclaredPathResults };
+}
+
+interface DeclaredPathResults {
+  results: Array<{ operationId: string; instanceId: string; status: string; reason: string;
+    path?: { blockedAt?: { poseIndex: number; obstacleId: string }; poses: number[][] } }>;
 }
 
 /**
@@ -77,6 +86,30 @@ export function collectAssemblyFindings(input: {
   kinematics: { path: DisassemblyPathEvidence; motion: MotionRangeEvidence } | null;
 }): AssemblyFinding[] {
   const findings: AssemblyFinding[] = [];
+  for (const [layer, action, sequence] of [
+    ["assemblyPath", "insertion", input.manifest.declaredAssembly?.reversedEvaluation],
+    ["disassembly", "removal", input.manifest.declaredDisassembly],
+  ] as const) {
+    if (input.manifest.evidence[layer]?.status !== "FAIL") continue;
+    const failed = sequence?.results.find(result => result.status === "FAIL");
+    const blocked = failed?.path?.blockedAt;
+    const pose = blocked ? failed?.path?.poses[blocked.poseIndex] : undefined;
+    findings.push({
+      kind: "path", layer: "assembly", connectionId: null,
+      instanceIds: failed ? [failed.instanceId, ...(blocked ? [blocked.obstacleId] : [])] : [],
+      measured: failed ? `operation ${failed.operationId}${blocked ? `, evaluated pose ${blocked.poseIndex}` : ""}${pose ? `, world origin [${[3,7,11].map(index => pose[index].toFixed(3)).join(", ")}] mm` : ""}` : null,
+      required: "Every required instance must follow a complete clear declared operation sequence.",
+      atMm: null, atDeg: null,
+      message: `Declared ${action} failed${failed ? ` for ${failed.instanceId} in ${failed.operationId}` : ""}: ${failed?.reason ?? input.manifest.evidence[layer].reason}${action === "insertion" ? " The reported poses were checked in reverse assembly order." : ""}`,
+    });
+  }
+  const reconstruction = input.manifest.evidence.reconstruction;
+  if (reconstruction?.status === "FAIL") findings.push({
+    kind:"reconstruction",layer:"assembly",connectionId:null,instanceIds:[],
+    measured:reconstruction.reason,required:"The union of all exported instances placed by the manifest must match the complete delivered assembly at the same pose.",atMm:null,atDeg:null,
+    message:`Exported parts do not reconstruct the delivered assembly: ${reconstruction.reason} Correct the local meshes, instance transforms, or all view consistently without deleting required parts.`,
+  });
+  for(const part of input.manifest.partConnectivity??[]) if(part.status==="FAIL") findings.push({kind:"connectivity",layer:"assembly",connectionId:null,instanceIds:[],measured:part.reason,required:"Each declared manufactured part must be a connected body",atMm:null,atDeg:null,message:`Part ${part.partId} contains separated pieces: ${part.reason}. Connect the required features within this part without deleting them, fusing mating parts together or changing the required part inventory.`});
   const identity = input.manifest.evidence.identity;
   if (identity?.status === "FAIL") {
     findings.push({
@@ -98,6 +131,12 @@ export function collectAssemblyFindings(input: {
     ? " The requirement band is not from a confirmed contract; treat it as provisional."
     : "";
   for (const fit of input.manifest.fits) {
+    if(fit.jointFrames?.measuredStatus==="FAIL") findings.push({
+      kind:"joint-frame",layer:"assembly",connectionId:fit.connectionId,instanceIds:[],
+      measured:fit.jointFrames.measuredReason,
+      required:`Digital joint-frame consistency within ${fit.jointFrames.limits.maxOffsetMm} mm / ${fit.jointFrames.limits.maxAngleDeg}°; this is not a manufacturing tolerance`,
+      atMm:null,atDeg:null,message:`The measured mating features do not implement the declared joint frame: ${fit.jointFrames.measuredReason} Correct the feature geometry or its frame consistently; keep the required joint and motion.`,
+    });
     if (fit.measuredStatus !== "FAIL") continue;
     const requirement = requirementById.get(fit.connectionId);
     const measured = fit.diametralClearanceMm ? formatRange(fit.diametralClearanceMm, "mm") : null;
@@ -112,20 +151,9 @@ export function collectAssemblyFindings(input: {
     });
   }
 
-  if (input.kinematics?.path.status === "FAIL") {
-    const blocked = input.kinematics.path.blockedAt;
-    const pair = blocked?.blocking[0];
-    findings.push({
-      kind: "path", layer: "assembly", connectionId: input.kinematics.path.connectionId,
-      instanceIds: pair ? [pair.movingInstanceId, pair.otherInstanceId] : [],
-      measured: blocked ? `blocked at ${blocked.offsetMm.toFixed(3)} mm along the axis` : null,
-      required: "an unobstructed straight path along the joint axis",
-      atMm: blocked?.offsetMm ?? null, atDeg: null,
-      message: pair
-        ? `Sliding the moving part out along the joint axis is blocked at ${blocked!.offsetMm.toFixed(3)} mm: ${pair.movingInstanceId} interferes with ${pair.otherInstanceId}. ${pair.reason}`
-        : input.kinematics.path.reason,
-    });
-  }
+  // The automatic axis probe is diagnostic. A blocked straight translation
+  // does not require a geometry repair when a different declared route or
+  // removal order can work. Only declared sequence failures above are findings.
 
   if (input.kinematics?.motion.status === "FAIL") {
     const blocked = input.kinematics.motion.blockedAt;
@@ -152,6 +180,7 @@ export const ASSEMBLY_REPAIR_INVARIANTS: readonly string[] = [
   "Keep every part, instance and connection listed above. Do not merge two parts into one, do not drop a joint, do not rename an instance.",
   "Do not change the declared motion range to a smaller one.",
   "Do not change which instance carries the bore.",
+  "Keep the grounded instance and every declared operation's ID, action and instance. Paths and order may be corrected but must be measured again; deleting a failed operation is not a repair.",
   "Do not change the requirement. The requirement belongs to the user; only the geometry may change.",
   "If a failure cannot be fixed without breaking an invariant, say so and leave the source unchanged. A wrong part that reports its own defect is better than a part that hides it.",
 ];
@@ -208,7 +237,7 @@ export function buildAssemblyRepairPrompt(input: {
 }
 
 export interface RepairViolation {
-  code: "part-removed" | "instance-removed" | "connection-removed" | "connection-changed" | "range-shrunk" | "bore-changed" | "invalid" | "requirement-relaxed";
+  code: "part-removed" | "instance-removed" | "connection-removed" | "connection-changed" | "range-shrunk" | "bore-changed" | "ground-changed" | "operation-removed" | "operation-changed" | "invalid" | "requirement-relaxed";
   message: string;
 }
 
@@ -227,6 +256,14 @@ export function assertRepairPreservesAssembly(input: {
   const after = validateAssemblySpec(input.after);
   if (!before.success) return { ok: false, violations: [{ code: "invalid", message: `The original declaration is invalid: ${before.error.issues[0]?.message ?? "unknown"}` }] };
   if (!after.success) return { ok: false, violations: [{ code: "invalid", message: `The repaired declaration is invalid: ${after.error.issues[0]?.message ?? "unknown"}` }] };
+
+  if (before.data.groundedInstanceId !== after.data.groundedInstanceId) violations.push({ code: "ground-changed", message: "The grounded instance changed." });
+  const afterOperations = new Map(after.data.operations.map(operation => [operation.id, operation]));
+  for (const operation of before.data.operations) {
+    const repaired = afterOperations.get(operation.id);
+    if (!repaired) violations.push({ code: "operation-removed", message: `Operation "${operation.id}" was removed.` });
+    else if (repaired.action !== operation.action || repaired.instanceId !== operation.instanceId) violations.push({ code: "operation-changed", message: `Operation "${operation.id}" changed its action or instance.` });
+  }
 
   const afterParts = new Set(after.data.parts.map((part) => part.id));
   for (const part of before.data.parts) {

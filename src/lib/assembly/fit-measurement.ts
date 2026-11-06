@@ -83,7 +83,7 @@ export function measureRevoluteFit(input: {
   maxRadiusMm?: number;
 }): RevoluteFitMeasurement {
   const unknowns = [
-    "The feature role is declared by the caller, not measured from the mesh.",
+    "The caller selects the feature role; sampled centres are checked against closed-solid material, not semantic part identity.",
     "Only the sampled axial stations are measured; other stations are not covered.",
     "Radial clearance is measured, not assembly, motion or physical function.",
   ];
@@ -141,8 +141,9 @@ export function measureRevoluteFit(input: {
   const delta = [originA[0] - originB[0], originA[1] - originB[1], originA[2] - originB[2]];
   const c = delta[0] * directionB[0] + delta[1] * directionB[1] + delta[2] * directionB[2];
 
-  const overlapMin = Math.max(extentA.min, (extentB.min - c) / k);
-  const overlapMax = Math.min(extentA.max, (extentB.max - c) / k);
+  const mappedB=[(extentB.min-c)/k,(extentB.max-c)/k];
+  const overlapMin = Math.max(extentA.min, Math.min(...mappedB));
+  const overlapMax = Math.min(extentA.max, Math.max(...mappedB));
   if (!(overlapMax > overlapMin)) {
     return { ...base, status: "ERROR", reason: "The two features do not overlap along the declared axis, so they cannot form a joint." };
   }
@@ -151,7 +152,7 @@ export function measureRevoluteFit(input: {
     return { ...base, status: "ERROR", reason: "Every station must lie inside the axial overlap of the two features." };
   }
   const stationsA = stations;
-  const stationsB = stations.map((value) => c + k * value);
+  const stationsB = stations.map((value) => c + k * value).sort((a,b)=>a-b);
 
   const measure = (side: typeof instanceA, partId: string, stl: Buffer, frame: { origin: Vec3; direction: Vec3 }, role: "bore" | "shaft", localStations: number[]): FitSide => {
     const measurement = measureCylindricalFeature({ stl, axis: frame, role, stationsMm: localStations, rays: input.rays, maxRadiusMm: input.maxRadiusMm });

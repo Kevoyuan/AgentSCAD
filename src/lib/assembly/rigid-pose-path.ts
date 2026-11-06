@@ -22,12 +22,27 @@ export function checkRigidPosePath(input: {
    * result becomes NOT_RUN once control returns to a deadline check.
    */
   budgetMs?: number;
+  /**
+   * Triangle-pair ceiling for each pose/obstacle collision query. Declaring a
+   * larger value is allowed, but the report has to carry the number so the CPU
+   * cost is auditable. The product default is unchanged at 200000.
+   */
+  maxPairTestsPerPose?: number;
+  /**
+   * Product callers leave this unset. Offline evaluation may declare a longer
+   * wall-clock deadline, which the result records alongside measured cost. This
+   * relaxes no geometric threshold: an UNKNOWN collision still blocks.
+   */
+  offlineEvaluation?: boolean;
 }) {
   const started=performance.now();
   if (!Array.isArray(input.poses) || input.poses.length < 2 || input.poses.length > 4096) throw new Error("Expected 2–4096 explicit poses");
   if (![input.maxTranslationStepMm,input.maxRotationStepDeg].every(n=>Number.isFinite(n)&&n>0) || input.maxRotationStepDeg>180) throw new Error("Invalid pose sampling bounds");
   const budgetMs=input.budgetMs??5000;
-  if(!Number.isFinite(budgetMs)||budgetMs<=0||budgetMs>60000)throw new Error("Invalid evaluation budget");
+  const offline=input.offlineEvaluation===true;
+  const maxPairTestsPerPose=input.maxPairTestsPerPose??200000;
+  if(!Number.isInteger(maxPairTestsPerPose)||maxPairTestsPerPose<1||maxPairTestsPerPose>20_000_000)throw new Error("Invalid per-pose collision budget");
+  if(!Number.isFinite(budgetMs)||budgetMs<=0||budgetMs>(offline?900000:60000))throw new Error("Invalid evaluation budget");
   const poses=input.poses.map(p=>{
     const result=validateRigidTransform(p);
     if(!result.success)throw new Error("Pose must be a finite right-handed rigid transform");
@@ -40,7 +55,7 @@ export function checkRigidPosePath(input: {
     const trace=[0,1,2,4,5,6,8,9,10].reduce((sum,k)=>sum+a[k]*b[k],0);
     rotationStepDeg=Math.max(rotationStepDeg,Math.acos(Math.max(-1,Math.min(1,(trace-1)/2)))*180/Math.PI);
   }
-  if(translationStepMm>input.maxTranslationStepMm+1e-8 || rotationStepDeg>input.maxRotationStepDeg+1e-6)throw new Error("Pose gap exceeds declared sampling bounds");
+  if(translationStepMm>input.maxTranslationStepMm+1e-8 || rotationStepDeg>input.maxRotationStepDeg+1e-6)throw new Error(`Pose gap exceeds declared sampling bounds: maximum frame-origin translation ${translationStepMm.toFixed(6)} mm (limit ${input.maxTranslationStepMm} mm), maximum rotation ${rotationStepDeg.toFixed(6)} deg (limit ${input.maxRotationStepDeg} deg). Supply sufficiently dense explicit poses; do not increase the verifier limits to make this path pass.`);
   if(!poses.some(p=>p.some((v,k)=>Math.abs(v-poses[0][k])>1e-10)))throw new Error("A repeated static pose is not a motion path");
   const entries=Object.entries(input.obstacles);
   if(!entries.length || entries.length>32 || entries.length*poses.length>100_000)throw new Error("Invalid obstacle or sampling budget");
@@ -58,12 +73,15 @@ export function checkRigidPosePath(input: {
   const obstacles=entries.map(([id,b])=>({id,placed:placeBvh(buildBvh(readBinaryStl(b)),obstacleTransforms[id])}));
   const base={method:"explicit-rigid-pose-path/v1",movingSha256:sha(input.moving),obstacles:Object.fromEntries(entries.map(([id,b])=>[id,sha(b)])),
     obstacleTransforms,poses,posesSha256:sha(canonicalJson(poses)),translationStepMm,rotationStepDeg,requireSeparatedEnd:input.requireSeparatedEnd??false,budgetMs,
+    offlineEvaluation:offline,maxPairTestsPerPose,testedPairs:0,
     coverage:"Only explicit sampled rigid poses; translation step describes frame-origin motion, rotation step describes orientation. No continuous swept-volume, tool access, forces, detent stability or physical verification."};
   for(let i=0;i<poses.length;i++) {
     if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:i};
     const placed=placeBvh(moving,poses[i]);
     for(const other of obstacles) {
-      const collision=bvhIntersects(placed,other.placed);
+      const collision=bvhIntersects(placed,other.placed,{maxPairTests:maxPairTestsPerPose});
+      // Accumulated in place so every early return carries the real CPU cost.
+      base.testedPairs+=collision.testedPairs;
       if(collision.status==='UNKNOWN')return {...base,status:"NOT_RUN" as const,reason:collision.reason,posesEvaluated:i+1};
       if(collision.blocked)return {...base,status:"FAIL" as const,reason: i===0?"Initial pose intersects":"A sampled path pose intersects",posesEvaluated:i+1,blockedAt:{poseIndex:i,obstacleId:other.id,collision:collision.status}};
       if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:i+1};
