@@ -215,7 +215,7 @@ async function main() {
             if(!judged.evidence.some(item=>item.id==="measured-part-identity"))judged.evidence.push({id:"measured-part-identity",status:identityStatus});
             judged.findings.push(`Part identity is ${identityStatus}; it cannot count as passed.`);
           }
-          const scoped={taskId:task.id,attempt,...judged,hardStopOvertravel:/止挡|只能/.test(task.prompt)?"NOT_RUN":"SKIP",physical:"NOT_RUN",userAcceptance:"NOT_RUN"};
+          const scoped={taskId:task.id,attempt,...judged,hardStopOvertravel:"NOT_RUN",hardStopReason:"Applicability and overtravel geometry are not evaluated by this judge; absence of keywords cannot establish non-applicability.",physical:"NOT_RUN",userAcceptance:"NOT_RUN"};
           allJudgements.push(scoped);
           await fs.writeFile(`${prefix}-judgement.json`,JSON.stringify(scoped,null,2));
           console.log(JSON.stringify({task:task.id,attempt,state:"JUDGED",passed:judged.passed,evidence:judged.evidence}));

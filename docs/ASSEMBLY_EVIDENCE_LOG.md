@@ -1131,3 +1131,9 @@ A001 现在保存各项要求与结果：生成的独立零件设计数量基于
 在首批已知用量且TERMINAL后另冻结自适应对照协议 `service-release-nonthinking-protocol-2026-11-07/protocol.json`，不是自动重发或隐藏集。请求提示字节相同，仅明确关闭思考，最多两次、额外预留1.448576元。实际请求体通过本轮预加载记录器保存（不保存headers），证实thinking.disabled、无reasoning_effort、stream:true、65536 cap；首次预加载因相对路径无法解析在联网前失败，改绝对路径后才启动。归档 `paid-deepseek-assembly-qCokPk`：初稿2915/3426、修复6387/3928输入/输出token，返回deepseek-flash，两稿reasoningCharacters均0。官方[价格/版本说明](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)将请求的旧deepseek-v4-flash路由到V4.1-Flash-1017，不能称测试了已下线原版本。直接工具在运行中未变。
 
 两稿声明都被schema拒绝，未进入几何：operations的四个位姿把平移放进最后一行；boreInstanceId为字面量a而非base1。`schema-issues-0/1.json`保留具体路径。两稿均未给出要求的translationProbes；没有修改原稿或将手工更正当生成成功。当前通用“声明不匹配”反馈没有指出字段，修复重复相同错误；生成指导中的“设为a或b”亦有误导字面量的风险，需修正。报告的hardStopOvertravel因旧关键词启发式错误标SKIP，本请求明确适用却未执行，应解释为NOT_RUN，原报告保留不覆盖。两次费用上界合计0.077436元，授权账本21条、TERMINAL、累计2.923644元；余额变化含时延/其他归属不明扣款，不用来替代按usage的保守记账。临时凭据已清除。原生制造、SCAD驱动关系、防误转、物理及用户验收均NOT_RUN。完整目标继续active。
+
+## 2026-11-07 · 声明格式错误进入具体修复反馈
+
+针对上述原始失败，`extractEmbeddedAssemblySpec` 现在返回最多8条schema错误的字段路径及有界消息，超出时保留省略数；仍拒绝原始错误，未自动修改模型声明。矩阵和孔侧反例测试覆盖具体位置及大量错误时的长度限制。两种生成指导明确boreInstanceId取a/b字段中实际实例ID（例如base1），不是字面量a，并给出行主序+12mm Z位移的完整矩阵，最后一行保持[0,0,0,1]。这些指导和反馈在两次失败后才修改，不能声称对先前修复有效。
+
+对两份未改原稿做仅解析重放，`schema-feedback-current-0/1.json`现精确列出四个位姿路径及connections.0.boreInstanceId；没有执行渲染或几何，也未做第三批付费实验。离线runner不再凭关键词缺失将限位越程标SKIP，一律明确该检查/适用性未执行为NOT_RUN。原付费报告未覆盖，status-correction.json作补充订正。最终单元1002 PASS /3 SKIP /0 FAIL（1005项155文件，28.50秒），typecheck、lint及diff通过；本轮新增模型费用保守上界0.607604元，累计2.923644元，21条账本TERMINAL且无active占用。下一项最有信息价值的实验是给同一未改失败稿提供具体schema反馈并测试实际修复，再检查所有原需求及遗漏的探测；不是把格式修好当作功能完成。

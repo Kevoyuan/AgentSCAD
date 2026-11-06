@@ -22,4 +22,19 @@ describe("untrusted embedded assembly contract", () => {
       expect(extractEmbeddedAssemblySpec(source).status).toBe("invalid");
     }
   });
+  test("repair feedback locates matrix and bore-reference errors without accepting them", () => {
+    const misplaced=[...identity];misplaced[14]=12;
+    const bad={...spec,instances:[...spec.instances,{...spec.instances[0],id:"body2"}],
+      connections:[{id:"hinge",type:"revolute",a:"body1",b:"body2",frameA:null,frameB:null,range:null,pitchMm:null,ratio:null,allowedContact:[],boreInstanceId:"a"}],
+      operations:[{id:"remove",action:"disassemble",instanceId:"body2",waypoints:[misplaced],tools:[]}]};
+    const result=extractEmbeddedAssemblySpec(block(JSON.stringify(bad)));
+    expect(result.status).toBe("invalid");
+    if(result.status!=="invalid")throw new Error("Invalid declaration accepted");
+    expect(result.reason).toContain("operations.0.waypoints.0");
+    expect(result.reason).toContain("homogeneous last row");
+    expect(result.reason).toContain("connections.0.boreInstanceId");
+    const many=extractEmbeddedAssemblySpec(block(JSON.stringify({...bad,operations:Array.from({length:20},(_,i)=>({...bad.operations[0],id:`remove${i}`}))})));
+    expect(many.status).toBe("invalid");
+    if(many.status==="invalid") {expect(many.reason).toContain("additional issues omitted");expect(many.reason.length).toBeLessThan(3500);}
+  });
 });

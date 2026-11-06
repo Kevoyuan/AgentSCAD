@@ -42,6 +42,13 @@ export function extractEmbeddedAssemblySpec(source: string): EmbeddedAssemblySpe
   let value: unknown;
   try { value = JSON.parse(body); } catch { return { status: "invalid", reason: "Assembly block is not valid JSON" }; }
   const result = validateAssemblySpec(value);
-  if (!result.success) return { status: "invalid", reason: "Assembly block does not match the assembly specification" };
+  if (!result.success) {
+    // Bounded field-level feedback lets a repair fix the actual contract error
+    // without echoing the entire untrusted declaration into another prompt.
+    const issues = result.error.issues;
+    const details = issues.slice(0,8).map(issue => `${(issue.path.map(String).join(".") || "$").slice(0,160)}: ${issue.message.slice(0,240)}`);
+    const remaining = issues.length > 8 ? `; ${issues.length-8} additional issues omitted` : "";
+    return { status: "invalid", reason: `Assembly block does not match the assembly specification: ${details.join("; ")}${remaining}` };
+  }
   return { status: "valid", spec: result.data };
 }
