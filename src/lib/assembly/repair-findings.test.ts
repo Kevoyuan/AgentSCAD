@@ -413,3 +413,16 @@ test("repair may correct a path or order but cannot erase an operation or change
   const corrected={...before,operations:[{...before.operations[0],waypoints:[[...POSE.slice(0,11),12,...POSE.slice(12)],POSE]}]};
   expect(assertRepairPreservesAssembly({before,after:corrected}).ok).toBe(true);
 });
+
+
+test("connectivity repair feedback retains the measured local separating interval", () => {
+  const findings = collectAssemblyFindings({manifest:{evidence:{},fits:[],partConnectivity:[{
+    partId:"leaf",status:"FAIL",reason:"Separate closed pieces",separator:{axis:0,lower:3.1,upper:4.3},
+  }]},kinematics:null});
+  expect(findings).toHaveLength(1);
+  expect(findings[0].kind).toBe("connectivity");
+  expect(findings[0].message).toContain("Part-local X");
+  expect(findings[0].message).toContain("3.100000 to 4.300000");
+  expect(findings[0].message).toContain("1.200000 mm");
+  expect(findings[0].message).toContain("preserving mating voids");
+});

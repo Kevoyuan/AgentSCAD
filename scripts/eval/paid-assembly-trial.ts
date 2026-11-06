@@ -17,6 +17,8 @@ import {judgeAssemblyCandidate} from "./judge-assembly";
 
 import {ASSEMBLY_VERIFIER_SOURCES} from "../../src/lib/assembly/verification-types";
 
+import {loadSeededRepair} from "./seeded-repair";
+
 const MODEL="deepseek-v4-flash";
 const MAX_CNY=28;
 const MAX_INPUT_BOUND=100000;
@@ -34,9 +36,13 @@ async function main() {
   if(!taskPath||taskPath.startsWith("--"))throw new Error("--tasks requires a frozen task-set path");
   const taskBytes=await fs.readFile(taskPath);
   const tasks=loadTaskSet(JSON.parse(taskBytes.toString()));
+  const seedOption=process.argv.indexOf("--seed-repair");
+  const seedPath=seedOption<0?null:process.argv[seedOption+1];
+  if(seedOption>=0&&(!seedPath||seedPath.startsWith("--")))throw new Error("--seed-repair requires a frozen protocol path");
+  const seed=seedPath?await loadSeededRepair(seedPath,tasks):null;
   const maxCalls=worstCaseCalls(tasks);
   if(maxCalls*CALL_CAP_CNY>MAX_CNY)throw new Error("Worst-case call reservations exceed authorization");
-  const plan={taskPath,model:MODEL,maxCny:MAX_CNY,maxCalls,maxInputTokenBound:MAX_INPUT_BOUND,maxOutputTokens:MAX_OUTPUT,
+  const plan={taskPath,seed:seed?.provenance??null,model:MODEL,maxCny:MAX_CNY,maxCalls,maxInputTokenBound:MAX_INPUT_BOUND,maxOutputTokens:MAX_OUTPUT,
     reasoningEffort:process.argv.includes("--non-thinking")?"none":"high",
     inputCnyPerMillion:2,outputCnyPerMillion:8,perCallReservationCny:CALL_CAP_CNY,worstCaseCny:maxCalls*CALL_CAP_CNY,
     priorAccountedCny:0,totalAuthorizationWorstCaseCny:maxCalls*CALL_CAP_CNY,
@@ -77,7 +83,7 @@ async function main() {
   // Freeze direct evaluator sources before any paid call, preserving paths.
   const sourceSnapshot:Array<{file:string;sha256:string}>=[];
   for(const file of [...new Set([...ASSEMBLY_VERIFIER_SOURCES,
-    "scripts/eval/paid-assembly-trial.ts","scripts/eval/generation-trial.ts","scripts/eval/judge-assembly.ts",
+    "scripts/eval/paid-assembly-trial.ts","scripts/eval/seeded-repair.ts","scripts/eval/generation-trial.ts","scripts/eval/judge-assembly.ts",
     "scripts/eval/assembly-evidence.ts","src/lib/assembly/repair-findings.ts",
     "src/lib/requirements/extract-requirements.ts","src/lib/tools/model-router.ts","src/lib/provider-settings.ts"])]) {
     const source=await fs.readFile(file),destination=path.join(directory,"tools",file);
@@ -88,6 +94,12 @@ async function main() {
   const calls:CallEntry[]=[];
   const allJudgements:Array<Record<string,unknown>>=[];
   const previous=new Map<string,string>();
+  if(seed){
+    previous.set(tasks.tasks[0].id,seed.source);
+    await fs.writeFile(path.join(directory,"seed-source.scad"),seed.source);
+    await fs.writeFile(path.join(directory,"seed-feedback.json"),seed.feedbackBytes);
+    await fs.writeFile(path.join(directory,"seed-protocol.json"),seed.protocolBytes);
+  }
   let halted:string|null=null;
   // Single-use admission prevents a resumed shell from silently starting a new
   // batch against the same 28 CNY authorization after a process interruption.
@@ -128,7 +140,7 @@ async function main() {
         const accounted=calls.reduce((sum,c)=>sum+c.accountedCny,0);
         if(calls.length>=maxCalls||priorAccountedCny+accounted+CALL_CAP_CNY>MAX_CNY)throw new TrialRefused("Authorized budget exhausted");
         const old=previous.get(task.id);
-        const content=attempt===0?task.prompt:`Original request: ${task.prompt}\n\nRepair the complete previous SCAD. Preserve required parts, connections, range and clearance.\n\n${old??""}\n\nMeasured feedback:\n${repairPrompt??"No measurement available"}`;
+        const content=attempt===0&&!seed?task.prompt:`Original request: ${task.prompt}\n\nRepair the complete previous SCAD. Preserve required parts, connections, range and clearance.\n\n${old??""}\n\nMeasured feedback:\n${repairPrompt??seed?.feedback??"No measurement available"}`;
         const messages=[{role:"system" as const,content:system},{role:"user" as const,content}];
         const tokenBound=Buffer.byteLength(JSON.stringify(messages),"utf8")+1024;
         if(tokenBound>MAX_INPUT_BOUND)throw new TrialRefused("Prompt byte-derived token reservation exceeded");
@@ -178,11 +190,11 @@ async function main() {
         const attempt=calls.filter(c=>c.taskId===task.id).at(-1)!.attempt;
         const prefix=path.join(directory,`${task.id}-${attempt}`);
         const current=extractEmbeddedAssemblySpec(scad);
-        if(attempt>0) {
-          const oldSource=await fs.readFile(path.join(directory,`${task.id}-${attempt-1}.scad`),"utf8");
+        if(attempt>0||seed) {
+          const oldSource=attempt>0?await fs.readFile(path.join(directory,`${task.id}-${attempt-1}.scad`),"utf8"):seed!.source;
           const old=extractEmbeddedAssemblySpec(oldSource);
-          if(old.status==="valid"&&current.status==="valid") {
-            const guard=assertRepairPreservesAssembly({before:old.spec,after:current.spec,contract:deriveRequirementContract({request:task.prompt})});
+          if(old.status==="valid") {
+            const guard=assertRepairPreservesAssembly({before:old.spec,after:current.status==="valid"?current.spec:null,contract:deriveRequirementContract({request:task.prompt})});
             if(!guard.ok) {
               const blocked={passed:false,contractSha256:"",evidence:[{id:"repair-preservation",status:"FAIL"}],findings:guard.violations.map(v=>v.message)};
               allJudgements.push({taskId:task.id,attempt,...blocked});

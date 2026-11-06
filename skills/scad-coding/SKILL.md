@@ -52,3 +52,12 @@ then denotes the full positive-z depth. A bolt pattern without children produces
 four round cutters; supplied children override their shape. Keep cutter and body
 coordinate frames consistent. For `enclosure_box`, `height` is usable internal
 height and `wall` is both the nominal side and bottom thickness.
+
+
+## Preserve functional voids and rigid assembly access
+
+- Check a proposed connecting rib or bridge in the part's local coordinates. It must overlap the actual material of both features by positive volume. A bounding-box overlap or a comment naming a bridge supplies no geometry evidence.
+- When adding material near a mating bore, inspect the final Boolean order. A bridge unioned after a local bore subtraction can fill the bore again. Apply the required bore cutter to the complete relevant union, and preserve the opening throughout the intended engagement interval. Two clear end sections leave the middle unverified.
+- Check the assembled pose for penetration before refining a path. Denser waypoints cannot repair an intersecting starting assembly.
+- Evaluate an added retaining shoulder together with the intended assembly and removal routes. A permanent shoulder wider than a rigid bore blocks axial passage. A compliant or releasable solution needs an explicit mechanism and conditions. Keep unavailable force, deformation and manufacturing evidence in the unknowns.
+- For straight rigid translation, the current declaration checker accepts two world-space endpoints and samples between them. Additional intermediate poses must satisfy the stated spacing bounds. Use explicit dense poses for rotations or multi-stage routes, keeping all required instance and operation identities.

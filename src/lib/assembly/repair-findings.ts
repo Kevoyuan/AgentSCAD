@@ -65,7 +65,7 @@ export interface AssemblyEvidenceManifest {
     shaftDiameterMm: { min: number; max: number } | null;
     jointFrames?:{measuredStatus:string;measuredReason:string;limits:{maxOffsetMm:number;maxAngleDeg:number}};
   }>;
-  partConnectivity?: Array<{partId:string;status:string;reason:string}>;
+  partConnectivity?: Array<{partId:string;status:string;reason:string;separator?:{axis:number;lower:number;upper:number}|null}>;
   declaredDisassembly?: DeclaredPathResults;
   declaredAssembly?: { method: string; reversedEvaluation?: DeclaredPathResults };
 }
@@ -109,7 +109,18 @@ export function collectAssemblyFindings(input: {
     measured:reconstruction.reason,required:"The union of all exported instances placed by the manifest must match the complete delivered assembly at the same pose.",atMm:null,atDeg:null,
     message:`Exported parts do not reconstruct the delivered assembly: ${reconstruction.reason} Correct the local meshes, instance transforms, or all view consistently without deleting required parts.`,
   });
-  for(const part of input.manifest.partConnectivity??[]) if(part.status==="FAIL") findings.push({kind:"connectivity",layer:"assembly",connectionId:null,instanceIds:[],measured:part.reason,required:"Each declared manufactured part must be a connected body",atMm:null,atDeg:null,message:`Part ${part.partId} contains separated pieces: ${part.reason}. Connect the required features within this part without deleting them, fusing mating parts together or changing the required part inventory.`});
+  for (const part of input.manifest.partConnectivity ?? []) {
+    if (part.status !== "FAIL") continue;
+    const slab = part.separator;
+    const measured = slab
+      ? `Part-local ${["X", "Y", "Z"][slab.axis]} empty slab ${slab.lower.toFixed(6)} to ${slab.upper.toFixed(6)} mm, width ${(slab.upper-slab.lower).toFixed(6)} mm. ${part.reason}`
+      : part.reason;
+    findings.push({
+      kind: "connectivity", layer: "assembly", connectionId: null, instanceIds: [],
+      measured, required: "Each declared manufactured part must be a connected body", atMm: null, atDeg: null,
+      message: `Part ${part.partId} contains separated pieces: ${measured} Connect the required features while preserving mating voids, part inventory and assembly access.`,
+    });
+  }
   const identity = input.manifest.evidence.identity;
   if (identity?.status === "FAIL") {
     findings.push({
