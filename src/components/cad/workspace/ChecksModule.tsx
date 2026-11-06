@@ -407,7 +407,7 @@ export function ChecksModule({
 
       <JobRequirementContract key={`req-${job.id}`} jobId={job.id} revision={job.updatedAt ?? ''} />
 
-      <JobAssemblyDetails key={job.id} jobId={job.id} revision={job.updatedAt ?? ''} canExport={job.state === 'DELIVERED' && !hasDraftChanges && !isProcessing} />
+      <JobAssemblyDetails canCheck={(job.state === 'DELIVERED' || job.state === 'HUMAN_REVIEW') && !isProcessing && !hasDraftChanges && !!job.scadSource} key={job.id} jobId={job.id} revision={job.updatedAt ?? ''} canExport={job.state === 'DELIVERED' && !hasDraftChanges && !isProcessing} />
 
       {/* ── Outputs: pinned footer ───────────────────────────────────────── */}
       {/* One row, three equal actions, no wrapping and no mid-button cut by the

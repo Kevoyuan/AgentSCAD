@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { AssemblyVerification } from './AssemblyVerification'
 import { useI18n } from '@/components/i18n-provider'
 import { validateAssemblySpec } from '@/lib/assembly/assembly-spec'
 
@@ -133,14 +134,6 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
       <p className="mt-2 text-[var(--shell-text-label)]">{t('A part decision does not confirm acceptance of this assembly description.')}</p>
       {canDownload && <p className="mt-2 text-[var(--shell-text-label)]">{t('Part exports have not been checked for identity or fit.')}</p>}
       {downloadError && <p role="alert" className="mt-2 text-[var(--shell-fail)]">{t(downloadError)}</p>}
-      <ul className="mt-2 space-y-1 text-[var(--shell-text-label)]" aria-label={t('Assembly evidence')}>
-        {(['identity', 'geometry', 'assembly', 'disassembly', 'motion', 'physical'] as const).map(key => {
-          const status = data.evidence?.[key]?.status
-          const labels = { identity: 'Part identity', geometry: 'Part geometry', assembly: 'Assembly fit', disassembly: 'Disassembly', motion: 'Motion', physical: 'Physical function' }
-          const word = status === 'NOT_RUN' ? t('Not checked') : status === 'FAIL' ? t('Fail') : status === 'ERROR' ? t('Unavailable') : status === 'SKIP' ? t('Not applicable') : status === 'PASS' ? t('Pass') : t('Unknown')
-          return <li key={key}>{t(labels[key])}: {data.stale ? t('Out of date') : word}</li>
-        })}
-      </ul>
       {canDownload && generatedParts.length > 0 && <div className="mt-2">
         <button type="button" disabled={bundling || downloading !== null} onClick={() => void downloadBundle()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{bundling ? t('Preparing…') : t('Download all parts (ZIP)')}</button>
         <p className="mt-1 text-[var(--shell-text-label)]">{t('The archive holds one STL per generated part and a manifest with hashes. Identity, fit and motion are not verified.')}</p>
@@ -179,7 +172,7 @@ export function AssemblyRevisions({ revisions, currentSpecSha256, onLoad }: { re
   )
 }
 
-export function JobAssemblyDetails({ jobId, revision, canExport }: { jobId: string; revision: string; canExport: boolean }) {
+export function JobAssemblyDetails({ jobId, revision, canExport, canCheck = canExport }: { jobId: string; revision: string; canExport: boolean; canCheck?: boolean }) {
   const { t } = useI18n()
   const [state, setState] = React.useState<{ data?: AssemblyResponse; error?: boolean }>({})
   const [editing, setEditing] = React.useState(false)
@@ -230,6 +223,11 @@ export function JobAssemblyDetails({ jobId, revision, canExport }: { jobId: stri
   }
   return <>
     <AssemblyDetails data={data} jobId={jobId} canExport={canExport && !editing} />
+    {data.spec && data.sourceSha256 && data.specSha256 && <AssemblyVerification
+      key={`${jobId}:${data.sourceSha256}:${data.specSha256}`} jobId={jobId}
+      sourceSha256={data.sourceSha256} specSha256={data.specSha256} revision={revision}
+      canCheck={canCheck && !editing && !data.stale && data.sourceSha256 === data.currentSourceSha256} />}
+
     {editing ? <section className="border-t border-[color:var(--shell-hairline)] py-3 text-xs" aria-label={t('Edit assembly description')}>
       <h3 className="font-medium">{t('Edit assembly description')}</h3>
       <p className="mt-2 text-[var(--shell-text-label)]">{t('Describe the parts and connections as JSON. Saving records your declaration; it does not verify the model.')}</p>

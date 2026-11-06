@@ -1001,3 +1001,21 @@ Requirements PUT now returns derived and derivedSha256, matching the response sh
 Final unit suite passes 971 tests with 3 skips, 974 tests across 147 files in 33.05 seconds. Typecheck, lint and diff checks pass. Sources and logs are archived at .agentscad/experiments/confirmation-visual-lock-ez71r7cr/index.json after execution. No new paid calls. Accumulated cost upper bound remains 1.701554 CNY. Geometry, native and WASM validation were not repeated in this route-only change.
 
 Automatic A001 evidence is retained with artifact versions. Dedicated CURRENT/STALE report integration, confirmation-to-recheck UI, real model repair, multi-joint/V8 and manufacturing/function acceptance remain open. Full M0-M8 goal is active.
+
+## 2026-11-06 · 确认需求后的浏览器复核与报告下载
+
+新增 AssemblyVerification 界面，提供确定性检查、九层证据、保存时间、明细折叠和报告下载。GET/POST 绑定当前源码与声明哈希，旧版本、缺失或不可用报告均显示未检查。执行 ERROR 也会屏蔽通过状态。请求序号避免较早 GET 覆盖较新的 POST，切换任务和版本时取消旧请求。中文标签已补齐。
+
+实际浏览器发现待审任务点击检查收到409。根因是专用检查接口复用了仅允许DELIVERED的导出守卫。守卫现在接受服务端指定的verification用途，允许HUMAN_REVIEW检查。导出默认条件继续单独核对。真实SQLite回归覆盖待审检查能取得锁、默认导出被拒、结束后释放锁。
+
+原始归档为 `.agentscad/experiments/assembly-recheck-ui-4eep9yd4/index.json`。独立SQLite、localhost:3139、gstack无头Chromium和原生OpenSCAD执行。任务由浏览器同源API创建，测试脚本仅将原创手写铰链及显式装拆声明放入隔离任务并真实渲染预览和STL。浏览器实际点击确认需求、检查和下载，操作发生于HUMAN_REVIEW状态。模型调用计数为0，验收账本无事件。本例支持产品操作验证，模型生成与实物功能仍待验收。
+
+首次检查5552ms，identity/reconstruction/jointFrames/assembly/assemblyPath/disassembly/motion通过，geometry及physical为NOT_RUN。刷新并重新选中任务后ID及哈希相同。报告下载按钮产生的Blob经观察解析，ID、记录ID和哈希均与存储报告一致。首次下载观察过早得到null，最终改为等待Blob解析后核对，两个过程均保留。
+
+通过浏览器同源需求API将间隙改为0.1–0.3mm，旧报告变STALE，原记录与哈希保持，界面九层均显示未检查。此变更通过API执行，确认后编辑需求的界面尚待实现。实际点击重查耗时5773ms，配合FAIL，其余已测层各自保存结果。报告及DOM分别保存在current-report、reload-api、download-final、stale-report、stale-dom、failed-fit-report与failed-fit-dom文件中。
+
+浏览器核验状态为DONE_WITH_CONCERNS。控制台有WebGL上下文初始化错误，以及修复前检查接口的409，原文保存在console-errors.txt。已查看的截图中模型及九层面板可见，3D交互尚未独立验证。截图current.png、failed-fit.png及evidence-visible.png均已人工式视觉查看。没有将控制台标为全干净。
+
+最终单元973 PASS /3 SKIP /0 FAIL，976测试、148文件、35.32秒。清理隔离Next生成产物后typecheck和lint退出0，diff通过。最初lint扫描临时生成JS产生错误，删除本轮独有构建目录后重跑通过。隔离服务停止，专用浏览器标签关闭，tsconfig临时条目已清除。保留数据库、源码、报告和运行后工具快照，尚无异地备份。
+
+本轮模型费用0，累计保守上界1.701554 CNY。完整M0–M8目标active。下一步统一自动A001记录与专用CURRENT/STALE报告，复核真实模型修复、多关节与手动V8，随后按工艺条件进行独立制造及功能验收。

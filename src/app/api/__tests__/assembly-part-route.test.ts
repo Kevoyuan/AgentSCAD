@@ -47,6 +47,17 @@ if (process.env.AGENTSCAD_PART_ROUTE_CHILD !== "1") {
     expect((await PUT(admin("http://localhost", "PUT", { spec, sourceSha256: hash, expectedSpecSha256: null }), { params: Promise.resolve({ id: job.id }) })).status).toBe(200);
     return await db.job.findUniqueOrThrow({ where: { id: job.id } });
   }
+  test("review checks may acquire the lease while exports still require delivery", async () => {
+    const {lockAssemblyExport} = await import("@/lib/pipeline/assembly-export-guard");
+    const job = await create();
+    await db.job.update({where:{id:job.id},data:{state:"HUMAN_REVIEW"}});
+    const input = {request:admin(url()),jobId:job.id,sourceSha256:hash,specSha256:specHash};
+    await expect(lockAssemblyExport(input)).rejects.toThrow("not ready");
+    const lease = await lockAssemblyExport({...input,purpose:"verification"});
+    try {await lease.verifyUnchanged(); expect(lease.job.state).toBe("HUMAN_REVIEW");}
+    finally {await lease.stop();}
+    expect(await db.jobVersion.count({where:{jobId:job.id,field:"__execution_lock"}})).toBe(0);
+  });
   test("returns candidate bytes with explicit unverified status without mutating verdict or job", async () => {
     const job = await create();
     const res = await GET(admin(url()), context(job.id));

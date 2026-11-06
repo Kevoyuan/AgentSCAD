@@ -46,12 +46,14 @@ export async function lockAssemblyExport(input: {
   jobId: string;
   sourceSha256: string;
   specSha256: string;
+  purpose?: "export" | "verification";
 }): Promise<AssemblyExportLease> {
   const access = await getJobAccessScope(input.request);
   if (!access) throw new AssemblyExportRejection(401, "Browser session required");
   const job = await db.job.findFirst({ where: { id: input.jobId, ...jobAccessFilter(access) } });
   if (!job) throw new AssemblyExportRejection(404, "Job not found");
-  if (!job.scadSource || job.state !== "DELIVERED") throw new AssemblyExportRejection(409, "Job is not in a delivered state");
+  const allowedState = job.state === "DELIVERED" || (input.purpose === "verification" && job.state === "HUMAN_REVIEW");
+  if (!job.scadSource || !allowedState) throw new AssemblyExportRejection(409, "Job is not ready for this assembly operation");
 
   const lease = await claimAssemblyExport(job);
   let timer: ReturnType<typeof setInterval> | undefined;

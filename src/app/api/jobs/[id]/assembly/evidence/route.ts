@@ -31,7 +31,7 @@ export async function POST(request:NextRequest,{params}:Context) {
   let snapshot:Awaited<ReturnType<NonNullable<typeof lease>["verificationContext"]>>|undefined;
   const startedAt=new Date();
   try {
-    lease=await lockAssemblyExport({request,jobId:id,sourceSha256:body.sourceSha256,specSha256:body.specSha256});
+    lease=await lockAssemblyExport({purpose:"verification",request,jobId:id,sourceSha256:body.sourceSha256,specSha256:body.specSha256});
     snapshot=await lease.verificationContext();
     let manifest:unknown;
     let errorMessage:string|undefined;

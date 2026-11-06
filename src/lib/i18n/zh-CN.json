@@ -1040,5 +1040,19 @@
   "The stored contract could not be read, so nothing counts as confirmed. Confirm the derived contract again to replace it.": "已存储的合同无法读取，因此没有内容算作已确认。请重新确认推导出的合同以替换它。",
   "The request changed after this contract was confirmed. Evidence produced under the old contract is not current; confirm the derived contract.": "请求在该合同确认后发生变化。按旧合同产出的证据不再有效，请确认重新推导的合同。",
   "The results were judged against a confirmed requirement contract.": "结果按已确认的需求合同判定。",
-  "No requirement contract was supplied, so the standing of these results against a confirmed contract was not evaluated.": "未提供需求合同，因此这些结果相对已确认合同的效力未被评估。"
+  "No requirement contract was supplied, so the standing of these results against a confirmed contract was not evaluated.": "未提供需求合同，因此这些结果相对已确认合同的效力未被评估。",
+  "Assembly verification": "装配复核",
+  "Check assembly": "检查装配",
+  "Checking assembly…": "正在检查装配…",
+  "Download verification report": "下载验证报告",
+  "Assembly reconstruction": "整机重装一致性",
+  "Joint frames": "关节坐标系",
+  "Assembly path": "装配路径",
+  "Last checked": "上次检查",
+  "Verification is out of date. Check the current version again.": "验证已过期，请重新检查当前版本。",
+  "The saved verification report is unavailable.": "已保存的验证报告不可用。",
+  "Assembly verification could not complete.": "装配验证未能完成。",
+  "Assembly verification is unavailable.": "装配验证暂不可用。",
+  "The job changed. Refresh before checking again.": "任务已变化，请刷新后重新检查。",
+  "This report retains measurements and input versions. Original meshes are not retained in the report.": "报告保留测量明细和输入版本；原始网格请另行保存。"
 }
