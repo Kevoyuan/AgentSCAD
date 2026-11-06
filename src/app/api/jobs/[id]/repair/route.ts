@@ -1,3 +1,4 @@
+import { hasUnresolvedAssemblyEvidence } from "@/lib/validation/evidence-status";
 import { claimJobExecution, JobExecutionConflict, JobExecutionStopped, type JobExecution } from "@/lib/pipeline/job-execution";
 import { NextResponse } from "next/server";
 import { appendMotionEvidence } from "@/lib/validation/motion-contract";
@@ -191,8 +192,9 @@ export async function POST(
     }
 
     const criticalFailures = getCriticalValidationFailures(revalidationResults);
+    const requiresReview = criticalFailures.length > 0 || hasUnresolvedAssemblyEvidence(revalidationResults);
     const quality = buildJobQuality({
-      state: criticalFailures.length > 0 ? "HUMAN_REVIEW" : "DELIVERED",
+      state: requiresReview ? "HUMAN_REVIEW" : "DELIVERED",
       scadSource: sanitized,
       stlPath,
       pngPath,
@@ -206,7 +208,7 @@ export async function POST(
       repair_summary: repairMeta.repair_summary,
       risk: repairMeta.risk,
       assumptions: repairMeta.assumptions,
-      revalidation_passed: criticalFailures.length === 0,
+      revalidation_passed: !requiresReview,
     };
 
     let repairHistory: unknown[] = [];
@@ -228,7 +230,7 @@ export async function POST(
       });
     }
 
-    if (criticalFailures.length > 0) {
+    if (requiresReview) {
       await execution.update({
         where: { id },
         data: {
@@ -272,7 +274,7 @@ export async function POST(
         job: toPublicJobOrNull(await db.job.findUnique({ where: { id } })),
         repaired: false,
         recommendation: "review",
-        reason: `Repair completed but ${criticalFailures.length} critical validation failure(s) remain. Manual review needed.`,
+        reason: "Repair results require review of validation failures or unresolved assembly evidence.",
       });
     }
 

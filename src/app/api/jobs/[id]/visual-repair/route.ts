@@ -1,3 +1,4 @@
+import { hasUnresolvedAssemblyEvidence } from "@/lib/validation/evidence-status";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { appendMotionEvidence } from "@/lib/validation/motion-contract";
@@ -250,6 +251,7 @@ async function handleVisualRepair(
     const { nextState, repaired, reviewReasons } = resolvePostRepairOutcome(
       criticalFailures.map((rule) => rule.rule_id),
       visualValidationResult.status,
+      hasUnresolvedAssemblyEvidence(validationResults),
     );
     const quality = buildJobQuality({
       state: nextState,

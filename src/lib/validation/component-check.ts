@@ -9,6 +9,7 @@ import type { ValidationCheck, RawMeshData } from "./validation-types";
 export function checkComponents(
   meshData: RawMeshData,
   targets?: { allow_multiple_components?: boolean; expected_component_count?: number },
+  wholeAssembly = false,
 ): ValidationCheck {
   const { componentCount, isWatertight, isVolume } = meshData;
 
@@ -30,6 +31,15 @@ export function checkComponents(
       passed: false, status: "FAIL", is_critical: true,
       message: `Expected ${targets.expected_component_count} separate components, detected ${componentCount}.`,
       details: { componentCount, expectedComponentCount: targets.expected_component_count },
+    };
+  }
+
+  if (wholeAssembly && componentCount > 1) {
+    return {
+      rule_id: "C002", rule_name: "Connected Components", level: "ENGINEERING",
+      passed: false, status: "NOT_RUN", is_critical: false,
+      message: "The whole assembly contains separate surfaces. Part integrity is evaluated on each selected part by A001.",
+      details: {componentCount, isWatertight, isVolume},
     };
   }
 

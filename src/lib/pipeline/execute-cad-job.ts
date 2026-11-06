@@ -1,3 +1,4 @@
+import { hasUnresolvedAssemblyEvidence } from "../validation/evidence-status";
 import type { ExecutionProgress } from "./execution-progress";
 import { usesOpenScadWasm } from "@/lib/tools/openscad-backend";
 import { getOpenScadTimeoutMs, OPENSCAD_WASM_TIMEOUT_MS } from "@/lib/tools/scad-timeout";
@@ -1023,6 +1024,7 @@ async function runCadJob(
     await demoDelay();
 
     const validationResults = await validateRenderedArtifacts({
+      signal: executionAbort.signal,
       jobId,
       inputRequest,
       partFamily,
@@ -1162,6 +1164,7 @@ async function runCadJob(
           // Re-validate
           if (repairedArtifacts) {
             const revalidationResults = await validateRenderedArtifacts({
+              signal: executionAbort.signal,
               jobId,
               inputRequest,
               partFamily,
@@ -1355,6 +1358,30 @@ async function runCadJob(
         qualityReport: validationQuality.readiness,
       });
       await demoDelay();
+    }
+
+    if (hasUnresolvedAssemblyEvidence(finalValidationResults)) {
+      const quality = buildJobQuality({
+        state: "HUMAN_REVIEW", scadSource: scadCode,
+        stlPath: finalArtifacts.stlPath, pngPath: finalArtifacts.pngPath,
+        validationResults: finalValidationResults,
+      });
+      await assertExecution();
+      await recordArtifactVersion({
+        jobId, scadSource: scadCode, artifacts: finalArtifacts,
+        validationResults: finalValidationResults,
+        instructionFingerprint: generationResult.instruction_fingerprint,
+        modelExecution: generationResult.model_execution,
+      });
+      await updateJob({where:{id:jobId},data:{
+        state:"HUMAN_REVIEW", completedAt:null,
+        validationResults:JSON.stringify(finalValidationResults),
+        qualityScore:quality.qualityScore, validationReportJson:quality.validationReportJson,
+      }});
+      sendEvent({state:"HUMAN_REVIEW",step:"validated",
+        message:"Assembly verification requires review. Source, artifacts and measurement details are saved.",
+        validationResults:finalValidationResults,qualityReport:quality.readiness});
+      return;
     }
 
     currentStage = "deliver";

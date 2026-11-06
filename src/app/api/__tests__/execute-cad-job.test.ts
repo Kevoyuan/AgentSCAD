@@ -327,7 +327,7 @@ beforeAll(() => {
     }),
     clearValidationCache: mock(() => undefined),
     getCriticalValidationFailures: mock((results: Array<{ passed?: boolean; is_critical?: boolean; status?: string }>) =>
-      results.filter((result) => result.is_critical && result.passed === false && result.status !== "SKIP"),
+      results.filter((result) => result.is_critical && result.passed === false && (!result.status || result.status === "FAIL")),
     ),
     validateRenderedArtifacts: mock(async () => renderedValidationQueue.shift() ?? []),
   }));
@@ -489,6 +489,39 @@ describe("executeCadJob", () => {
       state: "GEOMETRY_FAILED",
       step: "render_failed",
     });
+  });
+
+  test("measured assembly failure is repaired once and unresolved remeasurement still pauses delivery", async () => {
+    renderedArtifactsResult = renderableArtifacts();
+    const rule = {rule_id:"A001",rule_name:"Assembly evidence",level:"ENGINEERING",passed:false,is_critical:true};
+    renderedValidationQueue = [
+      [{...rule,status:"FAIL",message:"moving leaf collides with fixed pin"}],
+      [{...rule,status:"NOT_RUN",message:"corrected fit needs confirmation"}],
+    ];
+    const {executeCadJob} = await import("@/lib/pipeline/execute-cad-job");
+    const events:Record<string,unknown>[] = [];
+    await executeCadJob("job-pipeline",event=>events.push(event));
+    expect(repairCalls).toBe(1);
+    expect(renderCalls).toBe(2);
+    expect(repairValidationResults.some(rule=>rule.message.includes("collides"))).toBe(true);
+    expect(currentJob.state).toBe("HUMAN_REVIEW");
+    expect(JSON.parse(String(currentJob.validationResults))[0].status).toBe("NOT_RUN");
+    expect(events.some(event=>event.step === "delivered")).toBe(false);
+  });
+
+  test("unresolved assembly evidence pauses delivery without spending a repair call", async () => {
+    renderedArtifactsResult = renderableArtifacts();
+    renderedValidationQueue = [[{rule_id:"A001",rule_name:"Assembly evidence",level:"ENGINEERING",
+      passed:false,status:"NOT_RUN",is_critical:true,message:"Requirement confirmation missing"}]];
+    const {executeCadJob} = await import("@/lib/pipeline/execute-cad-job");
+    const events:Record<string,unknown>[] = [];
+    await executeCadJob("job-pipeline",event=>events.push(event));
+    expect(repairCalls).toBe(0);
+    expect(currentJob.state).toBe("HUMAN_REVIEW");
+    expect(currentJob.scadSource).toBeTruthy();
+    expect(events.at(-1)?.state).toBe("HUMAN_REVIEW");
+    expect(events.some(event=>event.step === "delivered")).toBe(false);
+    expect(JSON.parse(String(currentJob.validationResults))[0].status).toBe("NOT_RUN");
   });
 
   test("pauses ambiguous requests before any LLM generation or OpenSCAD render", async () => {

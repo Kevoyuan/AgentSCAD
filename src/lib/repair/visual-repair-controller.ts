@@ -119,13 +119,15 @@ export function visualRepairReportToValidationResult(report: VisualRepairReport)
 export function resolvePostRepairOutcome(
   criticalFailureRuleIds: string[],
   visualStatus: ValidationResult["status"],
+  assemblyUnresolved = false,
 ): { nextState: "DELIVERED" | "HUMAN_REVIEW"; repaired: boolean; reviewReasons: string[] } {
   const visualEvaluationErrored = visualStatus === "ERROR";
   const reviewReasons = [
     ...criticalFailureRuleIds,
     ...(visualEvaluationErrored ? ["V001_ERROR"] : []),
+    ...(assemblyUnresolved ? ["A001_UNRESOLVED"] : []),
   ];
-  const repaired = criticalFailureRuleIds.length === 0 && !visualEvaluationErrored;
+  const repaired = criticalFailureRuleIds.length === 0 && !visualEvaluationErrored && !assemblyUnresolved;
   return {
     nextState: repaired ? "DELIVERED" : "HUMAN_REVIEW",
     repaired,
