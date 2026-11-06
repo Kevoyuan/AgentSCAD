@@ -19,16 +19,24 @@ test("original two-part rigid stop allows an explicit rotate-then-withdraw relea
   const workPoses = Array.from({ length: 19 }, (_, i) => rotationAboutAxis([0,0,0],[0,0,1],(-45+i*5)*Math.PI/180));
   const work = checkRigidPosePath({ moving, obstacles, poses: workPoses, maxTranslationStepMm: .25, maxRotationStepDeg: 5.001 });
   expect(work.status).toBe("PASS");
-  for (const sign of [-1,1]) {
-    const held = checkTranslationProbe({ moving, obstacles, translationMm: [0,0,sign*4], samples: 33, expected: "blocked" });
-    expect(held.status).toBe("PASS");
-    expect(held.reason).not.toContain("starting pose");
+  for (const movingTransform of workPoses) {
+    for (const sign of [-1,1]) {
+      const held = checkTranslationProbe({ moving, obstacles, movingTransform, translationMm: [0,0,sign*4], samples: 33, expected: "blocked" });
+      expect(held.status).toBe("PASS");
+      expect(held.reason).not.toContain("starting pose");
+    }
   }
   const poses = Array.from({ length: 19 }, (_, i) => rotationAboutAxis([0,0,0],[0,0,1],i*5*Math.PI/180));
   for (let i=1;i<=32;i++) { const pose=[...poses[18]]; pose[11]=i/8; poses.push(pose); }
   const release = checkRigidPosePath({ moving, obstacles, poses, maxTranslationStepMm: .25, maxRotationStepDeg: 5.001, requireSeparatedEnd: true });
   expect(release.status).toBe("PASS");
   expect(release.coverage).toContain("sampled");
+  const reassembly = checkRigidPosePath({ moving, obstacles, poses: [...poses].reverse(), maxTranslationStepMm: .25, maxRotationStepDeg: 5.001 });
+  expect(reassembly.status).toBe("PASS");
+  // A reference-pose stop cannot certify retention at the release orientation.
+  const unlocked = { moving, obstacles, movingTransform: poses[18], translationMm: [0,0,4] as [number,number,number], samples: 33 };
+  expect(checkTranslationProbe({ ...unlocked, expected: "blocked" }).status).toBe("FAIL");
+  expect(checkTranslationProbe({ ...unlocked, expected: "clear" }).status).toBe("PASS");
   // Direct extraction must fail even though the deliberately unlocked path clears.
   const direct = checkTranslationProbe({ moving, obstacles, translationMm: [0,0,4], samples: 33, expected: "clear" });
   expect(direct.status).toBe("FAIL");

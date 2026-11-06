@@ -21,9 +21,12 @@ bun test --timeout 60000 src/lib/tools/__tests__/retention-release.openscad.test
 ```
 
 The test renders real independent meshes, checks limited connectivity and
-selector isolation, samples the operating interval, tests axial obstructions,
-and samples rotation followed by complete withdrawal. A direct pull is a
-negative case. The rectangular projection bound independently supports the
+selector isolation, samples the operating interval, tests both axial directions
+at all 19 operating poses, and samples rotation followed by complete withdrawal
+and the reverse assembly route. A direct pull is a negative case. At the 90°
+release orientation, an assertion of axial retention must fail while a clear
+withdrawal assertion passes; reference-pose retention cannot cover that angle.
+The rectangular projection bound independently supports the
 geometric obstruction claim in the stated interval. Sampling is not a
 continuous collision proof.
 
