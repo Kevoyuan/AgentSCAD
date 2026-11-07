@@ -9,9 +9,10 @@ import { checkPartIdentity } from "../../assembly/part-identity-check";
 import { prepareAssembly } from "../../assembly/prepare-assembly";
 import { extractEmbeddedAssemblySpec } from "../../assembly/embedded-spec";
 import { buildBvh, placeBvh, bvhIntersects } from "../../geometry/mesh-collision";
-import { readBinaryStl } from "../../geometry/stl-mesh";
+import { readBinaryStl, meshBounds } from "../../geometry/stl-mesh";
 import {validateAssemblyArtifact} from "../../validation/assembly-validation";
 import {judgeAssemblyCandidate} from "../../../../scripts/eval/judge-assembly";
+import {measureRevoluteFit} from "../../assembly/fit-measurement";
 
 test("retained generated hinge cannot hide invalid schema, non-manifold contact or default overlap",async()=>{
   const scadSource=await readFile("scripts/eval/assembly-fixtures/failures/controlled-release-hinge-2026-11-07.scad","utf8");
@@ -111,4 +112,94 @@ test("original two-part rigid stop allows an explicit rotate-then-withdraw relea
   expect(failed.manifest.translationProbes.status).toBe("FAIL");
   expect(failed.manifest.evidence.assembly.status).toBe("FAIL");
   expect(failed.manifest.evidence.physical.status).toBe("NOT_RUN");
+}, 60000);
+
+test("original gated hinge requires axial release before its sampled rotation and removal", async () => {
+  const scadSource = await readFile("benchmarks/assembly/gated_bayonet_hinge.scad", "utf8");
+  const artifacts = await renderAssemblyParts({ scadSource, parts: ["support", "rotor", "all"].map(id => ({ partId: id, selector: id })) });
+  const parts = artifacts.filter(part => part.partId !== "all");
+  const assemblyMesh = artifacts.find(part => part.partId === "all")!;
+  const moving = parts.find(part => part.partId === "rotor")!.stl;
+  const obstacles = { support: parts.find(part => part.partId === "support")!.stl };
+  for (const part of parts) expect(checkPartConnectivity(part.stl).status).toBe("PASS");
+  expect(checkPartIdentity({ parts: parts.map(part => ({ ...part, selector: part.partId })), assemblyMesh }).status).toBe("PASS");
+
+  const pose = (angle: number, z = 0) => {
+    const transform = rotationAboutAxis([0,0,0], [0,0,1], angle * Math.PI / 180);
+    transform[11] = z;
+    return transform;
+  };
+  const check = (poses: number[][], requireSeparatedEnd = false) => checkRigidPosePath({
+    moving, obstacles, poses, maxTranslationStepMm: .25, maxRotationStepDeg: 5.001, requireSeparatedEnd,
+  });
+  const workPoses = Array.from({ length: 19 }, (_, i) => pose(-45 + i * 5));
+  expect(check(workPoses).status).toBe("PASS");
+  for (const movingTransform of workPoses) {
+    for (const sign of [-1,1]) {
+      const held = checkTranslationProbe({ moving, obstacles, movingTransform, translationMm: [0,0,sign * 4], samples: 33, expected: "blocked" });
+      expect(held.status).toBe("PASS");
+      expect(held.reason).not.toContain("starting pose");
+    }
+  }
+  for (const sign of [-1,1]) {
+    expect(check(Array.from({ length: 19 }, (_, i) => pose(sign * i * 5))).status).toBe("FAIL");
+  }
+  const release = [
+    ...Array.from({ length: 7 }, (_, i) => pose(0, -.15 * i)),
+    ...Array.from({ length: 18 }, (_, i) => pose((i + 1) * 5, -.9)),
+    ...Array.from({ length: 44 }, (_, i) => pose(90, -.9 + (i + 1) * 10.9 / 44)),
+  ];
+  expect(check(release, true).status).toBe("PASS");
+  expect(check([...release].reverse()).status).toBe("PASS");
+
+  const stages = [
+    { type: "translate", deltaMm: [0,0,-.9] },
+    { type: "rotate", axis: { origin: [0,0,0], direction: [0,0,1] }, angleDeg: 90 },
+    { type: "translate", deltaMm: [0,0,10.9] },
+  ];
+  const spec = {
+    schemaVersion: 1, units: "mm", coordinateSystem: "right-handed",
+    parts: parts.map(part => ({ id: part.partId, name: part.partId, selector: part.partId, source: "generated", material: null })),
+    instances: parts.map(part => ({ id: part.partId, partId: part.partId, subassemblyId: null, transform: pose(0) })),
+    subassemblies: [], connections: [], groundedInstanceId: "support", motions: [],
+    operations: [
+      { id: "remove", action: "disassemble", instanceId: "rotor", tools: [], waypoints: [], rigidTrajectory: { traversal: "forward", stages } },
+      { id: "insert", action: "assemble", instanceId: "rotor", tools: [], waypoints: [], rigidTrajectory: { traversal: "reverse", stages } },
+    ],
+    manufacturing: null, assumptions: [], unknowns: [],
+  };
+  const input = { scadSource, spec, assemblyMesh, render: async () => ({ parts, purchasedPartIds: [] }), contractGate: { evidenceCurrent: false } };
+  const prepared = await prepareAssembly(input);
+  expect(prepared.manifest.declaredDisassembly.measuredStatus).toBe("PASS");
+  expect(prepared.manifest.declaredAssembly.measuredStatus).toBe("PASS");
+  expect(prepared.manifest.evidence.disassembly.status).toBe("NOT_RUN");
+  expect(prepared.manifest.evidence.physical.status).toBe("NOT_RUN");
+  const wrongOrder = { ...spec, operations: spec.operations.map(operation => ({
+    ...operation, rigidTrajectory: { ...operation.rigidTrajectory, stages: [stages[1], stages[0], stages[2]] },
+  })) };
+  const wrong = await prepareAssembly({ ...input, spec: wrongOrder });
+  expect(wrong.manifest.declaredDisassembly.measuredStatus).toBe("FAIL");
+  expect(wrong.manifest.declaredAssembly.measuredStatus).toBe("FAIL");
+
+  // Measure the lower guide independently of the release-path declaration.
+  const guideSpec = { ...spec, connections: [{
+    id: "guide", type: "revolute", a: "support", b: "rotor", boreInstanceId: "support",
+    frameA: { origin: [0,0,0], direction: [0,0,1] },
+    frameB: { origin: [0,0,0], direction: [0,0,1] },
+    range: { min: -45, max: 45, unit: "deg" }, pitchMm: null, ratio: null, allowedContact: [],
+  }] };
+  const fit = measureRevoluteFit({ spec: guideSpec, connectionId: "guide", boreInstanceId: "support",
+    meshes: Object.fromEntries(parts.map(part => [part.partId, part.stl])), stationsMm: [-1.75,-1.5,-1.25] });
+  expect(fit.status).toBe("MEASURED");
+  expect(fit.clearanceMm!.min).toBeGreaterThanOrEqual(.35);
+  expect(fit.clearanceMm!.max).toBeLessThanOrEqual(.45);
+
+  // Independently derived necessary vertical clearances for this rigid design.
+  expect(5 - .9).toBeLessThan(4.2); // Handle passes below the gate overhang.
+  expect(4 - .9).toBeGreaterThan(3); // Upper disk remains above the retention plate.
+  // Source motion view is regenerated, while manufacturing selectors stay local.
+  const [posed] = await renderAssemblyParts({ scadSource, parts: [{ partId: "pose", selector: "rotor_pose" }], parameters: { service_angle: 90, axial_shift: -.9 } });
+  const bounds = meshBounds(readBinaryStl(posed.stl));
+  expect(bounds.min[2]).toBeCloseTo(-3.9, 4);
+  expect(bounds.max[1]).toBeCloseTo(5.8, 4);
 }, 60000);
