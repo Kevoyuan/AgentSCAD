@@ -163,9 +163,10 @@ export async function judgeAssemblyCandidate(input: {
 
   const observations: Record<string, Observation> = {
     "intent-preserved": {
-      id: "intent-preserved", status: "MEASURED", value: true, ...provenance,
-      method: `Looked for a ${wanted} connection in the declaration, as the derived intent requires.`,
-      coverage: "Declaration only; no geometry is involved.",
+      id: "intent-preserved", status: "NOT_RUN", ...provenance,
+      method: `Found a declared ${wanted} connection.`,
+      coverage: "Connection type only. Remaining request clauses and their geometric implementation were not independently audited.",
+      reason: "A matching declared connection does not establish preservation of the complete request. An independent requirement-coverage audit is unavailable.",
     },
     "distinct-exported-parts": {
       id: "distinct-exported-parts", status: "MEASURED",
@@ -205,6 +206,9 @@ export async function judgeAssemblyCandidate(input: {
     fitRequirements: fits,
     kinematics: prepared.kinematics,
   }).map((finding) => finding.message);
+  if (requirements.some(requirement => requirement.id === "intent-preserved" && requirement.required && requirement.applicable)) {
+    findings.push(`Unresolved intent-preserved (NOT_RUN): ${observations["intent-preserved"].reason} Preserve all original request clauses when repairing measured defects.`);
+  }
   findings.push(...unresolved.map((item) => `Unresolved requirement (${item.id}, NOT_RUN): ${item.question}`));
   if (probeEvidence.some(item=>item.status==="NOT_RUN"||item.status==="ERROR")) findings.push(`Unresolved declared translation experiments (${prepared.manifest.translationProbes.status}): ${prepared.manifest.translationProbes.reason}`);
   for(const part of prepared.manifest.partConnectivity) if(part.status==="NOT_RUN"||part.status==="ERROR") findings.push(`Unresolved connectivity for ${part.partId} (${part.status}): ${part.reason}. Do not infer disconnected solids from nested surfaces alone.`);
@@ -229,6 +233,7 @@ export async function judgeAssemblyCandidate(input: {
     passed: report.gate_passed && unresolved.length === 0 && probeEvidence.every(item=>item.status==="PASS") && prepared.manifest.partConnectivity.every(p=>p.status==="PASS") && prepared.manifest.evidence.identity.status === "PASS" && prepared.reconstruction.status === "PASS" && prepared.manifest.evidence.jointFrames.status === "PASS",
     contractSha256,
     evidence: [...report.evidence.map((item) => ({ id: item.id, status: item.status })),
+      {id:"declared-connection-type",status:"PASS"},
       {id:"part-connectivity",status:prepared.manifest.partConnectivity.some(p=>p.status==="FAIL")?"FAIL":prepared.manifest.partConnectivity.some(p=>p.status==="ERROR")?"ERROR":prepared.manifest.partConnectivity.every(p=>p.status==="PASS")?"PASS":"NOT_RUN"},
       {id:"measured-part-identity",status:prepared.manifest.evidence.identity.status},
       {id:"assembly-reconstruction",status:prepared.reconstruction.status},

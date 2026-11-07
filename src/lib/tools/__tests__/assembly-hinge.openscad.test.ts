@@ -33,13 +33,17 @@ function bounds(stl: Buffer) {
 }
 
 describe("original axial hinge with native OpenSCAD", () => {
-  test("offline trial refuses a false retention experiment even when its other required checks pass",async()=>{
+  test("offline trial separates declared connection, complete intent and false retention evidence",async()=>{
     const fixture=await readFile("benchmarks/assembly/axial_hinge.scad","utf8");
     const spec=await hingeSpec();
     const source=(value:unknown)=>`/* AGENTSCAD_ASSEMBLY_V1\n${JSON.stringify(value)}\nEND_AGENTSCAD_ASSEMBLY */\n${fixture}`;
     const prompt="两件式铰链，直径间隙0.35到0.45mm";
     const baseline=await judgeAssemblyCandidate({prompt,scad:source(spec)});
-    expect(baseline.passed,JSON.stringify(baseline)).toBe(true);
+    expect(baseline.passed,JSON.stringify(baseline)).toBe(false);
+    expect(baseline.evidence.find(item=>item.id==="intent-preserved")?.status).toBe("NOT_RUN");
+    expect(baseline.evidence.find(item=>item.id==="declared-connection-type")?.status).toBe("PASS");
+    expect(baseline.evidence.filter(item=>item.id!=="intent-preserved").every(item=>item.status==="PASS"),JSON.stringify(baseline)).toBe(true);
+    expect(baseline.findings.join("\n")).toContain("independent requirement-coverage audit is unavailable");
     const contaminated=await judgeAssemblyCandidate({prompt,scad:source(spec)+"\n</｜｜DSML｜｜ calls>"});
     expect(contaminated.passed).toBe(false);
     expect(contaminated.evidence.find(item=>item.id==="compile")?.status).toBe("FAIL");
