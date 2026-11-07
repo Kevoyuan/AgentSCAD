@@ -1247,3 +1247,21 @@ A001非法声明仍为关键FAIL，将有界诊断文字和assemblyDiagnostics�
 新增原生回归最终1 PASS（97断言、17.68秒），完整普通测试1013 PASS/3 SKIP/0 FAIL（1016项157文件、33.41秒），typecheck/lint/diff通过。首次新增测试误读TriangleMesh为triangles字段，在复用meshBounds后重跑通过。未跑完整WASM、全部原生套件、浏览器端到端、打印、载荷、寿命或验收。没有新增模型调用，费用上界仍3.111620/28元。
 
 本轮提供了可重复的“独立轴向位移解除转动阻挡”的数字正/负对照。防误操作（含重力/振动导致下移）、保持力、工艺误差、严格关节自由度及全配置空间仍缺证据。最有价值的后续是以原始功能要求验证模型能否推导并生成一致方案，将关键需求/探测遗漏列为独立缺陷，再验证模型产物；不能直接以本手写样件替代自主生成或全M0–M8验收。
+
+## 2026-11-07 · 区域规划真实生成与跨代码块声明丢失根因
+
+规划技能新增通用接口区域表、服务/释放包络、间隙不等式及非空释放区间指导，要求说明未释放路线的阻挡表面、释放变化及完整逆装配，保留明确要求的实验；两种正常生成入口的提示注入回归通过。提交ee9a858。没有把手写样件或第三方CAD源码送入模型，也没有新增固定产品模板。指导对工程成功率的改善仍未证实。
+
+冻结 `.agentscad/experiments/region-planning-generation-2026-11-07/protocol.json`，原任务提示及taskSet hash640caeda…不变，新生成一次、maxRepairs=0、预留0.724288元。实际请求wire-0保留且无headers，thinking.disabled和新指导确实注入，未包含gated样件源码。运行目录paid-deepseek-assembly-YjhbtT返回deepseek-flash，3531输入/2656输出tokens、reasoningCharacters0、finishReason stop，调用计数1。按当日[官方高峰价格](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)保守记账0.028310元，27条账本TERMINAL累计3.139930元，无active占用，临时凭据已清理。codeUnchangedDuringRun true。初次启动命令因清理语句的工具策略在进程创建前被拒，未调用API；改用受保护临时文件及finally删除后才完成唯一实际调用。没有自动再试或付费修复。
+
+原回复包含两个scad fence，第一个是完整独立AGENTSCAD_ASSEMBLY_V1注释，第二个是几何。旧extractOpenScadCodeFromText只取最后一块，原保存稿因此丢失声明，judge报告无声明。这是实际提取损失，不能归因于模型没输出声明。原回复、旧提取稿及原判定保持原样。
+
+现在只在恰好一个完整独立声明注释与一个可识别scad/openscad/无语言SCAD块时保留两者，声明原字节前置，几何块字节不改。畸形/重复/另一份内嵌声明、多份候选或存在将被丢弃的外部声明时明确CadGenerationFormatError，不猜选关系或合并多份几何。无声明的普通多代码块仍沿用最后候选选择。无效schema内容保留，交给后续验证而不自动更正。正常normalizeGenerationResult的双段解析曾有另一处直接取最后块，新增回归实际发现后将其统一经过相同提取入口。声明仍是未受信的候选元数据，不是几何或功能证据。
+
+真实原回复经两个正常解析入口重放，声明有效且得到相同完整源码e60fa3f3…，几何块与旧保存稿字节一致；replay/extraction-integrity.json记录。实际OpenSCAD判定compile FAIL：Current top level object is empty，后续必需几何NOT_RUN。模型定义generated_part但未调用，输出finishReason stop，不能称传输截断。原声明缺translationProbes，源码姿态用rotate([0,0,0])常量，未因新提示获得完整功能实现。
+
+仅另存手工诊断副本，明确只附加generated_part()根调用，原提取稿和模型输出不改。该副本真实分件后hub有限连通PASS，shaft_leaf FAIL，Y=−8到−6mm空区间将同件分为两组。装拆均因初始相交FAIL；运动NOT_RUN（固定件在connection.b，不符合当前自动运动取样支持条件），配合/帧ERROR（所取截面跨槽径差2.51mm，不属于单圆柱），重构15秒超预算NOT_RUN。有限身份PASS不扩展成完整意图。独立标准库Python复核同一诊断STL，确认2mm分离区间；[0,−10,0]在hub及shaft_leaf均INSIDE、远点OUTSIDE，支持该指定默认姿态真实实体重叠。点阅源码/原生结果后选择，非盲评，完整实体有效性及物理功能仍未认证。所有原STL、声明、协议、源码/回复哈希及独立脚本/报告在region-planning-generation-2026-11-07/replay下。手工副本不计模型生成成功。
+
+最终普通测试1017 PASS/3 SKIP/0 FAIL（1020项157文件，29.93秒），typecheck/lint/diff通过；定向解析及提示测试19 PASS，新增覆盖两种顺序、无语言块、无效schema保留、重复/缺几何/多候选及正常解析入口。首轮新测试暴露normalize入口仍丢声明，修复后重跑。实际原生编译和诊断重放已执行，未重跑完整原生/WASM或浏览器产品端到端。该公开自适应单例既不能证明总体成功率提高，也不能代替独立隐藏集、实物或用户验收。
+
+下一步应以可审查的机械方案及局部真实反馈验证生成/修复能否补齐入口、同件连接、阻挡和释放几何，同时明确保留原任务的探测要求。单纯继续整稿生成或把声明恢复称工程成功缺乏支持。完整M0–M8目标继续进行。

@@ -1,5 +1,6 @@
 import type { LLMGenerationResult, ParameterDef, StructuredGenerationResult } from "@/lib/harness/types";
 import { createControlledSnippet } from "@/lib/model-runtime";
+import { extractEmbeddedAssemblySpec } from "../assembly/embedded-spec";
 
 export class CadGenerationFormatError extends Error {
   readonly snippet: string;
@@ -95,8 +96,23 @@ export function findBestScadCodeFence(rawContent: string): string | null {
 }
 
 export function extractOpenScadCodeFromText(rawContent: string): string | null {
+  const blocks = extractAllCodeBlocks(rawContent);
+  const declarations = blocks.filter(({ code }) => code.startsWith("/* AGENTSCAD_ASSEMBLY_V1")
+    && code.endsWith("END_AGENTSCAD_ASSEMBLY */") && code.indexOf("*/") === code.length - 2);
+  if (declarations.length) {
+    const bodies = blocks.filter(block => !declarations.includes(block));
+    if (declarations.length !== 1 || bodies.length !== 1 || !["scad", "openscad", ""].includes(bodies[0].lang)
+      || scoreOpenScadCode(bodies[0].code) < 1 || extractEmbeddedAssemblySpec(bodies[0].code).status !== "absent") {
+      throw new CadGenerationFormatError("A separate assembly declaration needs exactly one unambiguous SCAD body without another declaration", rawContent);
+    }
+    // Preserve untrusted declaration bytes. Schema and geometry validation still follow.
+    return `${declarations[0].code}\n\n${bodies[0].code}`;
+  }
   const bestFenced = findBestScadCodeFence(rawContent);
   if (bestFenced) {
+    if (blocks.some(block => block.code !== bestFenced && extractEmbeddedAssemblySpec(block.code).status !== "absent")) {
+      throw new CadGenerationFormatError("An assembly declaration would be discarded while choosing between candidate code blocks", rawContent);
+    }
     return bestFenced;
   }
 
@@ -154,7 +170,7 @@ function parseTwoPart(rawContent: string): ParsedTwoPart {
 
     if (chosenBlock && (chosenBlock.lang === "scad" || chosenBlock.lang === "openscad" || scoreOpenScadCode(chosenBlock.code) >= 1)) {
       const jsonText = cleaned.slice(0, chosenBlock.index).trim();
-      return { jsonText, scadCode: chosenBlock.code };
+      return { jsonText, scadCode: extractOpenScadCodeFromText(cleaned) };
     }
   }
 
