@@ -97,6 +97,8 @@ describe("skill resolver containment", () => {
       expect(prompt?.systemPrompt).toContain("agentscad_part");
       expect(prompt?.systemPrompt).toContain("boreInstanceId");
       expect(prompt?.systemPrompt).toContain("local");
+      expect(prompt?.systemPrompt).toContain("nonempty release interval");
+      expect(prompt?.systemPrompt).toContain("blocking the unreleased route");
     }
     expect(repair).toContain("never merge required separate parts or substitute representative blocks");
     expect(repair).toContain("A motion parameter or animation is not proof of correct motion");
