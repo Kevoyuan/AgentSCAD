@@ -19,6 +19,7 @@ export function checkDeclaredPoseAssembly(input: Parameters<typeof checkDeclared
     method: "declared-assembly-via-reversed-removal/v1",
     specificationSha256: assemblySpecificationHash(spec),
     declaredOperationOrder: operations.map(operation => operation.id),
+    declaredRigidTrajectories:operations.filter(operation=>operation.rigidTrajectory).map(operation=>({operationId:operation.id,declaration:operation.rigidTrajectory})),
     evaluationOrder: "reverse of the declared assembly order",
     coverage: "Only declared rigid sampled poses, with the grounded base and previously installed instances as obstacles. Incoming parts start in external storage. No continuous clearance, transport, support, tool access, friction, compliance or physical reversibility was checked.",
   };
@@ -35,6 +36,9 @@ export function checkDeclaredPoseAssembly(input: Parameters<typeof checkDeclared
     return { ...base, status: "NOT_RUN" as const, reason: "Assembly screw trajectories need an explicit external start pose; declare dense world-space waypoints instead" };
   }
   for (const operation of operations) {
+    // This representation explicitly anchors the forward stages at the assembled
+    // pose and declares reverse traversal for insertion. No external start is guessed.
+    if(operation.rigidTrajectory)continue;
     const end = operation.waypoints.at(-1);
     const instance = spec.instances.find(instance => instance.id === operation.instanceId)!;
     if (!end || end.some((value, index) => Math.abs(value - instance.transform[index]) > 1e-6)) {
@@ -45,6 +49,7 @@ export function checkDeclaredPoseAssembly(input: Parameters<typeof checkDeclared
     ...spec,
     operations: [...operations].reverse().map(operation => ({
       ...operation, action: "disassemble" as const, waypoints: [...operation.waypoints].reverse(),
+      ...(operation.rigidTrajectory?{rigidTrajectory:{...operation.rigidTrajectory,traversal:"forward" as const}}:{}),
     })),
   };
   const checked = checkDeclaredPoseDisassembly({ ...input, spec: reversed });

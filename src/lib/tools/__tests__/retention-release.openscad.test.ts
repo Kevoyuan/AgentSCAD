@@ -86,7 +86,10 @@ test("original two-part rigid stop allows an explicit rotate-then-withdraw relea
     schemaVersion:1,units:"mm",coordinateSystem:"right-handed",
     parts:parts.map(p=>({id:p.partId,name:p.partId,selector:p.partId,source:"generated",material:null})),
     instances:parts.map(p=>({id:p.partId,partId:p.partId,subassemblyId:null,transform:rotationAboutAxis([0,0,0],[0,0,1],0)})),
-    subassemblies:[],connections:[],groundedInstanceId:"support",motions:[],operations:[],manufacturing:null,assumptions:[],unknowns:[],
+    subassemblies:[],connections:[],groundedInstanceId:"support",motions:[],operations:[
+      {id:"remove_rotor",action:"disassemble",instanceId:"rotor",tools:[],waypoints:[],rigidTrajectory:{traversal:"forward",stages:[{type:"rotate",axis:{origin:[0,0,0],direction:[0,0,1]},angleDeg:90},{type:"translate",deltaMm:[0,0,4]}]}},
+      {id:"insert_rotor",action:"assemble",instanceId:"rotor",tools:[],waypoints:[],rigidTrajectory:{traversal:"reverse",stages:[{type:"rotate",axis:{origin:[0,0,0],direction:[0,0,1]},angleDeg:90},{type:"translate",deltaMm:[0,0,4]}]}},
+    ],manufacturing:null,assumptions:[],unknowns:[],
     translationProbes:workPoses.flatMap((startTransform,i)=>[-1,1].map((sign,j)=>({id:`hold${i}_${j}`,instanceId:"rotor",startTransform,translationMm:[0,0,sign*4],samples:33,expected:"blocked"}))),
   };
   const input = {scadSource,spec,assemblyMesh:all,render:async()=>({parts,purchasedPartIds:[]}),contractGate:{evidenceCurrent:false}};
@@ -95,6 +98,14 @@ test("original two-part rigid stop allows an explicit rotate-then-withdraw relea
   expect(prepared.manifest.translationProbes.status).toBe("NOT_RUN");
   expect(prepared.manifest.translationProbes.results).toHaveLength(38);
   expect(prepared.manifest.translationProbes.results.every(p=>p.status==="NOT_RUN"&&p.measuredStatus==="PASS")).toBe(true);
+  expect(prepared.manifest.declaredDisassembly.measuredStatus).toBe("PASS");
+  expect(prepared.manifest.declaredAssembly.measuredStatus).toBe("PASS");
+  expect(prepared.manifest.evidence.disassembly.status).toBe("NOT_RUN");
+  expect(prepared.manifest.evidence.assemblyPath.status).toBe("NOT_RUN");
+  const wrongOrder={...spec,operations:spec.operations.map(op=>({...op,rigidTrajectory:{...op.rigidTrajectory,stages:[...op.rigidTrajectory.stages].reverse()}}))};
+  const wrong=await prepareAssembly({...input,spec:wrongOrder});
+  expect(wrong.manifest.declaredDisassembly.measuredStatus).toBe("FAIL");
+  expect(wrong.manifest.declaredAssembly.measuredStatus).toBe("FAIL");
   const bad = {...spec,translationProbes:[{...spec.translationProbes[1],id:"releaseMislabelledAsRetained",startTransform:poses[18]}]};
   const failed = await prepareAssembly({...input,spec:bad});
   expect(failed.manifest.translationProbes.status).toBe("FAIL");

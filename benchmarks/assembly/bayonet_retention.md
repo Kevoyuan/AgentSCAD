@@ -40,6 +40,14 @@ These experiments are not assertions that the user's complete retention
 requirement was measured. In particular, `axial-retention` remains unsupported
 as a force/accidental-release requirement in A001.
 
+The test declares removal with two `rigidTrajectory` stages (world Z rotation
+by 90°, then world +Z translation by 4 mm) and explicitly requests reverse
+traversal for insertion. The deterministic adapter expands these into checked
+poses. The correct order clears, while translating before rotating fails in
+both assembly and disassembly checks. The generated poses and their hash stay
+separate from the original stage declaration. This is a hand-authored test of
+the adapter, not evidence of an LLM choosing a correct release route.
+
 There is no detent or mechanical operating-angle limit preventing unintended
 rotation to the release orientation. Holding force, contact stress, handle
 strength, friction, wear, machine accuracy, material, print orientation and

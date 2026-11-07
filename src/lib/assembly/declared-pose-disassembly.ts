@@ -5,6 +5,7 @@ import { checkRigidPosePath } from "./rigid-pose-path";
 import type { MeasurementStatus } from "./measurement-status";
 import { sampleScrewPath } from "./screw-path";
 import { multiplyMatrices } from "./path-and-motion";
+import { sampleRigidTrajectory } from "./rigid-trajectory";
 
 /** Execute world-space poses from the declaration. Two-endpoint translations
  * and explicitly parameterized screw trajectories can be sampled; arbitrary
@@ -29,9 +30,10 @@ export function checkDeclaredPoseDisassembly(input: {
   const spec=parsed.data;
   const offline=input.offlineEvaluation===true;
   const maxPairTestsPerPose=input.maxPairTestsPerPose??200000;
+  const trajectoryExpansions:Array<{operationId:string;expansion:Omit<ReturnType<typeof sampleRigidTrajectory>,"poses">}>=[];
   const base={method:"declared-dense-pose-disassembly/v1",specificationSha256:assemblySpecificationHash(spec),
-    maxPairTestsPerPose,offlineEvaluation:offline,
-    coverage:"Declared instances and explicit or ideal screw sampled poses only. Removed parts are taken to external storage; transport, support, continuous clearance, thread engagement, tools and physical function are not checked."};
+    maxPairTestsPerPose,offlineEvaluation:offline,trajectoryExpansions,
+    coverage:"Declared instances and explicit, staged rigid or ideal screw sampled poses only. Removed parts are taken to external storage; transport, support, continuous clearance, thread engagement, tools and physical function are not checked."};
   if(!spec.groundedInstanceId)return {...base,status:"NOT_RUN" as const,reason:"No grounded instance was declared",results:[]};
   const operations=spec.operations.filter(o=>o.action==='disassemble');
   if(!operations.length)return {...base,status:"NOT_RUN" as const,reason:"No disassembly operations were declared",results:[]};
@@ -53,6 +55,18 @@ export function checkDeclaredPoseDisassembly(input: {
   const sampledOperations=operations.map(op=>{
     let poses=op.waypoints;
     if(samplingUnavailable)return {...op,waypoints:[]};
+    if(op.rigidTrajectory){
+      if(performance.now()-started>budgetMs){samplingUnavailable=`Declared sequence exceeded its ${budgetMs} ms evaluation budget during sampling`;return {...op,waypoints:[]};}
+      try{
+        const maxPoses=Math.min(4096,Math.floor((20_000-estimatedPairs)/Math.max(1,spec.instances.length-1)));
+        if(maxPoses<2)throw new Error("Rigid trajectory exceeds the pair evaluation budget");
+        const expanded=sampleRigidTrajectory({assembledPose:spec.instances.find(i=>i.id===op.instanceId)!.transform,
+          trajectory:op.rigidTrajectory,maxTranslationStepMm,maxRotationStepDeg,maxPoses});
+        const {poses:sampled,...expansion}=expanded;
+        poses=sampled as typeof poses;
+        trajectoryExpansions.push({operationId:op.id,expansion});
+      }catch(error){samplingUnavailable=`Operation ${op.id} rigid trajectory could not be sampled: ${error instanceof Error?error.message:"unknown error"}`;poses=[];}
+    }
     if(op.screwTrajectory) {
       if(performance.now()-started>budgetMs) {
         samplingUnavailable=`Declared sequence exceeded its ${budgetMs} ms evaluation budget during sampling`;

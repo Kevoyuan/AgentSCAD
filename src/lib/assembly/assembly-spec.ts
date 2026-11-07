@@ -83,6 +83,16 @@ const manufacturing = z.object({
   process: text.nullable(), material: text.nullable(), machine: text.nullable(),
   notes: z.array(text).max(100),
 }).strict();
+export const RigidTrajectorySchema=z.object({
+  /** Stages always describe removal starting at the assembled instance pose.
+   * Insertion explicitly requests their geometric reverse. */
+  traversal:z.enum(["forward","reverse"]),
+  stages:z.array(z.discriminatedUnion("type",[
+    z.object({type:z.literal("translate"),deltaMm:axis}).strict(),
+    z.object({type:z.literal("rotate"),axis:frame,angleDeg:finite.refine(n=>Math.abs(n)>1e-9,"Rotation must be nonzero")}).strict(),
+  ])).min(1).max(32),
+}).strict();
+export type RigidTrajectory=z.infer<typeof RigidTrajectorySchema>;
 const operation = z.object({
   id, action: z.enum(["assemble", "disassemble"]), instanceId: id,
   /** Waypoints are poses in the assembly frame, not an automatic collision proof. */
@@ -93,11 +103,16 @@ const operation = z.object({
     axis: frame, hand: z.enum(["right", "left"]), leadMm: finite.positive(),
     startAngleDeg: finite, endAngleDeg: finite,
   }).strict().optional(),
+  rigidTrajectory:RigidTrajectorySchema.optional(),
 }).strict().superRefine((value, ctx) => {
   if (value.screwTrajectory && value.waypoints.length !== 0)
     ctx.addIssue({ code: "custom", path: ["waypoints"], message: "Screw trajectories require an empty waypoint array" });
   if (value.screwTrajectory && value.screwTrajectory.startAngleDeg === value.screwTrajectory.endAngleDeg)
     ctx.addIssue({ code: "custom", path: ["screwTrajectory"], message: "Screw trajectory must have nonzero travel" });
+  if(value.rigidTrajectory){
+    if(value.waypoints.length||value.screwTrajectory)ctx.addIssue({code:"custom",path:["rigidTrajectory"],message:"Rigid trajectories require empty waypoints and no screw trajectory"});
+    if(value.rigidTrajectory.traversal!==(value.action==="disassemble"?"forward":"reverse"))ctx.addIssue({code:"custom",path:["rigidTrajectory","traversal"],message:"Removal uses forward stages from the assembled pose; insertion explicitly uses reverse"});
+  }
 });
 
 const translationProbe = z.object({
