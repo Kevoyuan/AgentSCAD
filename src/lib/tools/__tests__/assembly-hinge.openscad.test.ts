@@ -40,6 +40,11 @@ describe("original axial hinge with native OpenSCAD", () => {
     const prompt="两件式铰链，直径间隙0.35到0.45mm";
     const baseline=await judgeAssemblyCandidate({prompt,scad:source(spec)});
     expect(baseline.passed,JSON.stringify(baseline)).toBe(true);
+    const contaminated=await judgeAssemblyCandidate({prompt,scad:source(spec)+"\n</｜｜DSML｜｜ calls>"});
+    expect(contaminated.passed).toBe(false);
+    expect(contaminated.evidence.find(item=>item.id==="compile")?.status).toBe("FAIL");
+    expect(contaminated.evidence.filter(item=>item.id!=="compile").every(item=>item.status==="NOT_RUN")).toBe(true);
+    expect(contaminated.findings.join("\n")).toContain("SCAD_PROTOCOL_MARKUP");
     const challenged={...spec,translationProbes:[{id:"falseAxialRetention",instanceId:"moving-instance",startTransform:spec.instances[1].transform,translationMm:[0,0,30],samples:65,expected:"blocked"}]};
     const result=await judgeAssemblyCandidate({prompt,scad:source(challenged)});
     expect(result.passed).toBe(false);

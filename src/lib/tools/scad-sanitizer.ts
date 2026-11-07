@@ -5,9 +5,13 @@
  * Comments and strings are masked first: the assembly contract lives in a block
  * comment, and rewriting a word inside it would silently corrupt the JSON.
  */
-export function sanitizeGeneratedScadSource(scadSource: string): string {
-  const masked = scadSource.replace(/\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|"(?:\\[\s\S]|[^"\\])*"/g,
+export function maskScadCommentsAndStrings(scadSource: string): string {
+  return scadSource.replace(/\/\*[\s\S]*?(?:\*\/|$)|\/\/[^\r\n]*|"(?:\\[\s\S]|[^"\\])*(?:"|$)/g,
     (match) => match.replace(/[^\r\n]/g, " "));
+}
+
+export function sanitizeGeneratedScadSource(scadSource: string): string {
+  const masked = maskScadCommentsAndStrings(scadSource);
   const reserved = /\bmodule\b(?!\s+[A-Za-z_][A-Za-z0-9_]*\s*\()/g;
   const edits: number[] = [];
   let match: RegExpExecArray | null;

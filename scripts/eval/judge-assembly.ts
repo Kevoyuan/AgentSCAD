@@ -28,6 +28,7 @@ import { validateAssemblySpec } from "../../src/lib/assembly/assembly-spec";
 import { renderAssemblyParts } from "../../src/lib/tools/assembly-part-renderer";
 import { createHash } from "node:crypto";
 import { evaluateAssembly, type Observation } from "./assembly-evidence";
+import {isRepairableScadCompileError,annotateScadCompileError} from "../../src/lib/tools/scad-compile-error";
 import {diagnoseAssemblySource,summarizeAssemblySourceDiagnostics,type AssemblySourceDiagnostics} from "../../src/lib/assembly/source-diagnostics";
 
 /** A declared range is observable coverage only after every sampled pose clears. */
@@ -130,16 +131,26 @@ export async function judgeAssemblyCandidate(input: {
     return blocked(error instanceof Error ? error.message : String(error));
   }
 
-  const whole = await renderAssemblyParts({ scadSource: input.scad, parts: [{ partId: "assembly", selector: "all" }] });
   const autoMotion = automaticHingeKinematics(spec);
-  const prepared = await prepareAssembly({
+  let whole:Awaited<ReturnType<typeof renderAssemblyParts>>;
+  let prepared:Awaited<ReturnType<typeof prepareAssembly>>;
+  try {
+    whole = await renderAssemblyParts({ scadSource: input.scad, parts: [{ partId: "assembly", selector: "all" }] });
+    prepared = await prepareAssembly({
     contractSnapshot: { contract, request: input.prompt },
     scadSource: input.scad,
     spec,
     assemblyMesh: { stl: whole[0].stl, sha256: whole[0].sha256 },
     fitRequirements: fits,
     kinematics: autoMotion ? { ...autoMotion, pathSteps: input.pathSteps, motionSteps: input.motionSteps } : undefined,
-  });
+    });
+  } catch(error) {
+    if(!isRepairableScadCompileError(error))throw error;
+    const annotated=annotateScadCompileError(error,input.scad);
+    const reason=annotated instanceof Error?annotated.message:String(annotated);
+    return {...blocked(`Candidate source execution rejected: ${reason}. Subsequent requirement checks were not executed.`),
+      evidence:[{id:"compile",status:"FAIL"},...toEvidenceRequirements(contract).filter(requirement=>requirement.required&&requirement.applicable).map(requirement=>({id:requirement.id,status:"NOT_RUN"}))]};
+  }
   await input.onPrepared?.(prepared, whole[0]);
 
   const artifactSha256 = createHash("sha256")
