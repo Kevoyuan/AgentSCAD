@@ -10,6 +10,8 @@ import { prepareAssembly } from "../../assembly/prepare-assembly";
 import { extractEmbeddedAssemblySpec } from "../../assembly/embedded-spec";
 import { buildBvh, placeBvh, bvhIntersects } from "../../geometry/mesh-collision";
 import { readBinaryStl } from "../../geometry/stl-mesh";
+import {validateAssemblyArtifact} from "../../validation/assembly-validation";
+import {judgeAssemblyCandidate} from "../../../../scripts/eval/judge-assembly";
 
 test("retained generated hinge cannot hide invalid schema, non-manifold contact or default overlap",async()=>{
   const scadSource=await readFile("scripts/eval/assembly-fixtures/failures/controlled-release-hinge-2026-11-07.scad","utf8");
@@ -21,6 +23,23 @@ test("retained generated hinge cannot hide invalid schema, non-manifold contact 
   const collision=bvhIntersects(placeBvh(buildBvh(readBinaryStl(base.stl))),placeBvh(buildBvh(readBinaryStl(flap.stl))));
   expect(collision.status).toBe("INTERSECT");
   expect(collision.blocked).toBe(true);
+},60000);
+
+test("invalid retained declaration still supplies native geometry diagnostics to production and trial repair",async()=>{
+  const scadSource=await readFile("scripts/eval/assembly-fixtures/failures/controlled-release-hinge-2026-11-07.scad","utf8");
+  const [row]=await validateAssemblyArtifact({inputRequest:"两件式铰链，可拆卸",scadSource});
+  expect(row.status).toBe("FAIL");expect(row.passed).toBe(false);
+  expect(row.assemblyDiagnostics?.execution).toBe("COMPLETED");
+  expect(row.assemblyDiagnostics?.parts.find(p=>p.partId==="hinge_flap")?.measurement.status).toBe("NOT_RUN");
+  expect(row.assemblyDiagnostics?.parts.find(p=>p.partId==="hinge_flap")?.measurement.edgeDefects?.examples[0].incidentTriangles).toBe(4);
+  expect(row.message).toContain("operations.0.waypoints.1");
+  expect(row.message).toContain("base1 / flap1: INTERSECT");
+  const judged=await judgeAssemblyCandidate({prompt:"两件式铰链，可拆卸",scad:scadSource});
+  expect(judged.passed).toBe(false);
+  expect(judged.diagnostics?.execution).toBe("COMPLETED");
+  expect(judged.findings.join("\n")).toContain("Open, inconsistently oriented or non-manifold");
+  expect(judged.findings.join("\n")).toContain("base1 / flap1: INTERSECT");
+  expect(judged.evidence).toEqual([]);
 },60000);
 
 test("original two-part rigid stop allows an explicit rotate-then-withdraw release", async () => {

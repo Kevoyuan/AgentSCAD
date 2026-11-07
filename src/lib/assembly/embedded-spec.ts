@@ -1,4 +1,4 @@
-import { validateAssemblySpec, type AssemblySpec } from "./assembly-spec";
+import { validateAssemblySpec, AssemblyDiagnosticLayoutSchema, type AssemblyDiagnosticLayout, type AssemblySpec } from "./assembly-spec";
 
 const START = "/* AGENTSCAD_ASSEMBLY_V1";
 const END = "END_AGENTSCAD_ASSEMBLY */";
@@ -10,7 +10,7 @@ export type EmbeddedAssemblySpec =
   | { status: "valid"; spec: AssemblySpec };
 
 /** A model-generated contract is untrusted intent, never geometry evidence. */
-export function extractEmbeddedAssemblySpec(source: string): EmbeddedAssemblySpec {
+function extractAssemblyJson(source: string): {status:"absent"}|{status:"invalid";reason:string}|{status:"decoded";value:unknown} {
   const blocks: string[] = [];
   for (let i = 0; i < source.length;) {
     if (source[i] === '"') {
@@ -41,7 +41,21 @@ export function extractEmbeddedAssemblySpec(source: string): EmbeddedAssemblySpe
   if (Buffer.byteLength(body, "utf8") > MAX_BYTES) return { status: "invalid", reason: "Assembly block exceeds size limit" };
   let value: unknown;
   try { value = JSON.parse(body); } catch { return { status: "invalid", reason: "Assembly block is not valid JSON" }; }
-  const result = validateAssemblySpec(value);
+  return {status:"decoded",value};
+}
+
+export function extractEmbeddedAssemblyDiagnosticLayout(source:string): {status:"valid-subset";layout:AssemblyDiagnosticLayout}|{status:"unavailable";reason:string} {
+  const decoded=extractAssemblyJson(source);
+  if(decoded.status!=="decoded")return {status:"unavailable",reason:decoded.status==="invalid"?decoded.reason:"No assembly declaration"};
+  const subset=AssemblyDiagnosticLayoutSchema.safeParse(decoded.value);
+  return subset.success?{status:"valid-subset",layout:subset.data}:{status:"unavailable",reason:"No bounded, internally referenced part/instance layout with safe selectors and rigid poses could be validated."};
+}
+
+/** A model-generated contract is untrusted intent, never geometry evidence. */
+export function extractEmbeddedAssemblySpec(source: string): EmbeddedAssemblySpec {
+  const decoded=extractAssemblyJson(source);
+  if(decoded.status!=="decoded")return decoded;
+  const result = validateAssemblySpec(decoded.value);
   if (!result.success) {
     // Bounded field-level feedback lets a repair fix the actual contract error
     // without echoing the entire untrusted declaration into another prompt.

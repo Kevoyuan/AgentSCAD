@@ -48,6 +48,18 @@ const part = z.object({
   material: text.nullable(),
 }).strict();
 const instance = z.object({ id, partId: id, subassemblyId: id.nullable(), transform }).strict();
+/** Rendering subset only. Passing it never validates connections or operations. */
+export const AssemblyDiagnosticLayoutSchema = z.object({
+  schemaVersion:z.literal(1),units:z.literal("mm"),coordinateSystem:z.literal("right-handed"),
+  parts:z.array(part).min(1).max(8),instances:z.array(instance).min(2).max(8),
+}).strip().superRefine((layout,ctx)=>{
+  const error=(message:string)=>ctx.addIssue({code:"custom",message});
+  for(const [label,values] of [["part",layout.parts.map(p=>p.id)],["selector",layout.parts.map(p=>p.selector)],["instance",layout.instances.map(i=>i.id)]] as const)
+    if(new Set(values).size!==values.length)error(`Duplicate diagnostic ${label}`);
+  const ids=new Set(layout.parts.map(p=>p.id));
+  if(layout.instances.some(i=>!ids.has(i.partId)))error("Unknown diagnostic part reference");
+});
+export type AssemblyDiagnosticLayout = z.infer<typeof AssemblyDiagnosticLayoutSchema>;
 const subassembly = z.object({ id, name: text, parentId: id.nullable() }).strict();
 const connection = z.object({
   id,

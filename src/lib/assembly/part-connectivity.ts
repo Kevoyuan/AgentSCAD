@@ -3,7 +3,8 @@ import {readBinaryStl} from "../geometry/stl-mesh";
 /** Exact STL edge connectivity; never merge near vertices or infer cavity solids. */
 export function checkPartConnectivity(stl:Buffer) {
   const base={method:"exact-edge-components-and-separating-plane/v1",coverage:"Stored Float32 mesh coordinates only. A single closed edge-connected surface is not proof of no self-intersections, positive wall thickness, manufacture or function."};
-  const result=(status:"PASS"|"FAIL"|"ERROR"|"NOT_RUN",reason:string,components:Array<{min:number[];max:number[]}>=[],separator:null|{axis:number;lower:number;upper:number}=null)=>({...base,status,reason,components,separator});
+  const result=(status:"PASS"|"FAIL"|"ERROR"|"NOT_RUN",reason:string,components:Array<{min:number[];max:number[]}>=[],separator:null|{axis:number;lower:number;upper:number}=null,
+    edgeDefects:null|{count:number;examples:Array<{endpointsMm:number[][];incidentTriangles:number;orientationBalance:number}>}=null)=>({...base,status,reason,components,separator,edgeDefects});
   if(stl.length>=84&&stl.readUInt32LE(80)>50000)return result("NOT_RUN","Connectivity exceeds the 50000 triangle budget");
   let mesh;try{mesh=readBinaryStl(stl);}catch(e){return result("ERROR",String(e));}
   const parents=Array.from({length:mesh.triangleCount},(_,i)=>i);
@@ -21,7 +22,12 @@ export function checkPartConnectivity(stl:Buffer) {
       else edges.set(key,{triangle:i,count:1,orientation:sign});
     }
   }
-  if([...edges.values()].some(e=>e.count!==2||e.orientation!==0))return result("NOT_RUN","Open, inconsistently oriented or non-manifold edges prevent closed-surface connectivity certification");
+  const badEdges=[...edges.entries()].filter(([,edge])=>edge.count!==2||edge.orientation!==0);
+  if(badEdges.length){
+    const examples=badEdges.slice(0,4).map(([key,edge])=>({endpointsMm:key.split("|").map(v=>v.split(",").map(Number)),incidentTriangles:edge.count,orientationBalance:edge.orientation}));
+    const detail=examples.map(edge=>`edge ${edge.endpointsMm.map(v=>`[${v.join(", ")}]`).join(" to ")} mm: ${edge.incidentTriangles} incident triangles, orientation balance ${edge.orientationBalance}`).join("; ");
+    return result("NOT_RUN",`Open, inconsistently oriented or non-manifold edges prevent closed-surface connectivity certification. ${badEdges.length} defective edges; ${detail}.`,[],null,{count:badEdges.length,examples});
+  }
   const groups=new Map<number,{min:number[];max:number[]}>();
   for(let i=0;i<mesh.triangleCount;i++){
     const root=find(i),box=groups.get(root)??{min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};

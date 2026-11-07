@@ -204,7 +204,10 @@ async function main() {
         }
         let identityStatus:string|null=null;
         try {
-          const judged=await judgeAssemblyCandidate({prompt:task.prompt,scad,onPrepared:async(prepared,whole)=>{
+          const judged=await judgeAssemblyCandidate({prompt:task.prompt,scad,onDiagnostics:async({report,parts})=>{
+            await fs.writeFile(`${prefix}-diagnostics.json`,JSON.stringify(report,null,2));
+            await Promise.all(parts.map(part=>fs.writeFile(`${prefix}-diagnostic-${part.partId}.stl`,part.stl)));
+          },onPrepared:async(prepared,whole)=>{
             identityStatus=prepared.manifest.evidence.identity.status;
             await fs.writeFile(`${prefix}-manifest.json`,JSON.stringify(prepared.manifest,null,2));
             await fs.writeFile(`${prefix}-assembly.stl`,whole.stl);

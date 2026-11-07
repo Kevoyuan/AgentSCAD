@@ -28,6 +28,7 @@ import { validateAssemblySpec } from "../../src/lib/assembly/assembly-spec";
 import { renderAssemblyParts } from "../../src/lib/tools/assembly-part-renderer";
 import { createHash } from "node:crypto";
 import { evaluateAssembly, type Observation } from "./assembly-evidence";
+import {diagnoseAssemblySource,summarizeAssemblySourceDiagnostics,type AssemblySourceDiagnostics} from "../../src/lib/assembly/source-diagnostics";
 
 /** A declared range is observable coverage only after every sampled pose clears. */
 export function motionRangeObservations(motion: {status:string;rangeDeg?:{min:number;max:number}|null;coverage:string}|null, provenance: {artifactSha256:string;toolVersion:string}): Observation[] {
@@ -56,6 +57,7 @@ export function declaredPathObservation(id: "assembly-path" | "disassembly-path"
 }
 
 export interface Judgement {
+  diagnostics?:AssemblySourceDiagnostics;
   passed: boolean;
   contractSha256: string;
   evidence: Array<{ id: string; status: string }>;
@@ -91,6 +93,7 @@ export async function judgeAssemblyCandidate(input: {
   motionSteps?: number;
   /** Optional raw-artifact capture for reproducible trials. */
   onPrepared?: (prepared: Awaited<ReturnType<typeof prepareAssembly>>, whole: Awaited<ReturnType<typeof renderAssemblyParts>>[number]) => Promise<void>;
+  onDiagnostics?: (result:Awaited<ReturnType<typeof diagnoseAssemblySource>>)=>Promise<void>;
 }): Promise<Judgement> {
   const contract = deriveRequirementContract({ request: input.prompt });
   const contractSha256 = requirementContractHash(contract);
@@ -100,7 +103,14 @@ export async function judgeAssemblyCandidate(input: {
 
   const extracted = extractEmbeddedAssemblySpec(input.scad);
   if (extracted.status !== "valid") {
-    return blocked(`The source carries no valid embedded assembly declaration, so there is nothing to measure.${extracted.status === "invalid" ? ` ${extracted.reason}` : ""}`);
+    const result=blocked(`The source carries no valid embedded assembly declaration, so full assembly verification is unavailable.${extracted.status === "invalid" ? ` ${extracted.reason}` : ""}`);
+    if(extracted.status==="invalid") {
+      const diagnostic=await diagnoseAssemblySource({scadSource:input.scad});
+      await input.onDiagnostics?.(diagnostic);
+      result.diagnostics=diagnostic.report;
+      result.findings.push(summarizeAssemblySourceDiagnostics(diagnostic.report));
+    }
+    return result;
   }
   const spec = extracted.spec;
   const parsed = validateAssemblySpec(spec);

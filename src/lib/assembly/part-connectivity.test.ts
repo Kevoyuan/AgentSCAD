@@ -18,7 +18,10 @@ test("point touching and overlapping shells are not certified as robust connecti
  for(const x of [1,.5])expect(checkPartConnectivity(stl([...tetra(),...tetra(1,[x,0,0])])).status).toBe("NOT_RUN");
 });
 test("open, malformed and oversized inputs cannot pass",()=>{
- expect(checkPartConnectivity(stl(tetra().slice(1))).status).toBe("NOT_RUN");
+ const open=checkPartConnectivity(stl(tetra().slice(1)));
+ expect(open.status).toBe("NOT_RUN");expect(open.edgeDefects?.count).toBe(3);
+ expect(open.edgeDefects?.examples.every(edge=>edge.incidentTriangles===1)).toBe(true);
+ expect(open.reason).toContain("incident triangles");
  expect(checkPartConnectivity(Buffer.alloc(2)).status).toBe("ERROR");
  const b=Buffer.alloc(84);b.writeUInt32LE(50001,80);expect(checkPartConnectivity(b).status).toBe("NOT_RUN");
 });

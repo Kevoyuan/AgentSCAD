@@ -9,8 +9,10 @@ import { readRequirementContract } from "../requirements/requirement-contract-re
 import { requirementsInScope, unknownsInScope, withDerivedUnknowns, type RequirementContract } from "../requirements/requirement-contract";
 import type { ValidationResult } from "../mesh-validator";
 import { assessAssemblyRequirements, hasAssemblyRequirementAssertion, type AssemblyRequirementAssertion } from "./assembly-requirement-assertions";
+import {diagnoseAssemblySource,summarizeAssemblySourceDiagnostics,type AssemblySourceDiagnostics} from "../assembly/source-diagnostics";
 
 export interface AssemblyValidationResult extends ValidationResult {
+  assemblyDiagnostics?:AssemblySourceDiagnostics;
   assemblyEvidence?: {
     sourceSha256: string;
     manifest: Awaited<ReturnType<typeof prepareContractAssembly>>["manifest"];
@@ -34,7 +36,7 @@ export async function validateAssemblyArtifact(input: {
   inputRequest: string;
   scadSource: string;
   signal?: AbortSignal;
-}, prepare = prepareContractAssembly): Promise<AssemblyValidationResult[]> {
+}, prepare = prepareContractAssembly, diagnose = diagnoseAssemblySource): Promise<AssemblyValidationResult[]> {
   const extracted = extractEmbeddedAssemblySpec(input.scadSource);
   const derived = deriveRequirementContract({ request: input.inputRequest });
   const requiresAssembly = derived.requirements.some(requirement =>
@@ -46,8 +48,11 @@ export async function validateAssemblyArtifact(input: {
     status, passed: status === "PASS", is_critical: true, message,
   });
   if (extracted.status !== "valid") {
-    return [row("FAIL", extracted.status === "invalid" ? extracted.reason
-      : "The requested assembly has no embedded assembly declaration. Preserve all required parts and provide complete selectors, placements, connections and operations.")];
+    if(extracted.status==="absent")return [row("FAIL","The requested assembly has no embedded assembly declaration. Preserve all required parts and provide complete selectors, placements, connections and operations.")];
+    try {
+      const {report}=await diagnose({scadSource:input.scadSource,signal:input.signal});
+      return [{...row("FAIL",`${extracted.reason}\n${summarizeAssemblySourceDiagnostics(report)}`),assemblyDiagnostics:report}];
+    }catch(error){input.signal?.throwIfAborted();return [row("FAIL",`${extracted.reason}\nPartial diagnostics unavailable: ${String(error).slice(0,1000)}`)];}
   }
   try {
     const record = input.jobId ? await readRequirementContract(input.jobId, input.inputRequest) : null;
