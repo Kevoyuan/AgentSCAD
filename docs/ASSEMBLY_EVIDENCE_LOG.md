@@ -1179,3 +1179,13 @@ A001非法声明仍为关键FAIL，将有界诊断文字和assemblyDiagnostics�
 解析位置/顺序、偏轴旋转、反向路线、−720°完整两圈、混用/方向错误及预算有单元反例；现有中途障碍、库存及装配顺序仍能阻止通过。原生原创bayonet手写样件使用rotate90°再+Z4mm两stage及显式逆装配，raw装拆均PASS，因未确认合同两层verdict仍NOT_RUN；先平移再旋转时装拆均FAIL。定向原生1 PASS（102断言，10.71秒）只是工具验证，不是模型设计成功。另档案 `.agentscad/experiments/rigid-trajectory-native-2026-11-07/` 保存原源码、STL、原始正/负spec及manifest展开记录。该fixture源码不含测试构造的声明，亦无机械防误解锁资格。
 
 两种生成指导加入格式和局限，验证器指纹纳入新适配器。完整单元1012 PASS /3 SKIP /0 FAIL（1015项157文件，31.12秒），typecheck/lint/diff通过。此阶段无模型调用，费用上界仍3.009544元；完整M0–M8仍active。
+
+## 2026-11-07 · 模型采用新路径格式，但原稿受输出污染及几何缺陷阻断
+
+提交2365ce3后冻结 `service-release-trajectory-seed-2026-11-07/protocol.json`，以未改e3d43ca7…原稿、同一用户提示、精确schema及实际空区间/相交反馈，明确要求采用可选rigidTrajectory，最多一次新修复。是自适应公开开发实验，不是随机对照或隐藏集；初次无付费dryrun在协议尚未写完时ENOENT，写完后重新校验通过，没有因此发模型请求。实际调用 `paid-deepseek-assembly-4UuxDe` 返回deepseek-flash、7351输入/3466输出token、reasoningCharacters为0；原请求体无headers留存，直接工具运行中未变，调用计数1次。保守费用0.042430元，24条账本TERMINAL，累计3.051974元，无active占用，临时凭据清除。
+
+原始源码065818868bc75d1e3bf7d300c43596e4c88ff7b68f21c6f77abc5dde0ed58305确实采用forward/reverse刚体stages，完整schema有效；这次不再是旧矩阵末行错误。仍缺translationProbes，模型在assumptions/unknowns中明确声明没有超出+45°的机械止挡/互锁；这只是模型声明，不是独立证明，但不足以满足用户要求。源码末尾出现三行DSML关闭标记（未放在注释/字符串），OpenSCAD在280行语法错误。原候选没有编译通过，离线runner将测量阶段记为ERROR/judge-failed；可观察事实是该候选编译失败，不应解释为CAD运行环境不可用或几何验证失败。原回复、源码及错误均保留，未将标记自动删掉或将格式采纳称作模型成功。
+
+另在 `trajectory-tag-diagnostic-2026-11-07/` 存协议和人工诊断副本，仅删除这三行已观察的尾部关闭标记并归一化末尾换行，几何/声明未修改，原新哈希均存档。该副本不是模型原稿或验收设计。它通过语法后实际运行既有数字judge：新stage展开为504个位姿（hash abc0b78c0b4c0963f8f80d15fbec19432375aeef6a3330a45ae8312c333ad883），装拆均因起始相交FAIL，工作运动在−45°干涉FAIL。base有限闭合PASS，flap多个闭合表面无空区间证书为NOT_RUN，不推断多个实体。轴/孔配合和帧测量ERROR（−12mm站点不包围声明轴），这是特征测量不可用，不等于已测间隙超差。重构15秒超预算NOT_RUN，不等于位姿不匹配；没有扩大预算或放宽精度来换通过。identity有限PASS不等于完整意图保存；intent-preserved仅检查连接类型，缺探测和机械释放条件没有因此被验证。保持未知项、物理和用户验收均未通过。
+
+原生手写样件仍只证明适配器正/负路线按声明执行；本次真实调用仅证明模型在这一案例能采用格式，不能证明其工程设计成功或该格式提高总体成功率。尾部协议污染的拒绝/分类及几何修复仍需后续处理，完整M0–M8目标保持active。本节只补证据，无额外模型调用或产品代码改动。
