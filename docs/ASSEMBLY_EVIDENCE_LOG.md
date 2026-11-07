@@ -1159,3 +1159,13 @@ A001 现在保存各项要求与结果：生成的独立零件设计数量基于
 A001非法声明仍为关键FAIL，将有界诊断文字和assemblyDiagnostics原始记录一并返回；诊断失败或缺材料不抹去已有声明FAIL。现有修复因此获得同一条失败中的具体schema及几何线索，无须改路由/状态/计数契约。离线judge同样保持passed:false、正式evidence为空，诊断单独记录；付费runner可另存诊断STL和JSON。新工具纳入验证器指纹。有限连通检查另保存最多4条缺陷边例子、入射数及方向余额，判据保持不变；该实际案例定位到x=3、z=0、y=−4.5..4.5的4面共边，不再只给笼统“非流形”。
 
 原生集成以未改失败稿实际运行A001和judge，确认两者均保留schema失败，同时报告活动件闭合证明NOT_RUN、默认base1/flap1 INTERSECT；原生测试1 PASS（12断言，13.55秒）。另用原始完整任务提示做两入口重放，归档 `.agentscad/experiments/invalid-assembly-feedback-2026-11-07/` 的协议、A001、judge、诊断JSON、两个STL和直接工具快照，仍不构成完整executeCadJob/浏览器或用户确认。单元1006 PASS /3 SKIP /0 FAIL（1009项156文件，30.10秒），typecheck/lint/diff通过。危险选择器、坏位姿/引用、哈希错误、购入缺件、预算和取消均有反例；无几何或实物总通过。此阶段重放无模型调用，费用上界仍2.966984元，完整目标active。
+
+## 2026-11-07 · 联合反馈修复把零宽连接变成断连
+
+提交646e8ac后，冻结 `service-release-geometry-seed-2026-11-07/protocol.json`，使用同一未改a79f0a4f…原稿、原始请求以及新工具实际schema/闭合边/声明位姿反馈，最多一次非思考修复，预留0.724288元；不是自动重复请求或隐藏测评。实际运行 `paid-deepseek-assembly-Q9EXkr`：deepseek-flash、7136输入/3536输出token、reasoningCharacters为0，实际无headers请求体含thinking.disabled。codeUnchangedDuringRun为true，完成器计数1次。保守费用0.042560元，累计3.009544元；23条授权账本TERMINAL、无active占用，临时凭据已清除。
+
+新源码e3d43ca75383551a4b134f2d5f7d1776b14dbea77b4b77290e2bdfad84f19bf3仍有四个非法平移矩阵且缺translationProbes，总评false，完整几何/功能未验证。新自动诊断无需手改声明即保存两个原生STL：base有限闭合检查PASS；flap从原来的非流形NOT_RUN变成明确分离FAIL，X=4.000000至4.3999996185mm的空区间将所声明单零件分成两组，默认base1/flap1仍INTERSECT。本次新稿只有表面相交观察，上一稿诊断交集的体积证明不自动外推。声明选择器不同不代表正确身份或功能。
+
+源码diff显示模型把连接臂起点移至collar_r+0.4，却在注释中称“positive overlap margin”；这实际上是材料分离，注释无法证明连接。独立标准库Python有向边/顶点图审计复核同一新flap STL（6156486145765dcd370e4f7b49ee48152b207e8e3ab13e8d7f798e7646040ff6）闭合表面及相同0.3999996185mm的X分离证书。四个表面分量不能直接解释成四个零件，嵌套孔腔可能贡献表面；空区间才支持至少两组分离的判断。协议在读取原生结果后冻结，非盲评、不标定误差或实物功能。原请求/回复、原新稿、两个STL、诊断、判定、费用和直接工具快照均在本机档案，非完整封装。
+
+诊断摘要现在同时给出part-local分离轴、两端点及宽度，明确不是两个配合零件之间的间隙；修复技能补充同一制造件的正材料连接与运动件配合间隙的区别。这些改动在该模型回复后加入，尚无模型改善证据。`feedback-with-separation-interval.json`只是同一新报告的反馈重放，没有再次付费。新增两盒分离反例验证数字进入反馈；首次测试用错mergeStl的参数形式导致类型/单元失败，改正后完整重跑。最终1007 PASS /3 SKIP /0 FAIL（1010项156文件，30.02秒），typecheck/lint/diff通过。未新增整套原生/WASM、浏览器或实物验收；当前数字证据不能证明可装拆并按条件工作，完整M0–M8目标保持active。

@@ -3,7 +3,7 @@ import {createHash} from "node:crypto";
 import fixture from "../../../scripts/eval/assembly-fixtures/axial-hinge-operations-v2.spec.json";
 import {diagnoseAssemblySource,summarizeAssemblySourceDiagnostics} from "./source-diagnostics";
 import {extractEmbeddedAssemblyDiagnosticLayout,extractEmbeddedAssemblySpec} from "./embedded-spec";
-import {boxStl} from "../geometry/__tests__/solids";
+import {boxStl,mergeStl} from "../geometry/__tests__/solids";
 import {validateAssemblyArtifact} from "../validation/assembly-validation";
 const sha=(b:Buffer)=>createHash("sha256").update(b).digest("hex");
 const source=(spec:unknown)=>`/* AGENTSCAD_ASSEMBLY_V1\n${JSON.stringify(spec)}\nEND_AGENTSCAD_ASSEMBLY */\ncube(1);`;
@@ -47,6 +47,15 @@ test("unavailable purchased bodies cannot become clearance evidence",async()=>{
  expect(report.unavailableInstanceIds).toEqual(["fixed-instance"]);
  expect(report.collisions).toHaveLength(0);
  expect(summarizeAssemblySourceDiagnostics(report)).toContain("absence is not clearance evidence");
+});
+
+test("a repair that opens a gap within one part reports the actual separating interval",async()=>{
+ const separated=part("moving",mergeStl(boxStl([0,0,0],[1,1,1]),boxStl([1.4,0,0],[2.4,1,1])));
+ const {report}=await diagnoseAssemblySource({scadSource:source(invalid())},async()=>[meshes[0],separated]);
+ expect(report.parts.find(p=>p.partId==="moving")?.measurement.status).toBe("FAIL");
+ const feedback=summarizeAssemblySourceDiagnostics(report);
+ expect(feedback).toContain("Part-local X empty slab 1.000000 to 1.400000 mm, width 0.400000 mm");
+ expect(feedback).toContain("not a measured clearance between two mating parts");
 });
 
 test("bad metadata, inventory/hash failures and triangle budgets do not get geometry success",async()=>{

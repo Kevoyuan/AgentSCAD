@@ -77,7 +77,10 @@ export async function diagnoseAssemblySource(input:{scadSource:string;signal?:Ab
 
 export function summarizeAssemblySourceDiagnostics(report:AssemblySourceDiagnostics) {
   const lines=[`Partial assembly diagnostics ${report.execution}: ${report.reason}`,report.scope];
-  for(const part of report.parts)lines.push(`Part ${part.partId} limited connectivity ${part.measurement.status}: ${part.measurement.reason}`);
+  for(const part of report.parts){
+    const slab=part.measurement.separator;
+    lines.push(`Part ${part.partId} limited connectivity ${part.measurement.status}: ${part.measurement.reason}${slab?` Part-local ${["X","Y","Z"][slab.axis]} empty slab ${slab.lower.toFixed(6)} to ${slab.upper.toFixed(6)} mm, width ${(slab.upper-slab.lower).toFixed(6)} mm. This separates pieces inside this selected part, not a measured clearance between two mating parts.`:""}`);
+  }
   if(report.selectorDistinctness)lines.push(`Selector distinctness ${report.selectorDistinctness.status}: ${report.selectorDistinctness.reason}`);
   for(const pair of report.collisions)lines.push(`Declared-pose pair ${pair.instanceIds.join(" / ")}: ${pair.measurement.status}. ${pair.measurement.reason}${pair.measurement.point?` World point [${pair.measurement.point.map(n=>n.toFixed(6)).join(", ")}] mm.`:""}`);
   if(report.unavailableInstanceIds.length)lines.push(`Unavailable obstacle instances: ${report.unavailableInstanceIds.join(", ")}. Their absence is not clearance evidence.`);
