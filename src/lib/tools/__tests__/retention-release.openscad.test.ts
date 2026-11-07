@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { renderAssemblyParts } from "../assembly-part-renderer";
 import { checkTranslationProbe } from "../../assembly/translation-probe";
 import { checkRigidPosePath } from "../../assembly/rigid-pose-path";
@@ -203,3 +204,64 @@ test("original gated hinge requires axial release before its sampled rotation an
   expect(bounds.min[2]).toBeCloseTo(-3.9, 4);
   expect(bounds.max[1]).toBeCloseTo(5.8, 4);
 }, 60000);
+
+test("a provided mechanical scheme cannot hide a filled guide bore or a misplaced rotation gate", async () => {
+  const original = await readFile("scripts/eval/assembly-fixtures/failures/guided-gated-hinge-2026-11-08.scad", "utf8");
+  expect(createHash("sha256").update(original).digest("hex")).toBe("44ef9bc63e487059222980fccbf846821c1c028ce8477fbad34f03a5fa166999");
+  const extracted = extractEmbeddedAssemblySpec(original);
+  expect(extracted.status).toBe("valid");
+  if (extracted.status !== "valid") throw new Error("Frozen declaration is invalid");
+  expect(extracted.spec.translationProbes).toBeUndefined();
+  const sectorAnchor = "    linear_extrude(height = z1 - z0)\n";
+  const guideAnchor = "            translate([0, 0, 0])\n                cylinder(d = bore_d,";
+  expect(original.split(sectorAnchor)).toHaveLength(2);
+  expect(original.split(guideAnchor)).toHaveLength(2);
+  const guideFixed = original.replace(guideAnchor,
+    "            translate([0, 0, (bot_plate_z0 + bot_plate_z1)/2])\n                cylinder(d = bore_d,");
+  const bothFixed = guideFixed.replace(sectorAnchor, "    translate([0, 0, z0])\n" + sectorAnchor);
+  const results: Array<{
+    fit: ReturnType<typeof measureRevoluteFit>;
+    work: ReturnType<typeof checkRigidPosePath>;
+    direct: ReturnType<typeof checkRigidPosePath>;
+    release: ReturnType<typeof checkRigidPosePath>;
+    assembly: ReturnType<typeof checkRigidPosePath>;
+  }> = [];
+  for (const source of [original, guideFixed, bothFixed]) {
+    const parts = await renderAssemblyParts({ scadSource: source, parts: extracted.spec.parts.map(part => ({ partId: part.id, selector: part.selector })) });
+    const meshes = Object.fromEntries(parts.map(part => [part.partId, part.stl]));
+    for (const part of parts) expect(checkPartConnectivity(part.stl).status).toBe("PASS");
+    const fit = measureRevoluteFit({ spec: extracted.spec, connectionId: "hinge", boreInstanceId: "a1", meshes, stationsMm: [-1.75,-1.5,-1.25] });
+    const pose = (angle: number, z = 0) => {
+      const matrix = rotationAboutAxis([0,0,0], [0,0,1], angle * Math.PI / 180);
+      matrix[11] = z;
+      return matrix;
+    };
+    const check = (poses: number[][], requireSeparatedEnd = false) => checkRigidPosePath({
+      moving: meshes.rotorB, obstacles: { supportA: meshes.supportA }, poses,
+      maxTranslationStepMm: .25, maxRotationStepDeg: 5.001, requireSeparatedEnd,
+    });
+    const release = [
+      ...Array.from({ length: 7 }, (_, i) => pose(0, -.15 * i)),
+      ...Array.from({ length: 18 }, (_, i) => pose((i + 1) * 5, -.9)),
+      ...Array.from({ length: 44 }, (_, i) => pose(90, -.9 + (i + 1) * 10.9 / 44)),
+    ];
+    results.push({ fit, work: check(Array.from({ length: 19 }, (_, i) => pose(-45 + i * 5))),
+      direct: check(Array.from({ length: 19 }, (_, i) => pose(i * 5))),
+      release: check(release, true), assembly: check([...release].reverse()) });
+  }
+  const [raw, guideOnly, corrected] = results;
+  expect(raw.fit.status).toBe("ERROR");
+  expect(raw.fit.reason).toContain("centre is INSIDE");
+  expect(raw.work.status).toBe("FAIL");
+  expect(raw.release.status).toBe("FAIL");
+  for (const result of [guideOnly, corrected]) {
+    expect(result.fit.status).toBe("MEASURED");
+    expect(result.fit.clearanceMm!.min).toBeGreaterThanOrEqual(.35);
+    expect(result.fit.clearanceMm!.max).toBeLessThanOrEqual(.45);
+    expect(result.work.status).toBe("PASS");
+    expect(result.release.status).toBe("PASS");
+    expect(result.assembly.status).toBe("PASS");
+  }
+  expect(guideOnly.direct.status).toBe("PASS");
+  expect(corrected.direct.status).toBe("FAIL");
+}, 90000);
