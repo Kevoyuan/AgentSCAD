@@ -51,8 +51,8 @@ export function assessAssemblyRequirements(contract: RequirementContract, spec: 
     if (requirement.expected.kind !== "atLeast" || requirement.expected.unit !== "deg")
       return result("NOT_RUN", "The motion coverage checker supports degree lower bounds only.");
     const motion = prepared.kinematics?.motion;
-    if (evidence.motion.status !== "PASS" || motion?.status !== "PASS" || !motion.rangeDeg)
-      return result("NOT_RUN", `Requested range was not established by a passing ideal-pose motion check: ${evidence.motion.reason}`);
+    if (evidence.motion.status !== "PASS" || evidence.sourceMotion?.status !== "PASS" || motion?.status !== "PASS" || !motion.rangeDeg)
+      return result("NOT_RUN", `Requested range needs both source-driven pose and ideal rigid-pose evidence: ${evidence.motion.reason}`);
     const { min, max } = motion.rangeDeg;
     if (!Number.isFinite(min) || !Number.isFinite(max) || min > max)
       return result("ERROR", "The measured motion interval is invalid.");
@@ -60,7 +60,7 @@ export function assessAssemblyRequirements(contract: RequirementContract, spec: 
       : requirement.id === "motion-range-positive-end" ? max : Math.max(Math.abs(min), Math.abs(max));
     const detail = `Ideal rigid-pose samples cover ${min}° to ${max}°; ${requirement.id} requires at least ${requirement.expected.min}°.`;
     return value >= requirement.expected.min
-      ? result("PASS", `${detail} This does not prove continuous clearance or that source controls drive the geometry.`)
+      ? result("PASS", `${detail} Listed source inputs also matched expected poses. Continuous clearance and physical stops remain unverified.`)
       : result("FAIL", `${detail} The declared sampled interval is too short; this does not prove a physical stop.`);
   };
   return requirementsInScope(contract).filter(requirement => requirement.required && requirement.applicable && handled.has(requirement.id)).map(compare);

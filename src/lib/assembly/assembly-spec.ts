@@ -83,7 +83,16 @@ const connection = z.object({
       "Fit stations must be strictly increasing").optional(),
   allowedContact: z.array(text).max(100),
 }).strict();
-const motion = z.object({ id, inputConnectionId: id, range }).strict();
+const motion = z.object({
+  id, inputConnectionId: id, range,
+  /** Proposed source binding. Zero degrees denotes the declared assembly pose.
+   * The verifier measures the source outputs before accepting this claim. */
+  sourceInput: z.object({
+    parameter: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/)
+      .refine(value => !["agentscad_part", "agentscad_pose"].includes(value), "Reserved source control"),
+    poseSelectors: z.record(id, id).refine(value => Object.keys(value).length <= 8, "Too many pose selectors"),
+  }).strict().optional(),
+}).strict();
 const manufacturing = z.object({
   process: text.nullable(), material: text.nullable(), machine: text.nullable(),
   notes: z.array(text).max(100),
@@ -189,6 +198,13 @@ export const AssemblySpecSchema = z.object({
   });
   spec.motions.forEach((m, i) => {
     if (!connections.has(m.inputConnectionId)) issue(["motions", i, "inputConnectionId"], "Unknown input connection ID");
+    if (m.sourceInput) {
+      const selectors = m.sourceInput.poseSelectors;
+      if (Object.keys(selectors).sort().join(",") !== [...instances].sort().join(","))
+        issue(["motions", i, "sourceInput", "poseSelectors"], "Every instance needs a pose selector");
+      if (new Set(Object.values(selectors)).size !== Object.values(selectors).length || Object.values(selectors).includes("all"))
+        issue(["motions", i, "sourceInput", "poseSelectors"], "Pose selectors must be distinct and cannot select all");
+    }
   });
   spec.operations.forEach((o, i) => {
     if (!instances.has(o.instanceId)) issue(["operations", i, "instanceId"], "Unknown instance ID");

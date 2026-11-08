@@ -88,6 +88,13 @@ export function collectAssemblyFindings(input: {
   kinematics: { path: DisassemblyPathEvidence; motion: MotionRangeEvidence } | null;
 }): AssemblyFinding[] {
   const findings: AssemblyFinding[] = [];
+  const sourceMotion = input.manifest.evidence.sourceMotion;
+  if (sourceMotion?.status === "FAIL") findings.push({
+    kind: "motion", layer: "motion", connectionId: null, instanceIds: [],
+    measured: sourceMotion.reason, required: "Source-driven instance surfaces and complete assembly must match the frozen expected poses at every listed input.",
+    atMm: null, atDeg: null,
+    message: `Source-driven motion failed. ${sourceMotion.reason} Preserve the source binding, instances, joint and required range during repair.`,
+  });
   for (const probe of input.manifest.translationProbes?.results ?? []) {
     const measured = `${probe.reason}${probe.probe ? ` World displacement [${probe.probe.translationMm.map(n=>n.toFixed(3)).join(", ")}] mm, ${probe.probe.samples} samples, expected ${probe.probe.expected}.` : ""}`;
     if (probe.status === "FAIL") findings.push({kind:"translation-probe",layer:"assembly",connectionId:null,instanceIds:[probe.instanceId],
@@ -278,6 +285,11 @@ export function assertRepairPreservesAssembly(input: {
   if (!after.success) return { ok: false, violations: [{ code: "invalid", message: `The repaired declaration is invalid: ${after.error.issues[0]?.message ?? "unknown"}` }] };
 
   if (before.data.groundedInstanceId !== after.data.groundedInstanceId) violations.push({ code: "ground-changed", message: "The grounded instance changed." });
+  for (const motion of before.data.motions) {
+    if (motion.sourceInput && canonicalJson(motion.sourceInput)
+      !== canonicalJson(after.data.motions.find(item => item.id === motion.id)?.sourceInput ?? null))
+      violations.push({ code: "requirement-relaxed", message: `Motion "${motion.id}" removed or changed its source input binding. Preserve the parameter and instance views during geometry repair.` });
+  }
   const afterOperations = new Map(after.data.operations.map(operation => [operation.id, operation]));
   const afterProbes = new Map((after.data.translationProbes ?? []).map(probe => [probe.id,probe]));
   for (const probe of before.data.translationProbes ?? []) {

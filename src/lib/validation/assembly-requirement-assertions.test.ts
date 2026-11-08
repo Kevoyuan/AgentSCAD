@@ -14,7 +14,7 @@ test("requirements use the candidate's own export, fit and sampled motion eviden
   expect(spec.success).toBe(true);
   if (!spec.success) return;
   const prepared = {
-    parts: [{}, {}], manifest: { evidence: { identity: { status: "PASS", reason: "distinct" }, motion: { status: "PASS", reason: "sampled" } } },
+    parts: [{}, {}], manifest: { evidence: { identity: { status: "PASS", reason: "distinct" }, motion: { status: "PASS", reason: "sampled" }, sourceMotion: { status: "PASS", reason: "source input samples" } } },
     kinematics: { motion: { status: "PASS", rangeDeg: { min: -45, max: 45 } } },
     fits: [{ connectionId: "hinge", status: "PASS", measuredStatus: "PASS", diametralClearanceMm: { min: 0.39, max: 0.42 }, stationsMm: [-4, 0, 4] }],
   } as unknown as Prepared;
@@ -22,7 +22,9 @@ test("requirements use the candidate's own export, fit and sampled motion eviden
   const good = results(prepared);
   for (const id of ["distinct-exported-parts", "motion-range-deg", "motion-range-negative-end", "motion-range-positive-end", "diametral-clearance"])
     expect(good[id].status).toBe("PASS");
-  expect(good["motion-range-deg"].reason).toContain("does not prove continuous clearance");
+  expect(good["motion-range-deg"].reason).toContain("Continuous clearance and physical stops remain unverified");
+  const missingSource = results({ ...prepared, manifest: { ...prepared.manifest, evidence: { ...prepared.manifest.evidence, sourceMotion: { status: "NOT_RUN", reason: "missing binding" } } } });
+  expect(missingSource["motion-range-deg"].status).toBe("NOT_RUN");
 
   const missingPart = results({ ...prepared, parts: prepared.parts.slice(0, 1) });
   expect(missingPart["distinct-exported-parts"].status).toBe("FAIL");

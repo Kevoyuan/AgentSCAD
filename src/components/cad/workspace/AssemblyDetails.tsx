@@ -136,7 +136,7 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
       {downloadError && <p role="alert" className="mt-2 text-[var(--shell-fail)]">{t(downloadError)}</p>}
       {canDownload && generatedParts.length > 0 && <div className="mt-2">
         <button type="button" disabled={bundling || downloading !== null} onClick={() => void downloadBundle()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{bundling ? t('Preparing…') : t('Download all parts (ZIP)')}</button>
-        <p className="mt-1 text-[var(--shell-text-label)]">{t('The archive holds one STL per generated part and a manifest with hashes. Identity, fit and motion are not verified.')}</p>
+        <p className="mt-1 text-[var(--shell-text-label)]">{t('The archive includes one STL per generated part and a version-bound evidence manifest. Review each layer for its status and scope.')}</p>
       </div>}
       <details className="mt-2">
         <summary className="cursor-pointer">{t('{0} part types · {1} instances · {2} connections', { 0: spec.parts.length, 1: spec.instances.length, 2: spec.connections.length })}</summary>

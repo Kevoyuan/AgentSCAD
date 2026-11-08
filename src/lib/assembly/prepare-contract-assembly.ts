@@ -10,6 +10,11 @@ import { automaticHingeKinematics } from "./automatic-hinge-kinematics";
 export async function prepareContractAssembly(input:Parameters<typeof prepareAssembly>[0]) {
   const checked=validateAssemblySpec(input.spec);
   if(!checked.success)throw new Error(`Invalid assembly specification: ${checked.error.message}`);
+  input={...input,spec:checked.data,
+    contractGate:input.contractGate?{...input.contractGate}:undefined,
+    contractSnapshot:input.contractSnapshot?structuredClone(input.contractSnapshot):undefined,
+    fitRequirements:input.fitRequirements?structuredClone(input.fitRequirements):undefined,
+    kinematics:input.kinematics?structuredClone(input.kinematics):undefined};
   const assemblyMesh=input.assemblyMesh??(!input.render
     ?(await renderAssemblyParts({scadSource:input.scadSource,parts:[{partId:"assembly",selector:"all"}],options:input.options}))[0]:null);
   const contract=input.contractSnapshot?RequirementContractSchema.parse(input.contractSnapshot.contract):null;

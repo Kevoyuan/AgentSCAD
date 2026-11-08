@@ -14,6 +14,8 @@ import { checkMeasuredJointFrames, JOINT_FRAME_CONSISTENCY_LIMITS } from "./meas
 import { RequirementContractSchema, requirementContractHash, unknownsInScope, withDerivedUnknowns } from "../requirements/requirement-contract";
 import { deriveRequirementContract } from "../requirements/extract-requirements";
 import { checkDeclaredTranslationProbes } from "./declared-translation-probes";
+import { buildHingeSourceProtocol } from "./source-motion-protocol";
+import { verifySourcePoses } from "../tools/source-pose-verification";
 
 const sha256 = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
 type Rendered = { parts: RenderedAssemblyPart[]; purchasedPartIds: string[] };
@@ -88,6 +90,13 @@ export async function prepareAssembly(input: {
   render?: Renderer;
 }) {
   if (!input.scadSource.trim()) throw new Error("Assembly source is empty");
+  const scadSource = input.scadSource;
+  input = { ...input,
+    contractGate: input.contractGate ? { ...input.contractGate } : undefined,
+    contractSnapshot: input.contractSnapshot ? structuredClone(input.contractSnapshot) : undefined,
+    fitRequirements: input.fitRequirements ? structuredClone(input.fitRequirements) : undefined,
+    kinematics: input.kinematics ? structuredClone(input.kinematics) : undefined,
+  };
   const checked = validateAssemblySpec(input.spec);
   if (!checked.success) throw new Error(`Invalid assembly specification: ${checked.error.message}`);
   const spec = checked.data;
@@ -101,7 +110,7 @@ export async function prepareAssembly(input: {
     requestMatches: contract.requestSha256 === sha256(input.contractSnapshot!.request.trim()),
   } : null;
   input.options?.signal?.throwIfAborted();
-  const result = await (input.render ?? renderAssemblySpecParts)(input.scadSource, spec, input.options);
+  const result = await (input.render ?? renderAssemblySpecParts)(scadSource, spec, input.options);
   input.options?.signal?.throwIfAborted();
 
   const generated = new Set(spec.parts.filter((p) => p.source === "generated").map((p) => p.id));
@@ -118,7 +127,7 @@ export async function prepareAssembly(input: {
     throw new Error("Purchased parts do not match the assembly specification");
   }
   // Hash the validated snapshot with the same canonical form used by the API.
-  const sourceSha256 = sha256(input.scadSource);
+  const sourceSha256 = sha256(scadSource);
   const specificationSha256 = assemblySpecificationHash(spec);
   if(input.assemblyMesh?.sha256 && sha256(input.assemblyMesh.stl)!==input.assemblyMesh.sha256) throw new Error("Assembly artifact hash mismatch");
   const partConnectivity = result.parts.map(part=>({partId:part.partId,sha256:part.sha256,...checkPartConnectivity(part.stl)}));
@@ -200,6 +209,21 @@ export async function prepareAssembly(input: {
   if(kinematics?.motion.status==="PASS"&&motionEvidence.status==="PASS"&&motionFrames?.status!=="PASS") {
     motionEvidence={status:motionFrames?.status??"NOT_RUN",reason:`Rigid-pose collision samples passed, but the actual mating feature axes were not verified against the declared motion frame: ${motionFrames?.reason??"No measured mating feature axes."}`};
   }
+  const rigidMotionEvidence = motionEvidence;
+  const sourceProtocol = buildHingeSourceProtocol(spec);
+  const canVerifySource = sourceProtocol.status === "READY" && input.contractGate?.evidenceCurrent === true
+    && contractBinding?.requestMatches === true && gateReason === null
+    && motionFrames?.status === "PASS" && input.kinematics?.connectionId === sourceProtocol.connectionId;
+  const sourceMotion = canVerifySource && sourceProtocol.status === "READY"
+    ? await verifySourcePoses({ ...sourceProtocol.protocol, scadSource, spec, options: input.options }) : null;
+  const sourceMotionEvidence = sourceMotion
+    ? applyContractGate(sourceMotion.status as EvidenceStatus,
+      `Source input verification ${sourceMotion.status}. ${sourceMotion.results.map(item =>
+        `${item.id} ${item.status}: ${item.reason} ${(item.comparisons ?? []).filter(row => row.result.status !== "PASS").map(row => `${row.instanceId}: ${row.result.reason}`).join(" ")}`).join(" ")} ${sourceMotion.coverage}`, gateReason)
+    : { status: "NOT_RUN" as const, reason: sourceProtocol.status === "NOT_RUN" ? sourceProtocol.reason
+      : "Source motion requires a current confirmed contract and measured mating axes for this sampled joint." };
+  motionEvidence = combine([rigidMotionEvidence.status, sourceMotionEvidence.status],
+    [rigidMotionEvidence.reason, sourceMotionEvidence.reason], "Motion was not checked.");
   const uncheckedConnections=spec.connections.filter(connection=>!fits.some(fit=>fit.connectionId===connection.id));
   const jointFrameEvidence=combine([...fits.map(fit=>fit.jointFrames.status),...(uncheckedConnections.length?["NOT_RUN" as const]:[])],
     [...fits.map(fit=>`${fit.connectionId}: ${fit.jointFrames.reason}`),...(uncheckedConnections.length?[`No measured axes for: ${uncheckedConnections.map(connection=>connection.id).join(", ")}.`]:[])],"No actual joint feature axes were measured.");
@@ -231,6 +255,7 @@ export async function prepareAssembly(input: {
     subassemblies: spec.subassemblies.map((subassembly) => ({ ...subassembly })),
     fits,
     kinematics,
+    sourceMotion,
     reconstruction: { ...reconstruction, ...reconstructionEvidence, measuredStatus: reconstruction.status, measuredReason: reconstruction.reason },
     partConnectivity,
     translationProbes: { ...translationProbes, ...applyContractGate(translationProbes.status, translationProbes.reason, gateReason), measuredStatus: translationProbes.status, measuredReason: translationProbes.reason,
@@ -267,6 +292,8 @@ export async function prepareAssembly(input: {
       jointFrames:jointFrameEvidence,
       disassembly: declaredPathEvidence,
       motion: motionEvidence,
+      rigidMotion: rigidMotionEvidence,
+      sourceMotion: sourceMotionEvidence,
       physical: { status: "NOT_RUN" as const, reason: "Physical manufacture and function were not tested." },
     },
   };

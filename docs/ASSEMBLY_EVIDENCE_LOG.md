@@ -1377,3 +1377,25 @@ verifySourcePoses增加显式surfaceComparison选项。缺省triangles保持旧�
 最终普通1032 PASS/3 SKIP/0 FAIL（1035项159文件、27.65秒），typecheck/lint/diff通过。初次类型检查发现测试空数组被推断never[]，明确三维数组类型后重跑通过。完整原生套件/WASM、真实浏览器流程、工程师独立审查、实物及独立隐藏集本轮未执行。费用增量0，累计保守上界3.268220/28元。复现可运行 bun test src/lib/geometry/surface-cover.test.ts src/lib/tools/__tests__/source-pose-verification.test.ts，以及 bun test --timeout 150000 src/lib/tools/__tests__/source-pose-verification.openscad.test.ts -t 'source rotations'。
 
 下一步应将冻结源码驱动位姿协议与产品合同/证据流程贯通，继续解决完整意图和保持条件，再推进多关节及制造验证。不能因四输入通过跳过这些项。完整M0–M8目标继续进行。
+
+## 56. 正常检查与装配包接入源码运动采样，分离理想运动证据（2026-11-08）
+
+上轮独立工具尚未接入正常产品，本轮将它贯通到prepareAssembly及检查/装配包共用的prepareContractAssembly。旧motion可能仅依据局部制造网格在理想刚体位姿中的碰撞采样通过，缺少源码参数实际驱动输出的证据。现在保留rigidMotion和sourceMotion两个独立证据项，motion要求两者都PASS。缺源码绑定、合同未确认/请求不匹配、实际关节轴未通过或自动图求解不支持时sourceMotion为NOT_RUN，原理想采样及实际失败继续单独保留。UI中英文标签、未执行默认记录、ZIP清单和README均呈现分层结果。正常检查和导出HTTP适配器未重写，SSE、状态、旧产物地址、指标及用户验收账本未修改。
+
+motions[].sourceInput是可选的候选绑定，包含安全的SCAD数值parameter和覆盖全部实例的唯一poseSelectors。零度对应声明装配位姿，agentscad_pose保留为固定制造/姿态视图开关，禁止把它或agentscad_part当运动输入。不存在该字段的旧声明不注入默认内容，哈希保持兼容。新字段仍是模型提案，不能凭其存在通过。schema检查引用、唯一性、保留名和预算。修复守卫禁止删除/改变既有绑定，来源运动失败进入有实例/失败原因的修复反馈。生成/编码指导说明该接口及证据边界，不引入产品几何模板或第三方源码。
+
+首个自动协议仅支持一个两实例revolute连接，固定件为connection.a且恰好一个motion。运动与连接的degree范围必须相同、非零并包含零位。独立期望位姿由冻结连接frameA、实例变换和世界轴旋转构造，实际配合轴另行测量并作为执行前提。采样零位及范围四分点，重复值去重，通常5点、最多6点。默认源码总预算90秒，使用上轮显式双向表面覆盖；每输入仍核对全部实例与同参数all视图。没有将模型自报位姿当测量值，没有声称连续运动、对称体关节相位、源码装拆路径或物理功能已经验证。新增输入快照在首次异步渲染前冻结源码、合同、确认、配合与运动请求，避免调用者中途修改造成输入与哈希脱离。
+
+真实运行目录.agentscad/experiments/product-source-motion-2026-11-08。使用保留模型原稿6363d86e…，几何未做人工修正，研究者单独向spec加入hinge_angle与a1/supportA、b1/rotorB绑定，提供合成中文任务及模拟已确认合同。它是人工元数据/条件辅助的产品接入实验，不能计为自主生成、浏览器验收或真实用户确认。声明里的下导向三个截面、七探测及释放操作均保持，未抹去轴向保持未知条件。
+
+final-run是拒绝覆盖的新目录，开始前保存全部列出的检查器源文件/hash，完成后逐个复核。正确候选正常准备71389ms，其中源码验证59415ms，5输入为−45、−22.5、0、22.5、45度；rigidMotion、sourceMotion及综合motion均PASS。唯一锚点故障副本将rotate([0,0,ang])改为常量0，正常准备46322ms，其中源码验证33661ms，rigidMotion仍PASS、sourceMotion和综合motion均FAIL。两次列出检查器codeUnchangedDuringRun均true。完整需求仍因axial-retention为NOT_RUN，geometry及physical也未获完整通过，任务未完成。时间是两个公开开发运行的观测，未建立总体性能基线。
+
+最终目录保存两个源码、人工spec/合同/协议、完整manifest、制造STL、检查器快照及hash、结束后观测的引擎版本。binding-check.json复核源与所有制造STL均匹配报告hash。正常工具的源码姿态STL尚未长期保存，报告只保留其hash、输入和测量，sourcePoseMeshesRetained明确false；这仍是独立原始网格复核的缺口，不能借上轮手工工具的归档替代。前面的normal-run是开发探索，运行期间代码曾修改，不用于最终检查器版本或性能声明；最终目录与之分开且拒绝覆盖。没有复用上轮已指出的覆盖目录。
+
+原生新增正常产品接入回归，用buildAssemblyBundle对正确候选验证manifest/README的sourceMotion PASS、缺保持条件仍NOT_RUN，ZIP不包含每次运行耗时噪声；错误源通过正常prepareContractAssembly成为FAIL并产生带b1的修复发现。该定向回归1 PASS/13断言、112.50秒。既有铰链原生文件8 PASS/98断言、32.76秒，保留实际碰撞修复通过为rigidMotion PASS，缺源码检查的综合结果改为NOT_RUN。原测试曾仅凭零件数量把intent-preserved写为PASS，已改为NOT_RUN；旧手工样件的完整比较门槛现在正确保持false。
+
+新增单元覆盖旧schema兼容、畸形绑定、保留参数、遗漏/重复实例、范围不一致、不支持图、非原点旋转坐标期望、调用者异步篡改、绑定修复保护、源码失败反馈，以及真实轴/理想运动通过却缺源码控制时综合NOT_RUN。完整普通1038 PASS/3 SKIP/0 FAIL（1041项160文件、29.77秒），typecheck/lint/diff通过。新测试初次暴露错误fixture实例名和TypeScript集合/元组推断，修正测试数据与类型后复核通过。未执行完整原生套件、WASM、真实浏览器、自然语言全流程、物理实验或独立隐藏验收。
+
+最终原生运行后，仅将自动协议READY说明中的分号改为句号，原生报告仍绑定其保留快照，最新完整普通测试再次通过。
+
+本轮无模型调用，费用增量0，累计保守上界仍3.268220/28元。下一步高信息实验应注入“恰好匹配这些采样角、在中间输入错误”的控制关系，并检查对称几何的相位可观测性，避免把五点表面对应用作整个函数的证明；同时继续正常源码姿态网格归档、需求/保持条件、装拆源码联动及后续多关节验证。完整M0–M8目标继续进行。

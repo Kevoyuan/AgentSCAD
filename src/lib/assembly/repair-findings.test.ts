@@ -444,3 +444,22 @@ test("connectivity repair feedback retains the measured local separating interva
   expect(findings[0].message).toContain("1.200000 mm");
   expect(findings[0].message).toContain("preserving mating voids");
 });
+
+test("repairs retain source bindings and receive actual source motion failures", () => {
+  const { spec } = boreAndShaft();
+  const motion = { id: "drive", inputConnectionId: "joint", range: { min: -45, max: 45, unit: "deg" },
+    sourceInput: { parameter: "angle", poseSelectors: { "bore-instance": "bore", "shaft-instance": "shaft" } } };
+  const before = { ...spec, motions: [motion] };
+  const { sourceInput, ...without } = motion;
+  for (const after of [
+    { ...before, motions: [without] },
+    { ...before, motions: [{ ...motion, sourceInput: { ...sourceInput, parameter: "idle" } }] },
+  ]) expect(assertRepairPreservesAssembly({ before, after }).violations.some(item => item.code === "requirement-relaxed")).toBe(true);
+  expect(assertRepairPreservesAssembly({ before, after: before }).ok).toBe(true);
+  const findings = collectAssemblyFindings({ manifest: { fits: [], evidence: {
+    sourceMotion: { status: "FAIL", reason: "angle-0 shaft-instance has different bounds" }
+  } }, kinematics: null });
+  expect(findings).toHaveLength(1);
+  expect(findings[0].message).toContain("angle-0 shaft-instance");
+  expect(findings[0].message).toContain("Preserve the source binding");
+});

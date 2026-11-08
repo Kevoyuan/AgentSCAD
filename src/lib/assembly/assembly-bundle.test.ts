@@ -82,8 +82,10 @@ describe("assembly part bundle", () => {
     const readme = strFromU8(entries["README.txt"]);
     expect(readme).toContain("- identity: NOT_RUN");
     expect(readme).toContain("- assembly: NOT_RUN");
-    expect(readme).toContain("No layer in this");
-    expect(readme).toContain("works when printed");
+    expect(readme).toContain("Each PASS covers its recorded method and sampled conditions");
+    expect(readme).toContain("physical operation");
+    expect(readme).toContain("- sourceMotion: NOT_RUN");
+    expect(readme).toContain("- rigidMotion: NOT_RUN");
     // No contract was supplied, so the archive says so rather than implying approval.
     expect(readme).toContain("confirmation not evaluated");
     expect(readme).toContain("contract binding: unavailable");

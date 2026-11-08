@@ -10,6 +10,18 @@ import { requirementContractHash } from "../requirements/requirement-contract";
 
 const pose = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
 
+test("source and confirmation cannot change while manufacturing exports are rendering", async () => {
+  const input = { scadSource: "cube(1);", spec: spec(), contractGate: { evidenceCurrent: false }, render: async () => {
+    input.scadSource = "cube(9);";
+    input.contractGate.evidenceCurrent = true;
+    return output();
+  } };
+  const result = await prepareAssembly(input);
+  expect(result.manifest.sourceSha256).toBe(createHash("sha256").update("cube(1);").digest("hex"));
+  expect(result.manifest.contract.evidenceCurrent).toBe(false);
+  expect(result.manifest.sourceMotion).toBeNull();
+});
+
 test("report binds a contract snapshot without inventing confirmation", async () => {
   const request = "做一个两件式铰链";
   const contract = deriveRequirementContract({ request });
@@ -291,6 +303,17 @@ describe("kinematics evidence", () => {
     expect(result.manifest.evidence.motion.status).toBe("NOT_RUN");
     expect(result.manifest.evidence.motion.reason).toContain("not checked");
     expect(result.manifest.kinematics).toBeNull();
+  });
+
+  test("measured axes and ideal motion cannot qualify unobserved source controls", async () => {
+    const result = await prepareAssembly({ scadSource: "cube(1);", spec: tubeSpec(), render: tubeRender,
+      contractGate: { evidenceCurrent: true },
+      fitRequirements: [{ connectionId: "joint", boreInstanceId: "hub-instance", diametralClearanceMm: { min: .1, max: .3 } }],
+      kinematics: { connectionId: "joint", pathSteps: 10, motionSteps: 10 } });
+    expect(result.manifest.evidence.rigidMotion.status).toBe("PASS");
+    expect(result.manifest.evidence.sourceMotion.status).toBe("NOT_RUN");
+    expect(result.manifest.evidence.motion.status).toBe("NOT_RUN");
+    expect(result.manifest.sourceMotion).toBeNull();
   });
 
   test("an unconfirmed contract downgrades motion too, keeping the measurement", async () => {

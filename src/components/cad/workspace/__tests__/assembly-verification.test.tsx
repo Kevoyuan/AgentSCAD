@@ -18,7 +18,10 @@ test('the pending report view includes requirement completeness and permits a re
   <AssemblyVerification jobId="test" sourceSha256={'a'.repeat(64)} specSha256={'b'.repeat(64)} revision="1" canCheck />
  </I18nContext.Provider>)
  expect(html).toContain('Check assembly')
- expect(html.match(/Not checked/g)?.length).toBe(10)
+ expect(html.match(/Not checked/g)?.length).toBe(12)
+ expect(html).toContain('Rigid-pose collision samples')
+ expect(html).toContain('Source-driven pose samples')
+ expect(html).toContain('Combined motion evidence')
  expect(html).toContain('Requirement completeness')
  expect(html).toContain('Assembly path')
  expect(html).toContain('Joint frames')

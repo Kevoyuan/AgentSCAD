@@ -46,6 +46,15 @@ function stableAssemblyRecord(record: Awaited<ReturnType<typeof prepareAssembly>
     : stable;
 }
 
+function stableSourceMotionRecord(record: Awaited<ReturnType<typeof prepareAssembly>>["manifest"]["sourceMotion"]) {
+  if (!record) return null;
+  const { durationMs: _durationMs, ...stable } = record;
+  return { ...stable, results: record.results.map(result => ({ ...result,
+    ...(result.assembly ? { assembly: { ...result.assembly,
+      diagnostics: collectOpenScadWarnings(result.assembly.diagnostics).join("\n") } } : {})
+  })) };
+}
+
 /**
  * The README is derived from the evidence actually recorded for this build.
  * Fixed claims would go stale as soon as a layer starts being measured.
@@ -60,7 +69,7 @@ function readme(
   },
   parts: RenderedAssemblyPart[],
 ): string {
-  const layers = ["requirements", "identity", "geometry", "reconstruction", "jointFrames", "assembly", "assemblyPath", "disassembly", "motion", "physical"];
+  const layers = ["requirements", "identity", "geometry", "reconstruction", "jointFrames", "assembly", "assemblyPath", "disassembly", "rigidMotion", "sourceMotion", "motion", "physical"];
   const contract = manifest.contract;
   const standing = contract === undefined || contract.evidenceCurrent === null
     ? "confirmation not evaluated"
@@ -91,9 +100,9 @@ function readme(
       return `- ${layer}: ${item?.status ?? "NOT_RUN"} — ${item?.reason ?? "not recorded"}`;
     }),
     "",
-    "A PASS is limited to the method and coverage stated above. No layer in this",
-    "archive proves that a part is the intended part, that the assembly can be",
-    "assembled, that it moves, or that it works when printed.",
+    "Each PASS covers its recorded method and sampled conditions.",
+    "Continuous motion, complete functional requirements and physical operation",
+    "require their own recorded checks.",
     "",
     `sourceSha256: ${manifest.sourceSha256}`,
     `specificationSha256: ${manifest.specificationSha256}`,
@@ -143,6 +152,7 @@ export async function buildAssemblyBundle(input: {
     // Raw render timing remains in the prepared result; it must not change
     // archive bytes when the measured geometry and verdict are identical.
     reconstruction: {...prepared.manifest.reconstruction,diagnostics:collectOpenScadWarnings(prepared.manifest.reconstruction.diagnostics).join("\n")},
+    sourceMotion: stableSourceMotionRecord(prepared.manifest.sourceMotion),
     declaredDisassembly: stableDisassemblyRecord(prepared.manifest.declaredDisassembly),
     declaredAssembly: stableAssemblyRecord(prepared.manifest.declaredAssembly),
     bundleSchemaVersion: 1 as const,

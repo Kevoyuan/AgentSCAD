@@ -5,6 +5,11 @@ import { createHash } from "node:crypto";
 import { extractEmbeddedAssemblySpec } from "../../assembly/embedded-spec";
 import { expect, test } from "bun:test";
 import { verifySourcePoses } from "../source-pose-verification";
+import { prepareContractAssembly } from "../../assembly/prepare-contract-assembly";
+import { deriveRequirementContract } from "../../requirements/extract-requirements";
+import { collectAssemblyFindings } from "../../assembly/repair-findings";
+import { buildAssemblyBundle } from "../../assembly/assembly-bundle";
+import { unzipSync, strFromU8 } from "fflate";
 import fixture from "../../../../scripts/eval/assembly-fixtures/axial-hinge.spec.json";
 import { translation } from "../../geometry/__tests__/solids";
 test("native source motion is observed and incorrect input-to-output coupling is rejected", async () => {
@@ -104,3 +109,32 @@ test("retained model source rotations have bounded surface correspondence and ma
         expect(comparison?.result.method).toBe("bidirectional-convex-triangle-cover/v1");
     }
 }, 150000);
+
+test("normal assembly checks distinguish source motion from ideal rigid sampling", async () => {
+    const source = await readFile("scripts/eval/assembly-fixtures/candidates/guided-pose-hinge-2026-11-08.scad", "utf8");
+    const extracted = extractEmbeddedAssemblySpec(source);
+    if (extracted.status !== "valid") throw new Error("Invalid retained declaration");
+    const spec = extracted.spec;
+    spec.motions[0].sourceInput = { parameter: "hinge_angle", poseSelectors: { a1: "supportA", b1: "rotorB" } };
+    const request = "两件式可拆装铰链，直径间隙0.35到0.45mm，转动范围±45°。";
+    const contract = deriveRequirementContract({ request });
+    const input = { spec, contractSnapshot: { contract, request }, contractGate: { evidenceCurrent: true } };
+    const correct = await buildAssemblyBundle({ ...input, scadSource: source });
+    expect(correct.manifest.evidence.rigidMotion.status).toBe("PASS");
+    expect(correct.manifest.evidence.sourceMotion.status).toBe("PASS");
+    expect(correct.manifest.evidence.motion.status).toBe("PASS");
+    expect(correct.manifest.sourceMotion?.results).toHaveLength(5);
+    expect(correct.manifest.evidence.requirements.status).toBe("NOT_RUN");
+    expect(correct.manifest.evidence.requirements.reason).toContain("axial-retention");
+    expect(correct.manifest.sourceMotion).not.toHaveProperty("durationMs");
+    const archive = unzipSync(correct.zip);
+    expect(strFromU8(archive["README.txt"])).toContain("- sourceMotion: PASS");
+    const faulty = source.replace("rotate([0, 0, ang])", "rotate([0, 0, 0])");
+    expect(faulty).not.toBe(source);
+    const failed = await prepareContractAssembly({ ...input, scadSource: faulty });
+    expect(failed.manifest.evidence.rigidMotion.status).toBe("PASS");
+    expect(failed.manifest.evidence.sourceMotion.status).toBe("FAIL");
+    expect(failed.manifest.evidence.motion.status).toBe("FAIL");
+    const findings = collectAssemblyFindings(failed);
+    expect(findings.some(item => item.kind === "motion" && item.message.includes("Source-driven motion failed") && item.message.includes("b1"))).toBe(true);
+}, 180000);
