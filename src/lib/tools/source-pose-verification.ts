@@ -6,6 +6,7 @@ import { renderAssemblyParts } from "./assembly-part-renderer";
 import { checkAssemblyReconstruction } from "./assembly-reconstruction";
 import { isRepairableScadCompileError } from "./scad-compile-error";
 import type { ScadExecutionOptions } from "./scad-renderer";
+import { compareSurfaceCover } from "../geometry/surface-cover";
 type Parameters = Record<string, number | string | boolean>;
 /** Caller-supplied expected poses are a test protocol, not observations from the model. */
 export async function verifySourcePoses(input: {
@@ -20,6 +21,7 @@ export async function verifySourcePoses(input: {
         transforms: Record<string, number[]>;
     }>;
     budgetMs?: number;
+    surfaceComparison?: "triangles" | "bounded-cover";
     options?: ScadExecutionOptions;
     render?: typeof renderAssemblyParts;
 }) {
@@ -29,7 +31,8 @@ export async function verifySourcePoses(input: {
     const scadSource = input.scadSource;
     const setup = structuredClone({
         spec: spec.data, poseSelectors: input.poseSelectors,
-        manufacturingParameters: input.manufacturingParameters, poseParameters: input.poseParameters, cases: input.cases
+        manufacturingParameters: input.manufacturingParameters, poseParameters: input.poseParameters, cases: input.cases,
+        surfaceComparison: input.surfaceComparison ?? "triangles"
     });
     const ids = setup.spec.instances.map(instance => instance.id).sort();
     const sameIds = (value: object) => Object.keys(value).sort().join(",") === ids.join(",");
@@ -42,6 +45,7 @@ export async function verifySourcePoses(input: {
         || new Set(Object.values(setup.poseSelectors)).size !== ids.length)
         throw new Error("Expected one distinct pose selector per instance");
     if (setup.cases.length < 2 || setup.cases.length > 64 || setup.cases.length * ids.length > 256
+        || !["triangles", "bounded-cover"].includes(setup.surfaceComparison)
         || new Set(setup.cases.map(item => item.id)).size !== setup.cases.length
         || setup.cases.some(item => !identifier.test(item.id) || !parametersValid(item.parameters) || !sameIds(item.transforms)
             || Object.values(item.transforms).some(matrix => !validateRigidTransform(matrix).success))
@@ -70,7 +74,7 @@ export async function verifySourcePoses(input: {
         assembly?: Awaited<ReturnType<typeof checkAssemblyReconstruction>>;
     }> = [];
     const base = {
-        method: "source-pose-correspondence/v3", sourceSha256: sha(scadSource), protocolSha256: sha(canonicalJson(setup)),
+        method: setup.surfaceComparison === "bounded-cover" ? "source-pose-correspondence/v4" : "source-pose-correspondence/v3", sourceSha256: sha(scadSource), protocolSha256: sha(canonicalJson(setup)),
         protocol: setup, budgetMs, coverage: "Listed pose-selector surfaces compared with caller-provided rigid poses, then union of these already world-placed source meshes compared with the complete assembly at the same inputs. Per-view tolerance and reconstruction kernel/boundary limitations remain separate. Retessellation may remain NOT_RUN. No full requirement coverage, continuous trajectory, collision, observable joint phase for symmetric bodies, forces or physical qualification."
     };
     try {
@@ -110,11 +114,11 @@ export async function verifySourcePoses(input: {
                 const actual = posed.find(part => part.partId === instance.id);
                 if (!part || !actual)
                     throw new Error(`Required local or posed mesh missing for ${instance.id}; purchased parts need actual geometry`);
-                return {
-                    instanceId: instance.id, result: checkReconstructedMesh({
-                        local: part.stl, posed: actual.stl, transform: item.transforms[instance.id]
-                    })
-                };
+                const meshInput = { local: part.stl, posed: actual.stl, transform: item.transforms[instance.id] };
+                const triangles = checkReconstructedMesh(meshInput);
+                const result = triangles.status === "NOT_RUN" && setup.surfaceComparison === "bounded-cover"
+                    ? { ...compareSurfaceCover(meshInput), triangleComparison: triangles } : triangles;
+                return { instanceId: instance.id, result };
             });
             let assembly: Awaited<ReturnType<typeof checkAssemblyReconstruction>> | undefined;
             if (!comparisons.some(item => item.result.status === "FAIL") && !signal.aborted) {

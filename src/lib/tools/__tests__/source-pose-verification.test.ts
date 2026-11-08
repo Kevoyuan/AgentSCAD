@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { verifySourcePoses } from "../source-pose-verification";
 import fixture from "../../../../scripts/eval/assembly-fixtures/axial-hinge.spec.json";
 import { boxStl, translation } from "../../geometry/__tests__/solids";
+import { readBinaryStl } from "../../geometry/stl-mesh";
 const spec = {
     ...fixture, parts: fixture.parts.slice(0, 1), instances: fixture.instances.slice(0, 1), connections: [], motions: []
 };
@@ -93,4 +94,32 @@ test("fractional translations use world-placed meshes for assembly consistency",
     expect(result.status).toBe("PASS");
     expect(result.results[1].assembly?.comparison).toBe("exact-oriented-triangles");
     expect(result.results[1].assembly?.residualTriangles).toBe(0);
+});
+
+test("retessellation requires explicit bounded-cover protocol and preserves the strict comparison", async () => {
+    const render: NonNullable<Parameters<typeof verifySourcePoses>[0]["render"]> = async input => {
+        const parts = await renderer()(input);
+        if (!input.parameters?.agentscad_pose) return parts;
+        return parts.map(part => {
+            const mesh = readBinaryStl(part.stl);
+            const buffer = Buffer.alloc(84 + mesh.triangleCount * 3 * 50);
+            buffer.writeUInt32LE(mesh.triangleCount * 3, 80);
+            for (let i = 0; i < mesh.triangleCount; i++) {
+                const vertices = [0,3,6].map(offset => Array.from(mesh.coordinates.slice(i * 9 + offset, i * 9 + offset + 3)));
+                const center = [0,1,2].map(k => vertices.reduce((sum, vertex) => sum + vertex[k], 0) / 3);
+                for (let edge = 0; edge < 3; edge++) {
+                    const values = [...vertices[edge], ...vertices[(edge + 1) % 3], ...center];
+                    values.forEach((value, k) => buffer.writeFloatLE(value, 96 + (i * 3 + edge) * 50 + k * 4));
+                }
+            }
+            return { ...part, stl: buffer, triangleCount: mesh.triangleCount * 3 };
+        });
+    };
+    expect((await verifySourcePoses({ ...setup, render })).status).toBe("NOT_RUN");
+    const result = await verifySourcePoses({ ...setup, render, surfaceComparison: "bounded-cover" });
+    expect(result.status).toBe("PASS");
+    expect(result.protocol.surfaceComparison).toBe("bounded-cover");
+    const comparison = result.results[1].comparisons![0].result;
+    expect(comparison.method).toBe("bidirectional-convex-triangle-cover/v1");
+    expect(comparison).toHaveProperty("triangleComparison.status", "NOT_RUN");
 });

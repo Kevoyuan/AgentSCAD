@@ -78,3 +78,29 @@ test("retained model pose interface supports axial motion and exposes an idle ro
     expect(failure.status).toBe("FAIL");
     expect(failure.results.find(item => item.id === "work45")?.comparisons?.find(item => item.instanceId === "b1")?.result.status).toBe("FAIL");
 }, 90000);
+
+test("retained model source rotations have bounded surface correspondence and matching assembly views", async () => {
+    const source = await readFile("scripts/eval/assembly-fixtures/candidates/guided-pose-hinge-2026-11-08.scad", "utf8");
+    const extracted = extractEmbeddedAssemblySpec(source);
+    if (extracted.status !== "valid") throw new Error("Frozen model interface declaration invalid");
+    const identity = translation(0, 0, 0);
+    const cases = [["reference", 0, 0], ["drop", 0, -0.9], ["work45", 45, 0], ["release", 90, -0.9]] as const;
+    const result = await verifySourcePoses({
+        scadSource: source, spec: extracted.spec, poseSelectors: { a1: "supportA", b1: "rotorB" },
+        manufacturingParameters: { agentscad_pose: false }, poseParameters: { agentscad_pose: true, show_angle_clamp: false },
+        surfaceComparison: "bounded-cover", budgetMs: 120000,
+        cases: cases.map(([id, angle, z]) => {
+            const c = Math.cos(angle * Math.PI / 180), s = Math.sin(angle * Math.PI / 180);
+            return { id, parameters: { hinge_angle: angle, axial_offset: z },
+                transforms: { a1: identity, b1: [c,-s,0,0,s,c,0,0,0,0,1,z,0,0,0,1] } };
+        })
+    });
+    expect(result.status).toBe("PASS");
+    expect(result.results).toHaveLength(4);
+    expect(result.results.every(item => item.assembly?.status === "PASS")).toBe(true);
+    for (const id of ["work45", "release"]) {
+        const comparison = result.results.find(item => item.id === id)?.comparisons?.find(item => item.instanceId === "b1");
+        expect(comparison?.result.status).toBe("PASS");
+        expect(comparison?.result.method).toBe("bidirectional-convex-triangle-cover/v1");
+    }
+}, 150000);
