@@ -151,6 +151,8 @@ export async function prepareAssembly(input: {
       reason: gated.reason,
       measuredStatus: assessment.status,
       stationsMm: measurement.stationsMm,
+      stationSource: measurement.stationSource ?? "not-selected",
+      stationFrame: measurement.stationFrame ?? null,
       diametralClearanceMm: measurement.clearanceMm,
       boreDiameterMm: measurement.bore?.measurement.diameterMm ?? null,
       shaftDiameterMm: measurement.shaft?.measurement.diameterMm ?? null,

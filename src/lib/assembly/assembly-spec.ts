@@ -76,6 +76,11 @@ const connection = z.object({
    * their exact hash; without it a fit measurement must be told the role.
    */
   boreInstanceId: id.optional(),
+  /** Signed millimetre offsets along frameA's axis, not world Z or frameB.
+   * Proposed measurement scope, never proof of the whole mating surface. */
+  fitStationsMm: z.array(finite).min(2).max(16)
+    .refine(values => values.every((value, index) => index === 0 || value > values[index - 1]),
+      "Fit stations must be strictly increasing").optional(),
   allowedContact: z.array(text).max(100),
 }).strict();
 const motion = z.object({ id, inputConnectionId: id, range }).strict();

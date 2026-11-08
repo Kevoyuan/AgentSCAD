@@ -318,6 +318,10 @@ export function assertRepairPreservesAssembly(input: {
     if ((connection.boreInstanceId ?? null) !== (repaired.boreInstanceId ?? null)) {
       violations.push({ code: "bore-changed", message: `Connection "${connection.id}" changed which instance carries the bore.` });
     }
+    if (connection.fitStationsMm && canonicalJson({ stations: connection.fitStationsMm, frame: connection.frameA })
+      !== canonicalJson({ stations: repaired.fitStationsMm ?? null, frame: repaired.frameA })) {
+      violations.push({ code: "requirement-relaxed", message: `Connection "${connection.id}" removed or changed its declared fit measurement stations or frameA. Preserve the measurement scope during geometry repair.` });
+    }
   }
 
   // A repair may not answer a "must reach at least N" assertion by leaving the

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { tubeStl } from "../geometry/__tests__/solids";
 import { prismStl } from "../geometry/__tests__/prism";
 import { assessFit, measureRevoluteFit } from "./fit-measurement";
+import { validateAssemblySpec } from "./assembly-spec";
 
 const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const axisFrame = { origin: [0, 0, 0] as [number, number, number], direction: [0, 0, 1] as [number, number, number] };
@@ -35,6 +36,51 @@ const meshes = {
 const inradius = (radius: number, segments: number) => radius * Math.cos(Math.PI / segments);
 
 describe("revolute fit measurement", () => {
+  test("uses declared feature stations and preserves legacy default selection", () => {
+    const legacy = validateAssemblySpec(spec());
+    expect(legacy.success).toBe(true);
+    if (!legacy.success) throw new Error("Invalid legacy fixture");
+    expect(Object.hasOwn(legacy.data.connections[0], "fitStationsMm")).toBe(false);
+    const base = spec();
+    const declared = { ...base, connections: base.connections.map(connection => ({ ...connection, fitStationsMm: [1,3,9] })) };
+    const result = measureRevoluteFit({ spec: declared, connectionId: "joint", meshes, boreInstanceId: "bore-instance" });
+    expect(result.status).toBe("MEASURED");
+    expect(result.stationsMm).toEqual([1,3,9]);
+    expect(result.stationSource).toBe("declaration");
+    const fallback = measureRevoluteFit({ spec: base, connectionId: "joint", meshes, boreInstanceId: "bore-instance" });
+    expect(fallback.stationSource).toBe("overlap-default");
+    expect(fallback.stationsMm).toEqual([2,5,8]);
+    const override = measureRevoluteFit({ spec: declared, connectionId: "joint", meshes, boreInstanceId: "bore-instance", stationsMm: [2,4,6] });
+    expect(override.status).toBe("MEASURED");
+    expect(override.stationsMm).toEqual([2,4,6]);
+    expect(override.stationSource).toBe("caller");
+  });
+
+  test("declared offsets follow frameA and map into a displaced frameB", () => {
+    const base = spec({ frameB: { origin: [0,0,20], direction: [0,0,1] } });
+    const declared = { ...base, connections: base.connections.map(connection => ({
+      ...connection, frameA: { origin: [0,0,2], direction: [0,0,1] }, fitStationsMm: [-1,0,1],
+    })) };
+    const result = measureRevoluteFit({ spec: declared, connectionId: "joint", meshes, boreInstanceId: "bore-instance" });
+    expect(result.status).toBe("MEASURED");
+    expect(result.bore!.measurement.stations.map(station => station.offsetMm)).toEqual([-1,0,1]);
+    expect(result.stationFrame).toEqual({ instanceId: "bore-instance", origin: [0,0,2], direction: [0,0,1] });
+    expect(result.shaft!.measurement.stations.map(station => station.offsetMm)).toEqual([-19,-18,-17]);
+  });
+
+  test("rejects malformed domains and cannot measure outside the actual axial overlap", () => {
+    const base = spec();
+    for (const fitStationsMm of [[], [1], [2,1], [1,1], [1,Infinity], Array.from({ length: 17 }, (_, i) => i)]) {
+      const declared = { ...base, connections: base.connections.map(connection => ({ ...connection, fitStationsMm })) };
+      expect(validateAssemblySpec(declared).success).toBe(false);
+    }
+    const outside = { ...base, connections: base.connections.map(connection => ({ ...connection, fitStationsMm: [100,101] })) };
+    const result = measureRevoluteFit({ spec: outside, connectionId: "joint", meshes, boreInstanceId: "bore-instance" });
+    expect(result.status).toBe("ERROR");
+    expect(result.stationSource).toBe("declaration");
+    expect(result.reason).toContain("inside the axial overlap");
+  });
+
   test("reports the diametral clearance interval implied by the tessellation", () => {
     const result = measureRevoluteFit({ spec: spec(), connectionId: "joint", meshes, boreInstanceId: "bore-instance" });
     expect(result.status).toBe("MEASURED");

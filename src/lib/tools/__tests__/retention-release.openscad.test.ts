@@ -188,12 +188,23 @@ test("original gated hinge requires axial release before its sampled rotation an
     frameA: { origin: [0,0,0], direction: [0,0,1] },
     frameB: { origin: [0,0,0], direction: [0,0,1] },
     range: { min: -45, max: 45, unit: "deg" }, pitchMm: null, ratio: null, allowedContact: [],
+    fitStationsMm: [-1.75,-1.5,-1.25],
   }] };
   const fit = measureRevoluteFit({ spec: guideSpec, connectionId: "guide", boreInstanceId: "support",
-    meshes: Object.fromEntries(parts.map(part => [part.partId, part.stl])), stationsMm: [-1.75,-1.5,-1.25] });
+    meshes: Object.fromEntries(parts.map(part => [part.partId, part.stl])) });
   expect(fit.status).toBe("MEASURED");
+  expect(fit.stationSource).toBe("declaration");
   expect(fit.clearanceMm!.min).toBeGreaterThanOrEqual(.35);
   expect(fit.clearanceMm!.max).toBeLessThanOrEqual(.45);
+  const sampledGuide = await prepareAssembly({ ...input, spec: guideSpec,
+    fitRequirements: [{ connectionId: "guide", boreInstanceId: "support", diametralClearanceMm: { min: .35, max: .45 } }],
+    kinematics: { connectionId: "guide", movingInstanceIds: ["rotor"] },
+  });
+  expect(sampledGuide.manifest.fits[0].stationSource).toBe("declaration");
+  expect(sampledGuide.manifest.fits[0].measuredStatus).toBe("PASS");
+  expect(sampledGuide.manifest.fits[0].jointFrames.measuredStatus).toBe("PASS");
+  expect(sampledGuide.kinematics!.motion.status).toBe("PASS");
+  expect(sampledGuide.manifest.evidence.motion.status).toBe("NOT_RUN");
 
   // Independently derived necessary vertical clearances for this rigid design.
   expect(5 - .9).toBeLessThan(4.2); // Handle passes below the gate overhang.
@@ -265,3 +276,34 @@ test("a provided mechanical scheme cannot hide a filled guide bore or a misplace
   expect(guideOnly.direct.status).toBe("PASS");
   expect(corrected.direct.status).toBe("FAIL");
 }, 90000);
+
+test("retained model repair measures its declared guide region without qualifying full function", async () => {
+  const raw = await readFile("scripts/eval/assembly-fixtures/candidates/guided-repaired-hinge-2026-11-08.scad", "utf8");
+  expect(createHash("sha256").update(raw).digest("hex")).toBe("7a2a821cf9c9ca5997a278b11748c979b8e63594aeef66498b8da9b4e44e3b15");
+  const extracted = extractEmbeddedAssemblySpec(raw);
+  if (extracted.status !== "valid") throw new Error("Frozen model repair has no valid declaration");
+  expect(extracted.spec.translationProbes).toHaveLength(7);
+  const spec = { ...extracted.spec, connections: extracted.spec.connections.map(connection => ({
+    ...connection, fitStationsMm: [-1.75,-1.5,-1.25],
+  })) };
+  // This is an explicit manual measurement annotation, not model-generated metadata.
+  const start = raw.indexOf("/* AGENTSCAD_ASSEMBLY_V1");
+  const marker = "END_AGENTSCAD_ASSEMBLY */";
+  const end = raw.indexOf(marker, start) + marker.length;
+  const annotated = raw.slice(0, start) + `/* AGENTSCAD_ASSEMBLY_V1\n${JSON.stringify(spec)}\n${marker}` + raw.slice(end);
+  const result = await judgeAssemblyCandidate({
+    prompt: "两件式铰链，直径间隙0.35到0.45mm，能转±45°，可组装可拆", scad: annotated,
+    onPrepared: async prepared => {
+      expect(prepared.manifest.fits[0].stationSource).toBe("declaration");
+      expect(prepared.manifest.fits[0].stationsMm).toEqual([-1.75,-1.5,-1.25]);
+      expect(prepared.manifest.evidence.physical.status).toBe("NOT_RUN");
+    },
+  });
+  expect(result.passed).toBe(false);
+  for (const id of ["part-connectivity", "assembly-path", "disassembly-path", "sampled-motion", "diametral-clearance",
+    "assembly-reconstruction", "measured-joint-frames", "declared-translation-probes"]) {
+    expect(result.evidence.find(item => item.id === id)?.status).toBe("PASS");
+  }
+  expect(result.evidence.find(item => item.id === "intent-preserved")?.status).toBe("NOT_RUN");
+  expect(result.evidence.find(item => item.id === "unresolved-axial-retention")?.status).toBe("NOT_RUN");
+}, 60000);

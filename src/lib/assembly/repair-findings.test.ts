@@ -363,6 +363,24 @@ describe("guarding a repair against a weakened declaration", () => {
     expect(codes(assertRepairPreservesAssembly({ before: base, after: moved }))).toEqual(["bore-changed"]);
   });
 
+  test("a geometry repair cannot discard or cherry-pick declared fit stations", () => {
+    const before = clone();
+    before.connections[0].fitStationsMm = [1,2,3];
+    expect(assertRepairPreservesAssembly({ before, after: structuredClone(before) }).ok).toBe(true);
+    for (const stations of [undefined, [2,3], [1,2,4]]) {
+      const after = structuredClone(before);
+      if (stations) after.connections[0].fitStationsMm = stations;
+      else delete after.connections[0].fitStationsMm;
+      const result = assertRepairPreservesAssembly({ before, after });
+      expect(codes(result)).toEqual(["requirement-relaxed"]);
+      expect(result.violations[0].message).toContain("measurement stations");
+    }
+    const shiftedFrame = structuredClone(before);
+    shiftedFrame.connections[0].frameA.origin[2] = 1;
+    expect(codes(assertRepairPreservesAssembly({ before, after: shiftedFrame }))).toEqual(["requirement-relaxed"]);
+    expect(assertRepairPreservesAssembly({ before: base, after: before }).ok).toBe(true);
+  });
+
   test("every weakening is reported, not just the first", () => {
     const gutted = clone();
     gutted.parts = gutted.parts.filter((part: { id: string }) => part.id !== "pin");

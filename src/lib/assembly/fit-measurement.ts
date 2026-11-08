@@ -32,6 +32,10 @@ export interface RevoluteFitMeasurement {
   /** Alignment of the two measured axes in the assembly frame. */
   axis: { offsetMm: number; angleDeg: number } | null;
   stationsMm: number[];
+  /** Absent in older archived reports. Declaration scope is untrusted input. */
+  stationSource?: "not-selected" | "caller" | "declaration" | "overlap-default";
+  /** Declared part-local reference for station offsets, separate from measured axes. */
+  stationFrame?: { instanceId: string; origin: Vec3; direction: Vec3 };
   unknowns: string[];
 }
 
@@ -87,7 +91,7 @@ export function measureRevoluteFit(input: {
     "Only the sampled axial stations are measured; other stations are not covered.",
     "Radial clearance is measured, not assembly, motion or physical function.",
   ];
-  const base: RevoluteFitMeasurement = { status: "NOT_RUN", reason: "", connectionId: input.connectionId, bore: null, shaft: null, clearanceMm: null, axis: null, stationsMm: [], unknowns };
+  const base: RevoluteFitMeasurement = { status: "NOT_RUN", reason: "", connectionId: input.connectionId, bore: null, shaft: null, clearanceMm: null, axis: null, stationsMm: [], stationSource: "not-selected", unknowns };
   const parsed = validateAssemblySpec(input.spec);
   if (!parsed.success) return { ...base, status: "ERROR", reason: "Invalid assembly specification." };
   const spec = parsed.data;
@@ -147,7 +151,11 @@ export function measureRevoluteFit(input: {
   if (!(overlapMax > overlapMin)) {
     return { ...base, status: "ERROR", reason: "The two features do not overlap along the declared axis, so they cannot form a joint." };
   }
-  const stations = input.stationsMm ?? [0.2, 0.5, 0.8].map((fraction) => overlapMin + (overlapMax - overlapMin) * fraction);
+  const stations = input.stationsMm ?? connection.fitStationsMm
+    ?? [0.2, 0.5, 0.8].map((fraction) => overlapMin + (overlapMax - overlapMin) * fraction);
+  base.stationSource = input.stationsMm !== undefined ? "caller"
+    : connection.fitStationsMm !== undefined ? "declaration" : "overlap-default";
+  base.stationFrame = { instanceId: connection.a, ...connection.frameA };
   if (stations.some((value) => !Number.isFinite(value) || value < overlapMin || value > overlapMax)) {
     return { ...base, status: "ERROR", reason: "Every station must lie inside the axial overlap of the two features." };
   }
@@ -216,6 +224,8 @@ export function measureRevoluteFit(input: {
     clearanceMm,
     axis,
     stationsMm: stations,
+    stationSource: base.stationSource,
+    stationFrame: base.stationFrame,
     unknowns,
   };
 }
