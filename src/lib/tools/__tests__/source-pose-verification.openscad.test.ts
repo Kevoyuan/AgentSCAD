@@ -23,6 +23,11 @@ test("native source motion is observed and incorrect input-to-output coupling is
     expect((await verifySourcePoses({
         ...input, scadSource: source
     })).status).toBe("PASS");
+    const dishonest = source.replace("if(agentscad_pose)", 'if(agentscad_part == "all") translate([20,0,0]) cube([2,3,4]); else if(agentscad_pose)');
+    const inconsistent = await verifySourcePoses({ ...input, scadSource: dishonest });
+    expect(inconsistent.status).toBe("FAIL");
+    expect(inconsistent.results[0].comparisons?.every(item => item.result.status === "PASS")).toBe(true);
+    expect(inconsistent.results[0].assembly?.status).toBe("FAIL");
     for (const replacement of ["0", "2*travel"]) {
         const result = await verifySourcePoses({
             ...input, scadSource: source.replace("[travel,0,0]", `[${replacement},0,0]`)

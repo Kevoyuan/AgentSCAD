@@ -3,6 +3,7 @@ import { canonicalJson } from "../canonical-json";
 import { validateAssemblySpec, validateRigidTransform } from "../assembly/assembly-spec";
 import { checkReconstructedMesh } from "../assembly/reconstructed-mesh-check";
 import { renderAssemblyParts } from "./assembly-part-renderer";
+import { checkAssemblyReconstruction } from "./assembly-reconstruction";
 import { isRepairableScadCompileError } from "./scad-compile-error";
 import type { ScadExecutionOptions } from "./scad-renderer";
 type Parameters = Record<string, number | string | boolean>;
@@ -66,10 +67,11 @@ export async function verifySourcePoses(input: {
             instanceId: string;
             result: ReturnType<typeof checkReconstructedMesh>;
         }>;
+        assembly?: Awaited<ReturnType<typeof checkAssemblyReconstruction>>;
     }> = [];
     const base = {
-        method: "source-pose-correspondence/v1", sourceSha256: sha(scadSource), protocolSha256: sha(canonicalJson(setup)),
-        protocol: setup, budgetMs, coverage: "Only listed source inputs and pose-selector surfaces compared with caller-provided expected rigid poses. Correspondence of pose-selector views to the complete source assembly view is unverified. Retessellation may remain NOT_RUN. No full requirement coverage, continuous trajectory, collision, observable joint phase for symmetric bodies, forces or physical qualification."
+        method: "source-pose-correspondence/v2", sourceSha256: sha(scadSource), protocolSha256: sha(canonicalJson(setup)),
+        protocol: setup, budgetMs, coverage: "Listed source inputs and pose-selector surfaces compared with caller-provided expected rigid poses, plus complete assembly reconstruction at the same inputs. Reconstruction retains its kernel-precision and boundary limitations. Retessellation may remain NOT_RUN. No full requirement coverage, continuous trajectory, collision, observable joint phase for symmetric bodies, forces or physical qualification."
     };
     try {
         if (setup.spec.parts.some(part => part.source === "purchased"))
@@ -114,10 +116,28 @@ export async function verifySourcePoses(input: {
                     })
                 };
             });
-            const status = comparisons.some(item => item.result.status === "FAIL") ? "FAIL"
-                : comparisons.every(item => item.result.status === "PASS") ? "PASS" : "NOT_RUN";
+            let assembly: Awaited<ReturnType<typeof checkAssemblyReconstruction>> | undefined;
+            if (!comparisons.some(item => item.result.status === "FAIL") && !signal.aborted) {
+                const [whole] = await render({
+                    scadSource, parts: [{ partId: "assembly", selector: "all" }],
+                    parameters: { ...setup.poseParameters, ...item.parameters }, options: { ...input.options, signal }
+                });
+                if (!whole) throw new Error("Complete source assembly mesh is missing");
+                const remainingMs = Math.floor(budgetMs - (Date.now() - started));
+                if (remainingMs > 0) assembly = await checkAssemblyReconstruction({
+                    spec: { ...setup.spec, instances: setup.spec.instances.map(instance => ({ ...instance, transform: item.transforms[instance.id] })) },
+                    meshes: Object.fromEntries(local.map(part => [part.partId, part.stl])), assemblyMesh: whole.stl,
+                    options: { ...input.options, signal }, budgetMs: Math.min(15000, remainingMs)
+                });
+            }
+            const status = comparisons.some(item => item.result.status === "FAIL") || assembly?.status === "FAIL" ? "FAIL"
+                : assembly?.status === "ERROR" ? "ERROR"
+                : comparisons.every(item => item.result.status === "PASS") && assembly?.status === "PASS" ? "PASS" : "NOT_RUN";
             results.push({
-                id: item.id, status, reason: "Per-instance surface comparisons at this source input", comparisons
+                id: item.id, status,
+                reason: assembly ? `Complete assembly at the same input: ${assembly.reason}`
+                    : "Assembly reconstruction was not executed after a view failure or deadline",
+                comparisons, assembly
             });
         }
     }

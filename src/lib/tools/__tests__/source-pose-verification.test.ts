@@ -80,7 +80,7 @@ test("source and protocol remain bound to the initial inputs during rendering", 
     };
     const result = await verifySourcePoses(request);
     expect(result.status).toBe("PASS");
-    expect(sources).toEqual([setup.scadSource, setup.scadSource, setup.scadSource]);
+    expect(sources).toEqual(Array(5).fill(setup.scadSource));
     const purchased = { ...spec, parts: spec.parts.map(part => ({ ...part, source: "purchased" })) };
     expect((await verifySourcePoses({ ...setup, spec: purchased, render: renderer() })).status).toBe("NOT_RUN");
 });
