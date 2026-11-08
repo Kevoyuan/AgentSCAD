@@ -38,7 +38,7 @@ export async function diagnoseAssemblySource(input:{scadSource:string;signal?:Ab
   if(!generated.length){report.reason="No generated part meshes; purchased instances were not approximated.";return {report,parts};}
   const deadline=AbortSignal.timeout(report.limits.renderMs);
   try {
-    parts=await render({scadSource:input.scadSource,parts:generated.map(p=>({partId:p.id,selector:p.selector})),
+    parts=await render({scadSource:input.scadSource,parts:generated.map(p=>({partId:p.id,selector:p.selector})),parameters:{agentscad_pose:false},
       options:{signal:input.signal?AbortSignal.any([input.signal,deadline]):deadline}});
     input.signal?.throwIfAborted();
     if(deadline.aborted){report.reason="Diagnostic render deadline exceeded.";return {report,parts};}

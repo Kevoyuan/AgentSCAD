@@ -28,7 +28,7 @@ test("invalid operations permit only a validated rendering subset, never a valid
 });
 
 test("raw geometry defects reach A001 repair feedback while the schema stays FAIL",async()=>{
- const diagnostic=await diagnoseAssemblySource({scadSource:source(invalid())},async()=>meshes);
+ const diagnostic=await diagnoseAssemblySource({scadSource:source(invalid())},async(input)=>{expect(input.parameters?.agentscad_pose).toBe(false);return meshes;});
  expect(diagnostic.report.execution).toBe("COMPLETED");
  expect(diagnostic.report.collisions[0].measurement.blocked).toBe(true);
  const [row]=await validateAssemblyArtifact({inputRequest:"两件式铰链",scadSource:source(invalid())},undefined,async()=>diagnostic);

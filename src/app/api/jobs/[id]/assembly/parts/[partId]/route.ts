@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, { params }: Context) {
     if (!source) throw new AssemblyExportRejection(409, "Job is not in a delivered state");
     const part = lease.spec.parts.find((item) => item.id === partId);
     if (!part || part.source !== "generated") return NextResponse.json({ error: "Generated part not found" }, { status: 404 });
-    const [rendered] = await renderAssemblyParts({ scadSource: source, parts: [{ partId: part.id, selector: part.selector }], options: { signal: lease.signal } });
+    const [rendered] = await renderAssemblyParts({ scadSource: source, parts: [{ partId: part.id, selector: part.selector }], parameters: { agentscad_pose: false }, options: { signal: lease.signal } });
     await lease.verifyUnchanged();
     if (new URL(request.url).searchParams.get("download") === "1") {
       try {

@@ -10,7 +10,7 @@ if (process.env.AGENTSCAD_PART_ROUTE_CHILD !== "1") {
     const dir = mkdtempSync(path.join(os.tmpdir(), "agentscad-part-route-"));
     writeFileSync(path.join(dir, "test.db"), "");
     const fake = path.join(dir, "openscad");
-    writeFileSync(fake, `#!/usr/bin/env node\nconst fs=require('fs');const out=process.argv[process.argv.indexOf('-o')+1];const buf=Buffer.alloc(134);buf.writeUInt32LE(1,80);buf.writeFloatLE(1,108);buf.writeFloatLE(1,124);setTimeout(()=>fs.writeFileSync(out,buf),200);\n`, { mode: 0o755 });
+    writeFileSync(fake, `#!/usr/bin/env node\nconst fs=require('fs');if(!process.argv.includes('agentscad_pose=false'))process.exit(2);const out=process.argv[process.argv.indexOf('-o')+1];const buf=Buffer.alloc(134);buf.writeUInt32LE(1,80);buf.writeFloatLE(1,108);buf.writeFloatLE(1,124);setTimeout(()=>fs.writeFileSync(out,buf),200);\n`, { mode: 0o755 });
     const env = { ...process.env, DATABASE_URL: `file:${dir}/test.db`, AGENTSCAD_PART_ROUTE_CHILD: "1", API_SECRET: "assembly-test-secret", OPENSCAD_BIN: fake, AGENTSCAD_OPENSCAD_BACKEND: "native" };
     try {
       const setup = spawnSync("node", ["node_modules/prisma/build/index.js", "db", "push", "--skip-generate"], { env, encoding: "utf8", timeout: 20000 });

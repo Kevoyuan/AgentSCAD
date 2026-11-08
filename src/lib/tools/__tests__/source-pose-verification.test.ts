@@ -84,3 +84,13 @@ test("source and protocol remain bound to the initial inputs during rendering", 
     const purchased = { ...spec, parts: spec.parts.map(part => ({ ...part, source: "purchased" })) };
     expect((await verifySourcePoses({ ...setup, spec: purchased, render: renderer() })).status).toBe("NOT_RUN");
 });
+
+test("fractional translations use world-placed meshes for assembly consistency", async () => {
+    const request = structuredClone(setup);
+    request.cases[1].parameters.travel = 0.9;
+    request.cases[1].transforms[id] = translation(0.9, 0, 0);
+    const result = await verifySourcePoses({ ...request, render: renderer() });
+    expect(result.status).toBe("PASS");
+    expect(result.results[1].assembly?.comparison).toBe("exact-oriented-triangles");
+    expect(result.results[1].assembly?.residualTriangles).toBe(0);
+});

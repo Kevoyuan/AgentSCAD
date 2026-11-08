@@ -70,8 +70,8 @@ export async function verifySourcePoses(input: {
         assembly?: Awaited<ReturnType<typeof checkAssemblyReconstruction>>;
     }> = [];
     const base = {
-        method: "source-pose-correspondence/v2", sourceSha256: sha(scadSource), protocolSha256: sha(canonicalJson(setup)),
-        protocol: setup, budgetMs, coverage: "Listed source inputs and pose-selector surfaces compared with caller-provided expected rigid poses, plus complete assembly reconstruction at the same inputs. Reconstruction retains its kernel-precision and boundary limitations. Retessellation may remain NOT_RUN. No full requirement coverage, continuous trajectory, collision, observable joint phase for symmetric bodies, forces or physical qualification."
+        method: "source-pose-correspondence/v3", sourceSha256: sha(scadSource), protocolSha256: sha(canonicalJson(setup)),
+        protocol: setup, budgetMs, coverage: "Listed pose-selector surfaces compared with caller-provided rigid poses, then union of these already world-placed source meshes compared with the complete assembly at the same inputs. Per-view tolerance and reconstruction kernel/boundary limitations remain separate. Retessellation may remain NOT_RUN. No full requirement coverage, continuous trajectory, collision, observable joint phase for symmetric bodies, forces or physical qualification."
     };
     try {
         if (setup.spec.parts.some(part => part.source === "purchased"))
@@ -125,8 +125,19 @@ export async function verifySourcePoses(input: {
                 if (!whole) throw new Error("Complete source assembly mesh is missing");
                 const remainingMs = Math.floor(budgetMs - (Date.now() - started));
                 if (remainingMs > 0) assembly = await checkAssemblyReconstruction({
-                    spec: { ...setup.spec, instances: setup.spec.instances.map(instance => ({ ...instance, transform: item.transforms[instance.id] })) },
-                    meshes: Object.fromEntries(local.map(part => [part.partId, part.stl])), assemblyMesh: whole.stl,
+                    // Geometry-only identity placement: posed exports are already in world coordinates.
+                    // Expected transforms were checked independently above, without reapplying them here.
+                    spec: {
+                        schemaVersion: 1, units: setup.spec.units, coordinateSystem: setup.spec.coordinateSystem,
+                        parts: setup.spec.instances.map(instance => ({ id: instance.id, name: instance.id,
+                            selector: setup.poseSelectors[instance.id], source: "generated", material: null })),
+                        instances: setup.spec.instances.map(instance => ({ id: instance.id, partId: instance.id,
+                            subassemblyId: null, transform: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] })),
+                        subassemblies: [], groundedInstanceId: setup.spec.groundedInstanceId,
+                        connections: [], motions: [], operations: [], manufacturing: null,
+                        assumptions: ["Posed meshes already occupy assembly coordinates"], unknowns: []
+                    },
+                    meshes: Object.fromEntries(posed.map(part => [part.partId, part.stl])), assemblyMesh: whole.stl,
                     options: { ...input.options, signal }, budgetMs: Math.min(15000, remainingMs)
                 });
             }

@@ -18,8 +18,9 @@ if (process.env.AGENTSCAD_BUNDLE_ROUTE_CHILD !== "1") {
 const fs = require('fs');
 const args = process.argv.slice(2);
 const out = args[args.indexOf('-o') + 1];
-const at = args.indexOf('-D');
-const part = at >= 0 ? args[at + 1].replace('agentscad_part=', '').replace(/["']/g, '') : 'all';
+const partArg = args.find((value, index) => args[index - 1] === '-D' && value.startsWith('agentscad_part='));
+const part = partArg ? partArg.replace('agentscad_part=', '').replace(/["']/g, '') : 'all';
+if (part !== 'all' && !args.includes('agentscad_pose=false')) process.exit(2);
 const ignore = fs.readFileSync(args[args.length - 1], 'utf8').includes('IGNORE_SELECTOR');
 const size = ignore ? [1, 1, 1] : part === 'lid' ? [4, 4, 4] : part === 'all' ? [10, 10, 4] : [10, 10, 2];
 const [x, y, z] = size;
