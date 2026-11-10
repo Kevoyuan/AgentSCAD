@@ -36,6 +36,23 @@ test("source inputs are rendered and wrong or idle motion cannot pass", async ()
         ...setup, render: renderer(2)
     })).status).toBe("FAIL");
 });
+
+test("artifact observers receive actual inputs and owned meshes without changing verification", async () => {
+    const rows: Array<{ phase: string; caseId: string | null; hashMatches: boolean }> = [];
+    const { createHash } = await import("node:crypto");
+    const result = await verifySourcePoses({ ...setup, render: renderer(), onArtifact: artifact => {
+        rows.push({ phase: artifact.phase, caseId: artifact.caseId,
+            hashMatches: createHash("sha256").update(artifact.stl).digest("hex") === artifact.sha256 });
+        artifact.stl.fill(0);
+        artifact.parameters.travel = 999;
+    } });
+    expect(result.status).toBe("PASS");
+    expect(rows.map(row => row.phase)).toEqual(["manufacturing", "pose", "assembly", "pose", "assembly"]);
+    expect(rows.every(row => row.hashMatches)).toBe(true);
+    expect(rows[0].caseId).toBeNull();
+    const failed = await verifySourcePoses({ ...setup, render: renderer(), onArtifact: () => { throw new Error("retention failed"); } });
+    expect(failed.status).toBe("ERROR");
+});
 test("invalid protocols are refused before rendering", async () => {
     for (const change of [
         { poseSelectors: {} }, { cases: [setup.cases[0]] }, { cases: [

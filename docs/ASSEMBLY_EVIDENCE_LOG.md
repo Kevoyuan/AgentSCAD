@@ -1451,3 +1451,18 @@ cc8dbf4引入的独立服务端128位种子和区间内部探测继续保留，�
 postchecks保存两组manifest、制造STL、原始模型源hash、全部列出工具快照及前后hash复核，codeUnchangedDuringRun true。artifact-binding.json核对保存制造件及模型源与报告哈希一致。原始请求/回复、模型源、编译产物、守卫、计费和原判定在paid目录，未被后检查覆盖。正常工具仍不长期保存每个源码姿态的STL，这一证据缺口未关闭。模型产物按字节冻结到scripts/eval/assembly-fixtures/candidates/guided-source-control-repair-2026-11-10.scad及说明文件，未加入生成检索。
 
 本轮执行真实模型、正常原生后检查、完整制造表面对照和保留角度复验，未修改运行代码，因此未重跑普通测试套件、WASM、浏览器或实物。下一步继续推进姿态产物归档、完整需求/保持条件以及多关节功能验证。完整M0–M8目标仍在进行。
+
+
+## 60. 正常装配包保留源码姿态网格、需求与输入绑定（2026-11-10）
+
+原产品源码运动报告只保存输入、测量和网格hash，下载包不含逐输入的原始网格。现在verifySourcePoses提供可选产物观察接口，每次制造、实例姿态及同输入总装求值后，交付独立Buffer、参数快照及实际SHA-256。观察者不能改写用于数值检查的原网格。prepareAssembly转发该接口，buildAssemblyBundle收集真实产物并写入evidence/source-poses/的数字文件名，避免候选ID成为文件路径。协议、报告、全部输入/hash、原SCAD及原请求/合同快照进入包内。正常制造件仍位于根目录，HTTP适配器、模型路由、指标和用户决定账本未改。
+
+归档预算由研究者选择32 MiB，仅计捕获网格字节。超过上限清空全部已捕获网格、忽略后续捕获，并明确NOT_RUN，数值检查继续。文件集合不完整为PARTIAL，只有预期phase/case/part身份全部唯一覆盖才COMPLETE。归档完整性与几何PASS分开。普通检查保存在服务器的JSON记录仍originalMeshesRetained=false；本次只补下载ZIP的原始姿态证据，不构成服务器长期产物存储闭环。缺源码执行或中途错误时不虚构网格。
+
+真实原生实验位于.agentscad/experiments/source-pose-bundle-2026-11-10。使用第59节实际模型修复稿bdcbfa19…、原人工方案辅助任务和研究者模拟确认合同，通过正常buildAssemblyBundle生成下载包。最终export-v2/agentscad-hinge-evidence.zip为1411423字节，SHA-256为9edaa84a3a43309365f92322a8bbf28cbed9fc5c5d1f999b3b0875cd388b976f，20份源码验证网格完整保留。sourceMotion PASS，完整requirements因axial-retention未明确仍NOT_RUN，physical NOT_RUN。没有计为自主设计、真实用户确认或物理功能成功。原export与最终export-v2分开且拒绝覆盖，前者尚不含需求快照文件。
+
+独立实现的Python标准库audit-v2.py直接读取最终ZIP，复核原请求/合同语义、SCAD、规格、制造件、全部姿态及总装网格的hash绑定，再用保存矩阵直接计算12个实例姿态的边界。最大边界误差2.1830918761622797e-7mm，小于冻结1e-4mm阈值。此审计只支持归档完整性和边界必要条件；完整表面对照仍是主工具的结果，没有独立认证完整表面、连续轨迹或实物。工具快照另存实验目录，ZIP未打包执行环境。导出过程中列出工具hash不变，之后仅将新归档模块展开为易读排版，最终原生回归覆盖当前工作区。
+
+新增回归覆盖Buffer及参数所有权、路径不受ID控制、超预算清空、缺失/重复身份、空文件与hash错误、观察者异常明确ERROR，以及真实装配包全部网格与报告hash对应、源码和需求快照。最终原生正常入口正/负例1 PASS/58断言、125.87秒，普通1048 PASS/3 SKIP/0 FAIL（1051项161文件、28.83秒），typecheck/lint/diff通过。原生日志native-final.log，普通unit-commit.log，类型及lint分别types-commit.log/lint-commit.log。完整原生套件/WASM、真实浏览器、独立工程师隐藏集及实物本轮未执行。
+
+费用增量0，累计保守上界3.316132/28元。全部新增代码为本仓库原创，未复制第三方源码或引入依赖。下一步应核对正常导出适配器和存储版本守卫的真实原生链路，继续明确保持/独立释放条件及源码装拆联动，再推进多关节与制造实测。完整M0–M8目标继续进行。

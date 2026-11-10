@@ -13,6 +13,7 @@ export const ASSEMBLY_VERIFIER_SOURCES=[
   "src/lib/assembly/declared-translation-probes.ts","src/lib/assembly/translation-probe.ts",
   "src/lib/assembly/rigid-trajectory.ts",
   "src/lib/assembly/source-motion-protocol.ts","src/lib/tools/source-pose-verification.ts","src/lib/assembly/reconstructed-mesh-check.ts","src/lib/geometry/surface-cover.ts",
+  "src/lib/assembly/source-pose-archive.ts",
   "src/lib/tools/scad-compile-error.ts","src/lib/tools/scad-sanitizer.ts",
   "src/lib/geometry/stl-mesh.ts","src/lib/geometry/mesh-collision.ts","src/lib/tools/assembly-reconstruction.ts",
   "src/lib/requirements/contract-bridge.ts","src/lib/requirements/requirement-contract.ts","src/lib/requirements/extract-requirements.ts","src/lib/tools/scad-renderer.ts","src/lib/tools/assembly-part-renderer.ts",

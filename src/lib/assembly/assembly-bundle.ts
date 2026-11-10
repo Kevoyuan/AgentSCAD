@@ -8,6 +8,7 @@ import { collectOpenScadWarnings } from "../tools/scad-renderer";
 import { canonicalJson } from "../canonical-json";
 import { prepareContractAssembly } from "./prepare-contract-assembly";
 import type { checkDeclaredPoseDisassembly } from "./declared-pose-disassembly";
+import { createSourcePoseArchive } from "./source-pose-archive";
 
 /** Exporting N identical files labelled as different parts would be a lie, so it is refused. */
 export class AssemblyIdentityError extends Error {
@@ -66,6 +67,7 @@ function readme(
     specificationSha256: string;
     contract?: { evidenceCurrent: boolean | null; reason: string; binding?: { sha256: string; revision: number; requestSha256: string } | null };
     evidence: Record<string, { status: string; reason?: string }>;
+    sourcePoseArchive?: { status: string; reason: string; files?: Array<{ path: string }> };
   },
   parts: RenderedAssemblyPart[],
 ): string {
@@ -84,6 +86,7 @@ function readme(
     "Quantities from declared assembly instances:",
     ...manifest.parts.map(part => `- ${part.id}: ${part.quantity} (${part.source})`),
     "One STL represents one part design; manufacture the stated quantity.",
+    "Root-level part STLs are the manufacturing files. Evidence meshes retain validation poses.",
     "",
     "Requirement contract:",
     `- ${standing}`,
@@ -103,6 +106,9 @@ function readme(
     "Each PASS covers its recorded method and sampled conditions.",
     "Continuous motion, complete functional requirements and physical operation",
     "require their own recorded checks.",
+    ...(manifest.sourcePoseArchive ? ["", `Source-pose mesh archive ${manifest.sourcePoseArchive.status}`,
+      manifest.sourcePoseArchive.reason,
+      ...(manifest.sourcePoseArchive.files?.length ? ["Captured meshes, inputs and hashes are indexed in evidence/source-poses.json."] : [])] : []),
     "",
     `sourceSha256: ${manifest.sourceSha256}`,
     `specificationSha256: ${manifest.specificationSha256}`,
@@ -133,7 +139,10 @@ export async function buildAssemblyBundle(input: {
   /** Runs before selector refusal so a failed check can still be recorded. */
   onPrepared?:(prepared:Awaited<ReturnType<typeof prepareAssembly>>)=>Promise<void|{id:string;reportSha256:string}>;
 }) {
-  const prepared = await prepareContractAssembly(input);
+  const scadSource = input.scadSource;
+  const contractSnapshot = input.contractSnapshot ? structuredClone(input.contractSnapshot) : undefined;
+  const archive = createSourcePoseArchive();
+  const prepared = await prepareContractAssembly({ ...input, scadSource, contractSnapshot, onSourcePoseArtifact: archive.collect });
   const verificationRecord=await input.onPrepared?.(prepared);
   if (prepared.identity.distinctness.status === "FAIL") {
     throw new AssemblyIdentityError(prepared.identity.distinctness.reason);
@@ -142,6 +151,26 @@ export async function buildAssemblyBundle(input: {
   // ZIP stores a 1980-based DOS timestamp; anything outside that range is unrepresentable.
   if (!Number.isFinite(mtime.getTime()) || mtime.getUTCFullYear() < 1980 || mtime.getUTCFullYear() > 2099) throw new Error("Archive timestamp must be between 1980 and 2099");
   const files: Zippable = {};
+  const motion = prepared.manifest.sourceMotion;
+  const expected = motion ? [
+    ...motion.protocol.spec.parts.filter(part => part.source === "generated")
+      .map(part => ({ phase: "manufacturing" as const, caseId: null, partId: part.id })),
+    ...motion.protocol.cases.flatMap(item => [
+      ...motion.protocol.spec.instances.map(instance => ({ phase: "pose" as const, caseId: item.id, partId: instance.id })),
+      { phase: "assembly" as const, caseId: item.id, partId: "assembly" },
+    ]),
+  ] : [];
+  const retained = archive.finish(expected);
+  for (const [i, artifact] of retained.metadata.files.entries()) {
+    files[artifact.path] = [new Uint8Array(retained.meshes[i]), { level: 0, mtime }];
+  }
+  if (retained.metadata.files.length) {
+    files["evidence/source.scad"] = [strToU8(scadSource), { level: 6, mtime }];
+    if (contractSnapshot) files["evidence/requirements.json"] = [strToU8(JSON.stringify(contractSnapshot, null, 2)), { level: 6, mtime }];
+    files["evidence/source-poses.json"] = [strToU8(JSON.stringify({ ...retained.metadata,
+      sourceSha256: prepared.manifest.sourceSha256, protocolSha256: motion?.protocolSha256,
+      protocol: motion?.protocol, report: stableSourceMotionRecord(motion) }, null, 2)), { level: 6, mtime }];
+  }
   for (const part of prepared.parts) {
     // STL is already dense; storing avoids spending CPU to save a few percent.
     files[`${part.partId}.stl`] = [new Uint8Array(part.stl), { level: 0, mtime }];
@@ -154,6 +183,7 @@ export async function buildAssemblyBundle(input: {
     // archive bytes when the measured geometry and verdict are identical.
     reconstruction: {...prepared.manifest.reconstruction,diagnostics:collectOpenScadWarnings(prepared.manifest.reconstruction.diagnostics).join("\n")},
     sourceMotion: stableSourceMotionRecord(prepared.manifest.sourceMotion),
+    sourcePoseArchive: retained.metadata,
     declaredDisassembly: stableDisassemblyRecord(prepared.manifest.declaredDisassembly),
     declaredAssembly: stableAssemblyRecord(prepared.manifest.declaredAssembly),
     bundleSchemaVersion: 1 as const,

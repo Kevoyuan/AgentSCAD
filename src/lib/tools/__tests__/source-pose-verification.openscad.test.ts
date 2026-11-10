@@ -135,6 +135,24 @@ test("normal assembly checks distinguish source motion from ideal rigid sampling
     expect(correct.manifest.sourceMotion).not.toHaveProperty("durationMs");
     const archive = unzipSync(correct.zip);
     expect(strFromU8(archive["README.txt"])).toContain("- sourceMotion: PASS");
+    expect(correct.manifest.sourcePoseArchive.status).toBe("COMPLETE");
+    expect(correct.manifest.sourcePoseArchive.files).toHaveLength(20);
+    expect(strFromU8(archive["evidence/source.scad"])).toBe(source);
+    expect(JSON.parse(strFromU8(archive["evidence/requirements.json"])).request).toBe(request);
+    const index = JSON.parse(strFromU8(archive["evidence/source-poses.json"]));
+    expect(index.sourceSha256).toBe(correct.manifest.sourceSha256);
+    for (const file of index.files) {
+        expect(createHash("sha256").update(archive[file.path]).digest("hex")).toBe(file.sha256);
+    }
+    for (const item of correct.manifest.sourceMotion!.results) {
+        const whole = index.files.find((file: { phase: string; caseId: string }) => file.phase === "assembly" && file.caseId === item.id);
+        expect(whole.sha256).toBe(item.assembly?.assemblySha256);
+        for (const row of item.comparisons ?? []) {
+            const mesh = index.files.find((file: { phase: string; caseId: string; partId: string }) =>
+                file.phase === "pose" && file.caseId === item.id && file.partId === row.instanceId);
+            expect(mesh.sha256).toBe(row.result.posedSha256);
+        }
+    }
     const faulty = source.replace("rotate([0, 0, ang])", "rotate([0, 0, 0])");
     expect(faulty).not.toBe(source);
     const failed = await prepareContractAssembly({ ...input, scadSource: faulty });

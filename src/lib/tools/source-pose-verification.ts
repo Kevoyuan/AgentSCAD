@@ -8,6 +8,14 @@ import { isRepairableScadCompileError } from "./scad-compile-error";
 import type { ScadExecutionOptions } from "./scad-renderer";
 import { compareSurfaceCover, findSurfaceDifference } from "../geometry/surface-cover";
 type Parameters = Record<string, number | string | boolean>;
+export interface SourcePoseArtifact {
+    phase: "manufacturing" | "pose" | "assembly";
+    caseId: string | null;
+    partId: string;
+    parameters: Parameters;
+    stl: Buffer;
+    sha256: string;
+}
 const SURFACE_TOLERANCE_MM = 1e-4;
 type PoseChange = { status: "REFERENCE" | "OBSERVED" | "NOT_RUN"; reason: string;
     comparison?: ReturnType<typeof checkReconstructedMesh>; witness?: ReturnType<typeof findSurfaceDifference> };
@@ -29,6 +37,7 @@ export async function verifySourcePoses(input: {
     surfaceComparison?: "triangles" | "bounded-cover";
     options?: ScadExecutionOptions;
     render?: typeof renderAssemblyParts;
+    onArtifact?: (artifact: SourcePoseArtifact) => void | Promise<void>;
 }) {
     const spec = validateAssemblySpec(input.spec);
     if (!spec.success)
@@ -67,6 +76,15 @@ export async function verifySourcePoses(input: {
     const timer = setTimeout(() => controller.abort(), budgetMs);
     const signal = input.options?.signal ? AbortSignal.any([input.options.signal, controller.signal]) : controller.signal;
     const render = input.render ?? renderAssemblyParts;
+    const onArtifact = input.onArtifact;
+    const retain = async (parts: Awaited<ReturnType<typeof renderAssemblyParts>>, phase: SourcePoseArtifact["phase"], caseId: string | null, parameters: Parameters) => {
+        if (!onArtifact) return;
+        for (const part of parts) {
+            const stl = Buffer.from(part.stl);
+            await onArtifact({ phase, caseId, partId: part.partId, parameters: structuredClone(parameters),
+                stl, sha256: createHash("sha256").update(stl).digest("hex") });
+        }
+    };
     const sha = (value: string) => createHash("sha256").update(value).digest("hex");
     const results: Array<{
         id: string;
@@ -99,6 +117,7 @@ export async function verifySourcePoses(input: {
                 ...input.options, signal
             }
         });
+        await retain(local, "manufacturing", null, setup.manufacturingParameters);
         const references = new Map<string, { stl: Buffer; transform: number[] }>();
         for (const item of setup.cases) {
             input.options?.signal?.throwIfAborted();
@@ -114,6 +133,7 @@ export async function verifySourcePoses(input: {
                     ...input.options, signal
                 }
             });
+            await retain(posed, "pose", item.id, { ...setup.poseParameters, ...item.parameters });
             const comparisons = setup.spec.instances.map(instance => {
                 const part = local.find(part => part.partId === instance.partId);
                 const actual = posed.find(part => part.partId === instance.id);
@@ -156,6 +176,7 @@ export async function verifySourcePoses(input: {
                     parameters: { ...setup.poseParameters, ...item.parameters }, options: { ...input.options, signal }
                 });
                 if (!whole) throw new Error("Complete source assembly mesh is missing");
+                await retain([whole], "assembly", item.id, { ...setup.poseParameters, ...item.parameters });
                 const remainingMs = Math.floor(budgetMs - (Date.now() - started));
                 if (remainingMs > 0) assembly = await checkAssemblyReconstruction({
                     // Geometry-only identity placement: posed exports are already in world coordinates.

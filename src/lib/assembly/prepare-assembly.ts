@@ -15,7 +15,7 @@ import { RequirementContractSchema, requirementContractHash, unknownsInScope, wi
 import { deriveRequirementContract } from "../requirements/extract-requirements";
 import { checkDeclaredTranslationProbes } from "./declared-translation-probes";
 import { buildHingeSourceProtocol } from "./source-motion-protocol";
-import { verifySourcePoses } from "../tools/source-pose-verification";
+import { verifySourcePoses, type SourcePoseArtifact } from "../tools/source-pose-verification";
 
 const sha256 = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
 type Rendered = { parts: RenderedAssemblyPart[]; purchasedPartIds: string[] };
@@ -88,6 +88,7 @@ export async function prepareAssembly(input: {
   contractSnapshot?: { contract: unknown; request: string };
   /** Replay a saved sampling protocol. HTTP adapters generate a fresh seed. */
   sourceSamplingSeed?: string;
+  onSourcePoseArtifact?: (artifact: SourcePoseArtifact) => void | Promise<void>;
   options?: ScadExecutionOptions;
   render?: Renderer;
 }) {
@@ -217,7 +218,8 @@ export async function prepareAssembly(input: {
     && contractBinding?.requestMatches === true && gateReason === null
     && motionFrames?.status === "PASS" && input.kinematics?.connectionId === sourceProtocol.connectionId;
   const sourceMotion = canVerifySource && sourceProtocol.status === "READY"
-    ? { ...await verifySourcePoses({ ...sourceProtocol.protocol, scadSource, spec, options: input.options }), sampling: sourceProtocol.sampling } : null;
+    ? { ...await verifySourcePoses({ ...sourceProtocol.protocol, scadSource, spec, options: input.options,
+      onArtifact: input.onSourcePoseArtifact }), sampling: sourceProtocol.sampling } : null;
   const sourceMotionEvidence = sourceMotion
     ? applyContractGate(sourceMotion.status as EvidenceStatus,
       `Source input verification ${sourceMotion.status}. ${sourceMotion.results.map(item =>
