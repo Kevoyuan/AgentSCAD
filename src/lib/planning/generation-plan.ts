@@ -50,8 +50,8 @@ export function generationPlanFingerprint(
 function numericDimensions(parameters: ParameterDef[]): Record<string, number> {
   return Object.fromEntries(
     parameters
-      .filter((parameter) => Number.isFinite(parameter.value))
-      .map((parameter) => [parameter.key, parameter.value]),
+      .flatMap((parameter) => typeof parameter.value === "number" && Number.isFinite(parameter.value)
+        ? [[parameter.key, parameter.value] as const] : []),
   );
 }
 

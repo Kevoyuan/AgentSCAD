@@ -162,7 +162,7 @@ async function generateMockScadCode(
 
   const assignments = paramSchema
     .map((p) => {
-      const val = p.kind === "integer" ? Math.round(p.value) : p.value;
+      const val = p.kind === "integer" && typeof p.value === "number" ? Math.round(p.value) : p.value;
       return `${p.key} = ${val};`;
     })
     .join("\n");

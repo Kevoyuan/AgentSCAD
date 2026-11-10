@@ -7,12 +7,15 @@ export type PartFamily =
   | "phone_case"
   | "unknown";
 
+export type ParameterValue = number | boolean;
+export type ParameterValues = Record<string, ParameterValue>;
+
 export interface ParameterDef {
   key: string;
   label: string;
   kind: string;
   unit: string;
-  value: number;
+  value: ParameterValue;
   min: number;
   max: number;
   step: number;

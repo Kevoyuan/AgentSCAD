@@ -6,6 +6,8 @@ import { Verdict, Stepper, RevCell, OutputRow } from '../instrument'
 import { resolveParameterSchema, effectiveParameterValues, parameterBoundingBox, parameterWallThickness, isInternalParameter } from '../parameter-schema'
 import { readRenderLog, measuredBoundingBox, measuredWallThickness } from '../mesh-facts'
 import { Job, ValidationResult } from '@/components/cad/types'
+import { DimensionsModule } from '../DimensionsModule'
+import { builtParameterValues } from '../parameter-schema'
 
 /*
  * Regression cover for the C2 modules, aimed at the failures this project has
@@ -59,6 +61,22 @@ function job(overrides: Partial<Job> = {}): Job {
 }
 
 describe('C2 · parameter schema resolver', () => {
+  test('legacy numeric schemas gain source boolean controls and retain their built values', () => {
+    const design = job({
+      scadSource: 'hinge_angle = 0;\nshow_angle_clamp = true;\nagentscad_pose = false;\nmodule body() {}',
+      parameterValues: JSON.stringify({ show_angle_clamp: false }),
+    })
+    const schema = resolveParameterSchema(design)!
+    expect(schema.parameters.find(p => p.key === 'show_angle_clamp')).toMatchObject({ value: true, kind: 'boolean', unit: '' })
+    expect(schema.parameters.some(p => p.key === 'agentscad_pose')).toBe(false)
+    expect(builtParameterValues(design, schema).show_angle_clamp).toBe(false)
+    expect(effectiveParameterValues(design, { show_angle_clamp: true }).show_angle_clamp).toBe(true)
+    const html = renderToStaticMarkup(<DimensionsModule job={design} values={{ show_angle_clamp: false }}
+      changedKeys={new Set(['show_angle_clamp'])} isProcessing={false} onDraft={() => {}} onReset={() => {}} />)
+    expect(html).toContain('type="checkbox"')
+    expect(html).toContain('aria-label="Show Angle Clamp"')
+    expect(html).not.toContain('Show Angle Clamp numeric input')
+  })
   test('engine special variables are hidden, named user parameters are kept', () => {
     expect(isInternalParameter('$fn')).toBe(true)
     expect(isInternalParameter('_merge_tol')).toBe(true)

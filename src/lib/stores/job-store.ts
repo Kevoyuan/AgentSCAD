@@ -26,8 +26,8 @@ export function appendLog(
   return JSON.stringify(logs);
 }
 
-export function parameterDefsToValues(parameters: ParameterDef[]): Record<string, number> {
-  return parameters.reduce<Record<string, number>>((acc, parameter) => {
+export function parameterDefsToValues(parameters: ParameterDef[]): Record<string, number | boolean> {
+  return parameters.reduce<Record<string, number | boolean>>((acc, parameter) => {
     acc[parameter.key] = parameter.value;
     return acc;
   }, {});

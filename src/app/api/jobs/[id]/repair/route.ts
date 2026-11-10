@@ -242,7 +242,7 @@ export async function POST(
           scadSource: sanitized,
           parameterSchema: JSON.stringify(repaired.parameters),
           parameterValues: JSON.stringify(
-            repaired.parameters.reduce<Record<string, number>>((acc, p) => {
+            repaired.parameters.reduce<Record<string, number | boolean>>((acc, p) => {
               acc[p.key] = p.value;
               return acc;
             }, {})
@@ -290,7 +290,7 @@ export async function POST(
         scadSource: sanitized,
         parameterSchema: JSON.stringify(repaired.parameters),
         parameterValues: JSON.stringify(
-          repaired.parameters.reduce<Record<string, number>>((acc, p) => {
+          repaired.parameters.reduce<Record<string, number | boolean>>((acc, p) => {
             acc[p.key] = p.value;
             return acc;
           }, {})

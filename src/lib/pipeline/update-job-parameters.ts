@@ -5,6 +5,7 @@ import { appendLog } from "@/lib/stores/job-store";
 import { trackVersion } from "@/lib/version-tracker";
 import { recordJobOutcomeSafe } from "@/lib/outcome/job-outcome";
 import { writeScadParameters } from "@/lib/tools/scad-parameter-writer";
+import { withSourceBooleanParameters } from "@/lib/tools/scad-parameter-extractor";
 import { renderScadArtifacts, buildRenderFailureLog } from "@/lib/tools/scad-renderer";
 import { clearValidationCache, validateRenderedArtifacts, getCriticalValidationFailures } from "@/lib/tools/validation-tool";
 import { appendMotionEvidence } from "@/lib/validation/motion-contract";
@@ -25,12 +26,13 @@ const EDITABLE_STATES = ["NEW", "CANCELLED", "DELIVERED", "HUMAN_REVIEW", "GEOME
 export async function updateJobParameters(job: Job, parameters: Record<string, unknown>) {
   if (!EDITABLE_STATES.includes(job.state)) throw new JobExecutionConflict();
   const parsed = parseJson<Record<string, unknown> | Record<string, unknown>[]>(job.parameterSchema, []);
-  const schema = Array.isArray(parsed) ? parsed : Array.isArray(parsed.parameters) ? parsed.parameters as Record<string, unknown>[] : [];
+  const storedSchema = Array.isArray(parsed) ? parsed : Array.isArray(parsed.parameters) ? parsed.parameters as Record<string, unknown>[] : [];
+  const schema = withSourceBooleanParameters(storedSchema, job.scadSource ?? "");
   const currentValues = parseJson<Record<string, unknown>>(job.parameterValues, {});
   const errors: string[] = [];
   for (const [key, value] of Object.entries(parameters)) {
     const definition = schema.find((entry) => entry.key === key);
-    if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) || (schema.length && !definition)) {
+    if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) || (storedSchema.length && !definition)) {
       errors.push(`Unknown parameter '${key}'`);
       continue;
     }
@@ -69,7 +71,8 @@ export async function updateJobParameters(job: Job, parameters: Record<string, u
       scadSource: source,
       parameterValues: JSON.stringify(values),
       // Schema values remain reset defaults; current values live in SCAD and parameterValues.
-      parameterSchema: job.parameterSchema,
+      parameterSchema: !storedSchema.length || (schema.length === storedSchema.length && schema.every((entry, index) => entry === storedSchema[index]))
+        ? job.parameterSchema : JSON.stringify(Array.isArray(parsed) ? schema : { ...parsed, parameters: schema }),
       stlPath: null, pngPath: null, renderLog: null, reportPath: null,
       validationResults: null, validationReportJson: null, qualityScore: null,
       visualRepairReportJson: null,

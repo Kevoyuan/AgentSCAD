@@ -1,5 +1,5 @@
 import { Job, ParameterDef, ParameterSchema, parseJSON } from '@/components/cad/types'
-import { extractParameterDefsFromScad } from '@/lib/tools/scad-parameter-extractor'
+import { extractParameterDefsFromScad, withSourceBooleanParameters } from '@/lib/tools/scad-parameter-extractor'
 
 /*
  * One resolver for "what are this design's parameters", shared by the 尺寸 module,
@@ -54,7 +54,7 @@ export function groupLabel(name: string): string {
 const INTERNAL_PARAMETER_PATTERN = /^[_$]/
 
 export function isInternalParameter(key: string): boolean {
-  return INTERNAL_PARAMETER_PATTERN.test(key)
+  return key === 'agentscad_pose' || INTERNAL_PARAMETER_PATTERN.test(key)
 }
 
 export function resolveParameterSchema(job: Job | null): ResolvedSchema | null {
@@ -82,7 +82,8 @@ export function resolveParameterSchema(job: Job | null): ResolvedSchema | null {
 
   if (!schema || schema.parameters.length === 0) return null
 
-  const parameters = schema.parameters.filter(p => !isInternalParameter(p.key))
+  const parameters = withSourceBooleanParameters(schema.parameters, job.scadSource ?? '')
+    .filter(p => !isInternalParameter(p.key))
   if (parameters.length === 0) return null
 
   const names = [...new Set(parameters.map(p => p.group || 'general'))]
@@ -101,9 +102,9 @@ export function resolveParameterSchema(job: Job | null): ResolvedSchema | null {
 /** Effective parameter values: local edits win over what is stored on the job. */
 export function effectiveParameterValues(
   job: Job | null,
-  draft: Record<string, number> | null
-): Record<string, number> {
-  const stored = parseJSON<Record<string, number>>(job?.parameterValues ?? null, {})
+  draft: Record<string, number | boolean> | null
+): Record<string, number | boolean> {
+  const stored = parseJSON<Record<string, number | boolean>>(job?.parameterValues ?? null, {})
   return draft ? { ...stored, ...draft } : stored
 }
 
@@ -124,13 +125,13 @@ export function effectiveParameterValues(
 export function builtParameterValues(
   job: Job | null,
   schema: ResolvedSchema | null
-): Record<string, number> {
-  const stored = parseJSON<Record<string, number>>(job?.parameterValues ?? null, {})
-  const baseline: Record<string, number> = {}
+): Record<string, number | boolean> {
+  const stored = parseJSON<Record<string, number | boolean>>(job?.parameterValues ?? null, {})
+  const baseline: Record<string, number | boolean> = {}
   for (const parameter of schema?.parameters ?? []) {
     const storedValue = stored[parameter.key]
     baseline[parameter.key] =
-      typeof storedValue === 'number' && Number.isFinite(storedValue)
+      typeof storedValue === 'boolean' || (typeof storedValue === 'number' && Number.isFinite(storedValue))
         ? storedValue
         : parameter.value
   }
@@ -156,7 +157,7 @@ const WALL_KEYS = ['wall_thickness', 'wallThickness', 'wall', 'shellThickness', 
  * Returns null unless all three axes resolve, so the readout shows "—" rather
  * than a half-invented box.
  */
-export function parameterBoundingBox(values: Record<string, number>): [number, number, number] | null {
+export function parameterBoundingBox(values: Record<string, number | boolean>): [number, number, number] | null {
   const picked: number[] = []
   for (const keys of AXIS_KEYS) {
     let found: number | null = null
@@ -174,7 +175,7 @@ export function parameterBoundingBox(values: Record<string, number>): [number, n
 }
 
 /** The one derived dimension DESIGN.md section 6 keeps in the readout. */
-export function parameterWallThickness(values: Record<string, number>): number | null {
+export function parameterWallThickness(values: Record<string, number | boolean>): number | null {
   for (const k of WALL_KEYS) {
     const v = values[k]
     if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v

@@ -7,20 +7,8 @@ import { retrieveContext, formatRetrievalContext } from "@/lib/retrieval/example
 // Types (mirrors the ParameterDef in process/route.ts)
 // ---------------------------------------------------------------------------
 
-export interface ParameterDef {
-  key: string;
-  label: string;
-  kind: string;
-  unit: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  source: string;
-  editable: boolean;
-  description: string;
-  group: string;
-}
+export type { ParameterDef } from "@/lib/harness/types";
+import type { ParameterDef } from "@/lib/harness/types";
 
 interface FamilySchemaFile {
   family: string;
@@ -324,6 +312,6 @@ export function applyParameterOverrides(
 ): ParameterDef[] {
   return schema.map((p) => {
     const v = overrides[p.key];
-    return v !== undefined ? { ...p, value: v as number } : p;
+    return v !== undefined ? { ...p, value: v as number | boolean } : p;
   });
 }

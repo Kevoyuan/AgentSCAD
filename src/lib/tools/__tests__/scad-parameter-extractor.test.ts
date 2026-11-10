@@ -2,9 +2,34 @@ import { describe, expect, test } from "bun:test";
 import {
   extractParameterDefsFromScad,
   mergeExtractedParameters,
+  withSourceBooleanParameters,
 } from "@/lib/tools/scad-parameter-extractor";
 
 describe("scad-parameter-extractor", () => {
+  test("retains literal boolean controls as booleans through persistence", async () => {
+    const { buildScadParameterPersistence } = await import("../scad-parameter-persistence");
+    const result = buildScadParameterPersistence(`
+/*
+false_control = true;
+*/
+hinge_angle = 0;
+show_angle_clamp = true; // Keep working angle within its range
+release_mode = false;
+module body() { inner_mode = true; }
+`);
+    expect(result.parameters.find(parameter => parameter.key === "show_angle_clamp"))
+      .toMatchObject({ kind: "boolean", value: true, unit: "", editable: true });
+    expect(JSON.parse(result.parameterValues)).toEqual({ hinge_angle: 0, show_angle_clamp: true, release_mode: false });
+  });
+
+  test("boolean backfill preserves reset defaults and rejects expression and comment controls", () => {
+    const original = extractParameterDefsFromScad("release_mode = true;");
+    expect(withSourceBooleanParameters(original, "release_mode = false;")[0].value).toBe(true);
+    expect(withSourceBooleanParameters([], '// fake = true;\nlabel = "fake = true;";\nmode = !false;')).toEqual([]);
+    const legacy = [{ key: "release_mode", kind: "boolean", value: 1 }];
+    expect(withSourceBooleanParameters(legacy, "release_mode = false;")[0].value).toBe(false);
+    expect(mergeExtractedParameters(original, [{ ...original[0], unit: "mm" }])[0].unit).toBe("");
+  });
   test("extracts grouped top-level numeric assignments with explicit ranges", () => {
     const parameters = extractParameterDefsFromScad(`
 /* [Dimensions] */

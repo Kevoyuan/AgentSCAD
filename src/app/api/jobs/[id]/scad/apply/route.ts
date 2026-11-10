@@ -63,7 +63,8 @@ function inferParameterState(scadSource: string, existingSchemaStr: string | nul
   return {
     parameterSchema: JSON.stringify(nextSchema),
     parameterValues: JSON.stringify(extractedValues),
-    wallThickness: extractedValues.wall_thickness ?? existingValues.wall_thickness ?? 2,
+    wallThickness: typeof extractedValues.wall_thickness === "number"
+      ? extractedValues.wall_thickness : existingValues.wall_thickness ?? 2,
   }
 }
 

@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import { Job, ParameterDef, ParameterSchema, parseJSON, safeNum } from './types'
 import { updateParameters } from './api'
 import { staggerContainer, staggerChild, staggerTransition, slideInLeft, slideInLeftTransition } from './motion-presets'
-import { extractParameterDefsFromScad } from '@/lib/tools/scad-parameter-extractor'
+import { extractParameterDefsFromScad, withSourceBooleanParameters } from '@/lib/tools/scad-parameter-extractor'
 import { parameterUnit } from './workspace/parameter-schema'
 
 // ─── Precision & Alignment Utilities ─────────────────────────────────────────
@@ -81,7 +81,7 @@ export function clampAndAlign(
 // ─── ParameterRow Component ──────────────────────────────────────────────────
 
 interface ParameterRowProps {
-  param: ParameterDef
+  param: ParameterDef & { value: number }
   currentValue: number
   isChanged: boolean
   isUpdating: boolean
@@ -358,7 +358,7 @@ export function ParameterPanel({
 }: {
   job: Job
   onUpdate: () => void | Promise<void>
-  onPreviewUpdate?: (parameterValues: Record<string, number>) => void
+  onPreviewUpdate?: (parameterValues: Record<string, number | boolean>) => void
 }) {
   const { t } = useI18n()
 
@@ -367,7 +367,7 @@ export function ParameterPanel({
   // - A raw ParameterDef[] array (from the process route)
   // Handle both formats
   const rawSchema = parseJSON<ParameterSchema | ParameterDef[] | null>(job.parameterSchema, null)
-  const values = parseJSON<Record<string, number>>(job.parameterValues, {})
+  const values = parseJSON<Record<string, number | boolean>>(job.parameterValues, {})
   const [localValues, setLocalValues] = useState(values)
   const [isUpdating, setIsUpdating] = useState(false)
   const [changedKeys, setChangedKeys] = useState<Set<string>>(new Set())
@@ -398,9 +398,11 @@ export function ParameterPanel({
     }
   }
 
+  if (schema) schema = { ...schema, parameters: withSourceBooleanParameters(schema.parameters, job.scadSource ?? '') }
+
   const handleResetAll = useCallback(async () => {
     if (!schema) return
-    const defaults: Record<string, number> = {}
+    const defaults: Record<string, number | boolean> = {}
     for (const p of schema.parameters) {
       defaults[p.key] = p.value
     }
@@ -436,7 +438,7 @@ export function ParameterPanel({
   const meaningfulSources = new Set(schema.parameters.map(p => p.source).filter(source => source && source !== 'artifact'))
   const showSourceBadges = meaningfulSources.size > 0 && new Set(schema.parameters.map(p => p.source).filter(Boolean)).size > 1
 
-  const handleParamChange = (key: string, value: number, defaultValue: number) => {
+  const handleParamChange = (key: string, value: number | boolean, defaultValue: number | boolean) => {
     const newValues = { ...localValues, [key]: value }
     setLocalValues(newValues)
     onPreviewUpdate?.(newValues)
@@ -452,14 +454,14 @@ export function ParameterPanel({
     }
   }
 
-  const handleParamCommit = async (key: string, value: number) => {
+  const handleParamCommit = async (key: string, value: number | boolean) => {
     const newValues = { ...localValues, [key]: value }
     setIsUpdating(true)
     try {
       await updateParameters(job.id, newValues)
       onUpdate()
       toast.success(t("Parameter saved"), {
-        description: t("Set {0} to {1}", { 0: key, 1: value }),
+        description: t("Set {0} to {1}", { 0: key, 1: String(value) }),
       })
     } catch (err) {
       console.error('Parameter update failed:', err)
@@ -472,7 +474,7 @@ export function ParameterPanel({
     }
   }
 
-  const handleResetParam = async (key: string, defaultValue: number) => {
+  const handleResetParam = async (key: string, defaultValue: number | boolean) => {
     const newValues = { ...localValues, [key]: defaultValue }
     setLocalValues(newValues)
     setChangedKeys(prev => {
@@ -584,13 +586,26 @@ export function ParameterPanel({
                 )}
                 <div className="space-y-1">
                   {groupParams.map(param => {
+                    if (typeof param.value === 'boolean') {
+                      const stored = localValues[param.key]
+                      const value = typeof stored === 'boolean' ? stored : param.value
+                      return <label key={param.key} className="flex items-center justify-between gap-2 px-2 py-1.5 text-[12px]">
+                        <span>{param.label}</span>
+                        <input type="checkbox" aria-label={param.label} checked={value}
+                          disabled={isUpdating || !param.editable}
+                          onChange={event => {
+                            handleParamChange(param.key, event.target.checked, param.value)
+                            void handleParamCommit(param.key, event.target.checked)
+                          }} />
+                      </label>
+                    }
                     const value = safeNum(localValues[param.key], param.value)
                     const isChanged = changedKeys.has(param.key) || (localValues[param.key] !== undefined && localValues[param.key] !== param.value)
 
                     return (
                       <ParameterRow
                         key={param.key}
-                        param={param}
+                        param={{ ...param, value: param.value }}
                         currentValue={value}
                         isChanged={isChanged}
                         isUpdating={isUpdating}

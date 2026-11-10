@@ -28,8 +28,10 @@ interface ParsedRange {
 export function extractParameterDefsFromScad(scadSource: string): ParameterDef[] {
   const parameters = new Map<string, ParameterDef>();
   let group = "Parameters";
+  const maskedLines = scadSource.replace(/\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|"(?:\\[\s\S]|[^"\\])*"/g,
+    match => match.replace(/[^\r\n]/g, " ")).split(/\r?\n/);
 
-  for (const rawLine of scadSource.split(/\r?\n/)) {
+  for (const [index, rawLine] of scadSource.split(/\r?\n/).entries()) {
     const line = rawLine.trim();
     if (!line) continue;
 
@@ -44,10 +46,11 @@ export function extractParameterDefsFromScad(scadSource: string): ParameterDef[]
       group = toLabel(commentGroup[1]);
       continue;
     }
+    if (!maskedLines[index].trim()) continue;
 
     const match = line.match(ASSIGNMENT_RE);
     if (!match) {
-      if (GEOMETRY_START_RE.test(line)) {
+      if (GEOMETRY_START_RE.test(maskedLines[index])) {
         break;
       }
       continue;
@@ -56,7 +59,17 @@ export function extractParameterDefsFromScad(scadSource: string): ParameterDef[]
     const key = match[1];
     if (RESERVED_PARAMETER_NAMES.has(key)) continue;
 
-    const numericValue = parseNumericLiteral(match[2]);
+    const literal = match[2].trim();
+    if (literal === "true" || literal === "false") {
+      parameters.set(key, {
+        key, label: toLabel(key), kind: "boolean", unit: "", value: literal === "true",
+        min: 0, max: 1, step: 1, source: "artifact", editable: true,
+        description: match[3]?.trim() || `Boolean parsed from top-level OpenSCAD assignment ${key}`,
+        group,
+      });
+      continue;
+    }
+    const numericValue = parseNumericLiteral(literal);
     if (numericValue === null) continue;
 
     const range = parseRangeComment(match[3] ?? "", numericValue);
@@ -81,6 +94,17 @@ export function extractParameterDefsFromScad(scadSource: string): ParameterDef[]
   return Array.from(parameters.values());
 }
 
+/** Older persisted schemas predate boolean extraction. Keep their recorded
+ * reset defaults, and fill missing boolean controls from the current artifact. */
+export function withSourceBooleanParameters<T extends { key?: unknown; kind?: unknown; value?: unknown }>(
+  parameters: T[], scadSource: string,
+): Array<T | ParameterDef> {
+  const missing = extractParameterDefsFromScad(scadSource).filter(parameter => parameter.kind === "boolean"
+    && !parameters.some(prior => prior.key === parameter.key && prior.kind === "boolean" && typeof prior.value === "boolean"));
+  const replacedKeys = new Set(missing.map(parameter => parameter.key));
+  return [...parameters.filter(parameter => !replacedKeys.has(String(parameter.key))), ...missing];
+}
+
 export function mergeExtractedParameters(
   extracted: ParameterDef[],
   fallback: ParameterDef[]
@@ -94,7 +118,7 @@ export function mergeExtractedParameters(
 
     return {
       ...parameter,
-      unit: parameter.unit || prior.unit,
+      unit: parameter.kind === "boolean" ? "" : parameter.unit || prior.unit,
       min: Number.isFinite(parameter.min) ? parameter.min : prior.min,
       max: Number.isFinite(parameter.max) ? parameter.max : prior.max,
       step: Number.isFinite(parameter.step) ? parameter.step : prior.step,
