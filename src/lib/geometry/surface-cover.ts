@@ -66,7 +66,7 @@ export function compareSurfaceCover(input: {
     throw new Error("Invalid surface cover protocol");
   const local = readBinaryStl(input.local), posed = readBinaryStl(input.posed);
   const base = {
-    method: "bidirectional-convex-triangle-cover/v1", toleranceMm: tolerance,
+    method: "bidirectional-convex-triangle-cover/v2", toleranceMm: tolerance,
     localSha256: createHash("sha256").update(input.local).digest("hex"),
     posedSha256: createHash("sha256").update(input.posed).digest("hex"),
     transform: [...input.transform], maxClipTests: limit,
@@ -95,7 +95,8 @@ export function compareSurfaceCover(input: {
         .concat([0, 1, 2].map(k => Math.max(...vertices.map(vertex => vertex[k])) + tolerance));
       let pending: Polygon[] = [vertices];
       const nodes = [0];
-      while (nodes.length && pending.length) {
+      const candidates: Array<{ vertices: Triangle; planeErrorMm: number; bounds: number[] }> = [];
+      while (nodes.length) {
         if (++nodeTests > 2_000_000) return "BVH traversal budget exceeded";
         const node = nodes.pop()!;
         const offset = node * 6;
@@ -104,14 +105,32 @@ export function compareSurfaceCover(input: {
           nodes.push(target.start[node], target.right[node]);
           continue;
         }
-        for (let i = 0; i < target.count[node] && pending.length; i++) {
+        for (let i = 0; i < target.count[node]; i++) {
           const candidate = triangle(target.mesh, target.order[target.start[node] + i]);
+          const candidateNormal = normalize(cross(subtract(candidate[1], candidate[0]), subtract(candidate[2], candidate[0])));
+          candidates.push({ vertices: candidate, bounds: [0,1,2].map(k => Math.min(...candidate.map(point => point[k])))
+            .concat([0,1,2].map(k => Math.max(...candidate.map(point => point[k])))), planeErrorMm: Math.max(...vertices.map(vertex =>
+            Math.abs(dot(subtract(vertex, candidate[0]), candidateNormal)))) });
+        }
+      }
+      // Matching planes cover broad regions before crossing faces create slivers.
+      // All candidates remain eligible under the same distance and work limits.
+      candidates.sort((a, b) => a.planeErrorMm - b.planeErrorMm);
+      for (const { vertices: candidate } of candidates) {
+          if (!pending.length) break;
           const projectedArea = dot(cross(subtract(candidate[1], candidate[0]), subtract(candidate[2], candidate[0])), normal);
           if (Math.abs(projectedArea) < 1e-12) continue;
           if (projectedArea < 0) [candidate[1], candidate[2]] = [candidate[2], candidate[1]];
           const next: Polygon[] = [];
           for (const polygon of pending) {
             if (++clipTests > limit) return "Convex fragment budget exceeded";
+            vertexTests += polygon.length;
+            if (vertexTests > 5_000_000) return "Clipping vertex budget exceeded";
+            const directBound = Math.max(...polygon.map(point => distanceToTriangle(point, candidate))) + arithmeticGuardMm;
+            if (directBound <= tolerance) {
+              maxCertifiedFragmentDistanceMm = Math.max(maxCertifiedFragmentDistanceMm, directBound);
+              continue;
+            }
             let inner = polygon;
             const remaining: Polygon[] = [];
             for (let edge = 0; edge < 3 && inner.length; edge++) {
@@ -131,9 +150,38 @@ export function compareSurfaceCover(input: {
           }
           pending = next;
           if (pending.length > 4096) return "Uncovered fragment count exceeded";
+      }
+      if (pending.length) {
+        // Clipping can leave narrow edge fragments. Bisect the original face
+        // and use the same convex-distance bound, without dropping residuals.
+        const pieces = [{ face: vertices, depth: 0 }];
+        while (pieces.length) {
+          const { face, depth } = pieces.pop()!;
+          let covered = false;
+          const box = [0,1,2].map(k => Math.min(...face.map(point => point[k])) - tolerance)
+            .concat([0,1,2].map(k => Math.max(...face.map(point => point[k])) + tolerance));
+          for (const candidate of candidates) {
+            if (++nodeTests > 2_000_000) return "BVH traversal budget exceeded";
+            if ([0,1,2].some(k => box[k] > candidate.bounds[k+3] || box[k+3] < candidate.bounds[k])) continue;
+            if (++clipTests > limit) return "Convex fragment budget exceeded";
+            vertexTests += 3;
+            if (vertexTests > 5_000_000) return "Clipping vertex budget exceeded";
+            const bound = Math.max(...face.map(point => distanceToTriangle(point, candidate.vertices))) + arithmeticGuardMm;
+            if (bound <= tolerance) {
+              maxCertifiedFragmentDistanceMm = Math.max(maxCertifiedFragmentDistanceMm, bound);
+              covered = true;
+              break;
+            }
+          }
+          if (covered) continue;
+          if (depth >= 20) return `Triangle ${index} has uncertified surface fragments`;
+          const lengths = face.map((point, k) => Math.hypot(...subtract(point, face[(k + 1) % 3])));
+          const edge = lengths.indexOf(Math.max(...lengths));
+          const a = face[edge], b = face[(edge + 1) % 3], c = face[(edge + 2) % 3];
+          const midpoint = a.map((value, k) => (value + b[k]) / 2) as Vec3;
+          pieces.push({ face: [a, midpoint, c], depth: depth + 1 }, { face: [midpoint, b, c], depth: depth + 1 });
         }
       }
-      if (pending.length) return `Triangle ${index} has uncertified surface fragments`;
     }
   };
   const forward = cover(placed, b);

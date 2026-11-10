@@ -120,7 +120,7 @@ test("retessellation requires explicit bounded-cover protocol and preserves the 
     expect(result.status).toBe("PASS");
     expect(result.protocol.surfaceComparison).toBe("bounded-cover");
     const comparison = result.results[1].comparisons![0].result;
-    expect(comparison.method).toBe("bidirectional-convex-triangle-cover/v1");
+    expect(comparison.method).toBe("bidirectional-convex-triangle-cover/v2");
     expect(comparison).toHaveProperty("triangleComparison.status", "NOT_RUN");
 });
 

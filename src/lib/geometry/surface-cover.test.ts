@@ -13,6 +13,15 @@ const identity = translation(0, 0, 0);
 const triangles = boxTriangles([0, 0, 0], [2, 3, 4]);
 const original = stl(triangles);
 
+test("boundary residuals need complete convex subdivision without dropping area", () => {
+  const a = [0,0,0], b = [1,0,0], c = [0,1,0], center = [1/3,1/3,0];
+  const refined = [[a,b,center], [b,c,center], [c,a,center]]
+    .map(face => face.map(([x,y,z]) => [x+0.00009,y,z]));
+  const result = compareSurfaceCover({ local: stl([[a,b,c]]), posed: stl(refined), transform: identity });
+  expect(result.status).toBe("PASS");
+  expect(result.maxCertifiedFragmentDistanceMm).toBeLessThanOrEqual(1e-4);
+});
+
 test("bidirectional convex cover accepts alternate face diagonals and refinement", () => {
   const flipped: number[][][] = [];
   for (let i = 0; i < triangles.length; i += 2) {

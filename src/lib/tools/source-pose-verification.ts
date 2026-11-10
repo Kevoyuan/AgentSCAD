@@ -22,7 +22,7 @@ export async function verifySourcePoses(input: {
         id: string;
         parameters: Parameters;
         transforms: Record<string, number[]>;
-        /** Seed-derived falsification probe, not a continuous-surface certification. */
+        /** Seed-derived additional pose, held to the same surface comparison as fixed poses. */
         challenge?: boolean;
     }>;
     budgetMs?: number;
@@ -80,8 +80,8 @@ export async function verifySourcePoses(input: {
         assembly?: Awaited<ReturnType<typeof checkAssemblyReconstruction>>;
     }> = [];
     const base = {
-        method: "source-pose-correspondence/v5", sourceSha256: sha(scadSource), protocolSha256: sha(canonicalJson(setup)),
-        protocol: setup, budgetMs, coverage: "Fixed cases compare listed pose-selector surfaces with caller-provided rigid poses by bidirectional convex cover, then union of these already world-placed source meshes with the complete assembly at the same inputs. Seed-derived challenge cases instead run a finite-point falsification witness at vertices and triangle centroids: they can expose a wrong control relation but do not certify continuous surface equality, because a rotated curved surface may be retessellated at a different phase. Changed expected orientations additionally need a surface-change witness against reference orientation at the current instance origin. This excludes certified reference-shape invariance but does not establish unique pose or physical phase. Per-view tolerance and reconstruction kernel/boundary limitations remain separate. Retessellation may remain NOT_RUN. No full requirement coverage, continuous trajectory, collision, forces or physical qualification."
+        method: "source-pose-correspondence/v6", sourceSha256: sha(scadSource), protocolSha256: sha(canonicalJson(setup)),
+        protocol: setup, budgetMs, coverage: "Fixed cases compare listed pose-selector surfaces with caller-provided rigid poses by bidirectional convex cover, then union of these already world-placed source meshes with the complete assembly at the same inputs. Seed-derived challenge cases require the same complete surface correspondence as fixed cases. Changed expected orientations additionally need a surface-change witness against reference orientation at the current instance origin. This excludes certified reference-shape invariance but does not establish unique pose or physical phase. Per-view tolerance and reconstruction kernel/boundary limitations remain separate. Retessellation may remain NOT_RUN. No full requirement coverage, continuous trajectory, collision, forces or physical qualification."
     };
     try {
         if (setup.spec.parts.some(part => part.source === "purchased")) {
@@ -120,22 +120,9 @@ export async function verifySourcePoses(input: {
                 if (!part || !actual)
                     throw new Error(`Required local or posed mesh missing for ${instance.id}; purchased parts need actual geometry`);
                 const meshInput = { local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM };
-                const challenge = item.challenge === true
-                    ? findSurfaceDifference({ ...meshInput, maxDistanceTests: 5_000_000 }) : null;
-                const triangles = challenge ? null : checkReconstructedMesh(meshInput);
-                // A challenge case cannot be certified by convex cover: rotating a
-                // curved surface retessellates it at a different phase. It is a
-                // falsification check instead. "No witness found" means the check
-                // ran to completion without finding a counterexample, not that
-                // continuous surface equality was proved.
-                const result = challenge
-                    ? { status: challenge.status === "DIFFERENT" ? "FAIL" as const
-                            : challenge.reason.startsWith("No surface-difference witness") ? "PASS" as const : "NOT_RUN" as const,
-                        method: "finite-point-pose-falsification/v1", reason: challenge.reason,
-                        coverage: "Vertices and triangle centroids only. A wrong control relation can be exposed; no continuous surface equality, unique pose or physical phase is certified.",
-                        distanceTests: challenge.distanceTests, witness: challenge }
-                    : triangles!.status === "NOT_RUN" && setup.surfaceComparison === "bounded-cover"
-                        ? { ...compareSurfaceCover(meshInput), triangleComparison: triangles } : triangles!;
+                const triangles = checkReconstructedMesh(meshInput);
+                const result = triangles.status === "NOT_RUN" && setup.surfaceComparison === "bounded-cover"
+                    ? { ...compareSurfaceCover(meshInput), triangleComparison: triangles } : triangles;
                 const matrix = item.transforms[instance.id];
                 const reference = references.get(instance.id);
                 let observability: PoseChange = { status: "REFERENCE", reason: "Reference or unchanged expected rigid transform" };

@@ -108,7 +108,7 @@ test("retained model source rotations have bounded surface correspondence and ma
     for (const id of ["work45", "release"]) {
         const comparison = result.results.find(item => item.id === id)?.comparisons?.find(item => item.instanceId === "b1");
         expect(comparison?.result.status).toBe("PASS");
-        expect(comparison?.result.method).toBe("bidirectional-convex-triangle-cover/v1");
+        expect(comparison?.result.method).toBe("bidirectional-convex-triangle-cover/v2");
     }
 }, 150000);
 
@@ -129,7 +129,7 @@ test("normal assembly checks distinguish source motion from ideal rigid sampling
     expect(correct.manifest.sourceMotion?.results).toHaveLength(6);
     expect(correct.manifest.sourceMotion?.sampling.challengeSeed).toBe(input.sourceSamplingSeed);
     expect(correct.manifest.sourceMotion?.results.some(item => item.comparisons?.some(row =>
-        row.result.method === "finite-point-pose-falsification/v1"))).toBe(true);
+        row.result.method === "bidirectional-convex-triangle-cover/v2"))).toBe(true);
     expect(correct.manifest.evidence.requirements.status).toBe("NOT_RUN");
     expect(correct.manifest.evidence.requirements.reason).toContain("axial-retention");
     expect(correct.manifest.sourceMotion).not.toHaveProperty("durationMs");

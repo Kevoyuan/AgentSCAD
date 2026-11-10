@@ -46,7 +46,7 @@ export function buildHingeSourceProtocol(spec: AssemblySpec, challengeSeed?: str
   const protocol: Omit<Parameters<typeof verifySourcePoses>[0], "scadSource" | "spec"> = {
     poseSelectors: { ...motion.sourceInput.poseSelectors },
     manufacturingParameters: { agentscad_pose: false, [motion.sourceInput.parameter]: 0 },
-    poseParameters: { agentscad_pose: true }, surfaceComparison: "bounded-cover", budgetMs: 180000,
+    poseParameters: { agentscad_pose: true }, surfaceComparison: "bounded-cover", budgetMs: 90000,
     cases: angles.map((angle, index) => {
       const rotation = rotationAboutAxis(origin, direction, angle * Math.PI / 180);
       return { id: `angle-${index}`, parameters: { [motion.sourceInput!.parameter]: angle },
@@ -57,6 +57,6 @@ export function buildHingeSourceProtocol(spec: AssemblySpec, challengeSeed?: str
   };
   return { status: "READY" as const, connectionId: connection.id, protocol,
     sampling: { method: "range-quartiles-and-seeded-probe/v1", challengeSeed: challengeSeed ?? null,
-      coverage: "Fixed quartiles and zero are certified by bidirectional convex cover. One optional seed-derived probe in the middle 60% of one quarter interval is a finite-point falsification witness, not a continuous-surface certification: a rotated curved surface may be retessellated at a different phase. Finite inputs cannot certify the continuous relation." },
-    reason: "Frozen zero pose, certified range quartiles and an optional seeded falsification probe. Measured-axis prerequisite and same-input assembly comparison remain required" };
+      coverage: "All listed inputs, including the seeded interior probe, require complete bidirectional surface correspondence. The probe lies in the middle 60% of a quarter interval. Finite inputs cannot certify the continuous relation." },
+    reason: "Frozen zero pose, range quartiles and an optional seeded pose probe with complete surface comparison. Measured-axis prerequisite and same-input assembly comparison remain required" };
 }
