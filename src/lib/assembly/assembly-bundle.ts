@@ -127,6 +127,7 @@ export async function buildAssemblyBundle(input: {
   /** Confirmation state of the contract the results are judged against. */
   contractGate?: { evidenceCurrent: boolean; reason?: string | null };
   contractSnapshot?: Parameters<typeof prepareAssembly>[0]["contractSnapshot"];
+  sourceSamplingSeed?: string;
   /** Fixes archive timestamps; identical evidence produces identical bytes. */
   modifiedAt?: Date;
   /** Runs before selector refusal so a failed check can still be recorded. */

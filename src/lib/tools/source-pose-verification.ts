@@ -6,8 +6,11 @@ import { renderAssemblyParts } from "./assembly-part-renderer";
 import { checkAssemblyReconstruction } from "./assembly-reconstruction";
 import { isRepairableScadCompileError } from "./scad-compile-error";
 import type { ScadExecutionOptions } from "./scad-renderer";
-import { compareSurfaceCover } from "../geometry/surface-cover";
+import { compareSurfaceCover, findSurfaceDifference } from "../geometry/surface-cover";
 type Parameters = Record<string, number | string | boolean>;
+const SURFACE_TOLERANCE_MM = 1e-4;
+type PoseChange = { status: "REFERENCE" | "OBSERVED" | "NOT_RUN"; reason: string;
+    comparison?: ReturnType<typeof checkReconstructedMesh>; witness?: ReturnType<typeof findSurfaceDifference> };
 /** Caller-supplied expected poses are a test protocol, not observations from the model. */
 export async function verifySourcePoses(input: {
     scadSource: string;
@@ -19,6 +22,8 @@ export async function verifySourcePoses(input: {
         id: string;
         parameters: Parameters;
         transforms: Record<string, number[]>;
+        /** Seed-derived falsification probe, not a continuous-surface certification. */
+        challenge?: boolean;
     }>;
     budgetMs?: number;
     surfaceComparison?: "triangles" | "bounded-cover";
@@ -69,24 +74,23 @@ export async function verifySourcePoses(input: {
         reason: string;
         comparisons?: Array<{
             instanceId: string;
-            result: ReturnType<typeof checkReconstructedMesh>;
+            result: { status: string; [key: string]: unknown };
+            observability?: PoseChange;
         }>;
         assembly?: Awaited<ReturnType<typeof checkAssemblyReconstruction>>;
     }> = [];
     const base = {
-        method: setup.surfaceComparison === "bounded-cover" ? "source-pose-correspondence/v4" : "source-pose-correspondence/v3", sourceSha256: sha(scadSource), protocolSha256: sha(canonicalJson(setup)),
-        protocol: setup, budgetMs, coverage: "Listed pose-selector surfaces compared with caller-provided rigid poses, then union of these already world-placed source meshes compared with the complete assembly at the same inputs. Per-view tolerance and reconstruction kernel/boundary limitations remain separate. Retessellation may remain NOT_RUN. No full requirement coverage, continuous trajectory, collision, observable joint phase for symmetric bodies, forces or physical qualification."
+        method: "source-pose-correspondence/v5", sourceSha256: sha(scadSource), protocolSha256: sha(canonicalJson(setup)),
+        protocol: setup, budgetMs, coverage: "Fixed cases compare listed pose-selector surfaces with caller-provided rigid poses by bidirectional convex cover, then union of these already world-placed source meshes with the complete assembly at the same inputs. Seed-derived challenge cases instead run a finite-point falsification witness at vertices and triangle centroids: they can expose a wrong control relation but do not certify continuous surface equality, because a rotated curved surface may be retessellated at a different phase. Changed expected orientations additionally need a surface-change witness against reference orientation at the current instance origin. This excludes certified reference-shape invariance but does not establish unique pose or physical phase. Per-view tolerance and reconstruction kernel/boundary limitations remain separate. Retessellation may remain NOT_RUN. No full requirement coverage, continuous trajectory, collision, forces or physical qualification."
     };
     try {
-        if (setup.spec.parts.some(part => part.source === "purchased"))
+        if (setup.spec.parts.some(part => part.source === "purchased")) {
+            results.push({ id: "execution", status: "NOT_RUN", reason: "Purchased geometry is not available to this source renderer" });
             return {
-                ...base, status: "NOT_RUN", timedOut: false,
-                durationMs: Date.now() - started, results: [
-                    {
-                        id: "execution", status: "NOT_RUN", reason: "Purchased geometry is not available to this source renderer"
-                    }
-                ]
+                ...base, status: "NOT_RUN", timedOut: false, hasObservableChange: false,
+                durationMs: Date.now() - started, results
             };
+        }
         const local = await render({
             scadSource, parts: setup.spec.parts.filter(part => part.source === "generated")
                 .map(part => ({
@@ -95,6 +99,7 @@ export async function verifySourcePoses(input: {
                 ...input.options, signal
             }
         });
+        const references = new Map<string, { stl: Buffer; transform: number[] }>();
         for (const item of setup.cases) {
             input.options?.signal?.throwIfAborted();
             if (signal.aborted)
@@ -114,11 +119,48 @@ export async function verifySourcePoses(input: {
                 const actual = posed.find(part => part.partId === instance.id);
                 if (!part || !actual)
                     throw new Error(`Required local or posed mesh missing for ${instance.id}; purchased parts need actual geometry`);
-                const meshInput = { local: part.stl, posed: actual.stl, transform: item.transforms[instance.id] };
-                const triangles = checkReconstructedMesh(meshInput);
-                const result = triangles.status === "NOT_RUN" && setup.surfaceComparison === "bounded-cover"
-                    ? { ...compareSurfaceCover(meshInput), triangleComparison: triangles } : triangles;
-                return { instanceId: instance.id, result };
+                const meshInput = { local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM };
+                const challenge = item.challenge === true
+                    ? findSurfaceDifference({ ...meshInput, maxDistanceTests: 5_000_000 }) : null;
+                const triangles = challenge ? null : checkReconstructedMesh(meshInput);
+                // A challenge case cannot be certified by convex cover: rotating a
+                // curved surface retessellates it at a different phase. It is a
+                // falsification check instead. "No witness found" means the check
+                // ran to completion without finding a counterexample, not that
+                // continuous surface equality was proved.
+                const result = challenge
+                    ? { status: challenge.status === "DIFFERENT" ? "FAIL" as const
+                            : challenge.reason.startsWith("No surface-difference witness") ? "PASS" as const : "NOT_RUN" as const,
+                        method: "finite-point-pose-falsification/v1", reason: challenge.reason,
+                        coverage: "Vertices and triangle centroids only. A wrong control relation can be exposed; no continuous surface equality, unique pose or physical phase is certified.",
+                        distanceTests: challenge.distanceTests, witness: challenge }
+                    : triangles!.status === "NOT_RUN" && setup.surfaceComparison === "bounded-cover"
+                        ? { ...compareSurfaceCover(meshInput), triangleComparison: triangles } : triangles!;
+                const matrix = item.transforms[instance.id];
+                const reference = references.get(instance.id);
+                let observability: PoseChange = { status: "REFERENCE", reason: "Reference or unchanged expected rigid transform" };
+                if (!reference) references.set(instance.id, { stl: Buffer.from(actual.stl), transform: [...matrix] });
+                else if (matrix.some((value, k) => Math.abs(value - reference.transform[k]) > 1e-8)) {
+                    const rotated = [0,1,2,4,5,6,8,9,10].some(k => Math.abs(matrix[k] - reference.transform[k]) > 1e-8);
+                    // Remove expected origin translation when testing orientation visibility.
+                    // Translation alone must not make an invariant rotation look observable.
+                    const nullTransform = [1,0,0,rotated ? matrix[3] - reference.transform[3] : 0,
+                        0,1,0,rotated ? matrix[7] - reference.transform[7] : 0,
+                        0,0,1,rotated ? matrix[11] - reference.transform[11] : 0,0,0,0,1];
+                    // Two matched outputs may each differ from expectation by one
+                    // surface tolerance. Require three before inferring a change.
+                    const changeInput = { local: reference.stl, posed: actual.stl, transform: nullTransform,
+                        toleranceMm: 3 * SURFACE_TOLERANCE_MM };
+                    const comparison = checkReconstructedMesh(changeInput);
+                    const witness = result.status === "PASS" && comparison.status === "NOT_RUN"
+                        ? findSurfaceDifference(changeInput) : undefined;
+                    observability = result.status === "PASS" && (comparison.status === "FAIL" || witness?.status === "DIFFERENT")
+                        ? { status: "OBSERVED", reason: "A surface-difference witness distinguishes this pose from the reference null motion", comparison, witness }
+                        : { status: "NOT_RUN", reason: comparison.status === "PASS"
+                            ? "Expected motion leaves the observed reference surface invariant. Its phase cannot be established from these meshes."
+                            : "No independent surface-difference witness was established for the expected motion", comparison, witness };
+                }
+                return { instanceId: instance.id, result, observability };
             });
             let assembly: Awaited<ReturnType<typeof checkAssemblyReconstruction>> | undefined;
             if (!comparisons.some(item => item.result.status === "FAIL") && !signal.aborted) {
@@ -147,10 +189,12 @@ export async function verifySourcePoses(input: {
             }
             const status = comparisons.some(item => item.result.status === "FAIL") || assembly?.status === "FAIL" ? "FAIL"
                 : assembly?.status === "ERROR" ? "ERROR"
-                : comparisons.every(item => item.result.status === "PASS") && assembly?.status === "PASS" ? "PASS" : "NOT_RUN";
+                : comparisons.every(item => item.result.status === "PASS" && item.observability.status !== "NOT_RUN") && assembly?.status === "PASS" ? "PASS" : "NOT_RUN";
             results.push({
                 id: item.id, status,
-                reason: assembly ? `Complete assembly at the same input: ${assembly.reason}`
+                reason: comparisons.some(row => row.observability.status === "NOT_RUN")
+                    ? comparisons.filter(row => row.observability.status === "NOT_RUN").map(row => `${row.instanceId}: ${row.observability.reason}`).join(" ")
+                    : assembly ? `Complete assembly at the same input: ${assembly.reason}`
                     : "Assembly reconstruction was not executed after a view failure or deadline",
                 comparisons, assembly
             });
@@ -166,9 +210,10 @@ export async function verifySourcePoses(input: {
         clearTimeout(timer);
     }
     const timedOut = Date.now() - started >= budgetMs || controller.signal.aborted;
+    const hasObservableChange = results.some(item => item.comparisons?.some(row => row.observability?.status === "OBSERVED"));
     const status = results.some(item => item.status === "FAIL") ? "FAIL" : results.some(item => item.status === "ERROR") ? "ERROR"
-        : timedOut || results.length !== setup.cases.length || results.some(item => item.status !== "PASS") ? "NOT_RUN" : "PASS";
+        : timedOut || !hasObservableChange || results.length !== setup.cases.length || results.some(item => item.status !== "PASS") ? "NOT_RUN" : "PASS";
     return {
-        ...base, status, timedOut, durationMs: Date.now() - started, results
+        ...base, status, timedOut, hasObservableChange, durationMs: Date.now() - started, results
     };
 }

@@ -63,3 +63,22 @@ test("world expectations respect a rotated non-origin ground and offset local ax
   expect(point[2]).toBe(5);
   expect(result.protocol.cases.at(-1)!.transforms["fixed-instance"]).toEqual(placement);
 });
+
+test("seeded interior probes are frozen, distinct from quartiles and repeatable", () => {
+  const spec = boundSpec();
+  const seed = "0123456789abcdef0123456789abcdef";
+  const first = buildHingeSourceProtocol(spec, seed), second = buildHingeSourceProtocol(spec, seed);
+  if (first.status !== "READY" || second.status !== "READY") throw new Error("Expected protocol");
+  expect(first.protocol).toEqual(second.protocol);
+  expect(first.sampling.challengeSeed).toBe(seed);
+  expect(first.protocol.cases).toHaveLength(6);
+  const fixed = new Set([-45,-22.5,0,22.5,45]);
+  const challenge = first.protocol.cases.map(item => Number(item.parameters.angle)).find(angle => !fixed.has(angle))!;
+  expect(first.protocol.cases.filter(item => item.challenge)).toHaveLength(1);
+  expect(first.protocol.cases.find(item => item.challenge)!.parameters.angle).toBe(challenge);
+  const fraction = ((challenge + 45) / 22.5) % 1;
+  expect(fraction).toBeGreaterThan(0.2);
+  expect(fraction).toBeLessThan(0.8);
+  expect(Math.abs(Math.sin(8 * challenge * Math.PI / 180))).toBeGreaterThan(0.58);
+  expect(() => buildHingeSourceProtocol(spec, "unfrozen")).toThrow();
+});

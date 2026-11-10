@@ -123,3 +123,44 @@ test("retessellation requires explicit bounded-cover protocol and preserves the 
     expect(comparison.method).toBe("bidirectional-convex-triangle-cover/v1");
     expect(comparison).toHaveProperty("triangleComparison.status", "NOT_RUN");
 });
+
+test("reference-invariant rotation remains unverified and translation cannot conceal it", async () => {
+    const rotate90 = [0,-1,0,0,1,0,0,0,0,0,1,0,0,0,0,1];
+    for (const travel of [0, 4]) {
+        const matrix = [...rotate90];
+        matrix[11] = travel;
+        const render: NonNullable<Parameters<typeof verifySourcePoses>[0]["render"]> = async input => input.parts.map(part => {
+            const z = input.parameters?.agentscad_pose ? Number(input.parameters.travel) : 0;
+            return { partId: part.partId, stl: boxStl([-1,-1,z], [1,1,z+2]), sha256: "test", triangleCount: 12, diagnostics: "" };
+        });
+        const result = await verifySourcePoses({ ...setup, render, surfaceComparison: "bounded-cover",
+            cases: [{ ...setup.cases[0], parameters: { travel: 0 } },
+                { ...setup.cases[1], parameters: { travel }, transforms: { [id]: matrix } }] });
+        expect(result.status).toBe("NOT_RUN");
+        expect(result.hasObservableChange).toBe(false);
+        expect(result.results[1].comparisons![0].result.status).toBe("PASS");
+        expect(result.results[1].comparisons![0].observability?.status).toBe("NOT_RUN");
+        expect(result.results[1].reason).toContain("invariant");
+    }
+});
+
+test("a complete-turn endpoint supplies no observed motion between endpoints", async () => {
+    const c = Math.cos(2*Math.PI), s = Math.sin(2*Math.PI);
+    const result = await verifySourcePoses({ ...setup, render: renderer(0),
+        cases: [setup.cases[0], { ...setup.cases[1], transforms: { [id]: [c,-s,0,0,s,c,0,0,0,0,1,0,0,0,0,1] } }] });
+    expect(result.status).toBe("NOT_RUN");
+    expect(result.hasObservableChange).toBe(false);
+});
+
+test("matching-error noise cannot establish a rotational change in an invariant body", async () => {
+    const render: NonNullable<Parameters<typeof verifySourcePoses>[0]["render"]> = async input => input.parts.map(part => {
+        const dx = input.parameters?.agentscad_pose ? (Number(input.parameters.angle) === 0 ? -0.00009 : 0.00009) : 0;
+        return { partId: part.partId, stl: boxStl([-1+dx,-1,0], [1+dx,1,2]), sha256: "test", triangleCount: 12, diagnostics: "" };
+    });
+    const result = await verifySourcePoses({ ...setup, render, surfaceComparison: "bounded-cover",
+        cases: [{ ...setup.cases[0], parameters: { angle: 0 } },
+            { ...setup.cases[1], parameters: { angle: 180 }, transforms: { [id]: [-1,0,0,0,0,-1,0,0,0,0,1,0,0,0,0,1] } }] });
+    expect(result.status).toBe("NOT_RUN");
+    expect(result.results.every(item => item.comparisons?.[0].result.status === "PASS")).toBe(true);
+    expect(result.hasObservableChange).toBe(false);
+});

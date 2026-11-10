@@ -143,3 +143,50 @@ export function compareSurfaceCover(input: {
   return { ...base, status: "PASS" as const, reason: "Every surface triangle is covered by distance-bounded convex fragments in both directions",
     clipTests, nodeTests, vertexTests, maxCertifiedFragmentDistanceMm, arithmeticGuardMm };
 }
+
+/** A finite witness can establish different surface sets. Failure to find one
+ * never establishes equality. Complete target traversal is required per point.
+ */
+export function findSurfaceDifference(input: { local: Buffer; posed: Buffer; transform: number[]; toleranceMm?: number; maxDistanceTests?: number }) {
+  const tolerance = input.toleranceMm ?? 1e-4;
+  const budget = input.maxDistanceTests ?? 200_000;
+  if (!validateRigidTransform(input.transform).success || !Number.isFinite(tolerance) || tolerance < 1e-6 || tolerance > 0.1
+    || !Number.isInteger(budget) || budget < 1 || budget > 20_000_000)
+    throw new Error("Invalid surface difference protocol");
+  const local = readBinaryStl(input.local), posed = readBinaryStl(input.posed);
+  const base = { method: "bidirectional-surface-point-witness/v1", toleranceMm: tolerance, maxDistanceTests: budget,
+    localSha256: createHash("sha256").update(input.local).digest("hex"),
+    posedSha256: createHash("sha256").update(input.posed).digest("hex"), transform: [...input.transform],
+    coverage: "One source surface point farther than tolerance from every target triangle. Double precision with numerical margin. No equality, unique pose, topology or physical claim." };
+  let distanceTests = 0;
+  const unavailable = (reason: string) => ({ ...base, status: "NOT_RUN" as const, reason, distanceTests });
+  if (local.triangleCount > 5000 || posed.triangleCount > 5000) return unavailable("Triangle budget exceeded");
+  const placed: Triangle[] = [], target: Triangle[] = [];
+  for (let i = 0; i < local.triangleCount; i++) placed.push(triangle(local, i).map(point => transformPoint(input.transform, point)) as Triangle);
+  for (let i = 0; i < posed.triangleCount; i++) target.push(triangle(posed, i));
+  let scale = 1;
+  for (const faces of [placed, target]) for (const face of faces) {
+    if (Math.hypot(...cross(subtract(face[1], face[0]), subtract(face[2], face[0]))) <= 1e-12)
+      return unavailable("Degenerate surface needs separate treatment");
+    for (const point of face) for (const value of point) scale = Math.max(scale, Math.abs(value));
+  }
+  const arithmeticGuardMm = scale * 1e-9;
+  if (arithmeticGuardMm > tolerance / 100) return unavailable("Coordinate scale exceeds guarded numerical range");
+  for (const [source, other, direction] of [[placed, target, "local-to-posed"], [target, placed, "posed-to-local"]] as const) {
+    for (const face of source) {
+      const centroid = [0,1,2].map(k => (face[0][k] + face[1][k] + face[2][k]) / 3) as Vec3;
+      for (const point of [...face, centroid]) {
+        let minimumDistanceMm = Infinity;
+        for (const candidate of other) {
+          if (++distanceTests > budget) return unavailable("Point-distance budget exceeded");
+          minimumDistanceMm = Math.min(minimumDistanceMm, distanceToTriangle(point, candidate));
+          if (minimumDistanceMm <= tolerance + arithmeticGuardMm) break;
+        }
+        if (minimumDistanceMm > tolerance + arithmeticGuardMm)
+          return { ...base, status: "DIFFERENT" as const, reason: "A surface point is outside every target triangle's tolerance neighbourhood",
+            direction, pointMm: point, minimumDistanceMm, arithmeticGuardMm, distanceTests };
+      }
+    }
+  }
+  return unavailable("No surface-difference witness found at the tested vertices and triangle centroids");
+}

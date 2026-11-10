@@ -1,7 +1,7 @@
 import {checkPartConnectivity} from "./part-connectivity";
 import { checkDeclaredPoseDisassembly } from "./declared-pose-disassembly";
 import { checkDeclaredPoseAssembly } from "./declared-pose-assembly";
-import { createHash } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { validateAssemblySpec, type AssemblySpec } from "./assembly-spec";
 import { assemblySpecificationHash } from "./spec-hash";
 import { checkPartIdentity } from "./part-identity-check";
@@ -86,6 +86,8 @@ export async function prepareAssembly(input: {
   contractGate?: { evidenceCurrent: boolean; reason?: string | null };
   /** Exact contract and request used by the caller; binding does not attest user confirmation. */
   contractSnapshot?: { contract: unknown; request: string };
+  /** Replay a saved sampling protocol. HTTP adapters generate a fresh seed. */
+  sourceSamplingSeed?: string;
   options?: ScadExecutionOptions;
   render?: Renderer;
 }) {
@@ -210,16 +212,16 @@ export async function prepareAssembly(input: {
     motionEvidence={status:motionFrames?.status??"NOT_RUN",reason:`Rigid-pose collision samples passed, but the actual mating feature axes were not verified against the declared motion frame: ${motionFrames?.reason??"No measured mating feature axes."}`};
   }
   const rigidMotionEvidence = motionEvidence;
-  const sourceProtocol = buildHingeSourceProtocol(spec);
+  const sourceProtocol = buildHingeSourceProtocol(spec, input.sourceSamplingSeed ?? randomBytes(16).toString("hex"));
   const canVerifySource = sourceProtocol.status === "READY" && input.contractGate?.evidenceCurrent === true
     && contractBinding?.requestMatches === true && gateReason === null
     && motionFrames?.status === "PASS" && input.kinematics?.connectionId === sourceProtocol.connectionId;
   const sourceMotion = canVerifySource && sourceProtocol.status === "READY"
-    ? await verifySourcePoses({ ...sourceProtocol.protocol, scadSource, spec, options: input.options }) : null;
+    ? { ...await verifySourcePoses({ ...sourceProtocol.protocol, scadSource, spec, options: input.options }), sampling: sourceProtocol.sampling } : null;
   const sourceMotionEvidence = sourceMotion
     ? applyContractGate(sourceMotion.status as EvidenceStatus,
       `Source input verification ${sourceMotion.status}. ${sourceMotion.results.map(item =>
-        `${item.id} ${item.status}: ${item.reason} ${(item.comparisons ?? []).filter(row => row.result.status !== "PASS").map(row => `${row.instanceId}: ${row.result.reason}`).join(" ")}`).join(" ")} ${sourceMotion.coverage}`, gateReason)
+        `${item.id} ${item.status}: ${item.reason} ${(item.comparisons ?? []).filter(row => row.result.status !== "PASS" || row.observability?.status === "NOT_RUN").map(row => `${row.instanceId}: ${row.result.reason} ${row.observability?.reason ?? ""}`).join(" ")}`).join(" ")} ${sourceMotion.coverage}`, gateReason)
     : { status: "NOT_RUN" as const, reason: sourceProtocol.status === "NOT_RUN" ? sourceProtocol.reason
       : "Source motion requires a current confirmed contract and measured mating axes for this sampled joint." };
   motionEvidence = combine([rigidMotionEvidence.status, sourceMotionEvidence.status],

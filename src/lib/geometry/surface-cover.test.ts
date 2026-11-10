@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { compareSurfaceCover } from "./surface-cover";
+import { compareSurfaceCover, findSurfaceDifference } from "./surface-cover";
 import { boxTriangles, boxStl, mergeStl, translation } from "./__tests__/solids";
 
 function stl(triangles: number[][][]) {
@@ -44,6 +44,9 @@ test("equal boundary vertices do not certify different nonplanar interiors", () 
   const first = stl([[a,b,c], [a,c,d]]);
   const second = stl([[a,b,d], [b,c,d]]);
   expect(compareSurfaceCover({ local: first, posed: second, transform: identity }).status).toBe("NOT_RUN");
+  const witness = findSurfaceDifference({ local: first, posed: second, transform: identity });
+  expect(witness.status).toBe("DIFFERENT");
+  expect(findSurfaceDifference({ local: first, posed: first, transform: identity }).status).toBe("NOT_RUN");
 });
 
 test("an uncovered interior hole remains uncertified even with identical outer boundaries", () => {

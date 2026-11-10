@@ -10,6 +10,8 @@ import { deriveRequirementContract } from "../../requirements/extract-requiremen
 import { collectAssemblyFindings } from "../../assembly/repair-findings";
 import { buildAssemblyBundle } from "../../assembly/assembly-bundle";
 import { unzipSync, strFromU8 } from "fflate";
+import { buildHingeSourceProtocol } from "../../assembly/source-motion-protocol";
+import { AssemblySpecSchema } from "../../assembly/assembly-spec";
 import fixture from "../../../../scripts/eval/assembly-fixtures/axial-hinge.spec.json";
 import { translation } from "../../geometry/__tests__/solids";
 test("native source motion is observed and incorrect input-to-output coupling is rejected", async () => {
@@ -118,12 +120,16 @@ test("normal assembly checks distinguish source motion from ideal rigid sampling
     spec.motions[0].sourceInput = { parameter: "hinge_angle", poseSelectors: { a1: "supportA", b1: "rotorB" } };
     const request = "两件式可拆装铰链，直径间隙0.35到0.45mm，转动范围±45°。";
     const contract = deriveRequirementContract({ request });
-    const input = { spec, contractSnapshot: { contract, request }, contractGate: { evidenceCurrent: true } };
+    const input = { spec, contractSnapshot: { contract, request }, contractGate: { evidenceCurrent: true },
+        sourceSamplingSeed: "0123456789abcdef0123456789abcdef" };
     const correct = await buildAssemblyBundle({ ...input, scadSource: source });
     expect(correct.manifest.evidence.rigidMotion.status).toBe("PASS");
     expect(correct.manifest.evidence.sourceMotion.status).toBe("PASS");
     expect(correct.manifest.evidence.motion.status).toBe("PASS");
-    expect(correct.manifest.sourceMotion?.results).toHaveLength(5);
+    expect(correct.manifest.sourceMotion?.results).toHaveLength(6);
+    expect(correct.manifest.sourceMotion?.sampling.challengeSeed).toBe(input.sourceSamplingSeed);
+    expect(correct.manifest.sourceMotion?.results.some(item => item.comparisons?.some(row =>
+        row.result.method === "finite-point-pose-falsification/v1"))).toBe(true);
     expect(correct.manifest.evidence.requirements.status).toBe("NOT_RUN");
     expect(correct.manifest.evidence.requirements.reason).toContain("axial-retention");
     expect(correct.manifest.sourceMotion).not.toHaveProperty("durationMs");
@@ -137,4 +143,35 @@ test("normal assembly checks distinguish source motion from ideal rigid sampling
     expect(failed.manifest.evidence.motion.status).toBe("FAIL");
     const findings = collectAssemblyFindings(failed);
     expect(findings.some(item => item.kind === "motion" && item.message.includes("Source-driven motion failed") && item.message.includes("b1"))).toBe(true);
-}, 180000);
+}, 360000);
+
+test("native pose adversaries distinguish finite-input agreement from unobserved phase and a seeded failure", async () => {
+    const spec = { ...fixture, parts: fixture.parts.slice(0,1), instances: fixture.instances.slice(0,1), connections: [], motions: [], operations: [] };
+    const id = spec.instances[0].id;
+    const bound = AssemblySpecSchema.parse(fixture);
+    bound.motions[0].sourceInput = { parameter: "angle", poseSelectors: { "fixed-instance": "fixed", "moving-instance": "moving" } };
+    const sampled = buildHingeSourceProtocol(bound, "0123456789abcdef0123456789abcdef");
+    if (sampled.status !== "READY") throw new Error("Expected seeded protocol");
+    const input = (angles: number[]) => ({ spec, poseSelectors: { [id]: "fixed" },
+        manufacturingParameters: { agentscad_pose: false }, poseParameters: { agentscad_pose: true },
+        surfaceComparison: "bounded-cover" as const,
+        cases: angles.map((angle, index) => {
+            const c = Math.cos(angle*Math.PI/180), s = Math.sin(angle*Math.PI/180);
+            return { id: `angle-${index}`, parameters: { angle }, transforms: { [id]: [c,-s,0,0,s,c,0,0,0,0,1,0,0,0,0,1] } };
+        }) });
+    const alias = `agentscad_part="all"; agentscad_pose=false; angle=0;
+      module body(){translate([3,0,0]) cube([2,1,1]);}
+      module generated_part(){if(agentscad_pose) rotate([0,0,angle+10*sin(8*angle)]) body(); else body();}
+      generated_part();`;
+    const fixed = input([-45,-22.5,0,22.5,45]);
+    // This PASS concerns these five surfaces, preserving the known sampling gap.
+    expect((await verifySourcePoses({ ...fixed, scadSource: alias })).status).toBe("PASS");
+    const seeded = input(sampled.protocol.cases.map(item => Number(item.parameters.angle)));
+    expect((await verifySourcePoses({ ...seeded, scadSource: alias })).status).toBe("FAIL");
+    expect((await verifySourcePoses({ ...seeded, scadSource: alias.replace("angle+10*sin(8*angle)", "angle") })).status).toBe("PASS");
+    const cylinder = 'agentscad_part="all"; agentscad_pose=false; angle=0; $fn=64; module generated_part(){cylinder(r=1,h=3);} generated_part();';
+    const invisible = await verifySourcePoses({ ...fixed, scadSource: cylinder });
+    expect(invisible.status).toBe("NOT_RUN");
+    expect(invisible.hasObservableChange).toBe(false);
+    expect(invisible.results.every(item => item.comparisons?.[0].result.status === "PASS" && item.assembly?.status === "PASS")).toBe(true);
+}, 60000);

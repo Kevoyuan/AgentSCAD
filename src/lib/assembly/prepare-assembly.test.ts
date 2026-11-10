@@ -11,9 +11,10 @@ import { requirementContractHash } from "../requirements/requirement-contract";
 const pose = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
 
 test("source and confirmation cannot change while manufacturing exports are rendering", async () => {
-  const input = { scadSource: "cube(1);", spec: spec(), contractGate: { evidenceCurrent: false }, render: async () => {
+  const input = { scadSource: "cube(1);", spec: spec(), sourceSamplingSeed: "0123456789abcdef0123456789abcdef", contractGate: { evidenceCurrent: false }, render: async () => {
     input.scadSource = "cube(9);";
     input.contractGate.evidenceCurrent = true;
+    input.sourceSamplingSeed = "mutated";
     return output();
   } };
   const result = await prepareAssembly(input);
