@@ -1466,3 +1466,18 @@ postchecks保存两组manifest、制造STL、原始模型源hash、全部列出�
 新增回归覆盖Buffer及参数所有权、路径不受ID控制、超预算清空、缺失/重复身份、空文件与hash错误、观察者异常明确ERROR，以及真实装配包全部网格与报告hash对应、源码和需求快照。最终原生正常入口正/负例1 PASS/58断言、125.87秒，普通1048 PASS/3 SKIP/0 FAIL（1051项161文件、28.83秒），typecheck/lint/diff通过。原生日志native-final.log，普通unit-commit.log，类型及lint分别types-commit.log/lint-commit.log。完整原生套件/WASM、真实浏览器、独立工程师隐藏集及实物本轮未执行。
 
 费用增量0，累计保守上界3.316132/28元。全部新增代码为本仓库原创，未复制第三方源码或引入依赖。下一步应核对正常导出适配器和存储版本守卫的真实原生链路，继续明确保持/独立释放条件及源码装拆联动，再推进多关节与制造实测。完整M0–M8目标继续进行。
+
+
+## 61. 隔离SQLite上的真实导出路由、会话与版本守卫复核（2026-11-10）
+
+归档实现已提交c628e8f。本轮直接执行src/app/api/jobs/[id]/assembly/bundle/route.ts的真实Next.js GET处理器，使用独立SQLite文件和原生OpenSCAD，未替换渲染器或buildAssemblyBundle。实验位于.agentscad/experiments/source-pose-route-2026-11-10。没有启动HTTP服务或浏览器；研究者向隔离库写入合成DELIVERED任务，原请求和模型修复稿均保留原字节，通过实际saveRequirementContract模拟确认。因此它覆盖路由处理器及存储/渲染链路，尚不覆盖自然语言自主生成、实际浏览器操作或用户决定。
+
+使用真实浏览器会话cookie格式及服务端会话hash。无会话401、其他会话404、旧源码hash409，均符合守卫，旧版本拒绝后无残留执行锁。正确会话、当前源码/规格/确认版本返回200，耗时78011ms。服务器自行生成种子125ea7c6950705ceff03327568346f57，额外输入13.77448596601608度，六输入源码运动及综合motion PASS。archive COMPLETE，20份验证STL与源码、请求、合同、协议和报告一并返回。完整requirements因轴向保持条件未明确仍NOT_RUN，geometry及physical也未获得整体通过。
+
+实际响应ZIP位于result/assembly.zip，SHA-256为65a40974366bc264fa93002b7691ac298cde9430899bfc722ae7c9d84387a70f。响应源/规格/包hash、合同current标志及每个归档STL的hash均与包内容匹配。脚本显式传download=1，隔离库因此生成一条exported事件，事件中的bundleSha256与实际下载一致，没有accepted或rejected事件。这是脚本触发的导出信号，不能解释成用户验收。完成后执行锁为0，llmCallCount为0。
+
+另用独立Python标准库读取本次实际响应ZIP，验证请求/合同语义及原始文件hash绑定，重算12个实例姿态的边界，最大差异1.8645115495985465e-7mm。该复核仍仅限归档完整性和边界必要条件。源码运动的完整表面结果来自主检查器，不据此声称独立工程师评审、连续路径或实物通过。原始SQLite库、协议、响应ZIP、manifest、checks及所有列出工具的源快照/hash保留，运行前后代码hash一致，产物目录拒绝覆盖。
+
+实验初始化首次发现bunx命令不存在，改用本仓库node_modules中的Prisma CLI。首次CLI在数据库文件不存在时给出Schema engine error，未进入导出测试；依照既有路由夹具预建空SQLite文件后schema同步成功，未进一步归因引擎错误。两个初始化错误的日志原样保留，没有作为功能FAIL或成功运行计数。
+
+本轮不改运行代码，普通及原生回归沿用同一提交第60节最终结果。没有新增模型调用，费用增量0，累计保守上界3.316132/28元。未新增第三方源码或依赖。完整M0–M8目标继续进行；下一项关键差距仍为完整需求/保持与释放条件、源码装拆联动及普通用户完整产品流程，再扩展多关节和实物。已向用户收集后续实物试验的打印机、材料及工艺条件，尚无实物结果。
