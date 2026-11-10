@@ -4,6 +4,9 @@ import { assertRepairPreservesAssembly, buildAssemblyRepairPrompt, collectAssemb
 import { prepareAssembly } from "./prepare-assembly";
 import { prismStl } from "../geometry/__tests__/prism";
 import { boxStl, mergeStl, tubeStl } from "../geometry/__tests__/solids";
+import { AssemblySpecSchema } from "./assembly-spec";
+import { buildHingeSourceProtocol } from "./source-motion-protocol";
+import { canonicalJson } from "../canonical-json";
 
 const POSE = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
@@ -462,4 +465,37 @@ test("repairs retain source bindings and receive actual source motion failures",
   expect(findings).toHaveLength(1);
   expect(findings[0].message).toContain("angle-0 shaft-instance");
   expect(findings[0].message).toContain("Preserve the source binding");
+});
+
+test("source repair findings retain the failed input, instance, joint and command angle", () => {
+  const { spec } = boreAndShaft();
+  const bound = AssemblySpecSchema.parse({ ...spec, motions: [{ id: "drive", inputConnectionId: "joint",
+    range: { min: -45, max: 45, unit: "deg" },
+    sourceInput: { parameter: "angle", poseSelectors: { "bore-instance": "bore", "shaft-instance": "shaft" } } }] });
+  const built = buildHingeSourceProtocol(bound, "0123456789abcdef0123456789abcdef");
+  if (built.status !== "READY") throw new Error("No protocol");
+  const pose = built.protocol.cases.find(item => item.challenge)!;
+  const report = { protocol: { ...built.protocol, spec: bound, surfaceComparison: "bounded-cover" as const },
+    results: [{ id: "execution", status: "ERROR", reason: "earlier infrastructure fault" },
+      { id: pose.id, status: "FAIL", reason: "No independent surface-difference witness was established", comparisons: [
+        { instanceId: "bore-instance", result: { status: "PASS" } },
+        { instanceId: "shaft-instance", result: { status: "FAIL", reason: "different bounds", bboxErrorMm: .125 } },
+      ] }] };
+  const manifest = { fits: [], sourceMotion: report, evidence: { sourceMotion: { status: "FAIL", reason: "aggregate" } } };
+  const [finding] = collectAssemblyFindings({ manifest, kinematics: null });
+  expect(finding.connectionId).toBe("joint");
+  expect(finding.instanceIds).toEqual(["shaft-instance"]);
+  expect(finding.atDeg).toBe(pose.parameters.angle as number);
+  expect(finding.message).toContain(canonicalJson(pose.parameters));
+  expect(finding.measured).toContain("bounds error 0.125000 mm");
+  expect(finding.message).not.toContain("earlier infrastructure fault");
+  expect(finding.message).not.toContain("No independent surface-difference witness");
+  const ambiguous = { ...report, protocol: { ...report.protocol, spec: { ...bound,
+    motions: [...bound.motions, { ...bound.motions[0], id: "second-drive" }] } } };
+  const [unbound] = collectAssemblyFindings({ manifest: { ...manifest, sourceMotion: ambiguous }, kinematics: null });
+  expect(unbound.connectionId).toBeNull();
+  expect(unbound.atDeg).toBeNull();
+  for (const status of ["NOT_RUN", "ERROR"]) {
+    expect(collectAssemblyFindings({ manifest: { ...manifest, evidence: { sourceMotion: { status, reason: "unavailable" } } }, kinematics: null })).toEqual([]);
+  }
 });

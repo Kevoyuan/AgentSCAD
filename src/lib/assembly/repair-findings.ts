@@ -17,6 +17,7 @@ import type { DisassemblyPathEvidence, MotionRangeEvidence } from "./path-and-mo
 import type { RequirementContract } from "../requirements/requirement-contract";
 import type { AssemblyFitRequirement } from "./prepare-assembly";
 import { canonicalJson } from "../canonical-json";
+import type { verifySourcePoses } from "../tools/source-pose-verification";
 
 export type FindingKind = "connectivity" | "identity" | "reconstruction" | "joint-frame" | "fit" | "path" | "motion" | "translation-probe";
 
@@ -56,6 +57,7 @@ const formatRange = (value: { min: number; max: number }, unit: string) => {
 export interface AssemblyEvidenceManifest {
   evidence: Record<string, { status: string; reason: string }>;
   contract?: { evidenceCurrent: boolean | null };
+  sourceMotion?: Pick<Awaited<ReturnType<typeof verifySourcePoses>>, "protocol" | "results"> | null;
   fits: Array<{
     connectionId: string;
     status: string;
@@ -89,12 +91,31 @@ export function collectAssemblyFindings(input: {
 }): AssemblyFinding[] {
   const findings: AssemblyFinding[] = [];
   const sourceMotion = input.manifest.evidence.sourceMotion;
-  if (sourceMotion?.status === "FAIL") findings.push({
-    kind: "motion", layer: "motion", connectionId: null, instanceIds: [],
-    measured: sourceMotion.reason, required: "Source-driven instance surfaces and complete assembly must match the frozen expected poses at every listed input.",
-    atMm: null, atDeg: null,
-    message: `Source-driven motion failed. ${sourceMotion.reason} Preserve the source binding, instances, joint and required range during repair.`,
-  });
+  if (sourceMotion?.status === "FAIL") {
+    const report = input.manifest.sourceMotion;
+    const failed = report?.results.find(result => result.status === "FAIL");
+    const pose = report?.protocol.cases.find(item => item.id === failed?.id);
+    const motions = report?.protocol.spec.motions.filter(motion => motion.sourceInput && pose
+      && Object.hasOwn(pose.parameters, motion.sourceInput.parameter)) ?? [];
+    const motion = motions.length === 1 ? motions[0] : undefined;
+    const value = motion?.sourceInput ? pose?.parameters[motion.sourceInput.parameter] : undefined;
+    const instances = failed?.comparisons?.filter(row => row.result.status === "FAIL") ?? [];
+    const detail = failed ? [
+      `source case ${failed.id}`,
+      pose ? `commanded inputs ${canonicalJson(pose.parameters)}` : "",
+      ...instances.map(row => `${row.instanceId} ${String(row.result.reason ?? "surface mismatch")}${
+        typeof row.result.bboxErrorMm === "number" && Number.isFinite(row.result.bboxErrorMm)
+          ? ` with bounds error ${row.result.bboxErrorMm.toPrecision(6)} mm` : ""}`),
+      instances.length ? "" : failed.reason,
+    ].filter(Boolean).join(". ") : sourceMotion.reason;
+    findings.push({
+      kind: "motion", layer: "motion", connectionId: motion?.inputConnectionId ?? null,
+      instanceIds: instances.map(row => row.instanceId), measured: detail,
+      required: "Source-driven instance surfaces and complete assembly must match the frozen expected poses at every listed input.",
+      atMm: null, atDeg: motion?.range.unit === "deg" && typeof value === "number" && Number.isFinite(value) ? value : null,
+      message: `Source-driven motion failed. ${detail} Preserve the source binding, instances, joint and required range during repair.`,
+    });
+  }
   for (const probe of input.manifest.translationProbes?.results ?? []) {
     const measured = `${probe.reason}${probe.probe ? ` World displacement [${probe.probe.translationMm.map(n=>n.toFixed(3)).join(", ")}] mm, ${probe.probe.samples} samples, expected ${probe.probe.expected}.` : ""}`;
     if (probe.status === "FAIL") findings.push({kind:"translation-probe",layer:"assembly",connectionId:null,instanceIds:[probe.instanceId],
