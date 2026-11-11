@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -15,7 +16,7 @@ if (!available) console.warn("Skipping manufacturing geometry regressions: insta
       encoding: "utf8", timeout: 30_000,
     });
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stderr).toContain("Ran 8 tests");
+    expect(result.stderr).toContain("Ran 9 tests");
   });
 
   test("preserves sheet WARN and unavailable SKIP through the public validator", () => {
@@ -51,6 +52,9 @@ console.log('RESULT:' + JSON.stringify(rules));
       const rules = JSON.parse(line!.slice("RESULT:".length));
       expect(rules[0].status).toBe("WARN");
       expect(rules[0].repairFailures).toBe(0);
+      expect(rules[0].details.minThicknessWitness.distanceMm).toBeCloseTo(0.8, 4);
+      expect(rules[0].details.minThicknessWitness.sourceTriangle).toHaveLength(3);
+      expect(rules[0].details.meshSha256).toBe(createHash("sha256").update(readFileSync(path.join(directory, "sheet.stl"))).digest("hex"));
       expect(rules[1].status).toBe("SKIP");
       expect(rules[1].passed).toBe(false);
       expect(rules[1].repairFailures).toBe(0);

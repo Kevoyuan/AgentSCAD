@@ -92,6 +92,7 @@ AgentSCAD validation results have this shape:
 ```
 
 Common rules:
+- R001 may carry a mesh hash and a measured ray with source/hit triangles. Locate that segment in the measured mesh before proposing a change. Its frame follows that mesh, with processed face indices recorded in the report. Check the corresponding part, feature and frozen dimensional requirements. A short chord near an edge needs geometric interpretation alongside nominal feature dimensions and the specified manufacturing conditions.
 - C001: OpenSCAD Compile (critical) — syntax errors, empty mesh
 - R001: Minimum Wall Thickness — sampled wall/feature width below 1.2 mm is FAIL; confirmed planar sheet gauge below this default is WARN, not an instruction to thicken it. SKIP/ERROR is unavailable measurement.
 - R003: Manifold Geometry (critical) — non-watertight, degenerate faces

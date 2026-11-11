@@ -94,7 +94,11 @@ function emptyStructuredDefaults() {
 export function buildRepairPrompt(input: RepairInput): string {
   const failedRules = input.validationResults
     .filter((r) => getValidationEvidenceStatus(r) === "FAIL")
-    .map((r) => `- ${r.rule_id} ${r.rule_name} (${r.is_critical ? "CRITICAL" : "non-critical"}): ${r.message}`)
+    .map((r) => {
+      const message = `- ${r.rule_id} ${r.rule_name} (${r.is_critical ? "CRITICAL" : "non-critical"}): ${r.message}`;
+      const witness = r.rule_id === "R001" ? r.details?.minWallWitness : undefined;
+      return witness ? `${message}\nMeasured wall ray data ${JSON.stringify({ meshSha256: r.details?.meshSha256, witness }).slice(0, 2000)}` : message;
+    })
     .join("\n");
 
   const passedRules = input.validationResults

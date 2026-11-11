@@ -66,6 +66,24 @@ class ThicknessTests(unittest.TestCase):
         self.assertEqual(result['status'], 'pass', result)
         self.assertAlmostEqual(result['details']['minThickness'], 2.0, places=4)
 
+    def test_thickness_witness_records_the_actual_surface_segment(self):
+        mesh = trimesh.creation.box(extents=[20, 20, 2])
+        details = check_wall_thickness(mesh, 1.2)['details']
+        witness = details['minThicknessWitness']
+        origin, hit = np.array(witness['origin']), np.array(witness['hit'])
+        self.assertAlmostEqual(np.linalg.norm(hit - origin), witness['distanceMm'], places=9)
+        np.testing.assert_allclose(hit - origin, np.array(witness['direction']) * witness['distanceMm'], atol=1e-9)
+        np.testing.assert_allclose(witness['sourceTriangle'], mesh.triangles[witness['sourceFaceIndex']])
+        np.testing.assert_allclose(witness['hitTriangle'], mesh.triangles[witness['hitFaceIndex']])
+        self.assertAlmostEqual(witness['distanceMm'], details['minThickness'], places=4)
+        with tempfile.TemporaryDirectory() as tmp:
+            import hashlib
+            path = Path(tmp) / 'ascii.stl'
+            path.write_text(mesh.export(file_type='stl_ascii'))
+            measured = validate_stl(str(path))['rules'][0]['details']
+            self.assertEqual(measured['meshSha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+            self.assertAlmostEqual(measured['minThicknessWitness']['distanceMm'], 2.0, places=4)
+
     def test_non_watertight_mesh_is_skipped(self):
         mesh = trimesh.creation.box()
         mesh.update_faces(list(range(11)))

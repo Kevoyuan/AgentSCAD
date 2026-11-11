@@ -35,6 +35,7 @@ export interface ValidationResult {
   passed: boolean;
   is_critical: boolean;
   message: string;
+  details?: Record<string, unknown>;
   status?: import("@/lib/validation/evidence-status").ValidationEvidenceStatus;
 }
 
@@ -121,6 +122,7 @@ function transformPythonResults(pyOutput: PythonOutput, jobId?: string): Validat
       status,
       is_critical: meta.is_critical,
       message: parsedStatus ? rule.message : `Invalid validator status: ${String(rule.status)}`,
+      ...(rule.id === "R001" ? { details: rule.details } : {}),
     });
   }
 
