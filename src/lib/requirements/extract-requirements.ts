@@ -54,6 +54,23 @@ function firstMatch(text: string, patterns: RegExp[]): RegExpMatchArray | null {
   return null;
 }
 
+/** Capture an assertive condition in its original wording. Ambiguity stays a question. */
+function explicitAxialRetentionStatement(text: string): string | null {
+  const retention = /轴向(?:防脱|保持|锁止|限位)|\baxial(?:ly)?\s+(?:retention|retained|locking)\b|\bretained\s+axially\b|\bprevent\s+axial\s+(?:withdrawal|separation|removal)\b/i;
+  const directive = /必须|需要|要求|应当|应有|\b(?:must|shall|should|require[ds]?|needs?)\b/i;
+  const unresolved = /不(?:需要|要求|必|应|得)|没有|无需|无须|不要|未(?:说明|指定|确定)|尚未|待定|可选|是否|吗|\b(?:not|no|never|without|optional|unknown|unspecified|whether)\b|\?/i;
+  const statements = text.split(/[。！？\n]|\.(?=\s|$)/);
+  for (const raw of statements) {
+    const statement = raw.trim();
+    if (!statement || statement.length > 500) continue;
+    const clauses = statement.split(/[，,;；]/).filter(clause => retention.test(clause));
+    if (clauses.some(clause => directive.test(clause)) && clauses.every(clause => !unresolved.test(clause))) {
+      return statement;
+    }
+  }
+  return null;
+}
+
 function normalizeNumber(raw: string): number {
   return Number(raw.replace(/[−–—]/g, "-").replace(/^\+/, ""));
 }
@@ -226,7 +243,12 @@ export function deriveRequirementContract(input: {
 
   // --- intent-specific gaps ------------------------------------------------
   if (intentKind === "revolute-hinge") {
-    if (wantsDisassembly) addUnknown("axial-retention", "轴向保持方式未说明：可抽离与自保持在功能上是不同合同。", ["assembly", "motion"]);
+    const retentionStatement = explicitAxialRetentionStatement(text);
+    if (retentionStatement) {
+      draft.requirements.push(requirement("axial-retention", "assembly", { kind: "equals", value: true }, "request", retentionStatement));
+    } else if (wantsDisassembly) {
+      addUnknown("axial-retention", "轴向保持方式未说明：可抽离与自保持在功能上是不同合同。", ["assembly", "motion"]);
+    }
     if (!clearanceRange && !toleranceMatch) addUnknown("hinge-fit", "孔与轴的直径及配合公差未给出。", ["assembly"]);
   }
   if (intentKind === "threaded") addUnknown("thread-geometry", "螺距、旋向、公差等级未给出。", ["assembly"]);

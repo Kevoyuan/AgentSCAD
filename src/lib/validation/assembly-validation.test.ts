@@ -25,6 +25,11 @@ test("unresolved retention blocks an aggregate pass but cannot hide a measured f
  expect(pending.status).toBe("NOT_RUN");expect(pending.message).toContain("axial-retention NOT_RUN");
  const [failed]=await validateAssemblyArtifact(input,prepare({...evidence,motion:{status:"FAIL",reason:"collision"}}));
  expect(failed.status).toBe("FAIL");expect(failed.message).toContain("axial-retention NOT_RUN");
+ const explicit={...input,inputRequest:input.inputRequest+"。工作姿态必须有几何轴向防脱。"};
+ const [unmeasured]=await validateAssemblyArtifact(explicit,prepare(evidence));
+ expect(unmeasured.status).toBe("NOT_RUN");
+ expect(unmeasured.message).toContain("requirement axial-retention NOT_RUN: No automatic assertion is implemented");
+ expect(unmeasured.message).not.toContain("轴向保持方式未说明");
 });
 
 test("an explicitly confirmed retention assertion is not silently treated as measured",()=>{

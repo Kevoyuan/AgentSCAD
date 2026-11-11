@@ -19,7 +19,7 @@ if (process.env.AGENTSCAD_REQUIREMENTS_ROUTE_CHILD !== "1") {
 } else {
   const { db } = await import("@/lib/db");
   const { GET, PUT } = await import("@/app/api/jobs/[id]/requirements/route");
-  const { setAxialRetention } = await import("@/lib/requirements/retention-input");
+  const { axialRetentionCondition, setAxialRetention } = await import("@/lib/requirements/retention-input");
   afterAll(async () => db.$disconnect());
 
   const read = (authenticated = true) => new Request("http://localhost/api/jobs/x/requirements", {
@@ -140,6 +140,54 @@ if (process.env.AGENTSCAD_REQUIREMENTS_ROUTE_CHILD !== "1") {
     saved = JSON.parse((await db.job.findUniqueOrThrow({ where: { id: job.id } })).validationResults!);
     expect(saved[0].status).toBe("NOT_RUN");
     expect(saved[0].staleAssemblyValidation.message).toBe("new check");
+  });
+
+  test("explicit retention survives normal confirmation and an old unresolved record can reuse the request", async () => {
+    const request = HINGE + "。工作姿态必须有几何轴向防脱，并有明确几何约束阻止直接转到释放角。";
+    const oldEvidence = [{ rule_id: "A001", status: "PASS", passed: true, message: "previous geometry" }];
+    const job = await db.job.create({ data: { inputRequest: request, state: "HUMAN_REVIEW", validationResults: JSON.stringify(oldEvidence) } });
+    const initial = await (await GET(read(), context(job.id))).json();
+    const retention = initial.contract.requirements.find((item: { id: string }) => item.id === "axial-retention");
+    expect(retention.provenance).toBe("request");
+    expect(retention.statement).toContain("必须有几何轴向防脱");
+    expect(initial.contract.unknowns.some((item: { id: string }) => item.id === "axial-retention")).toBe(false);
+
+    const legacy = {
+      ...initial.contract,
+      requirements: initial.contract.requirements.filter((item: { id: string }) => item.id !== "axial-retention"),
+      unknowns: [...initial.contract.unknowns, {
+        id: "axial-retention", question: "轴向保持方式未说明：可抽离与自保持在功能上是不同合同。", affects: ["assembly", "motion"],
+      }],
+    };
+    const payload = JSON.stringify({ contract: legacy, revision: 1, confirmedAt: new Date().toISOString() });
+    const revisionId = `requirement-contract-rev:${job.id}:legacy`;
+    await db.jobVersion.createMany({ data: [
+      { id: `requirement-contract:${job.id}`, jobId: job.id, field: "__requirement_contract", newValue: payload },
+      { id: revisionId, jobId: job.id, field: "__requirement_contract_revision", newValue: payload },
+    ] });
+    const stored = await (await GET(read(), context(job.id))).json();
+    expect(stored.confirmed).toBe(true);
+    expect(stored.contract.requirements.some((item: { id: string }) => item.id === "axial-retention")).toBe(false);
+    expect(axialRetentionCondition(stored.contract, stored.derived)).toBe(retention.statement);
+    const recovered = setAxialRetention(stored.contract, stored.derived, {
+      kind: "require", condition: axialRetentionCondition(stored.contract, stored.derived),
+    });
+    const response = await PUT(write({ contract: recovered, expectedContractSha256: stored.confirmedContractSha256 }), context(job.id));
+    expect(response.status).toBe(200);
+    const saved = await response.json();
+    expect(saved.revision).toBe(2);
+    expect(saved.contract.requirements.find((item: { id: string }) => item.id === "axial-retention").provenance).toBe("request");
+    expect(saved.contract.unknowns.some((item: { id: string }) => item.id === "axial-retention")).toBe(false);
+    expect((await db.jobVersion.findUniqueOrThrow({ where: { id: revisionId } })).newValue).toBe(payload);
+    const invalidated = JSON.parse((await db.job.findUniqueOrThrow({ where: { id: job.id } })).validationResults!);
+    expect(invalidated[0].status).toBe("NOT_RUN");
+    expect(invalidated[0].staleAssemblyValidation.message).toBe("previous geometry");
+
+    const fresh = await db.job.create({ data: { inputRequest: request } });
+    const first = await (await GET(read(), context(fresh.id))).json();
+    const confirmed = await PUT(write({ contract: first.contract, expectedContractSha256: null }), context(fresh.id));
+    expect(confirmed.status).toBe(200);
+    expect((await confirmed.json()).contract.requirements.find((item: { id: string }) => item.id === "axial-retention").provenance).toBe("request");
   });
 
   test("an edit is accepted, renumbered and marked confirmed provenance", async () => {

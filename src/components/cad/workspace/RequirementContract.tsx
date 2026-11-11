@@ -9,7 +9,7 @@ import {
   type RequirementContract,
   type RequirementLayer,
 } from '@/lib/requirements/requirement-contract'
-import { setAxialRetention } from '@/lib/requirements/retention-input'
+import { axialRetentionCondition, setAxialRetention } from '@/lib/requirements/retention-input'
 import type { RequirementContractRecord } from '@/lib/requirements/requirement-contract-record'
 
 /** Read-only shape shared with the API; the record itself is server-only. */
@@ -202,8 +202,7 @@ export function JobRequirementContract({ jobId, revision, onConfirmed }: { jobId
       .then((data) => { if (!controller.signal.aborted) {
         const view = data as ContractView
         setState({ data: view })
-        const retained = view.contract.requirements.find(item => item.id === 'axial-retention' && item.required)
-        setRetentionText(retained?.statement ?? '')
+        setRetentionText(axialRetentionCondition(view.contract, view.derived))
       } })
       .catch(() => { if (!controller.signal.aborted) setState({ error: true }) })
     return () => controller.abort()
@@ -216,6 +215,7 @@ export function JobRequirementContract({ jobId, revision, onConfirmed }: { jobId
   const editable = !data.confirmed || data.stale || draft !== null
   const view: ContractView = { ...data, contract: working }
   const hasRetentionQuestion = data.derived.unknowns.some(item => item.id === 'axial-retention')
+  const canEditRetention = hasRetentionQuestion || data.derived.requirements.some(item => item.id === 'axial-retention')
   const recordedRetention = working.requirements.find(item => item.id === 'axial-retention')
   const pendingRetentionText = retentionText.trim().length > 0
     && retentionText.trim() !== (recordedRetention?.required ? recordedRetention.statement ?? '' : '')
@@ -268,7 +268,7 @@ export function JobRequirementContract({ jobId, revision, onConfirmed }: { jobId
           </label>
         </li>)}
       </ul>
-      {hasRetentionQuestion && <div className="mt-3 space-y-2">
+      {canEditRetention && <div className="mt-3 space-y-2">
         <label htmlFor="axial-retention-condition" className="block font-medium">{t('How should the parts stay together during use?')}</label>
         <p className="text-[var(--shell-text-label)]">{t('Describe the holding condition, expected load and how it is released for disassembly, if known.')}</p>
         <textarea id="axial-retention-condition" maxLength={500} value={retentionText}
@@ -277,7 +277,7 @@ export function JobRequirementContract({ jobId, revision, onConfirmed }: { jobId
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => recordRetention('require')} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{t('Record retention requirement')}</button>
           <button type="button" onClick={() => recordRetention('waive')} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{t('Waive retention requirement')}</button>
-          {recordedRetention && <button type="button" onClick={() => recordRetention('unanswered')} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{t('Leave retention unanswered')}</button>}
+          {recordedRetention && hasRetentionQuestion && <button type="button" onClick={() => recordRetention('unanswered')} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{t('Leave retention unanswered')}</button>}
         </div>
         <p className="text-[var(--shell-text-label)]">{t('Recording a condition does not verify retention or physical function.')}</p>
         {pendingRetentionText && <p role="status">{t('Record the condition before confirming.')}</p>}
@@ -288,7 +288,7 @@ export function JobRequirementContract({ jobId, revision, onConfirmed }: { jobId
         <button type="button" className="rounded border border-[color:var(--shell-hairline)] px-2 py-1" disabled={saving || pendingRetentionText} onClick={() => void confirm()}>
           {saving ? t('Saving…') : t('Confirm requirements')}
         </button>
-        {draft !== null && <button type="button" className="rounded border border-[color:var(--shell-hairline)] px-2 py-1" disabled={saving} onClick={() => { setDraft(null); setMessage(''); setDetails([]); setRetentionText(data.contract.requirements.find(item => item.id === 'axial-retention' && item.required)?.statement ?? '') }}>
+        {draft !== null && <button type="button" className="rounded border border-[color:var(--shell-hairline)] px-2 py-1" disabled={saving} onClick={() => { setDraft(null); setMessage(''); setDetails([]); setRetentionText(axialRetentionCondition(data.contract, data.derived)) }}>
           {t('Discard changes')}
         </button>}
       </div>

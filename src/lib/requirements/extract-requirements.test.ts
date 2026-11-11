@@ -95,6 +95,40 @@ describe("requirement extraction in English", () => {
   });
 });
 
+describe("explicit axial retention conditions", () => {
+  test.each([
+    "两件式可拆铰链。工作姿态必须有几何轴向防脱，并有明确几何约束阻止直接转到释放角。",
+    "两件式可拆铰链，要求轴向保持，按压释放后拆卸。",
+    "Make a removable two-part hinge. During use the rotor must be retained axially until an independent release action.",
+    "A removable hinge must prevent axial withdrawal before release.",
+  ])("preserves an explicit condition from the request without inventing a measurement: %s", request => {
+    const contract = derive(request);
+    const condition = contract.requirements.find(item => item.id === "axial-retention");
+    expect(condition).toMatchObject({
+      layer: "assembly", required: true, applicable: true, provenance: "request",
+      expected: { kind: "equals", value: true },
+    });
+    expect(condition?.statement).toBeTruthy();
+    expect(request).toContain(condition!.statement!);
+    expect(contract.unknowns.some(item => item.id === "axial-retention")).toBe(false);
+    expect(validateRequirementContract(contract).success).toBe(true);
+  });
+
+  test.each([
+    "两件式可拆铰链，是否需要轴向防脱？",
+    "两件式可拆铰链，必须可拆，轴向防脱未指定。",
+    "两件式可拆铰链，无需轴向防脱。",
+    "A removable hinge that must not be retained axially.",
+    "A hinge must be removable without axial retention.",
+    "Do we need axial retention for this removable hinge?",
+    "Axial retention must be optional for a removable hinge.",
+  ])("keeps questions, negation and unspecified conditions unresolved: %s", request => {
+    const contract = derive(request);
+    expect(contract.requirements.some(item => item.id === "axial-retention")).toBe(false);
+    expect(contract.unknowns.some(item => item.id === "axial-retention")).toBe(true);
+  });
+});
+
 describe("requirement extraction for other mechanisms", () => {
   test("a V8 request does not pretend to know the part count", () => {
     const contract = derive("做一个 V8 发动机装配体，八个活塞，可拆");

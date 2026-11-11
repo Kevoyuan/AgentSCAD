@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { deriveRequirementContract } from "./extract-requirements";
 import { normalizeConfirmedContract } from "./requirement-contract";
-import { setAxialRetention } from "./retention-input";
+import { axialRetentionCondition, setAxialRetention } from "./retention-input";
 
 test("a user can record, waive and restore a retention condition without claiming a measurement", () => {
   const original = deriveRequirementContract({ request: "两件式铰链，可组装可拆卸，3D打印" });
@@ -20,4 +20,27 @@ test("a user can record, waive and restore a retention condition without claimin
   expect(() => setAxialRetention(original, original, { kind: "require", condition: "a".repeat(501) })).toThrow();
   const other = deriveRequirementContract({ request: "一个实心方块" });
   expect(() => setAxialRetention(other, other, { kind: "waive" })).toThrow();
+});
+
+test("a stated request condition can be edited or waived while an old unresolved record stays recoverable", () => {
+  const derived = deriveRequirementContract({ request: "两件式可拆铰链，工作姿态必须有几何轴向防脱。" });
+  const legacy = {
+    ...derived,
+    requirements: derived.requirements.filter(item => item.id !== "axial-retention"),
+    unknowns: [...derived.unknowns, {
+      id: "axial-retention", question: "轴向保持方式未说明", affects: ["assembly" as const, "motion" as const],
+    }],
+  };
+  const original = derived.requirements.find(item => item.id === "axial-retention")!;
+  expect(axialRetentionCondition(legacy, derived)).toBe(original.statement!);
+  const recovered = setAxialRetention(legacy, derived, { kind: "require", condition: axialRetentionCondition(legacy, derived) });
+  expect(recovered.unknowns.some(item => item.id === "axial-retention")).toBe(false);
+  expect(normalizeConfirmedContract(recovered, derived).requirements.find(item => item.id === "axial-retention")?.provenance).toBe("request");
+  const edited = setAxialRetention(derived, derived, { kind: "require", condition: "工作时轴向防脱，先按压再旋转释放" });
+  expect(axialRetentionCondition(edited, derived)).toContain("先按压");
+  expect(normalizeConfirmedContract(edited, derived).requirements.find(item => item.id === "axial-retention")?.provenance).toBe("confirmed");
+  const waived = setAxialRetention(derived, derived, { kind: "waive" });
+  expect(axialRetentionCondition(waived, derived)).toBe("");
+  expect(normalizeConfirmedContract(waived, derived).requirements.find(item => item.id === "axial-retention")?.required).toBe(false);
+  expect(() => setAxialRetention(derived, derived, { kind: "unanswered" })).toThrow("already states");
 });
