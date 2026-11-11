@@ -22,7 +22,14 @@ test("explicit frozen operation trial plans two calls without credentials or cha
   expect(plan.maxCalls).toBe(2);
   expect(plan.worstCaseCny).toBe(1.448576);
   expect(plan.reasoningEffort).toBe("none");
+  expect(plan.promptSkills.repair).toContain("scad-repair");
   expect(await fs.readFile(ledger).catch(()=>null)).toEqual(before);
+});
+test("repair attempts route through retained repair guidance",async()=>{
+  const source=await fs.readFile(runner,"utf8");
+  expect(source).toContain('await loadSkill("scad-repair")');
+  expect(source).toContain('content:old ? repairSystem : system');
+  expect(source).toContain('"repair-system-prompt.txt"');
 });
 test("missing explicit task path fails before model admission",async()=>{
   const result=await dryRun(["--tasks","--non-thinking"]);

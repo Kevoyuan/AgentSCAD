@@ -43,6 +43,7 @@ async function main() {
   const maxCalls=worstCaseCalls(tasks);
   if(maxCalls*CALL_CAP_CNY>MAX_CNY)throw new Error("Worst-case call reservations exceed authorization");
   const plan={taskPath,seed:seed?.provenance??null,model:MODEL,maxCny:MAX_CNY,maxCalls,maxInputTokenBound:MAX_INPUT_BOUND,maxOutputTokens:MAX_OUTPUT,
+    promptSkills:{generation:["scad-coding","scad-planning"],repair:["scad-coding","scad-planning","scad-repair"]},
     reasoningEffort:process.argv.includes("--non-thinking")?"none":"high",
     inputCnyPerMillion:2,outputCnyPerMillion:8,perCallReservationCny:CALL_CAP_CNY,worstCaseCny:maxCalls*CALL_CAP_CNY,
     priorAccountedCny:0,totalAuthorizationWorstCaseCny:maxCalls*CALL_CAP_CNY,
@@ -78,6 +79,11 @@ async function main() {
   const system=[skillInstructions(coding),skillInstructions(planning),
     "For this authorized trial, use only original geometry and OpenSCAD built-in primitives. Do not include external libraries. Preserve the exact user requirements. Return one complete SCAD code block.",
     "For a revolute connection declare boreInstanceId as the instance containing the mating bore. It is an allowed optional connection key. Supply local connection frames and instance transforms consistently. Do not fabricate validation claims."].join("\n\n");
+  const needsRepair = seed !== null || tasks.tasks.some(task => task.maxRepairs > 0);
+  const repair = needsRepair ? await loadSkill("scad-repair") : null;
+  if (needsRepair && !repair) throw new Error("Missing repair skill");
+  const repairSystem = repair ? [system, skillInstructions(repair),
+    "For this trial return one complete SCAD code block containing the declaration. Keep all unresolved conditions explicit."].join("\n\n") : system;
   await fs.mkdir(".agentscad/experiments",{recursive:true});
   const directory=await fs.mkdtemp(path.join(".agentscad/experiments","paid-deepseek-assembly-"));
   // Freeze direct evaluator sources before any paid call, preserving paths.
@@ -130,7 +136,7 @@ async function main() {
     await fs.writeFile(path.join(directory,"ledger.json"),JSON.stringify(data,null,2));
     await fs.writeFile(authorizationPath,JSON.stringify({...data,calls:[...priorCalls,...calls],accountedCny:priorAccountedCny+current,initialBalance:authorizationInitialBalance,directory,status:terminal?"TERMINAL":"ACTIVE",model:MODEL},null,2));
   };
-  await Promise.all([fs.writeFile(path.join(directory,"plan.json"),JSON.stringify(plan,null,2)),fs.writeFile(path.join(directory,"tasks.json"),taskBytes),fs.writeFile(path.join(directory,"system-prompt.txt"),system)]);
+  await Promise.all([fs.writeFile(path.join(directory,"plan.json"),JSON.stringify(plan,null,2)),fs.writeFile(path.join(directory,"tasks.json"),taskBytes),fs.writeFile(path.join(directory,"system-prompt.txt"),system),fs.writeFile(path.join(directory,"repair-system-prompt.txt"),repairSystem)]);
   console.log(JSON.stringify({directory,plan},null,2));
   const legacyPlan=planTrial({taskSet:tasks,pricePerCallUsd:CALL_CAP_CNY/CNY_PER_BOOK_USD,maxCalls,maxUsd:(MAX_CNY-priorAccountedCny)/CNY_PER_BOOK_USD});
   const report=await withLlmCallMeter(async()=>{
@@ -141,7 +147,7 @@ async function main() {
         if(calls.length>=maxCalls||priorAccountedCny+accounted+CALL_CAP_CNY>MAX_CNY)throw new TrialRefused("Authorized budget exhausted");
         const old=previous.get(task.id);
         const content=attempt===0&&!seed?task.prompt:`Original request: ${task.prompt}\n\nRepair the complete previous SCAD. Preserve required parts, connections, range and clearance.\n\n${old??""}\n\nMeasured feedback:\n${repairPrompt??seed?.feedback??"No measurement available"}`;
-        const messages=[{role:"system" as const,content:system},{role:"user" as const,content}];
+        const messages=[{role:"system" as const,content:old ? repairSystem : system},{role:"user" as const,content}];
         const tokenBound=Buffer.byteLength(JSON.stringify(messages),"utf8")+1024;
         if(tokenBound>MAX_INPUT_BOUND)throw new TrialRefused("Prompt byte-derived token reservation exceeded");
         if(await balance()<CALL_CAP_CNY)throw new TrialRefused("Available CNY balance below next-call reservation");
@@ -243,7 +249,7 @@ async function main() {
   const result={...report,cnyAccounting:{maxCny:MAX_CNY,peakPriceUpperEstimate:currentCost,priorAccountedCny,totalAuthorizationUpperEstimate:priorAccountedCny+currentCost,initialBalance,finalBalance,balanceDifference:finalBalance===null?null:initialBalance-finalBalance,legacyBookkeepingCnyPerUsd:CNY_PER_BOOK_USD},coverageExclusions:["physical function","user acceptance","hard-stop overtravel","browser product end-to-end flow","continuous collision"],allJudgements};
   await fs.writeFile(path.join(directory,"report.json"),JSON.stringify(result,null,2));
   const codeUnchangedDuringRun=(await Promise.all(sourceSnapshot.map(async item=>sha(await fs.readFile(item.file))===item.sha256))).every(Boolean);
-  await fs.writeFile(path.join(directory,"provenance.json"),JSON.stringify({taskBytesSha256:sha(taskBytes),systemPromptSha256:sha(system),runtime:Bun.version,scope:plan.scope,codeUnchangedDuringRun},null,2));
+  await fs.writeFile(path.join(directory,"provenance.json"),JSON.stringify({taskBytesSha256:sha(taskBytes),systemPromptSha256:sha(system),repairSystemPromptSha256:sha(repairSystem),runtime:Bun.version,scope:plan.scope,codeUnchangedDuringRun},null,2));
   terminal=true;await ledger();await fs.unlink(claimPath);
   console.log(JSON.stringify({directory,summary:report.summary,cnyAccounting:result.cnyAccounting,meteredLlmCalls:report.meteredLlmCalls},null,2));
 }
