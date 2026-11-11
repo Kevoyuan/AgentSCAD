@@ -13,8 +13,9 @@ import { toast } from 'sonner'
 import { Job, ParameterDef, ParameterSchema, parseJSON, safeNum } from './types'
 import { updateParameters } from './api'
 import { staggerContainer, staggerChild, staggerTransition, slideInLeft, slideInLeftTransition } from './motion-presets'
-import { extractParameterDefsFromScad, withSourceBooleanParameters } from '@/lib/tools/scad-parameter-extractor'
+import { extractParameterDefsFromScad, withSourceParameterMetadata } from '@/lib/tools/scad-parameter-extractor'
 import { parameterUnit } from './workspace/parameter-schema'
+import { constrainNumericInput } from '@/lib/tools/numeric-parameter-input'
 
 // ─── Precision & Alignment Utilities ─────────────────────────────────────────
 
@@ -107,15 +108,20 @@ function ParameterRow({
 }: ParameterRowProps) {
   const { t } = useI18n()
 
-  const min = safeNum(param.min, 0)
-  const max = safeNum(param.max, 100)
+  const constraints = param.numericConstraints
+  const min = constraints?.min ?? Math.min(safeNum(param.min, 0), constraints ? currentValue : Infinity)
+  const max = constraints?.max ?? Math.max(safeNum(param.max, 100), constraints ? currentValue : -Infinity)
   const step = safeNum(param.step, 1)
   const precision = getPrecision(step, min, param.kind)
   const isNumeric = param.kind === 'number' || param.kind === 'float' || param.kind === 'integer' || !param.kind
 
+  const format = useCallback((number: number) => constraints ? String(number) : number.toFixed(precision), [constraints, precision])
+  const align = useCallback((number: number) => constraints ? constrainNumericInput(number, constraints)
+    : clampAndAlign(number, min, max, step, param.kind, precision), [constraints, min, max, step, param.kind, precision])
+
   const [prevCurrentValue, setPrevCurrentValue] = useState(currentValue)
   const [prevPrecision, setPrevPrecision] = useState(precision)
-  const [draftValue, setDraftValue] = useState<string>(() => currentValue.toFixed(precision))
+  const [draftValue, setDraftValue] = useState<string>(() => format(currentValue))
   const [isFocused, setIsFocused] = useState(false)
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isEscapingRef = useRef(false)
@@ -124,7 +130,7 @@ function ParameterRow({
   if (!isFocused && (prevCurrentValue !== currentValue || prevPrecision !== precision)) {
     setPrevCurrentValue(currentValue)
     setPrevPrecision(precision)
-    setDraftValue(currentValue.toFixed(precision))
+    setDraftValue(format(currentValue))
   }
 
   useEffect(() => {
@@ -143,10 +149,10 @@ function ParameterRow({
       clearTimeout(debounceTimerRef.current)
     }
     debounceTimerRef.current = setTimeout(() => {
-      const finalVal = clampAndAlign(numVal, min, max, step, param.kind, precision)
+      const finalVal = align(numVal)
       onCommit(param.key, finalVal)
     }, 400)
-  }, [min, max, step, param.kind, precision, param.key, onCommit])
+  }, [align, param.key, onCommit])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawText = e.target.value
@@ -154,7 +160,7 @@ function ParameterRow({
 
     const parsed = parseFloat(rawText)
     if (!isNaN(parsed) && Number.isFinite(parsed)) {
-      const clampedForSlider = Math.max(min, Math.min(max, parsed))
+      const clampedForSlider = constraints ? align(parsed) : Math.max(min, Math.min(max, parsed))
       onChange(param.key, clampedForSlider, param.value)
       scheduleDebounceCommit(parsed)
     }
@@ -166,25 +172,18 @@ function ParameterRow({
       debounceTimerRef.current = null
     }
     const parsed = parseFloat(draftValue)
-    const finalVal = clampAndAlign(
-      isNaN(parsed) ? currentValue : parsed,
-      min,
-      max,
-      step,
-      param.kind,
-      precision
-    )
-    setDraftValue(finalVal.toFixed(precision))
+    const finalVal = align(isNaN(parsed) ? currentValue : parsed)
+    setDraftValue(format(finalVal))
     onChange(param.key, finalVal, param.value)
     onCommit(param.key, finalVal)
-  }, [draftValue, currentValue, min, max, step, param.kind, precision, param.key, param.value, onChange, onCommit])
+  }, [draftValue, currentValue, align, format, param.key, param.value, onChange, onCommit])
 
   const handleBlur = () => {
     setIsFocused(false)
     if (isEscapingRef.current) {
       isEscapingRef.current = false
       const restored = initialFocusValueRef.current
-      setDraftValue(restored.toFixed(precision))
+      setDraftValue(format(restored))
       onChange(param.key, restored, param.value)
       return
     }
@@ -201,7 +200,7 @@ function ParameterRow({
         debounceTimerRef.current = null
       }
       const restored = initialFocusValueRef.current
-      setDraftValue(restored.toFixed(precision))
+      setDraftValue(format(restored))
       onChange(param.key, restored, param.value)
       setIsFocused(false)
       e.currentTarget.blur()
@@ -223,7 +222,7 @@ function ParameterRow({
       debounceTimerRef.current = null
     }
     const finalVal = clampAndAlign(v, min, max, step, param.kind, precision)
-    setDraftValue(finalVal.toFixed(precision))
+    setDraftValue(format(finalVal))
     onCommit(param.key, finalVal)
   }
 
@@ -290,9 +289,9 @@ function ParameterRow({
               <Input
                 type="number"
                 value={draftValue}
-                min={min}
-                max={max}
-                step={step}
+                min={constraints ? constraints.min : min}
+                max={constraints ? constraints.max : max}
+                step={constraints ? constraints.step ?? 'any' : step}
                 disabled={!param.editable}
                 onFocus={() => {
                   setIsFocused(true)
@@ -306,7 +305,7 @@ function ParameterRow({
               />
             ) : (
               <span className="font-mono text-[12px] text-[var(--app-text-primary)] tabular-nums">
-                {currentValue.toFixed(precision)}
+                {format(currentValue)}
               </span>
             )}
             {displayUnit && (
@@ -398,7 +397,7 @@ export function ParameterPanel({
     }
   }
 
-  if (schema) schema = { ...schema, parameters: withSourceBooleanParameters(schema.parameters, job.scadSource ?? '') }
+  if (schema) schema = { ...schema, parameters: withSourceParameterMetadata(schema.parameters, job.scadSource ?? '') }
 
   const handleResetAll = useCallback(async () => {
     if (!schema) return

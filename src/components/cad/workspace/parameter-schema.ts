@@ -1,5 +1,5 @@
 import { Job, ParameterDef, ParameterSchema, parseJSON } from '@/components/cad/types'
-import { extractParameterDefsFromScad, withSourceBooleanParameters } from '@/lib/tools/scad-parameter-extractor'
+import { extractParameterDefsFromScad, withSourceParameterMetadata } from '@/lib/tools/scad-parameter-extractor'
 
 /*
  * One resolver for "what are this design's parameters", shared by the 尺寸 module,
@@ -82,7 +82,7 @@ export function resolveParameterSchema(job: Job | null): ResolvedSchema | null {
 
   if (!schema || schema.parameters.length === 0) return null
 
-  const parameters = withSourceBooleanParameters(schema.parameters, job.scadSource ?? '')
+  const parameters = withSourceParameterMetadata(schema.parameters, job.scadSource ?? '')
     .filter(p => !isInternalParameter(p.key))
   if (parameters.length === 0) return null
 

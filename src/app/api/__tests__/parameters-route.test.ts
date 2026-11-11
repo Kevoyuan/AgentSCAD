@@ -66,5 +66,31 @@ if (process.env.AGENTSCAD_BOOLEAN_PARAMETER_CHILD !== "1") {
     const withoutSchema = await db.job.findUniqueOrThrow({ where: { id: job.id } });
     expect(withoutSchema.parameterSchema).toBeNull();
     expect(withoutSchema.scadSource).toContain("show_angle_clamp = false;");
+
+    const inferred = { ...numeric, key: "axial_offset", label: "Axial Offset", source: "artifact",
+      description: "working axial displacement, mm (0 in service)", min: 0, max: 100, step: 1 };
+    await db.job.update({ where: { id: job.id }, data: {
+      scadSource: "axial_offset = 0; // working axial displacement, mm (0 in service)\nmodule body() {}",
+      parameterSchema: JSON.stringify([inferred]), parameterValues: JSON.stringify({ axial_offset: 0 }),
+    } });
+    expect((await patch({ axial_offset: -0.9 })).status).toBe(200);
+    expect((await db.job.findUniqueOrThrow({ where: { id: job.id } })).scadSource).toContain("axial_offset = -0.9;");
+    // Keep genuine source bounds and unrelated legacy/user bounds enforced.
+    const { extractParameterDefsFromScad } = await import("@/lib/tools/scad-parameter-extractor");
+    const boundedSource = "axial_offset = 0; // [0:0.1:1]\nmodule body() {}";
+    const bounded = extractParameterDefsFromScad(boundedSource);
+    await db.job.update({ where: { id: job.id }, data: {
+      scadSource: boundedSource, parameterSchema: JSON.stringify(bounded), parameterValues: JSON.stringify({ axial_offset: 0 }),
+    } });
+    expect((await patch({ axial_offset: 0.1 })).status).toBe(200);
+    for (const invalid of [-0.9, 1.1, 0.15]) expect((await patch({ axial_offset: invalid })).status).toBe(422);
+    for (const definition of [{ ...inferred, source: "user" }, { ...inferred, max: 2 }]) {
+      await db.job.update({ where: { id: job.id }, data: {
+        scadSource: "axial_offset = 0; // working axial displacement, mm (0 in service)\nmodule body() {}",
+        parameterSchema: JSON.stringify([definition]), parameterValues: JSON.stringify({ axial_offset: 0 }),
+      } });
+      expect((await patch({ axial_offset: -0.9 })).status).toBe(422);
+    }
+
   });
 }

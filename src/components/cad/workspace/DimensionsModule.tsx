@@ -179,6 +179,7 @@ export function DimensionsModule({
           max={param.max}
           step={param.step}
           kind={param.kind}
+          numericConstraints={param.numericConstraints}
           disabled={isProcessing || param.editable === false}
           changed={isChanged}
           onDraft={next => onDraft(param.key, next)}

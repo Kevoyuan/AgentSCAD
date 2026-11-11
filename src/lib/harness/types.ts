@@ -9,6 +9,11 @@ export type PartFamily =
 
 export type ParameterValue = number | boolean;
 export type ParameterValues = Record<string, ParameterValue>;
+export interface NumericParameterConstraints {
+  min?: number;
+  max?: number;
+  step?: number;
+}
 
 export interface ParameterDef {
   key: string;
@@ -19,6 +24,9 @@ export interface ParameterDef {
   min: number;
   max: number;
   step: number;
+  /** Explicit source annotations. Absence preserves the legacy schema rules.
+   * An empty object means min/max/step are UI hints only. */
+  numericConstraints?: NumericParameterConstraints;
   source: string;
   editable: boolean;
   description: string;
