@@ -15,6 +15,7 @@ export function checkRigidPosePath(input: {
   poses: number[][];
   maxTranslationStepMm: number;
   maxRotationStepDeg: number;
+  /** Use separated end bounds to establish complete removal. Overlap leaves removal unverified. */
   requireSeparatedEnd?: boolean;
   /**
    * Result deadline measured from entry, including mesh parsing and BVH
@@ -74,7 +75,7 @@ export function checkRigidPosePath(input: {
   const base={method:"explicit-rigid-pose-path/v1",movingSha256:sha(input.moving),obstacles:Object.fromEntries(entries.map(([id,b])=>[id,sha(b)])),
     obstacleTransforms,poses,posesSha256:sha(canonicalJson(poses)),translationStepMm,rotationStepDeg,requireSeparatedEnd:input.requireSeparatedEnd??false,budgetMs,
     offlineEvaluation:offline,maxPairTestsPerPose,testedPairs:0,
-    coverage:"Only explicit sampled rigid poses; translation step describes frame-origin motion, rotation step describes orientation. No continuous swept-volume, tool access, forces, detent stability or physical verification."};
+    coverage:"Only explicit sampled rigid poses. Translation step describes frame-origin motion, rotation step describes orientation. End-envelope separation is a sufficient condition. Overlapping bounds leave complete removal unverified. No continuous swept-volume, tool access, forces, detent stability or physical verification."};
   for(let i=0;i<poses.length;i++) {
     if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:i};
     const placed=placeBvh(moving,poses[i]);
@@ -90,7 +91,15 @@ export function checkRigidPosePath(input: {
       const envelope=[Infinity,Infinity,Infinity,-Infinity,-Infinity,-Infinity];
       for(const o of obstacles)for(let k=0;k<3;k++){envelope[k]=Math.min(envelope[k],o.placed.worldBounds[k]);envelope[k+3]=Math.max(envelope[k+3],o.placed.worldBounds[k+3]);}
       const b=placed.worldBounds;
-      if(![0,1,2].some(k=>b[k+3]<envelope[k]-1e-6 || b[k]>envelope[k+3]+1e-6))return {...base,status:"FAIL" as const,reason:"Final pose has not left the obstacle envelope",posesEvaluated:i+1};
+      const outsideEnvelope = [0, 1, 2].some(k => b[k+3] < envelope[k]-1e-6 || b[k] > envelope[k+3]+1e-6);
+      if (!outsideEnvelope) {
+        return {
+          ...base,
+          status: "NOT_RUN" as const,
+          reason: "Complete removal is unverified because the final pose bounds overlap the obstacle envelope. All sampled poses were collision-free.",
+          posesEvaluated: i+1,
+        };
+      }
     }
   }
   if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:poses.length};
