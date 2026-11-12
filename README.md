@@ -164,6 +164,7 @@ AgentSCAD strictly follows: **"LLMs write code; deterministic tools govern geome
 | Push database schema | `bun run db:push` |
 | Reset database | `bun run db:reset` |
 | Run CAD eval benchmark | `bun run cad:eval:fast` |
+| Verify a downloaded assembly ZIP | `bun run cad:assembly:verify path/to/assembly.zip` |
 
 ---
 
