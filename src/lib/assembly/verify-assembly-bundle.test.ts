@@ -106,6 +106,28 @@ describe("independent assembly export verification", () => {
     expectFailure(altered, "HASH_MISMATCH");
   });
 
+  test("rejects invalid geometry even when an attacker updates its manifest hash", async () => {
+    const original = await bundle();
+    const altered = edit(original.zip, files => {
+      files["base.stl"] = files["base.stl"].subarray(0, files["base.stl"].length - 50);
+      mutateManifest(files, manifest => {
+        manifest.parts[0].artifactSha256 = createHash("sha256").update(files["base.stl"]).digest("hex");
+      });
+    });
+    expectFailure(altered, "INVALID_STL");
+  });
+
+  test("rejects a rehashed but noncanonical specification", async () => {
+    const original = await bundle();
+    const altered = edit(original.zip, files => {
+      files["specification.json"] = strToU8(strFromU8(files["specification.json"]) + "\n");
+      mutateManifest(files, manifest => {
+        manifest.specificationSha256 = createHash("sha256").update(files["specification.json"]).digest("hex");
+      });
+    });
+    expectFailure(altered, "NONCANONICAL_SPECIFICATION");
+  });
+
   test("rejects manifest part quantity drift and mismatched instance transforms", async () => {
     const original = await bundle();
     expectFailure(edit(original.zip, files => mutateManifest(files, manifest => {
