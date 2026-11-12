@@ -27,6 +27,7 @@ For setup failures and common runtime issues, see [Troubleshooting](./TROUBLESHO
 | Run DB migrations | `bun run db:migrate` |
 | Reset DB | `bun run db:reset` |
 | Offline harness full regression | `bun run cad:eval` |
+| Verify an exported assembly ZIP without running CAD | `bun run cad:assembly:verify path/to/assembly.zip` |
 | Offline harness, simple fixtures | `bun run cad:eval:fast` |
 | One evidence case | `bun run cad:eval:case <id>` |
 | Parse the last harness report | `bun run cad:eval:report` |
@@ -173,3 +174,27 @@ OpenSCAD integration checks cover:
 - render pipeline smoke tests that require the OpenSCAD executable
 
 They can be run locally with OpenSCAD installed, or through the optional manual/scheduled OpenSCAD integration job. The GitHub Actions OpenSCAD job is non-blocking so core application quality remains the required signal.
+
+
+## Assembly ZIP integrity verification
+
+After downloading a generated assembly ZIP, run:
+
+```bash
+bun run cad:assembly:verify path/to/agentscad-assembly.zip
+```
+
+The offline verifier checks ZIP entry names and size limits, SHA-256 of the
+canonical assembly specification and each generated STL, valid binary STL
+triangle tables, declared part IDs and manufacturing quantities, and exact
+manifest/specification instance transforms. Purchased parts are intentionally
+listed without an STL. On success it prints JSON with `status: "PASS"`;
+on failure it prints a machine-readable error and returns a nonzero exit code.
+No API key, model call, OpenSCAD executable, database or server is needed.
+
+**Evidence boundary:** this verifies internal consistency of a downloaded ZIP,
+not its origin or whether the part is mechanically sound. The ZIP is not signed,
+its source SCAD is not embedded and cannot be checked against
+`sourceSha256` offline. README text, recorded validation verdicts,
+unobserved joint behavior and physical function are not independently validated.
+Do not interpret an integrity PASS as an assembly-function PASS.
