@@ -360,6 +360,21 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
               <p>{fit.reason}</p>
               {fit.diametralClearanceMm && <p className="text-[var(--shell-text-label)]">{t('Candidate diametral clearance')}: {fit.diametralClearanceMm.min.toFixed(3)}–{fit.diametralClearanceMm.max.toFixed(3)} mm</p>}
               {fit.axisOffsetMm !== null && <p className="text-[var(--shell-text-label)]">{t('Candidate axis offset')}: {fit.axisOffsetMm.toFixed(3)} mm</p>}
+              {fit.radialEnclosure && <div className="text-[var(--shell-text-label)]">
+                <p>{t("Sampled radial clearance margin")}: {fit.radialEnclosure.status}
+                  {fit.radialEnclosure.minimumMarginMm !== null ? " · " + fit.radialEnclosure.minimumMarginMm.toFixed(4) + " mm" : ""}
+                </p>
+                {fit.radialEnclosure.maximumCenterOffsetMm !== null && <p>{t("Maximum sampled center offset")}: {fit.radialEnclosure.maximumCenterOffsetMm.toFixed(4)} mm</p>}
+                <p>{t("Numerical reserve (not calibrated uncertainty)")}: {fit.radialEnclosure.safetyReserveMm.toFixed(3)} mm</p>
+                <p>{fit.radialEnclosure.reason}</p>
+                <details className="mt-1">
+                  <summary className="cursor-pointer">{t("Sampled radial margins")} ({fit.radialEnclosure.stations.length})</summary>
+                  <ul>{fit.radialEnclosure.stations.map((station, index) => <li key={index}>
+                    {t("Sampled station")} {station.stationMm.toFixed(3)} mm · {t("Center offset")}: {station.centerOffsetMm.toFixed(4)} mm · {t("Remaining margin")}: {station.conservativeMarginMm.toFixed(4)} mm
+                  </li>)}</ul>
+                </details>
+                <p>{t("Local sampled clearance is not a continuous sweep, calibrated tolerance, or proof of physical assembly.")}</p>
+              </div>}
               {fit.boreRoleCheck && <p className={fit.boreRoleCheck.status === 'OBSERVED' && fit.boreRoleCheck.observedRole !== 'bore' ? 'text-[var(--shell-fail)]' : 'text-[var(--shell-text-label)]'}>
                 {t('Declared bore, observed section')}: {fit.boreRoleCheck.status === 'OBSERVED' ? t(fit.boreRoleCheck.observedRole ?? 'Unknown') : t('Not checked')} · {fit.boreRoleCheck.stationsChecked}/{fit.boreRoleCheck.stationsRequested} {t('stations')} · {fit.boreRoleCheck.reason}
               </p>}
