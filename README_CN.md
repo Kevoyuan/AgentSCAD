@@ -165,6 +165,7 @@ AgentSCAD 坚持**“几何事实由确定性工具说话，代码生成由大�
 | 重置开发数据库 | `bun run db:reset` |
 | 运行 CAD 评估基准 | `bun run cad:eval:fast` |
 | 离线验证下载的装配 ZIP | `bun run cad:assembly:verify path/to/assembly.zip` |
+| 从装配 ZIP 重建实例布局 STL | `bun run cad:assembly:reconstruct assembly.zip layout.stl` |
 
 ---
 
