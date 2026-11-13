@@ -24,6 +24,7 @@ export type EvidenceVersionContext = {
   specificationSha256: string | null;
   requirementFingerprint: string;
   checkerVersion: string;
+  isDelivered?: boolean;
 };
 
 export function fingerprintRequirementState(value: Pick<
@@ -80,7 +81,7 @@ export function parseEvidenceSnapshot(value: unknown): StoredAssemblyEvidence | 
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Partial<StoredAssemblyEvidence>;
   if (record.schemaVersion !== 1 ||
-      record.checkerVersion !== ASSEMBLY_EVIDENCE_CHECKER_VERSION ||
+      typeof record.checkerVersion !== "string" || !/^assembly-evidence\/[A-Za-z0-9_-]+$/.test(record.checkerVersion) ||
       typeof record.checkedAt !== "string" ||
       !Number.isFinite(Date.parse(record.checkedAt)) ||
       typeof record.requirementFingerprint !== "string" || !SHA.test(record.requirementFingerprint) ||
@@ -103,6 +104,7 @@ export function parseEvidenceSnapshot(value: unknown): StoredAssemblyEvidence | 
 
 export function evidenceSnapshotStanding(snapshot: StoredAssemblyEvidence, context: EvidenceVersionContext) {
   const reasons: string[] = [];
+  if (context.isDelivered === false) reasons.push("Job is not currently delivered");
   if (snapshot.report.sourceSha256 !== context.sourceSha256) reasons.push("Source geometry changed");
   if (snapshot.report.specificationSha256 !== context.specificationSha256) reasons.push("Assembly specification changed");
   if (snapshot.requirementFingerprint !== context.requirementFingerprint) reasons.push("Requirement confirmation changed");
