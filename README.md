@@ -166,6 +166,7 @@ AgentSCAD strictly follows: **"LLMs write code; deterministic tools govern geome
 | Run CAD eval benchmark | `bun run cad:eval:fast` |
 | Verify a downloaded assembly ZIP | `bun run cad:assembly:verify path/to/assembly.zip` |
 | Reconstruct an assembly layout from ZIP | `bun run cad:assembly:reconstruct assembly.zip layout.stl` |
+| Download assembled layout in the app | Assembly panel → **Download assembly layout (STL)** (only complete generated-part assemblies; viewing-only STL) |
 
 ---
 
