@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 import { strFromU8, unzipSync } from "fflate";
 import { AssemblyIdentityError, buildAssemblyBundle } from "./assembly-bundle";
 import { prismStl } from "../geometry/__tests__/prism";
-import { boxStl as solidBox, mergeStl } from "../geometry/__tests__/solids";
+import { boxStl as solidBox, mergeStl, tubeStl } from "../geometry/__tests__/solids";
 
 const pose = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
@@ -113,7 +113,7 @@ describe("assembly part bundle", () => {
       }],
     };
     const meshes = {
-      bore: prismStl({ radius: 3.2, height: 10, segments: 64 }),
+      bore: tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 10, segments: 64 }),
       shaft: prismStl({ radius: 3, height: 12, segments: 64, z0: -1 }),
     };
     const bundle = await buildAssemblyBundle({
