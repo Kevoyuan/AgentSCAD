@@ -186,7 +186,7 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
     else if (result.report) setInspection({ jobId, report: result.report })
     setInspecting(false)
   }
-  const report = inspection?.jobId === jobId && !data.stale &&
+  const report = inspection !== null && inspection.jobId === jobId && !data.stale &&
     inspection.report.sourceSha256 === data.sourceSha256 &&
     inspection.report.specificationSha256 === data.specSha256
       ? inspection.report : null
