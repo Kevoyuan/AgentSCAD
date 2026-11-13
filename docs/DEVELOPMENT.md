@@ -245,6 +245,14 @@ The ordered, evidence-gated task breakdown is [`ASSEMBLY_EXECUTION_BACKLOG.md`](
 
 The response carries source/spec/archive hashes, `evidence` statuses and reasons, contract confirmation, raw/gated disassembly results, sampled pose counts/steps, first blocking instance and optional fit measurements. **No result is persisted in A01**, and no `accepted`, `validated`, or `exported` outcome is recorded. On confirmation or source changes the user must run the check again; A02 explicitly covers durable snapshots and invalidation. A printed `PASS` only applies to its exact sampled method, artifact versions and requirements; a raw PASS under an unconfirmed contract is exposed but not promoted. No browser preview, simulation or physical test is silently inferred.
 
+## A02 — retained assembly evidence snapshots
+
+An explicit **Save new evidence snapshot** action performs a fresh authenticated, current-source/spec-guarded server render and deterministic measurement (not a client upload). It saves an immutable `JobVersion` row (`field = __assembly_evidence_snapshot`); the row includes the full bounded A01 summary, the archive SHA-256, source/specification hashes, the exact requirement confirmation fingerprint, a checker version, a check timestamp and a canonical JSON digest. There is no schema migration, no job acceptance event and no automatic model call.
+
+`GET /api/jobs/{id}/assembly/evidence/snapshots` reads the latest ten records, optionally with `limit` (max 20) and `cursor` for older records, and returns `{ snapshots, nextCursor }`. Session authorization is mandatory. Every read recomputes the current source/spec/requirements/DELIVERED binding. Historic reports remain accessible but return `bindingCurrent: false` with reasons; malformed or modified rows return `integrity: ERROR` and `snapshot: null`. A newer checker version makes older reports historical. UI offers history inspection and JSON export; unapproved raw measurements are not elevated to PASS.
+
+**Limits:** the SHA-256 record digest detects accidental mutation, not malicious substitution by someone with DB write access. Stored results attest only the measured artifacts and method at the capture instant, not future source revisions, hidden geometric contacts, continuous clearance or physical function. No source ZIP is re-rendered on history GET; always re-measure to get a new current observation. Each record is size-bounded (512 kB), history pages are size-bounded (20 records); records remain append-only and available by pagination. Production backup and external attestation still belong to future tasks.
+
 ## Assembly layout export in the UI (M2)
 
 The Assembly panel now offers **Download assembly layout (STL)** alongside
