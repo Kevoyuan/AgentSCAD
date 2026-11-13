@@ -261,7 +261,7 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
     }
     setSavingEvidence(false)
   }
-  const history = savedHistory?.jobId === jobId &&
+  const history = savedHistory !== null && savedHistory.jobId === jobId &&
     savedHistory.sourceSha256 === data.sourceSha256 &&
     savedHistory.specSha256 === data.specSha256 && !data.stale
       ? savedHistory.snapshots : null
