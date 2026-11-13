@@ -29,6 +29,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 | Run real deterministic WASM render benchmark | `bun run cad:eval:render` |
 | Verify a downloaded assembly ZIP (no LLM or renderer) | `bun run cad:assembly:verify path/to/assembly.zip` |
 | Reconstruct a placed assembly STL from a verified ZIP | `bun run cad:assembly:reconstruct assembly.zip layout.stl [--reference independent-pose.stl]` |
+| Download a placed assembly layout from the app | `GET /api/jobs/{id}/assembly/layout?sourceSha256=...&specSha256=...&download=1` (complete generated-part assemblies only) |
 | **UX baseline (states, acceptance, wait, cost, abandoned runs)** | `bun run ux:baseline [--stale-hours 2]` |
 | Clear metric columns after a definition change | `bun run metrics:reset` (dry run) · `bun run metrics:reset -- --yes` (applies) |
 
