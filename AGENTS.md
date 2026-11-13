@@ -39,6 +39,13 @@ Use [`docs/ASSEMBLY_EXECUTION_BACKLOG.md`](docs/ASSEMBLY_EXECUTION_BACKLOG.md) a
 
 
 
+
+## A05.2 — replayable collision frames (pre-viewport integration)
+
+A failed or undecidable `checkRigidPosePath` now carries `replayFrame` on `blockedAt` or `undecidedAt`: exact validated row-major 4×4 `movingWorldFromLocal` and `obstacleWorldFromLocal` transforms *actually fed to BVH*, plus both STL SHA-256 values and the fixed right-handed millimetre coordinate convention. This is the smallest version-bound input needed to independently repeat the **sampled** collision measurement from the exported parts; it does not prove continuous motion or exact contact. The UI displays raw matrices for replay. Keep the saved report bound to source/spec/archive hashes, and bump the checker version to v5 so older history is not current.
+
+The existing `ThreeDViewer` renders `job.stlPath` (single STL), not the separately reconstructed `assembly/layout` with instance transforms. **Do not** use the witness matrix to place a marker in the current viewport or claim 3D focus until that viewport loads the corresponding verified part-instance scene, matches source/spec hashes and maps the geometry to the same coordinate convention. A05 full feature remains open.
+
 ## A05.1 — sampled collision witnesses are evidence, not exact contact geometry
 
 The declared rigid-pose disassembly checker now preserves actual `bvhIntersects` results for the first blocked or undecidable sampled pose: obstacle instance ID, zero-based pose index, collision kind, tested triangle-pair count and reason. Intersecting triangles carry their **triangle indices** and the BVH-reported **midpoint of triangle centroids**, which is not an exact contact point and is not penetration depth. `UNKNOWN` records `undecidedAt` and never becomes clear or PASS, including when pair budgets are exhausted. `testedTrianglePairs` is cumulative observed work, not a proof of clearance between poses. The report/UI must not invent continuous path clearance, tool reachability or mechanical force. Checker v3 invalidates older snapshots; A05 parent remains open for richer per-joint detail, allowed contacts and viewport navigation.
