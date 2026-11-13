@@ -7,7 +7,7 @@ import { AssemblyIdentityError, buildAssemblyBundle } from "@/lib/assembly/assem
 import { summarizeAssemblyEvidence } from "@/lib/assembly/assembly-evidence-report";
 import {
   ASSEMBLY_EVIDENCE_CHECKER_VERSION,
-  appendEvidenceSnapshot, createEvidenceSnapshot, fingerprintRequirementState,
+  appendEvidenceSnapshot, createEvidenceSnapshot, fingerprintRequirementState, InvalidEvidenceCursor,
   readEvidenceSnapshots,
 } from "@/lib/assembly/evidence-snapshot-record";
 import { AssemblyExportRejection, lockAssemblyExport } from "@/lib/pipeline/assembly-export-guard";
@@ -27,16 +27,20 @@ export async function GET(request: NextRequest, { params }: Context) {
     if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
     const current = await readAssemblySpecification(id, job.scadSource);
     const requirements = await readRequirementContract(id, job.inputRequest);
-    const requestedLimit = Number(new URL(request.url).searchParams.get("limit") ?? "10");
-    const snapshots = await readEvidenceSnapshots(id, {
+    const search = new URL(request.url).searchParams;
+    const requestedLimit = Number(search.get("limit") ?? "10");
+    const beforeId = search.get("cursor") ?? undefined;
+    if (beforeId && beforeId.length > 200) return NextResponse.json({ error: "Invalid evidence history cursor" }, { status: 400 });
+    const page = await readEvidenceSnapshots(id, {
       sourceSha256: current.currentSourceSha256,
       specificationSha256: current.specSha256,
       requirementFingerprint: fingerprintRequirementState(requirements),
       checkerVersion: ASSEMBLY_EVIDENCE_CHECKER_VERSION,
       isDelivered: job.state === "DELIVERED",
-    }, requestedLimit);
-    return NextResponse.json({ snapshots }, { headers: { "Cache-Control": "no-store" } });
+    }, requestedLimit, beforeId);
+    return NextResponse.json(page, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    if (error instanceof InvalidEvidenceCursor) return NextResponse.json({ error: error.message }, { status: 400 });
     console.error("Error reading assembly evidence history", error);
     return NextResponse.json({ error: "Assembly evidence history could not be read" }, { status: 500 });
   }
