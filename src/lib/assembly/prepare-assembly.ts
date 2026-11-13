@@ -168,6 +168,7 @@ export async function prepareAssembly(input: {
       measuredStatus: assessment.status,
       stationsMm: measurement.stationsMm,
       diametralClearanceMm: measurement.clearanceMm,
+      radialEnclosure: measurement.radialEnclosure,
       boreDiameterMm: measurement.bore?.measurement.diameterMm ?? null,
       shaftDiameterMm: measurement.shaft?.measurement.diameterMm ?? null,
       axisOffsetMm: measurement.axis?.offsetMm ?? null,
