@@ -133,7 +133,7 @@ test('the archive download appears only for a current source and refuses ignored
 
 test('layout download is shown only for a current fully generated assembly', () => {
   const sha = 'a'.repeat(64)
-  const data = { spec: { ...spec, parts: spec.parts.filter(part => part.source === 'generated'), instances: spec.instances.filter(instance => instance.partId === 'base') }, stale: false, sourceSha256: sha, currentSourceSha256: sha, specSha256: 'c'.repeat(64), evidence }
+  const data = { spec: { ...spec, parts: spec.parts.filter(part => part.source === 'generated'), instances: spec.instances.filter(instance => instance.partId === 'base'), connections: [] }, stale: false, sourceSha256: sha, currentSourceSha256: sha, specSha256: 'c'.repeat(64), evidence }
   expect(render(data, 'en', 'job')).toContain('Download assembly layout (STL)')
   expect(render(data, 'en', 'job')).toContain('not a printable union or proof of fit')
   expect(render({ ...data, stale: true }, 'en', 'job')).not.toContain('Download assembly layout (STL)')
