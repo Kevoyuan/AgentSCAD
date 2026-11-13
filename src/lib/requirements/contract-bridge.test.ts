@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "crypto";
 import { deriveRequirementContract } from "./extract-requirements";
-import { toEvidenceRequirements, toFitRequirements } from "./contract-bridge";
+import { toEvidenceRequirements, toFitRequirements, resolveContractFitRequirements } from "./contract-bridge";
 import { prepareAssembly } from "../assembly/prepare-assembly";
 import { prismStl } from "../geometry/__tests__/prism";
 
@@ -109,4 +109,95 @@ describe("request to measured evidence", () => {
     // The contract is unchanged: the failure is recorded, not absorbed.
     expect(contract.requirements.find((item) => item.id === "diametral-clearance")?.expected).toEqual({ kind: "range", min: 0.1, max: 0.3, unit: "mm" });
   });
+
+  test("automatically binds explicitly requested clearance to real meshes but refuses an uncalibrated feature-identity PASS", async () => {
+    const request = "两件式铰链，直径间隙 0.35 到 0.45 mm，可拆";
+    const contract = deriveRequirementContract({ request });
+    const declared = spec([{ ...spec().connections[0], boreInstanceId: "bore-instance" }]);
+    const resolved = resolveContractFitRequirements(contract, declared);
+    expect(resolved.status).toBe("READY");
+    expect(resolved.required).toBe(true);
+    expect(resolved.featureIdentityStatus).toBe("NOT_RUN");
+    const result = await prepareAssembly({
+      scadSource: "cube(1);", spec: declared, render,
+      contractSnapshot: { contract, request },
+      contractGate: { evidenceCurrent: true },
+    });
+    expect(result.manifest.fitBinding?.status).toBe("READY");
+    expect(result.manifest.fitBinding?.featureIdentityStatus).toBe("NOT_RUN");
+    expect(result.fits).toHaveLength(1);
+    expect(result.fits[0].measuredStatus).toBe("PASS");
+    expect(result.fits[0].status).toBe("NOT_RUN");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
+    expect(result.fits[0].diametralClearanceMm?.min).toBeCloseTo(0.3923, 3);
+    expect(result.fits[0].reason).toContain("not independently verified");
+    expect(result.manifest.evidence.physical.status).toBe("NOT_RUN");
+  });
+
+  test("a candidate clearance outside the frozen contract is visible as raw FAIL, never a false validated PASS", async () => {
+    const request = "两件式铰链，直径间隙 0.1 到 0.3 mm，可拆";
+    const contract = deriveRequirementContract({ request });
+    const declared = spec([{ ...spec().connections[0], boreInstanceId: "bore-instance" }]);
+    const result = await prepareAssembly({
+      scadSource: "cube(1);", spec: declared, render,
+      contractSnapshot: { contract, request },
+      contractGate: { evidenceCurrent: true },
+    });
+    expect(result.fits[0].measuredStatus).toBe("FAIL");
+    expect(result.fits[0].status).toBe("NOT_RUN");
+    expect(result.fits[0].reason).toContain("outside the frozen");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
+  });
+
+  test("unconfirmed requirements cannot promote an automatic mesh-fit check", async () => {
+    const request = "两件式铰链，直径间隙 0.35 到 0.45 mm，可拆";
+    const contract = deriveRequirementContract({ request });
+    const declared = spec([{ ...spec().connections[0], boreInstanceId: "bore-instance" }]);
+    const result = await prepareAssembly({
+      scadSource: "cube(1);", spec: declared, render,
+      contractSnapshot: { contract, request },
+      contractGate: { evidenceCurrent: false, reason: "No confirmed contract" },
+    });
+    expect(result.fits[0].measuredStatus).toBe("PASS");
+    expect(result.fits[0].status).toBe("NOT_RUN");
+    expect(result.manifest.contract.evidenceCurrent).toBe(false);
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
+  });
+
+  test("missing bore identity and multiple revolute joints fail closed instead of guessing or throwing", async () => {
+    const request = "两件式铰链，直径间隙 0.35 到 0.45 mm，可拆";
+    const contract = deriveRequirementContract({ request });
+    const missing = resolveContractFitRequirements(contract, spec());
+    expect(missing.status).toBe("NOT_RUN");
+    expect(missing.required).toBe(true);
+    expect(missing.requirements).toEqual([]);
+    expect(missing.reason).toContain("bore");
+    const result = await prepareAssembly({
+      scadSource: "cube(1);", spec: spec(), render,
+      contractSnapshot: { contract, request },
+      contractGate: { evidenceCurrent: true },
+    });
+    expect(result.fits).toEqual([]);
+    expect(result.manifest.fitBinding?.status).toBe("NOT_RUN");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
+    expect(result.manifest.evidence.assembly.reason).toContain("contract fit");
+
+    const first = { ...spec().connections[0], boreInstanceId: "bore-instance" };
+    const multi = spec([first, { ...first, id: "joint-other" }]);
+    expect(resolveContractFitRequirements(contract, multi).status).toBe("NOT_RUN");
+    expect(resolveContractFitRequirements(contract, multi).reason).toContain("exactly one revolute");
+  });
+
+  test("waived or absent clearance requirements do not trigger guessed fit measurement", () => {
+    const request = "两件式铰链，直径间隙 0.35 到 0.45 mm，可拆";
+    const contract = deriveRequirementContract({ request });
+    const waived = structuredClone(contract);
+    const clearance = waived.requirements.find(item => item.id === "diametral-clearance")!;
+    clearance.required = false;
+    clearance.applicable = false;
+    expect(resolveContractFitRequirements(waived, spec()).required).toBe(false);
+    expect(resolveContractFitRequirements(waived, spec()).requirements).toEqual([]);
+    expect(resolveContractFitRequirements(deriveRequirementContract({ request: "两件式铰链" }), spec()).required).toBe(false);
+  });
+
 });
