@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { useI18n } from '@/components/i18n-provider'
 import { validateAssemblySpec } from '@/lib/assembly/assembly-spec'
+import type { AssemblyEvidenceReport } from '@/lib/assembly/assembly-evidence-report'
 
 type AssemblyResponse = { spec: unknown | null; stale: boolean; sourceSha256?: string | null; currentSourceSha256?: string | null; specSha256?: string | null; provenance?: 'generated' | 'user' | null; embeddedStatus?: 'valid' | 'invalid' | 'absent'; evidence?: Record<string, { status?: string }> }
 type AssemblyRevisionView = { id: string; revision: number | null; savedAt: string; specSha256: string; sourceSha256?: string | null; stale: boolean; spec: unknown }
@@ -85,6 +86,25 @@ export async function fetchAssemblyLayout(jobId: string, sourceSha256: string, s
   } catch { return { error: 'The assembly layout could not be exported.' as const } }
 }
 
+/** Runs a fresh, explicit measurement; never loads a stored or inferred PASS. */
+export async function fetchAssemblyEvidence(jobId: string, sourceSha256: string, specSha256: string, request: Request = fetch) {
+  if (!/^[a-f0-9]{64}$/.test(sourceSha256) || !/^[a-f0-9]{64}$/.test(specSha256)) {
+    return { error: 'The source is unavailable. Refresh the assembly information.' as const }
+  }
+  try {
+    const query = new URLSearchParams({ sourceSha256, specSha256 })
+    const response = await request('/api/jobs/' + encodeURIComponent(jobId) + '/assembly/evidence?' + query, { credentials: 'include' })
+    if (response.status === 409) return { error: 'The source or assembly changed. Refresh the assembly information before checking.' as const }
+    if (response.status === 422) return { error: 'Assembly parts are not independently selectable or have no generated meshes.' as const }
+    if (!response.ok) return { error: 'Assembly measurement could not be completed.' as const }
+    const data = await response.json() as AssemblyEvidenceReport
+    if (data?.reportSchemaVersion !== 1 || data.sourceSha256 !== sourceSha256 || data.specificationSha256 !== specSha256) {
+      return { error: 'Assembly measurement does not match this source and specification.' as const }
+    }
+    return { report: data }
+  } catch { return { error: 'Assembly measurement could not be completed.' as const } }
+}
+
 function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
@@ -105,6 +125,9 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
   const [downloading, setDownloading] = React.useState<string | null>(null)
   const [bundling, setBundling] = React.useState(false)
   const [layingOut, setLayingOut] = React.useState(false)
+  const [inspecting, setInspecting] = React.useState(false)
+  const [inspection, setInspection] = React.useState<{ jobId: string; report: AssemblyEvidenceReport } | null>(null)
+  const [inspectionError, setInspectionError] = React.useState('')
   const [downloadError, setDownloadError] = React.useState('')
   if (data.spec === null) return data.embeddedStatus === 'invalid' ? <p role="alert" className="py-2 text-xs text-[var(--shell-fail)]">{t('The generated assembly description could not be read. It is not verified.')}</p> : null
   const parsed = validateAssemblySpec(data.spec)
@@ -153,6 +176,20 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
     }
     setLayingOut(false)
   }
+  const inspect = async () => {
+    if (!jobId || !canDownload || !data.sourceSha256 || !data.specSha256) return
+    setInspecting(true)
+    setInspection(null)
+    setInspectionError('')
+    const result = await fetchAssemblyEvidence(jobId, data.sourceSha256, data.specSha256)
+    if (result.error) setInspectionError(result.error)
+    else if (result.report) setInspection({ jobId, report: result.report })
+    setInspecting(false)
+  }
+  const report = inspection?.jobId === jobId && !data.stale &&
+    inspection.report.sourceSha256 === data.sourceSha256 &&
+    inspection.report.specificationSha256 === data.specSha256
+      ? inspection.report : null
   const generatedParts = spec.parts.filter(part => part.source === 'generated')
   const hasPurchasedInstances = spec.instances.some(instance => spec.parts.some(part => part.id === instance.partId && part.source === 'purchased'))
   return (
@@ -181,6 +218,39 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
           ? <button type="button" disabled={layingOut || bundling || downloading !== null} onClick={() => void downloadLayout()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{layingOut ? t('Preparing…') : t('Download assembly layout (STL)')}</button>
           : <p className="text-[var(--shell-text-label)]">{t('Layout STL unavailable: purchased instances have no geometry. Download the ZIP instead.')}</p>}
         <p className="mt-1 text-[var(--shell-text-label)]">{t('Layout STL positions part instances for viewing only. It is not a printable union or proof of fit, motion or physical function.')}</p>
+      </div>}
+      {canDownload && generatedParts.length > 0 && <div className="mt-3 border-t border-[color:var(--shell-hairline)] pt-2">
+        <button type="button" disabled={inspecting || downloading !== null || bundling || layingOut} onClick={() => void inspect()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{inspecting ? t('Measuring assembly…') : t('Run assembly geometry checks')}</button>
+        <p className="mt-1 text-[var(--shell-text-label)]">{t('This renders the current parts on demand. Results are a one-time snapshot, not saved validation or proof of physical function.')}</p>
+        {inspectionError && <p role="alert" className="mt-1 text-[var(--shell-fail)]">{t(inspectionError)}</p>}
+        {report && <section className="mt-2" aria-label={t('Measured assembly evidence')}>
+          <p className="font-medium">{t('Measurement snapshot')} · {report.archiveSha256.slice(0, 12)}</p>
+          <p className="mt-1 text-[var(--shell-text-label)]">{t('Requirement contract')}: {report.contract.evidenceCurrent === true ? t('Confirmed') : t('Unconfirmed or stale')}</p>
+          <p className="mt-1 text-[var(--shell-text-label)]">{t('Measured PASS does not count as approved PASS when the requirement contract is unconfirmed or stale.')}</p>
+          <ul className="mt-2 space-y-1" aria-label={t('Measured evidence layers')}>
+            {Object.entries(report.evidence).map(([key, item]) =>
+              <li key={key}><span className="font-medium">{t(key)}: {item.status}</span><span className="block text-[var(--shell-text-label)]">{item.reason}</span></li>)}
+          </ul>
+          <details className="mt-2">
+            <summary className="cursor-pointer">{t('Disassembly measurements')} · {report.disassembly.status} ({t('Raw measurement')}: {report.disassembly.measuredStatus})</summary>
+            <p className="mt-1 text-[var(--shell-text-label)]">{report.disassembly.method}: {report.disassembly.coverage}</p>
+            <p className="mt-1">{t('Operations evaluated')}: {report.disassembly.totalOperations}</p>
+            {report.disassembly.omittedOperations > 0 && <p>{t('Additional operations omitted from this summary')}: {report.disassembly.omittedOperations}</p>}
+            <ol className="mt-1 space-y-2">
+              {report.disassembly.operations.map(op => <li key={op.operationId}>
+                <strong>{op.operationId} ({op.instanceId}): {op.measuredStatus}</strong>
+                <p>{op.reason}</p>
+                {op.path && <p className="text-[var(--shell-text-label)]">{t('Sampled poses')}: {op.path.posesEvaluated}/{op.path.declaredPoseCount}; {t('Maximum translation step')}: {op.path.translationStepMm.toFixed(3)} mm; {t('Maximum rotation step')}: {op.path.rotationStepDeg.toFixed(2)}°</p>}
+                {op.path?.blockedAt && <p className="text-[var(--shell-fail)]">{t('First blocked pose')}: {op.path.blockedAt.poseIndex}; {t('Blocking instance')}: {op.path.blockedAt.obstacleId} ({op.path.blockedAt.collision})</p>}
+              </li>)}
+            </ol>
+          </details>
+          {report.fits.length > 0 && <details className="mt-2">
+            <summary>{t('Fit measurements')}</summary>
+            <ul>{report.fits.map(fit => <li key={fit.connectionId}>{fit.connectionId}: {fit.status} ({t('Raw measurement')}: {fit.measuredStatus}) · {fit.reason}</li>)}</ul>
+          </details>}
+          <p className="mt-2 text-[var(--shell-text-label)]">{t('Sampled poses do not prove continuous clearance, tool access, manufacturability or physical function.')}</p>
+        </section>}
       </div>}
       <details className="mt-2">
         <summary className="cursor-pointer">{t('{0} part types · {1} instances · {2} connections', { 0: spec.parts.length, 1: spec.instances.length, 2: spec.connections.length })}</summary>
