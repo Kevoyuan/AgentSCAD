@@ -347,6 +347,13 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
               <p>{fit.reason}</p>
               {fit.diametralClearanceMm && <p className="text-[var(--shell-text-label)]">{t('Candidate diametral clearance')}: {fit.diametralClearanceMm.min.toFixed(3)}–{fit.diametralClearanceMm.max.toFixed(3)} mm</p>}
               {fit.axisOffsetMm !== null && <p className="text-[var(--shell-text-label)]">{t('Candidate axis offset')}: {fit.axisOffsetMm.toFixed(3)} mm</p>}
+              {fit.boreRoleCheck && <p className={fit.boreRoleCheck.status === 'OBSERVED' && fit.boreRoleCheck.observedRole !== 'bore' ? 'text-[var(--shell-fail)]' : 'text-[var(--shell-text-label)]'}>
+                {t('Declared bore, observed section')}: {fit.boreRoleCheck.status === 'OBSERVED' ? t(fit.boreRoleCheck.observedRole ?? 'Unknown') : t('Not checked')} · {fit.boreRoleCheck.stationsChecked}/{fit.boreRoleCheck.stationsRequested} {t('stations')} · {fit.boreRoleCheck.reason}
+              </p>}
+              {fit.shaftRoleCheck && <p className={fit.shaftRoleCheck.status === 'OBSERVED' && fit.shaftRoleCheck.observedRole !== 'shaft' ? 'text-[var(--shell-fail)]' : 'text-[var(--shell-text-label)]'}>
+                {t('Declared shaft, observed section')}: {fit.shaftRoleCheck.status === 'OBSERVED' ? t(fit.shaftRoleCheck.observedRole ?? 'Unknown') : t('Not checked')} · {fit.shaftRoleCheck.stationsChecked}/{fit.shaftRoleCheck.stationsRequested} {t('stations')} · {fit.shaftRoleCheck.reason}
+              </p>}
+              <p className="text-[var(--shell-text-label)]">{t('Observed solid or void at sampled sections is not proof of the intended feature or calibrated uncertainty.')}</p>
             </li>)}</ul>
           </details>}
           <p className="mt-2 text-[var(--shell-text-label)]">{t('Sampled poses do not prove continuous clearance, tool access, manufacturability or physical function.')}</p>
