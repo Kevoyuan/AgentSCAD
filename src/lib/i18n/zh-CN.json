@@ -1097,5 +1097,14 @@
   "Declared bore, observed section": "声明为孔，截面观察结果",
   "Declared shaft, observed section": "声明为轴，截面观察结果",
   "stations": "采样截面",
-  "Observed solid or void at sampled sections is not proof of the intended feature or calibrated uncertainty.": "在采样截面观察到实体或空腔，不等于已识别用户期望的特征，也不等于误差已标定。"
+  "Observed solid or void at sampled sections is not proof of the intended feature or calibrated uncertainty.": "在采样截面观察到实体或空腔，不等于已识别用户期望的特征，也不等于误差已标定。",
+  "Triangle pairs evaluated": "实际检查的三角面组合数",
+  "Triangle pairs evaluated at blocking pose": "受阻位姿检查的三角面组合数",
+  "Intersecting triangle IDs": "相交的三角面编号",
+  "Approximate triangle-centroid witness (mm)": "三角面重心估计交点（毫米）",
+  "The witness is not an exact contact point or penetration measurement.": "该估计点并非精确接触坐标，也不能用于测量穿透深度。",
+  "Undecided pose": "无法判定的位姿",
+  "Collision budget exhausted": "碰撞计算预算已耗尽",
+  "Yes": "是",
+  "No": "否"
 }

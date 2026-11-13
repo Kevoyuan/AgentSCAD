@@ -59,22 +59,34 @@ export function checkRigidPosePath(input: {
   const base={method:"explicit-rigid-pose-path/v1",movingSha256:sha(input.moving),obstacles:Object.fromEntries(entries.map(([id,b])=>[id,sha(b)])),
     obstacleTransforms,poses,posesSha256:sha(canonicalJson(poses)),translationStepMm,rotationStepDeg,requireSeparatedEnd:input.requireSeparatedEnd??false,budgetMs,
     coverage:"Only explicit sampled rigid poses; translation step describes frame-origin motion, rotation step describes orientation. No continuous swept-volume, tool access, forces, detent stability or physical verification."};
+  let testedTrianglePairs = 0;
   for(let i=0;i<poses.length;i++) {
-    if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:i};
+    if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:i,testedTrianglePairs};
     const placed=placeBvh(moving,poses[i]);
     for(const other of obstacles) {
       const collision=bvhIntersects(placed,other.placed);
-      if(collision.status==='UNKNOWN')return {...base,status:"NOT_RUN" as const,reason:collision.reason,posesEvaluated:i+1};
-      if(collision.blocked)return {...base,status:"FAIL" as const,reason: i===0?"Initial pose intersects":"A sampled path pose intersects",posesEvaluated:i+1,blockedAt:{poseIndex:i,obstacleId:other.id,collision:collision.status}};
-      if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:i+1};
+      testedTrianglePairs += collision.testedPairs;
+      if(collision.status==="UNKNOWN")return {
+        ...base,status:"NOT_RUN" as const,reason:collision.reason,posesEvaluated:i+1,testedTrianglePairs,
+        undecidedAt:{poseIndex:i,obstacleId:other.id,collision:collision.status,testedPairs:collision.testedPairs,budgetExhausted:collision.budgetExhausted,reason:collision.reason},
+      };
+      if(collision.blocked)return {
+        ...base,status:"FAIL" as const,reason:i===0?"Initial pose intersects":"A sampled path pose intersects",posesEvaluated:i+1,testedTrianglePairs,
+        blockedAt:{poseIndex:i,obstacleId:other.id,collision:collision.status,testedPairs:collision.testedPairs,collisionReason:collision.reason,
+          trianglePair:collision.pair ? {movingTriangleIndex:collision.pair.a,obstacleTriangleIndex:collision.pair.b} : null,
+          // The BVH point is a midpoint of triangle centroids, not an exact surface contact point.
+          witnessCentroidPointMm:collision.point,
+        },
+      };
+      if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:i+1,testedTrianglePairs};
     }
     if(i===poses.length-1 && input.requireSeparatedEnd) {
       const envelope=[Infinity,Infinity,Infinity,-Infinity,-Infinity,-Infinity];
       for(const o of obstacles)for(let k=0;k<3;k++){envelope[k]=Math.min(envelope[k],o.placed.worldBounds[k]);envelope[k+3]=Math.max(envelope[k+3],o.placed.worldBounds[k+3]);}
       const b=placed.worldBounds;
-      if(![0,1,2].some(k=>b[k+3]<envelope[k]-1e-6 || b[k]>envelope[k+3]+1e-6))return {...base,status:"FAIL" as const,reason:"Final pose has not left the obstacle envelope",posesEvaluated:i+1};
+      if(![0,1,2].some(k=>b[k+3]<envelope[k]-1e-6 || b[k]>envelope[k+3]+1e-6))return {...base,status:"FAIL" as const,reason:"Final pose has not left the obstacle envelope",posesEvaluated:i+1,testedTrianglePairs};
     }
   }
-  if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:poses.length};
-  return {...base,status:"PASS" as const,reason:"Every listed pose is clear within the stated sampling coverage",posesEvaluated:poses.length};
+  if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:poses.length,testedTrianglePairs};
+  return {...base,status:"PASS" as const,reason:"Every listed pose is clear within the stated sampling coverage",posesEvaluated:poses.length,testedTrianglePairs};
 }

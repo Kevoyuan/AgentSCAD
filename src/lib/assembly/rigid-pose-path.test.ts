@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { boxStl } from "../geometry/__tests__/solids";
+import { boxStl, mergeStl, tubeStl } from "../geometry/__tests__/solids";
 import { checkRigidPosePath } from "./rigid-pose-path";
 import { translationMatrix, rotationAboutAxis } from "./path-and-motion";
 const base={moving:boxStl([0,0,0],[1,1,1]),obstacles:{wall:boxStl([2,-1,-1],[3,2,2])},maxTranslationStepMm:0.5,maxRotationStepDeg:5};
@@ -7,7 +7,40 @@ test("an intermediate collision blocks a path with a clear endpoint",()=>{
   const result=checkRigidPosePath({...base,poses:Array.from({length:9},(_,i)=>translationMatrix([i/2,0,0]))});
   expect(result.status).toBe("FAIL");
   expect("blockedAt" in result && result.blockedAt.poseIndex).toBeGreaterThan(0);
+  expect(result.testedTrianglePairs).toBeGreaterThan(0);
+  if (!("blockedAt" in result)) throw new Error("Expected an actual collision witness");
+  expect(result.blockedAt.obstacleId).toBe("wall");
+  expect(result.blockedAt.collision).toBe("INTERSECT");
+  expect(result.blockedAt.testedPairs).toBeGreaterThan(0);
+  expect(result.blockedAt.trianglePair?.movingTriangleIndex).toBeGreaterThanOrEqual(0);
+  expect(result.blockedAt.trianglePair?.obstacleTriangleIndex).toBeGreaterThanOrEqual(0);
+  expect(result.blockedAt.witnessCentroidPointMm?.length).toBe(3);
+  expect(result.blockedAt.witnessCentroidPointMm?.every(Number.isFinite)).toBe(true);
 });
+test("a conservative UNKNOWN identifies the exact obstacle and pose instead of reporting clearance", () => {
+  const moving = mergeStl(
+    tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 4, segments: 48 }),
+    boxStl([4, -1, 0], [10, 1, 4]),
+  );
+  const fixed = mergeStl(
+    tubeStl({ outerRadius: 3, innerRadius: 2.5, height: 4, segments: 48 }),
+    boxStl([-10, -1, 0], [-8, 1, 4]),
+  );
+  const result = checkRigidPosePath({
+    moving, obstacles: { fixed },
+    poses: [translationMatrix([0, 0, 0]), translationMatrix([0, 0, 0.1])],
+    maxTranslationStepMm: 0.25, maxRotationStepDeg: 5,
+  });
+  expect(result.status).toBe("NOT_RUN");
+  expect("undecidedAt" in result).toBe(true);
+  if (!("undecidedAt" in result)) throw new Error("Expected the inconclusive obstacle witness");
+  expect(result.undecidedAt.obstacleId).toBe("fixed");
+  expect(result.undecidedAt.poseIndex).toBe(0);
+  expect(result.undecidedAt.collision).toBe("UNKNOWN");
+  expect(result.undecidedAt.reason).toBeTruthy();
+  expect(result.testedTrianglePairs).toBeGreaterThanOrEqual(0);
+});
+
 test("skipped samples, static paths and nonrigid poses cannot pass",()=>{
   const identity=translationMatrix([0,0,0]);
   expect(()=>checkRigidPosePath({...base,poses:[identity,translationMatrix([4,0,0])]})).toThrow("gap");

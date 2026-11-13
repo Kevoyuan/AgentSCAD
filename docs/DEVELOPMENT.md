@@ -247,6 +247,13 @@ The response carries source/spec/archive hashes, `evidence` statuses and reasons
 
 
 
+
+## A05.1 — collision pair evidence and undecided positions
+
+The deterministic `checkRigidPosePath` returns the first blocking (FAIL) sample as `blockedAt`, including `poseIndex`, `obstacleId`, collision status, the actual number of triangle-pair tests in that comparison, and `collisionReason`. If the BVH finds an intersecting pair, it also returns the indices of those two triangles and `witnessCentroidPointMm` (centroid midpoint as computed by the collision backend, **not** a precise intersection/contact coordinate). Containment may report no triangle witness; the UI must not fabricate one.
+
+For `UNKNOWN`, the same checker returns a bounded `undecidedAt` with the specific zero-based pose, obstacle instance, reason, tested pairs, and whether the triangle-pair budget was exhausted. It records `testedTrianglePairs` across the evaluated sequence, plus the original sampling bounds. The A01/A02 evidence report and UI display these details; status remains NOT_RUN for undecided and FAIL for actual blocking observations. Checks are still only at discrete declared poses; no swept volume, minimum clearance, contact depth, tools, loading or physical assembly is established. Evidence checker v3 marks pre-v3 saved reports historical.
+
 ## A04.2 — observed section topology of actual candidate features
 
 The deterministic `observeSectionFeatureRole` tool observes the STL at 2–16 specified axial stations. It requires cut contours made of closed degree-two edge loops and samples 29 non-tangent rays from the candidate centre per station. Odd nonzero ray crossing parity suggests local solid, even nonzero parity suggests local void. A real hinge's outer arm can add pairs of crossings along some rays without changing void classification. A solid insert inside a tube changes the centre to solid. Open cuts, vertex/grazing rays, offset seeds and inconsistent parity/stations return `NOT_RUN`. The result appears on each fit as `boreRoleCheck` and `shaftRoleCheck` in the manifest and bounded A01/A02 evidence report, with a warning in the UI if the declared bore/shaft label contradicts the geometry.
