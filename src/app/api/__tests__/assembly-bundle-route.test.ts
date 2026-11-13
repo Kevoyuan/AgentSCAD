@@ -289,6 +289,20 @@ fs.writeFileSync(out, buffer);
     expect(result.disassembly.status).toBe("FAIL");
     expect(result.disassembly.operations[0].path.blockedAt.poseIndex).toBe(0);
     expect(result.disassembly.operations[0].path.blockedAt.obstacleId).toBe("base1");
+    expect(result.disassembly.operations[0].path.testedTrianglePairs).toBeGreaterThanOrEqual(0);
+    expect(result.disassembly.operations[0].path.blockedAt.testedPairs).toBeGreaterThanOrEqual(0);
+    expect(result.disassembly.operations[0].path.blockedAt.collisionReason).toBeTruthy();
+    const witness = result.disassembly.operations[0].path.blockedAt;
+    if (witness.trianglePair) {
+      expect(witness.trianglePair.movingTriangleIndex).toBeGreaterThanOrEqual(0);
+      expect(witness.trianglePair.obstacleTriangleIndex).toBeGreaterThanOrEqual(0);
+    }
+    if (witness.witnessCentroidPointMm) {
+      expect(witness.witnessCentroidPointMm).toHaveLength(3);
+      expect(witness.witnessCentroidPointMm.every(Number.isFinite)).toBe(true);
+    }
+    // No "exact contact coordinate" or penetration depth is invented.
+    expect(result.limitations.join(" ")).toContain("midpoint");
   });
 
   test("user-triggered snapshot saves real server measurement, never a supplied PASS", async () => {
