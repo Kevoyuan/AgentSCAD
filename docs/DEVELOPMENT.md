@@ -245,6 +245,13 @@ The ordered, evidence-gated task breakdown is [`ASSEMBLY_EXECUTION_BACKLOG.md`](
 
 The response carries source/spec/archive hashes, `evidence` statuses and reasons, contract confirmation, raw/gated disassembly results, sampled pose counts/steps, first blocking instance and optional fit measurements. **No result is persisted in A01**, and no `accepted`, `validated`, or `exported` outcome is recorded. On confirmation or source changes the user must run the check again; A02 explicitly covers durable snapshots and invalidation. A printed `PASS` only applies to its exact sampled method, artifact versions and requirements; a raw PASS under an unconfirmed contract is exposed but not promoted. No browser preview, simulation or physical test is silently inferred.
 
+
+## A04.1 — candidate bore/shaft fit from the frozen requirement contract
+
+`prepareAssembly` now connects a **required, applicable, explicitly stated** diameter-clearance range (mm) in the supplied requirement contract to the existing `measureRevoluteFit` tool when a single revolute connection names its bore instance. No client-side manual `fitRequirements` JSON is needed. The renderer supplies the real generated STL bytes, and the manifest/report retains candidate measured diametral clearance, axis offset, raw assessment and original contract bounds.
+
+**Evidence safety:** the role `boreInstanceId` comes from the *assembly declaration*. A declared or well-fitted cylindrical surface is not proof that the measured feature is the user's intended bore/shaft. Consequently, automatic binding remains **NOT_RUN for final assembly fit**, even if the candidate assessment is PASS or FAIL; the raw candidate result remains inspectable. Ambiguous multiple revolute connections, missing bore identity, waived/missing requirements, unsupported units or corrupt spec are not guessed or promoted to PASS. Independently calibrated feature identity and measurement uncertainty remain under parent task A04 (#26). Existing explicitly supplied test fit requirements preserve their old semantics.
+
 ## A02 — retained assembly evidence snapshots
 
 An explicit **Save new evidence snapshot** action performs a fresh authenticated, current-source/spec-guarded server render and deterministic measurement (not a client upload). It saves an immutable `JobVersion` row (`field = __assembly_evidence_snapshot`); the row includes the full bounded A01 summary, the archive SHA-256, source/specification hashes, the exact requirement confirmation fingerprint, a checker version, a check timestamp and a canonical JSON digest. There is no schema migration, no job acceptance event and no automatic model call.
