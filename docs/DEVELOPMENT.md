@@ -238,3 +238,28 @@ matching independently rendered STL checks a single tessellated pose, not
 joint kinematics, interference, manufacturing fit, tools, strength or physical
 function. The reference source and its origin must be independently trusted;
 matching a reference derived from the ZIP itself is circular evidence.
+
+## Assembly layout export in the UI (M2)
+
+The Assembly panel now offers **Download assembly layout (STL)** alongside
+**Download all parts (ZIP)** for delivered jobs with a current source and
+assembly specification. The endpoint is `GET /api/jobs/{id}/assembly/layout`;
+it accepts the same `sourceSha256`, `specSha256` and optional `download=1`
+query arguments as the ZIP route. It reuses `lockAssemblyExport`, a bounded
+part renderer, the hash-verified archive reconstruction and a final
+`verifyUnchanged()` check before responding. A download logs `exported`
+with artifact `assembly_layout`, instance count, source/spec/bundle/layout
+hashes and a `referenceStatus: NOT_RUN`; download does not imply acceptance.
+
+Layouts are deliberately only offered when **all instances have generated
+geometry**. If any instance is purchased and no geometry was exported, the
+endpoint returns HTTP 422 and the UI explains the missing geometry. The ZIP
+remains available as the manufacturing inventory. This prevents an incomplete
+render from masquerading as the whole assembly.
+
+The returned STL is a transformed triangle collection, not a Boolean union
+and not a validated, directly printable assembly. Header
+`X-AgentSCAD-Layout-Status: COMPLETE` describes reconstruction completeness,
+while `X-AgentSCAD-Reference-Status: NOT_RUN` correctly records that no
+independently rendered pose was checked by this request. Collision, fit,
+motion, tool access and physical function have not been established.
