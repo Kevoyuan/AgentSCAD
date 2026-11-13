@@ -1093,5 +1093,9 @@
   "Feature identity": "特征身份",
   "A declared bore/shaft role is not independently verified. Candidate dimensions are diagnostic only, never final fit approval.": "声明中的孔轴身份尚未经独立验证。候选尺寸仅供诊断，不能作为最终配合验收结果。",
   "Candidate diametral clearance": "候选直径间隙",
-  "Candidate axis offset": "候选轴线偏移"
+  "Candidate axis offset": "候选轴线偏移",
+  "Declared bore, observed section": "声明为孔，截面观察结果",
+  "Declared shaft, observed section": "声明为轴，截面观察结果",
+  "stations": "采样截面",
+  "Observed solid or void at sampled sections is not proof of the intended feature or calibrated uncertainty.": "在采样截面观察到实体或空腔，不等于已识别用户期望的特征，也不等于误差已标定。"
 }
