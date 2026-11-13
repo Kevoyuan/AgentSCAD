@@ -153,7 +153,7 @@ fs.writeFileSync(out, buffer);
     const stl = Buffer.from(await preview.arrayBuffer());
     expect(readBinaryStl(stl).triangleCount).toBe(24);
     expect(meshBounds(readBinaryStl(stl))).toEqual({ min: [0, 0, 0], max: [10, 10, 7] });
-    expect(createHash("sha256").update(stl).digest("hex")).toBe(preview.headers.get("X-AgentSCAD-Layout-SHA256"));
+    expect(preview.headers.get("X-AgentSCAD-Layout-SHA256")).toBe(createHash("sha256").update(stl).digest("hex"));
     expect(await db.jobOutcome.count({ where: { jobId: job.id } })).toBe(0);
     const downloaded = await GET_LAYOUT(admin(requestUrl + "&download=1"), context(job.id));
     expect(downloaded.status).toBe(200);
