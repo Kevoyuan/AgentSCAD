@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
+import { unzipSync, zipSync } from "fflate";
 import { buildAssemblyBundle } from "./assembly-bundle";
 import { reconstructAssemblyBundle, AssemblyReconstructionError } from "./reconstruct-assembly-bundle";
 import { readBinaryStl, meshBounds } from "../geometry/stl-mesh";
@@ -108,8 +109,9 @@ describe("offline assembly pose reconstruction", () => {
 
   test("does not reconstruct corrupt archive entries", async () => {
     const original = await createBundle();
-    const altered = Buffer.from(original.zip);
-    altered[0] = 0;
-    expect(() => reconstructAssemblyBundle({ zip: altered })).toThrow();
+    const files = unzipSync(original.zip);
+    files["block.stl"] = files["block.stl"].slice();
+    files["block.stl"][100] ^= 1;
+    expect(() => reconstructAssemblyBundle({ zip: zipSync(files) })).toThrow("hash");
   });
 });
