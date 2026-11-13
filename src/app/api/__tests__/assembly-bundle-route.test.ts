@@ -55,6 +55,7 @@ fs.writeFileSync(out, buffer);
   const { PUT } = await import("@/app/api/jobs/[id]/assembly/route");
   const { GET } = await import("@/app/api/jobs/[id]/assembly/bundle/route");
   const { GET: GET_LAYOUT } = await import("@/app/api/jobs/[id]/assembly/layout/route");
+  const { GET: GET_EVIDENCE } = await import("@/app/api/jobs/[id]/assembly/evidence/route");
   const { readBinaryStl, meshBounds } = await import("@/lib/geometry/stl-mesh");
   const { assemblySpecificationHash } = await import("@/lib/pipeline/assembly-spec-record");
   const { AssemblySpecSchema } = await import("@/lib/assembly/assembly-spec");
@@ -212,6 +213,80 @@ fs.writeFileSync(out, buffer);
     expect(stale.status).toBe(200);
     expect(stale.headers.get("X-AgentSCAD-Contract-Current")).toBe("false");
     expect(stale.headers.get("X-AgentSCAD-Contract-SHA256")).not.toBe(confirmed.contractSha256);
+  });
+
+  test("on-demand evidence is a hash-bound read with no acceptance or export event", async () => {
+    const { job, sourceHash, specHash: contractHash } = await create();
+    const response = await GET_EVIDENCE(admin(url(sourceHash, contractHash)), context(job.id));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    const report = await response.json();
+    expect(report.reportSchemaVersion).toBe(1);
+    expect(report.sourceSha256).toBe(sourceHash);
+    expect(report.specificationSha256).toBe(contractHash);
+    expect(report.archiveSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(report.contract.evidenceCurrent).toBe(false);
+    expect(report.disassembly.status).toBe("NOT_RUN");
+    expect(report.disassembly.measuredStatus).toBe("NOT_RUN");
+    expect(report.disassembly.totalOperations).toBe(0);
+    expect(report.evidence.physical.status).toBe("NOT_RUN");
+    expect(await db.jobOutcome.count({ where: { jobId: job.id } })).toBe(0);
+    expect((await GET_EVIDENCE(new Request(url(sourceHash, contractHash)) as never, context(job.id))).status).toBe(401);
+    expect((await GET_EVIDENCE(admin(url("0".repeat(64), contractHash)), context(job.id))).status).toBe(409);
+    expect((await GET_EVIDENCE(admin(url(sourceHash, "0".repeat(64))), context(job.id))).status).toBe(409);
+  });
+
+  test("evidence exposes raw sampled PASS separately from unconfirmed gated NOT_RUN", async () => {
+    const lift = [...pose]; lift[11] = 2.5;
+    const end = [...pose]; end[11] = 22.5;
+    const removable = {
+      ...spec,
+      parts: spec.parts.filter(part => part.source !== "purchased"),
+      instances: [spec.instances[0], { ...spec.instances[1], transform: lift }],
+      operations: [{ id: "remove_lid", action: "disassemble", instanceId: "lid1", tools: [], waypoints: [lift, end] }],
+    };
+    const { job, sourceHash, specHash: contractHash } = await create(source, removable);
+    const first = await GET_EVIDENCE(admin(url(sourceHash, contractHash)), context(job.id));
+    expect(first.status).toBe(200);
+    const unconfirmed = await first.json();
+    expect(unconfirmed.contract.evidenceCurrent).toBe(false);
+    expect(unconfirmed.disassembly.status).toBe("NOT_RUN");
+    expect(unconfirmed.disassembly.measuredStatus).toBe("PASS");
+    expect(unconfirmed.evidence.disassembly.status).toBe("NOT_RUN");
+    expect(unconfirmed.disassembly.operations).toHaveLength(1);
+    expect(unconfirmed.disassembly.operations[0].path.posesEvaluated).toBeGreaterThan(2);
+    expect(unconfirmed.disassembly.operations[0].path.declaredPoseCount).toBeGreaterThan(2);
+    expect(unconfirmed.disassembly.operations[0].path.blockedAt).toBeNull();
+
+    const derived = await readRequirementContract(job.id, job.inputRequest);
+    await saveRequirementContract({ job, contract: derived.contract, expectedContractSha256: null });
+    const second = await GET_EVIDENCE(admin(url(sourceHash, contractHash)), context(job.id));
+    expect(second.status).toBe(200);
+    const confirmed = await second.json();
+    expect(confirmed.contract.evidenceCurrent).toBe(true);
+    expect(confirmed.disassembly.status).toBe("PASS");
+    expect(confirmed.disassembly.measuredStatus).toBe("PASS");
+    expect(confirmed.evidence.physical.status).toBe("NOT_RUN");
+    expect(await db.jobOutcome.count({ where: { jobId: job.id } })).toBe(0);
+  });
+
+  test("failed initial pose is a measured FAIL and reports blocking instance, not a guessed PASS", async () => {
+    const end = [...pose]; end[11] = 20;
+    const blocked = {
+      ...spec,
+      parts: spec.parts.filter(part => part.source !== "purchased"),
+      instances: [spec.instances[0], spec.instances[1]],
+      operations: [{ id: "remove_lid", action: "disassemble", instanceId: "lid1", tools: [], waypoints: [pose, end] }],
+    };
+    const { job, sourceHash, specHash: contractHash } = await create(source, blocked);
+    const response = await GET_EVIDENCE(admin(url(sourceHash, contractHash)), context(job.id));
+    expect(response.status).toBe(200);
+    const result = await response.json();
+    expect(result.contract.evidenceCurrent).toBe(false);
+    expect(result.disassembly.measuredStatus).toBe("FAIL");
+    expect(result.disassembly.status).toBe("FAIL");
+    expect(result.disassembly.operations[0].path.blockedAt.poseIndex).toBe(0);
+    expect(result.disassembly.operations[0].path.blockedAt.obstacleId).toBe("base1");
   });
 
   test("a real removal path is exported as a gated verdict instead of a raw pass", async () => {

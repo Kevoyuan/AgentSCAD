@@ -3,7 +3,7 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nContext } from '@/components/i18n-provider'
 import { createTranslator } from '@/lib/i18n'
-import { AssemblyDetails, AssemblyRevisions, fetchAssemblyBundle, fetchAssemblyLayout, fetchAssemblyPart, parseAssemblyDraft, saveAssemblyDraft } from '../AssemblyDetails'
+import { AssemblyDetails, AssemblyRevisions, fetchAssemblyBundle, fetchAssemblyLayout, fetchAssemblyEvidence, fetchAssemblyPart, parseAssemblyDraft, saveAssemblyDraft } from '../AssemblyDetails'
 
 const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 const spec = {
@@ -162,6 +162,40 @@ test('layout request preserves hashes and reports conflicts and incomplete geome
   const stale = await fetchAssemblyLayout('job', 'b'.repeat(64), 'c'.repeat(64), async () => new Response('', { status: 409 }))
   expect(stale.error).toContain('changed')
   const invalid = await fetchAssemblyLayout('job', '', 'c'.repeat(64), request)
+  expect(invalid.error).toContain('unavailable')
+})
+
+test('user-triggered evidence check appears only when source and spec are current', () => {
+  const h = 'a'.repeat(64)
+  const data = { spec, stale: false, sourceSha256: h, currentSourceSha256: h, specSha256: 'c'.repeat(64), evidence }
+  const html = render(data, 'en', 'job')
+  expect(html).toContain('Run assembly geometry checks')
+  expect(html).toContain('one-time snapshot')
+  expect(html).not.toContain('Measurement snapshot')
+  expect(render({ ...data, stale: true }, 'en', 'job')).not.toContain('Run assembly geometry checks')
+  expect(render(data, 'en', 'job', false)).not.toContain('Run assembly geometry checks')
+})
+
+test('evidence request is version-bound and refuses a mismatched report', async () => {
+  const sourceSha256 = 'b'.repeat(64)
+  const specSha256 = 'c'.repeat(64)
+  const report = { reportSchemaVersion: 1, sourceSha256, specificationSha256: specSha256 }
+  let requestedUrl = ''
+  let requestedCredentials: RequestCredentials | undefined
+  const request = async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestedUrl = String(input)
+    requestedCredentials = init?.credentials
+    return Response.json(report)
+  }
+  const success = await fetchAssemblyEvidence('job id', sourceSha256, specSha256, request)
+  expect(success.report?.sourceSha256).toBe(sourceSha256)
+  expect(requestedCredentials).toBe('include')
+  expect(requestedUrl).toBe('/api/jobs/job%20id/assembly/evidence?sourceSha256=' + sourceSha256 + '&specSha256=' + specSha256)
+  const bad = await fetchAssemblyEvidence('job', sourceSha256, specSha256, async () => Response.json({ ...report, sourceSha256: 'd'.repeat(64) }))
+  expect(bad.error).toContain('does not match')
+  const conflict = await fetchAssemblyEvidence('job', sourceSha256, specSha256, async () => new Response('', { status: 409 }))
+  expect(conflict.error).toContain('changed')
+  const invalid = await fetchAssemblyEvidence('job', '', specSha256, request)
   expect(invalid.error).toContain('unavailable')
 })
 
