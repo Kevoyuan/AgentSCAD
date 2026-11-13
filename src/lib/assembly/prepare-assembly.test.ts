@@ -150,6 +150,22 @@ describe("assembly fit evidence", () => {
     expect(result.manifest.evidence.physical.status).toBe("NOT_RUN");
   });
 
+  test("a translated shaft with nominal matching diameters cannot become assembly PASS", async () => {
+    const shifted = jointSpec();
+    shifted.instances[1].transform = [1, 0, 0, 0.25, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    const result = await prepareAssembly({
+      scadSource: "cube(1);", spec: shifted, render: jointRender,
+      fitRequirements: [{ connectionId: "joint", boreInstanceId: "bore-instance", diametralClearanceMm: { min: 0.35, max: 0.45 } }],
+      contractGate: { evidenceCurrent: true },
+    });
+    expect(result.fits[0].diametralClearanceMm!.min).toBeGreaterThan(0.35);
+    expect(result.fits[0].radialEnclosure?.maximumCenterOffsetMm).toBeCloseTo(0.25, 3);
+    expect(result.fits[0].radialEnclosure?.minimumMarginMm).toBeLessThan(0);
+    expect(result.fits[0].measuredStatus).toBe("NOT_RUN");
+    expect(result.fits[0].status).toBe("NOT_RUN");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
+    expect(result.manifest.evidence.physical.status).toBe("NOT_RUN");
+  });
   test("a declared bore made from solid mesh cannot pass even when numerical clearance fits", async () => {
     const falseBore = prismStl({ radius: 3.2, height: 10, segments: 64 });
     const pin = prismStl({ radius: 3, height: 12, segments: 64, z0: -1 });

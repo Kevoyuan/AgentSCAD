@@ -9,7 +9,7 @@
 import { validateAssemblySpec } from "./assembly-spec";
 import { measureCylindricalFeature, type CylindricalFeatureMeasurement } from "../geometry/cylindrical-feature";
 import { observeSectionFeatureRole, type SectionRoleEvidence } from "../geometry/section-feature-role";
-import { extentAlongAxis, normalize, readBinaryStl, type Vec3 } from "../geometry/stl-mesh";
+import { extentAlongAxis, normalize, planeBasis, readBinaryStl, type Vec3 } from "../geometry/stl-mesh";
 
 export interface FitSide {
   instanceId: string;
@@ -22,6 +22,27 @@ export interface FitSide {
   axisInAssembly: { point: Vec3; direction: Vec3 } | null;
   /** Largest distance between the declared axis and the measured feature centre. */
   seedOffsetMm: number | null;
+  /** Actual section centres transformed into the assembly coordinate frame. */
+  sampledCentresInAssembly: Vec3[];
+}
+
+export interface RadialEnclosureStation {
+  stationMm: number;
+  centerOffsetMm: number;
+  /** Lower bound: inscribed bore radius minus circumscribed shaft radius and lateral centre offset. */
+  conservativeMarginMm: number;
+}
+
+export interface SampledRadialEnclosure {
+  method: "sampled-mesh-radial-enclosure/v1";
+  status: "OBSERVED" | "NOT_RUN";
+  reason: string;
+  stations: RadialEnclosureStation[];
+  minimumMarginMm: number | null;
+  maximumCenterOffsetMm: number | null;
+  /** Numerical guard band, not calibrated measurement uncertainty. */
+  safetyReserveMm: number;
+  coverage: string;
 }
 
 export interface RevoluteFitMeasurement {
@@ -32,6 +53,8 @@ export interface RevoluteFitMeasurement {
   shaft: FitSide | null;
   /** Diametral clearance interval implied by the tessellated polygons. */
   clearanceMm: { min: number; max: number } | null;
+  /** Candidate local clearance budget including measured eccentricity at each station. */
+  radialEnclosure: SampledRadialEnclosure | null;
   /** Alignment of the two measured axes in the assembly frame. */
   axis: { offsetMm: number; angleDeg: number } | null;
   stationsMm: number[];
@@ -53,6 +76,8 @@ export interface FitAssessment {
 }
 
 const MAX_MESH_BYTES = 64 * 1024 * 1024;
+/** Guard against rounding/near-contact; NOT a printer or STL calibration. */
+const RADIAL_MARGIN_RESERVE_MM = 0.001;
 
 function applyPoint(matrix: number[], point: Vec3): Vec3 {
   return [
@@ -90,7 +115,7 @@ export function measureRevoluteFit(input: {
     "Only the sampled axial stations are measured; other stations are not covered.",
     "Radial clearance is measured, not assembly, motion or physical function.",
   ];
-  const base: RevoluteFitMeasurement = { status: "NOT_RUN", reason: "", connectionId: input.connectionId, bore: null, shaft: null, clearanceMm: null, axis: null, stationsMm: [], unknowns };
+  const base: RevoluteFitMeasurement = { status: "NOT_RUN", reason: "", connectionId: input.connectionId, bore: null, shaft: null, clearanceMm: null, radialEnclosure: null, axis: null, stationsMm: [], unknowns };
   const parsed = validateAssemblySpec(input.spec);
   if (!parsed.success) return { ...base, status: "ERROR", reason: "Invalid assembly specification." };
   const spec = parsed.data;
@@ -163,6 +188,18 @@ export function measureRevoluteFit(input: {
       : null;
     let axisInAssembly: { point: Vec3; direction: Vec3 } | null = null;
     let seedOffsetMm: number | null = null;
+    const sampledCentresInAssembly: Vec3[] = [];
+    if (measurement.status === "MEASURED") {
+      const direction = normalize(frame.direction);
+      const { u, v } = planeBasis(direction);
+      for (const station of measurement.stations) {
+        const point = [0, 1, 2].map(i =>
+          frame.origin[i] + direction[i] * station.offsetMm +
+          u[i] * station.center[0] + v[i] * station.center[1],
+        ) as Vec3;
+        sampledCentresInAssembly.push(applyPoint(side.transform, point));
+      }
+    }
     if (measurement.status === "MEASURED" && measurement.axis) {
       axisInAssembly = {
         point: applyPoint(side.transform, measurement.axis.point),
@@ -170,7 +207,7 @@ export function measureRevoluteFit(input: {
       };
       seedOffsetMm = Math.max(...measurement.stations.map((station) => Math.hypot(station.center[0], station.center[1])));
     }
-    return { instanceId: side.id, partId, role, measurement, roleCheck, axisInAssembly, seedOffsetMm };
+    return { instanceId: side.id, partId, role, measurement, roleCheck, axisInAssembly, seedOffsetMm, sampledCentresInAssembly };
   };
 
   const boreInstance = input.boreInstanceId === instanceA.id ? instanceA : instanceB;
@@ -192,6 +229,48 @@ export function measureRevoluteFit(input: {
   const boreDiameter = bore.measurement.diameterMm!;
   const shaftDiameter = shaft.measurement.diameterMm!;
   const clearanceMm = { min: boreDiameter.min - shaftDiameter.max, max: boreDiameter.max - shaftDiameter.min };
+
+  const radialEnclosure: SampledRadialEnclosure = {
+    method: "sampled-mesh-radial-enclosure/v1",
+    status: "NOT_RUN",
+    reason: "The sampled bore/shaft centre offsets could not be compared.",
+    stations: [],
+    minimumMarginMm: null,
+    maximumCenterOffsetMm: null,
+    safetyReserveMm: RADIAL_MARGIN_RESERVE_MM,
+    coverage: "Corresponding sampled axial stations only; conservative polygon radius bounds from actual STL. No swept-volume, user-intended feature identity, calibrated uncertainties, manufacturing tolerances, deformation or physical verification.",
+  };
+  if (stations.length >= 2 &&
+      bore.sampledCentresInAssembly.length === stations.length &&
+      shaft.sampledCentresInAssembly.length === stations.length && bore.axisInAssembly) {
+    const direction = bore.axisInAssembly.direction;
+    const observed = stations.map((station, i) => {
+      const b = bore.sampledCentresInAssembly[i];
+      const a = shaft.sampledCentresInAssembly[i];
+      const dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
+      const along = dx * direction[0] + dy * direction[1] + dz * direction[2];
+      const offsetMm = Math.hypot(dx - along * direction[0], dy - along * direction[1], dz - along * direction[2]);
+      return {
+        stationMm: station,
+        centerOffsetMm: offsetMm,
+        conservativeMarginMm: bore.measurement.stations[i].radiusMinMm -
+          shaft.measurement.stations[i].radiusMaxMm - offsetMm,
+      };
+    });
+    const margins = observed.map(x => x.conservativeMarginMm);
+    const offsets = observed.map(x => x.centerOffsetMm);
+    if (margins.every(Number.isFinite) && offsets.every(Number.isFinite)) {
+      radialEnclosure.status = "OBSERVED";
+      radialEnclosure.reason = "The sampled radial enclosure accounts for measured centre displacement at each station, not just nominal diameters.";
+      radialEnclosure.stations = observed;
+      radialEnclosure.minimumMarginMm = Math.min(...margins);
+      radialEnclosure.maximumCenterOffsetMm = Math.max(...offsets);
+    } else {
+      radialEnclosure.reason = "Non-finite sampled radial enclosure; clearance is undecidable.";
+    }
+  } else if (stations.length < 2) {
+    radialEnclosure.reason = "At least two axial stations are needed to observe relative centre offset.";
+  }
 
   let axis: RevoluteFitMeasurement["axis"] = null;
   if (bore.axisInAssembly && shaft.axisInAssembly) {
@@ -219,6 +298,7 @@ export function measureRevoluteFit(input: {
     bore,
     shaft,
     clearanceMm,
+    radialEnclosure,
     axis,
     stationsMm: stations,
     unknowns,
@@ -259,6 +339,17 @@ export function assessFit(measurement: RevoluteFitMeasurement | null, requiremen
     if (measurement.axis.angleDeg > requirement.maxAxisAngleDeg) {
       return { status: "FAIL", reason: `The measured axis angle ${measurement.axis.angleDeg.toFixed(3)}° exceeds the frozen ${requirement.maxAxisAngleDeg}° limit.`, measured: measurement };
     }
+  }
+  const envelope = measurement.radialEnclosure;
+  if (!envelope || envelope.status !== "OBSERVED" || envelope.minimumMarginMm === null) {
+    return { status: "NOT_RUN", reason: envelope?.reason || "No sampled radial enclosure was evaluated.", measured: measurement };
+  }
+  if (envelope.minimumMarginMm <= envelope.safetyReserveMm) {
+    return {
+      status: "NOT_RUN",
+      reason: `The sampled radial enclosure has only ${envelope.minimumMarginMm.toFixed(4)} mm worst-case remaining margin after measured centre offset (numerical reserve ${envelope.safetyReserveMm} mm). Local clearance is not demonstrated; neither collision nor continuous clearance is inferred.`,
+      measured: measurement,
+    };
   }
   return {
     status: "PASS",
