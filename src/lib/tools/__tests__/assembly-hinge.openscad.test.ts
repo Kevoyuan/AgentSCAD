@@ -73,7 +73,10 @@ describe("original axial hinge with native OpenSCAD", () => {
     });
     const meshes = Object.fromEntries(parts.map((part) => [part.partId, part.stl]));
     const measurement = measureRevoluteFit({ spec, connectionId: "hinge", meshes, boreInstanceId: "moving-instance" });
-    console.info("HINGE-A04.2-ROLE-DIAG", JSON.stringify({ bore: measurement.bore?.roleCheck, shaft: measurement.shaft?.roleCheck }));
+    expect(measurement.bore?.roleCheck?.status).toBe("OBSERVED");
+    expect(measurement.bore?.roleCheck?.observedRole).toBe("bore");
+    expect(measurement.shaft?.roleCheck?.status).toBe("OBSERVED");
+    expect(measurement.shaft?.roleCheck?.observedRole).toBe("shaft");
 
     expect(measurement.status).toBe("MEASURED");
     expect(measurement.stationsMm).toHaveLength(3);
