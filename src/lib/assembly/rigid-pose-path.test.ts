@@ -21,8 +21,8 @@ test("an intermediate collision blocks a path with a clear endpoint",()=>{
   expect(result.blockedAt.witnessCentroidPointMm?.every(Number.isFinite)).toBe(true);
   const actual = result.blockedAt.replayFrame;
   expect(actual.frame).toBe("right-handed-mm-row-major-4x4/v1");
-  expect(actual.movingWorldFromLocal).toEqual(result.poses[result.blockedAt.poseIndex]);
-  expect(actual.obstacleWorldFromLocal).toEqual(translationMatrix([0,0,0]));
+  expect(Array.from(actual.movingWorldFromLocal)).toEqual(Array.from(result.poses[result.blockedAt.poseIndex]));
+  expect(Array.from(actual.obstacleWorldFromLocal)).toEqual(Array.from(translationMatrix([0,0,0])));
   expect(actual.movingMeshSha256).toBe(createHash("sha256").update(base.moving).digest("hex"));
   expect(actual.obstacleMeshSha256).toBe(createHash("sha256").update(base.obstacles.wall).digest("hex"));
   const replayed = meshesIntersect(readBinaryStl(base.moving),actual.movingWorldFromLocal,readBinaryStl(base.obstacles.wall),actual.obstacleWorldFromLocal);
@@ -50,8 +50,8 @@ test("a conservative UNKNOWN identifies the exact obstacle and pose instead of r
   expect(result.undecidedAt.collision).toBe("UNKNOWN");
   expect(result.undecidedAt.reason).toBeTruthy();
   const frame = result.undecidedAt.replayFrame;
-  expect(frame.movingWorldFromLocal).toEqual(result.poses[result.undecidedAt.poseIndex]);
-  expect(frame.obstacleWorldFromLocal).toEqual(translationMatrix([0,0,0]));
+  expect(Array.from(frame.movingWorldFromLocal)).toEqual(Array.from(result.poses[result.undecidedAt.poseIndex]));
+  expect(Array.from(frame.obstacleWorldFromLocal)).toEqual(Array.from(translationMatrix([0,0,0])));
   const replayed = meshesIntersect(readBinaryStl(moving),frame.movingWorldFromLocal,readBinaryStl(fixed),frame.obstacleWorldFromLocal);
   expect(replayed.status).toBe("UNKNOWN");
   expect(result.testedTrianglePairs).toBeGreaterThanOrEqual(0);
@@ -64,8 +64,8 @@ test("a translated obstacle preserves its real world pose for independent collis
   expect(result.status).toBe("FAIL");
   if (!("blockedAt" in result)) throw new Error("Expected blocked pose");
   expect(result.blockedAt.poseIndex).toBeGreaterThan(0);
-  expect(result.blockedAt.replayFrame.obstacleWorldFromLocal).toEqual(obstaclePose);
-  expect(result.blockedAt.replayFrame.movingWorldFromLocal).toEqual(poses[result.blockedAt.poseIndex]);
+  expect(Array.from(result.blockedAt.replayFrame.obstacleWorldFromLocal)).toEqual(Array.from(obstaclePose));
+  expect(Array.from(result.blockedAt.replayFrame.movingWorldFromLocal)).toEqual(Array.from(poses[result.blockedAt.poseIndex]));
   const repeated = meshesIntersect(readBinaryStl(base.moving), result.blockedAt.replayFrame.movingWorldFromLocal, readBinaryStl(base.obstacles.wall), result.blockedAt.replayFrame.obstacleWorldFromLocal);
   expect(repeated.status).toBe(result.blockedAt.collision);
 });
