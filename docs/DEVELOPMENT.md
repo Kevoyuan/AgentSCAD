@@ -198,3 +198,43 @@ its source SCAD is not embedded and cannot be checked against
 `sourceSha256` offline. README text, recorded validation verdicts,
 unobserved joint behavior and physical function are not independently validated.
 Do not interpret an integrity PASS as an assembly-function PASS.
+
+
+## Offline assembly layout reconstruction (M2)
+
+Create a separate, **unmerged** assembly-pose STL from the manufacturing parts
+and instance transforms inside an already-verified ZIP:
+
+```bash
+bun run cad:assembly:reconstruct assembly.zip layout.stl
+```
+
+- Each declared generated instance is placed using its row-major local-to-world
+  rigid transform. Identical designs used multiple times remain distinct
+  instances in the output; this is not a Boolean union.
+- Missing purchased-part geometry prevents full reconstruction by default.
+  Use `--allow-partial` only for an explicitly incomplete layout.
+- The command prints the source, archive, specification and reconstruction
+  SHA-256 digests, per-instance part IDs and triangle counts, world-space bounds,
+  purchased-instance gaps and reference-comparison status.
+- For an independent **single-pose** geometry check, first produce an assembled
+  STL from the original source separately (for example by OpenSCAD) and run:
+
+```bash
+bun run cad:assembly:reconstruct assembly.zip layout.stl --reference independent-pose.stl
+```
+
+  With a reference, the command exits successfully only if the reference
+  matches the reconstructed triangulated surface within the checker tolerance.
+  A clear bounds difference is FAIL; incompatible triangulations or exhausted
+  comparison budgets are NOT_RUN; invalid inputs are ERROR. In all cases the
+  report retains the exact archive and reference hashes. If no reference is
+  provided, the comparison remains NOT_RUN. Purchased geometry cannot be
+  silently invented or counted as an independently reconstructed instance.
+
+**Evidence boundary:** a successful reconstruction establishes only that a
+rigid layout STL was deterministically produced from the archive. Even a
+matching independently rendered STL checks a single tessellated pose, not
+joint kinematics, interference, manufacturing fit, tools, strength or physical
+function. The reference source and its origin must be independently trusted;
+matching a reference derived from the ZIP itself is circular evidence.
