@@ -128,14 +128,26 @@ export async function appendEvidenceSnapshot(jobId: string, snapshot: StoredAsse
 }
 
 /** Caller must already have verified the browser session / job access. */
-export async function readEvidenceSnapshots(jobId: string, context: EvidenceVersionContext, limit = 10) {
+export class InvalidEvidenceCursor extends Error {
+  constructor() { super("Invalid evidence history cursor"); this.name = "InvalidEvidenceCursor"; }
+}
+
+export async function readEvidenceSnapshots(jobId: string, context: EvidenceVersionContext, limit = 10, beforeId?: string) {
   const take = Math.min(Math.max(Number.isInteger(limit) ? limit : 10, 1), MAX_HISTORY_PAGE);
+  if (beforeId) {
+    const cursor = await db.jobVersion.findFirst({
+      where: { id: beforeId, jobId, field: ASSEMBLY_EVIDENCE_FIELD }, select: { id: true },
+    });
+    if (!cursor) throw new InvalidEvidenceCursor();
+  }
   const rows = await db.jobVersion.findMany({
     where: { jobId, field: ASSEMBLY_EVIDENCE_FIELD },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take,
+    ...(beforeId ? { cursor: { id: beforeId }, skip: 1 } : {}),
+    take: take + 1,
   });
-  return rows.map(row => {
+  const page = rows.slice(0, take);
+  const snapshots = page.map(row => {
     let parsed: StoredAssemblyEvidence | null = null;
     try { parsed = parseEvidenceSnapshot(JSON.parse(row.newValue ?? "")); } catch { /* Corrupt records cannot produce PASS. */ }
     if (!parsed) return {
@@ -155,4 +167,5 @@ export async function readEvidenceSnapshots(jobId: string, context: EvidenceVers
       snapshot: parsed,
     };
   });
+  return { snapshots, nextCursor: rows.length > take ? page[page.length - 1].id : null };
 }
