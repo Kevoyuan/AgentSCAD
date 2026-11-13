@@ -38,7 +38,8 @@
     "cad:eval:fit": "bun scripts/eval/measure-fit.ts",
     "cad:eval:slider-crank": "bun scripts/eval/measure-slider-crank.ts",
     "cad:eval:thread": "bun scripts/eval/check-threaded-fastener.ts",
-    "cad:assembly:verify": "bun scripts/eval/verify-assembly-bundle.ts"
+    "cad:assembly:verify": "bun scripts/eval/verify-assembly-bundle.ts",
+    "cad:assembly:reconstruct": "bun scripts/eval/reconstruct-assembly-bundle.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
