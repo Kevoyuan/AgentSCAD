@@ -1,7 +1,7 @@
 /**
  * Observes a local section of actual STL triangles independently of the
- * candidate's bore/shaft label. Filled shaft => one enclosing contour;
- * surrounding void in a tube => two enclosing contours.
+ * candidate's bore/shaft label. Filled shaft => odd radial crossing parity;
+ * surrounding void in a tube => even radial crossing parity.
  *
  * This is NOT proof that the observed section is the intended feature, that
  * a hole continues between stations, or that the entire part is manifold.
@@ -127,21 +127,31 @@ export function observeSectionFeatureRole(input: {
       ...base, stationsChecked: i, reason: "The sampled cut is open, degenerate, non-manifold, or too complex to classify.",
     };
 
-    let localCount: number | null = null;
+    let localRole: ObservedSectionRole | null = null;
+    let minimumCrossings = Infinity, maximumCrossings = 0;
     for (let ray = 0; ray < RAYS; ray++) {
       const angle = 2 * Math.PI * (ray + 0.371) / RAYS;
       const count = crossings(section, seed, angle);
-      if (count === null || (count !== 1 && count !== 2) || (localCount !== null && count !== localCount)) {
-        return { ...base, stationsChecked: i, reason: "The cut does not consistently contain one solid boundary or two surrounding void boundaries around the candidate center." };
+      // A non-convex / multi-lobed solid may have additional *pairs* of
+      // crossings on some rays. Their parity, not their total number, tells
+      // whether the candidate centre is in solid (odd) or in void (even).
+      // This deliberately permits 2 vs 4 on a hinge with an external arm.
+      if (count === null || count === 0 || count > 32) {
+        return { ...base, stationsChecked: i, reason: "Ray has missing, grazing, or unbounded contour intersections." };
       }
-      localCount = count;
+      const rayRole = count % 2 === 0 ? "bore" : "shaft";
+      if (localRole !== null && localRole !== rayRole) {
+        return { ...base, stationsChecked: i, reason: "Ray crossing parity conflicts across directions; no stable local solid/void classification." };
+      }
+      localRole = rayRole;
+      minimumCrossings = Math.min(minimumCrossings, count);
+      maximumCrossings = Math.max(maximumCrossings, count);
     }
-    const role = localCount === 1 ? "shaft" : "bore";
-    if (observedRole !== null && observedRole !== role) {
+    if (observedRole !== null && observedRole !== localRole) {
       return { ...base, stationsChecked: i, reason: "The observed section role changes between axial stations." };
     }
-    observedRole = role;
-    crossingsPerRay = localCount;
+    observedRole = localRole;
+    crossingsPerRay = minimumCrossings === maximumCrossings ? minimumCrossings : null;
   }
   return {
     ...base,
@@ -150,7 +160,7 @@ export function observeSectionFeatureRole(input: {
     stationsChecked: input.stationsMm.length,
     crossingsPerRay,
     reason: observedRole === "bore"
-      ? "Two closed enclosing contours were observed at every sampled plane (local void candidate)."
-      : "One closed enclosing contour was observed at every sampled plane (local solid candidate).",
+      ? "An even number of closed contour crossings was observed from the candidate centre at every sampled plane (local void candidate)."
+      : "An odd number of closed contour crossings was observed from the candidate centre at every sampled plane (local solid candidate).",
   };
 }
