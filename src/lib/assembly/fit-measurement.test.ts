@@ -107,7 +107,66 @@ describe("revolute fit measurement", () => {
     expect(result.status).toBe("MEASURED");
     // The shaft axis moved 0.12 mm in x; the clearance is unchanged by translation.
     expect(result.axis!.offsetMm).toBeCloseTo(0.12, 3);
+    expect(result.radialEnclosure?.maximumCenterOffsetMm).toBeCloseTo(0.12, 3);
     expect(result.clearanceMm!.min).toBeCloseTo(2 * inradius(3.2, 64) - 6, 4);
+  });
+
+  test("measured eccentricity can invalidate an otherwise matching diameter band", () => {
+    const shifted = [1, 0, 0, 0.25, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    const result = measureRevoluteFit({
+      spec: spec({ shaftTransform: shifted }), connectionId: "joint", meshes,
+      boreInstanceId: "bore-instance",
+    });
+    expect(result.status).toBe("MEASURED");
+    expect(result.clearanceMm!.min).toBeGreaterThan(0.35);
+    expect(result.radialEnclosure?.status).toBe("OBSERVED");
+    expect(result.radialEnclosure?.maximumCenterOffsetMm).toBeCloseTo(0.25, 3);
+    expect(result.radialEnclosure?.minimumMarginMm).toBeLessThan(0);
+    const assessed = assessFit(result, { connectionId: "joint", diametralClearanceMm: { min: 0.35, max: 0.45 } });
+    expect(assessed.status).toBe("NOT_RUN");
+    expect(assessed.reason).toContain("radial enclosure");
+    // Negative conservative radius margin is not itself proof of triangle collision.
+    expect(assessed.reason).toContain("neither collision");
+  });
+
+  test("an angularly tilted shaft loses radial clearance along the sampled overlap", () => {
+    const deg = 3 * Math.PI / 180;
+    const c = Math.cos(deg), si = Math.sin(deg);
+    const tilted = [c, 0, si, 0, 0, 1, 0, 0, -si, 0, c, 0, 0, 0, 0, 1];
+    const result = measureRevoluteFit({
+      spec: spec({ shaftTransform: tilted }), connectionId: "joint", meshes,
+      boreInstanceId: "bore-instance",
+    });
+    expect(result.status).toBe("MEASURED");
+    expect(result.axis!.angleDeg).toBeCloseTo(3, 1);
+    expect(result.radialEnclosure?.stations).toHaveLength(3);
+    expect(result.radialEnclosure?.maximumCenterOffsetMm).toBeGreaterThan(0.30);
+    expect(result.radialEnclosure?.minimumMarginMm).toBeLessThan(0);
+    expect(assessFit(result, { connectionId: "joint", diametralClearanceMm: { min: 0.35, max: 0.45 } }).status).toBe("NOT_RUN");
+  });
+
+  test("an ordinary small eccentricity retains positive measured radial margin", () => {
+    const shifted = [1, 0, 0, 0.12, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    const result = measureRevoluteFit({
+      spec: spec({ shaftTransform: shifted }), connectionId: "joint", meshes,
+      boreInstanceId: "bore-instance",
+    });
+    const enclosure = result.radialEnclosure!;
+    expect(enclosure.minimumMarginMm).toBeGreaterThan(0.07);
+    expect(enclosure.minimumMarginMm).toBeLessThan(0.09);
+    expect(enclosure.stations.every(x => x.conservativeMarginMm > enclosure.safetyReserveMm)).toBe(true);
+    expect(assessFit(result, { connectionId: "joint", diametralClearanceMm: { min: 0.35, max: 0.45 } }).status).toBe("PASS");
+    expect(enclosure.coverage).toContain("Corresponding sampled axial stations only");
+  });
+
+  test("one sampled station cannot establish the relative radial enclosure", () => {
+    const result = measureRevoluteFit({
+      spec: spec(), connectionId: "joint", meshes, boreInstanceId: "bore-instance",
+      stationsMm: [5],
+    });
+    expect(result.status).toBe("MEASURED");
+    expect(result.radialEnclosure?.status).toBe("NOT_RUN");
+    expect(assessFit(result, { connectionId: "joint", diametralClearanceMm: { min: 0.35, max: 0.45 } }).status).toBe("NOT_RUN");
   });
 
   test("a frame origin elsewhere on the same axis does not change the measured fit", () => {
