@@ -32,6 +32,13 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 | **UX baseline (states, acceptance, wait, cost, abandoned runs)** | `bun run ux:baseline [--stale-hours 2]` |
 | Clear metric columns after a definition change | `bun run metrics:reset` (dry run) · `bun run metrics:reset -- --yes` (applies) |
 
+## Deployment policy
+
+- **Do not deploy to Vercel by default.** Git-triggered Vercel deployments for all branches, including `main` and PR previews, are disabled by `vercel.json` (`git.deploymentEnabled: false`).
+- Ordinary development should create commits/PRs and run GitHub Actions CI. Building with `bun run build` is a local/CI verification step, not a deployment.
+- Only initiate a Vercel deployment, promotion, redeployment, or enable Git deployments when the user explicitly asks to publish/deploy.
+- Keep the current production deployment intact unless the user requests a production change. Do not re-enable automatic deployment as a side effect of other work.
+
 Tests use Bun's built-in test runner. Run `bun run test` before handing off CAD pipeline or skill resolver changes.
 
 `bun run ux:baseline` is the evidence loop's collection step: it prints state distribution, acceptance and verdict coverage, wait-time percentiles, model cost, and **runs that never finished**. A run ends by writing `latencyMs` in its `finally` block, so a job sitting in an in-flight state (`NEW` / `SCAD_GENERATED` / `RENDERED` / `VALIDATED` / `DEBUGGING` / `REPAIRING`) with no `latencyMs` is a run that never got to finish. That is the only abandonment signal the product has, and it depends entirely on the `finally` write — remove that write and the signal dies silently. It cannot distinguish a closed tab from a server restart; both look identical, and the script says so.
