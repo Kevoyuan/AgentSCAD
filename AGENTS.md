@@ -27,6 +27,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 | Run one evidence case | `bun run cad:eval:case <id>` |
 | Parse last harness report as JSON | `bun run cad:eval:report` |
 | Run real deterministic WASM render benchmark | `bun run cad:eval:render` |
+| Verify a downloaded assembly ZIP (no LLM or renderer) | `bun run cad:assembly:verify path/to/assembly.zip` |
 | **UX baseline (states, acceptance, wait, cost, abandoned runs)** | `bun run ux:baseline [--stale-hours 2]` |
 | Clear metric columns after a definition change | `bun run metrics:reset` (dry run) · `bun run metrics:reset -- --yes` (applies) |
 
