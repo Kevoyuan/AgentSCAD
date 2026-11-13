@@ -239,6 +239,12 @@ joint kinematics, interference, manufacturing fit, tools, strength or physical
 function. The reference source and its origin must be independently trusted;
 matching a reference derived from the ZIP itself is circular evidence.
 
+## Functional assembly roadmap and measured evidence UI
+
+The ordered, evidence-gated task breakdown is [`ASSEMBLY_EXECUTION_BACKLOG.md`](./ASSEMBLY_EXECUTION_BACKLOG.md) (A01–A14). The UI's **Run assembly geometry checks** button calls `GET /api/jobs/{id}/assembly/evidence?sourceSha256=<64hex>&specSha256=<64hex>` only on user demand. The authenticated route takes the same execution lease as the ZIP export; it renders original generated parts, runs the declared sampled disassembly check, checks the job/source/spec and confirmed requirement contract again, and returns a bounded JSON report. No LLM call or background polling is involved.
+
+The response carries source/spec/archive hashes, `evidence` statuses and reasons, contract confirmation, raw/gated disassembly results, sampled pose counts/steps, first blocking instance and optional fit measurements. **No result is persisted in A01**, and no `accepted`, `validated`, or `exported` outcome is recorded. On confirmation or source changes the user must run the check again; A02 explicitly covers durable snapshots and invalidation. A printed `PASS` only applies to its exact sampled method, artifact versions and requirements; a raw PASS under an unconfirmed contract is exposed but not promoted. No browser preview, simulation or physical test is silently inferred.
+
 ## Assembly layout export in the UI (M2)
 
 The Assembly panel now offers **Download assembly layout (STL)** alongside
