@@ -360,6 +360,36 @@ fs.writeFileSync(out, buffer);
     expect(item.snapshot).toBeNull();
   });
 
+  test("saved evidence history pages without losing or cross-reading job-scoped rows", async () => {
+    const { job, sourceHash, specHash: contractHash } = await create();
+    const saved = await POST_SNAPSHOT(admin(url(sourceHash, contractHash), "POST"), context(job.id));
+    expect(saved.status).toBe(201);
+    const first = await saved.json();
+    for (let i = 0; i < 2; i++) {
+      await db.jobVersion.create({
+        data: {
+          id: "synthetic-evidence:" + job.id + ":" + i, jobId: job.id, field: ASSEMBLY_EVIDENCE_FIELD,
+          newValue: JSON.stringify(first.snapshot), changedBy: "system",
+          createdAt: new Date("2026-11-13T12:00:0" + i + ".000Z"),
+        },
+      });
+    }
+    const query = url(sourceHash, contractHash) + "&limit=1";
+    const page1 = await GET_SNAPSHOTS(admin(query), context(job.id));
+    expect(page1.status).toBe(200);
+    const result1 = await page1.json();
+    expect(result1.snapshots).toHaveLength(1);
+    expect(result1.nextCursor).toBeTruthy();
+    const page2 = await GET_SNAPSHOTS(admin(query + "&cursor=" + encodeURIComponent(result1.nextCursor)), context(job.id));
+    expect(page2.status).toBe(200);
+    const result2 = await page2.json();
+    expect(result2.snapshots).toHaveLength(1);
+    expect(result2.snapshots[0].id).not.toBe(result1.snapshots[0].id);
+    const otherJob = await create();
+    const outside = await GET_SNAPSHOTS(admin(query + "&cursor=assembly-evidence:" + otherJob.job.id), context(job.id));
+    expect(outside.status).toBe(400);
+  });
+
   test("a real removal path is exported as a gated verdict instead of a raw pass", async () => {
     const lift = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 2.5, 0, 0, 0, 1];
     const end = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 22.5, 0, 0, 0, 1];
