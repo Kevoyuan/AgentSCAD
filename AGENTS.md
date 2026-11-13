@@ -37,6 +37,13 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 Use [`docs/ASSEMBLY_EXECUTION_BACKLOG.md`](docs/ASSEMBLY_EXECUTION_BACKLOG.md) as the ordered A01–A14 execution ledger. Do not equate source completion with mechanical validation; update the ledger after CI and evidence checkpoints. The on-demand assembly inspection route is `/api/jobs/{id}/assembly/evidence` (source/spec hashes required), triggered only from the Assembly panel. It renders and measures; do not add it to background polling or implicitly mark the job accepted. The read-only result contains both current contract-gated verdicts and unapproved raw measured statuses.
 
+
+## Independent sampled feature topology (A04.2)
+
+Actual STL fit checks now include `observeSectionFeatureRole`: for 2–16 sampled axial planes, it verifies closed degree-two cut contours and 29 radial ray crossings, reporting locally observed shaft-like solid (one enclosure), bore-like void (two enclosures), or NOT_RUN (open/non-manifold cuts, nested decoys, inconsistent stations, ambiguous seeds). The observed role is **not** derived from part names or declared role, but the candidate axis and centre still come from a declaration/measurement and are not independently bound to the user's intended feature. Never equate sampled solid/void identity with full-part manifold topology, through-hole continuity, calibration, physical fit or user acceptance.
+
+A measured numeric candidate clearance may PASS while the observed bore is solid; `prepareAssembly` now refuses to promote such a fit to assembly PASS (final NOT_RUN, with raw numeric values retained). Preserve legitimate outside-band FAIL measurements. The checker semantics changed; `ASSEMBLY_EVIDENCE_CHECKER_VERSION` is v2, and old snapshots must be historical. A04 remains incomplete until independently calibrated feature/axis association and uncertainty bounds exist.
+
 ## Candidate contract-bound fit checking
 
 `resolveContractFitRequirements` binds an explicitly asserted, required mm diametral clearance to exactly one named revolute joint/bore in the frozen contract. `prepareAssembly` evaluates candidate geometry from rendered part meshes; `manifest.fitBinding`, `fits[*].measuredStatus` and clearance numbers are diagnostic evidence, but `fits[*].status` and `evidence.assembly.status` remain NOT_RUN without independent target-feature identification/calibration. **Never infer bore vs shaft from the larger diameter**, silently pick the first of multiple joints, or label candidate fit as manufacturing/function PASS. Parent A04 is not complete until calibrated identity/uncertainty and negative decoys are proven.
