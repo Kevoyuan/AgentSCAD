@@ -57,7 +57,7 @@ test("source, specification, confirmation revision and non-delivered state inval
   expect(evidenceSnapshotStanding(stored, context(req({ revision: 2 }))).reasons).toContain("Requirement confirmation changed");
   expect(evidenceSnapshotStanding(stored, context(req({ confirmedAt: "2026-11-13T12:04:00.000Z" }))).bindingCurrent).toBe(false);
   expect(evidenceSnapshotStanding(stored, { ...context(), isDelivered: false }).reasons).toContain("Job is not currently delivered");
-  expect(evidenceSnapshotStanding(stored, { ...context(), checkerVersion: "assembly-evidence/v5" }).reasons).toContain("Evidence checker version changed");
+  expect(evidenceSnapshotStanding(stored, { ...context(), checkerVersion: "assembly-evidence/v6" }).reasons).toContain("Evidence checker version changed");
 });
 
 test("old checker versions remain inspectable but cannot count as current", () => {

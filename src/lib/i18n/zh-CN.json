@@ -1114,5 +1114,13 @@
   "Sampled station": "采样位置",
   "Center offset": "中心偏移",
   "Remaining margin": "剩余净空",
-  "Local sampled clearance is not a continuous sweep, calibrated tolerance, or proof of physical assembly.": "局部采样净空不等于连续扫掠验证、已校准的公差或实物装配证明。"
+  "Local sampled clearance is not a continuous sweep, calibrated tolerance, or proof of physical assembly.": "局部采样净空不等于连续扫掠验证、已校准的公差或实物装配证明。",
+  "Replay sampled collision pose": "重放采样碰撞位姿",
+  "These matrices describe the measured assembly scene, not the current single-STL viewport.": "这些矩阵属于实际测量的装配场景，并不对应当前仅显示单个 STL 的视图。",
+  "Coordinate convention": "坐标约定",
+  "Moving mesh SHA-256": "运动零件网格 SHA-256",
+  "Obstacle mesh SHA-256": "阻挡零件网格 SHA-256",
+  "Moving mesh world transform": "运动零件的世界坐标变换",
+  "Obstacle mesh world transform": "阻挡零件的世界坐标变换",
+  "Replay requires the matching verified part STL artifacts and source/specification hashes. These sampled poses do not prove continuous motion.": "重放必须使用匹配且通过哈希核对的零件 STL、源码和装配规格。离散采样位姿不能证明连续运动。"
 }

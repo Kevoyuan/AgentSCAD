@@ -162,6 +162,31 @@ function saveBlob(blob: Blob, filename: string) {
   }
 }
 
+type CollisionReplayFrame = {
+  frame: string
+  movingWorldFromLocal: number[]
+  obstacleWorldFromLocal: number[]
+  movingMeshSha256: string
+  obstacleMeshSha256: string
+}
+
+/** Original validated poses, not camera positions or guessed contact coordinates. */
+export function CollisionReplayDetails({ replay }: { replay: CollisionReplayFrame }) {
+  const { t } = useI18n()
+  return <details className="mt-1 rounded border border-[color:var(--shell-hairline)] p-2 text-[var(--shell-text-label)]">
+    <summary className="cursor-pointer">{t('Replay sampled collision pose')}</summary>
+    <p className="mt-1">{t('These matrices describe the measured assembly scene, not the current single-STL viewport.')}</p>
+    <p>{t('Coordinate convention')}: {replay.frame}</p>
+    <p>{t('Moving mesh SHA-256')}: <code className="break-all">{replay.movingMeshSha256}</code></p>
+    <p>{t('Obstacle mesh SHA-256')}: <code className="break-all">{replay.obstacleMeshSha256}</code></p>
+    <p className="mt-1">{t('Moving mesh world transform')}</p>
+    <pre className="overflow-x-auto whitespace-pre-wrap break-all font-mono text-[10px]">{JSON.stringify(replay.movingWorldFromLocal, null, 2)}</pre>
+    <p className="mt-1">{t('Obstacle mesh world transform')}</p>
+    <pre className="overflow-x-auto whitespace-pre-wrap break-all font-mono text-[10px]">{JSON.stringify(replay.obstacleWorldFromLocal, null, 2)}</pre>
+    <p className="mt-1">{t('Replay requires the matching verified part STL artifacts and source/specification hashes. These sampled poses do not prove continuous motion.')}</p>
+  </details>
+}
+
 /** An intent contract is not evidence that the geometry implements it. */
 export function AssemblyDetails({ data, jobId, canExport = false }: { data: AssemblyResponse; jobId?: string; canExport?: boolean }) {
   const { t } = useI18n()
@@ -339,11 +364,13 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
                   {op.path.blockedAt.trianglePair && <p>{t('Intersecting triangle IDs')}: {op.path.blockedAt.trianglePair.movingTriangleIndex} / {op.path.blockedAt.trianglePair.obstacleTriangleIndex}</p>}
                   {op.path.blockedAt.witnessCentroidPointMm && <p>{t('Approximate triangle-centroid witness (mm)')}: {op.path.blockedAt.witnessCentroidPointMm.map(x => x.toFixed(3)).join(', ')}</p>}
                   <p>{t('The witness is not an exact contact point or penetration measurement.')}</p>
+                  {op.path.blockedAt.replayFrame && <CollisionReplayDetails replay={op.path.blockedAt.replayFrame} />}
                 </div>}
                 {op.path?.undecidedAt && <div className="text-[var(--shell-fail)]">
                   <p>{t('Undecided pose')}: {op.path.undecidedAt.poseIndex}; {t('Blocking instance')}: {op.path.undecidedAt.obstacleId} ({op.path.undecidedAt.collision})</p>
                   <p>{t('Triangle pairs evaluated')}: {op.path.undecidedAt.testedPairs}; {t('Collision budget exhausted')}: {op.path.undecidedAt.budgetExhausted ? t('Yes') : t('No')}</p>
                   <p>{op.path.undecidedAt.reason}</p>
+                  {op.path.undecidedAt.replayFrame && <CollisionReplayDetails replay={op.path.undecidedAt.replayFrame} />}
                 </div>}
               </li>)}
             </ol>

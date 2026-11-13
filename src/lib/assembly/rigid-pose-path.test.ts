@@ -1,4 +1,7 @@
 import { expect, test } from "bun:test";
+import { createHash } from "node:crypto";
+import { meshesIntersect } from "../geometry/mesh-collision";
+import { readBinaryStl } from "../geometry/stl-mesh";
 import { boxStl, mergeStl, tubeStl } from "../geometry/__tests__/solids";
 import { checkRigidPosePath } from "./rigid-pose-path";
 import { translationMatrix, rotationAboutAxis } from "./path-and-motion";
@@ -16,6 +19,14 @@ test("an intermediate collision blocks a path with a clear endpoint",()=>{
   expect(result.blockedAt.trianglePair?.obstacleTriangleIndex).toBeGreaterThanOrEqual(0);
   expect(result.blockedAt.witnessCentroidPointMm?.length).toBe(3);
   expect(result.blockedAt.witnessCentroidPointMm?.every(Number.isFinite)).toBe(true);
+  const actual = result.blockedAt.replayFrame;
+  expect(actual.frame).toBe("right-handed-mm-row-major-4x4/v1");
+  expect(Array.from(actual.movingWorldFromLocal)).toEqual(Array.from(result.poses[result.blockedAt.poseIndex]));
+  expect(Array.from(actual.obstacleWorldFromLocal)).toEqual(Array.from(translationMatrix([0,0,0])));
+  expect(actual.movingMeshSha256).toBe(createHash("sha256").update(base.moving).digest("hex"));
+  expect(actual.obstacleMeshSha256).toBe(createHash("sha256").update(base.obstacles.wall).digest("hex"));
+  const replayed = meshesIntersect(readBinaryStl(base.moving),actual.movingWorldFromLocal,readBinaryStl(base.obstacles.wall),actual.obstacleWorldFromLocal);
+  expect(replayed.status).toBe(result.blockedAt.collision);
 });
 test("a conservative UNKNOWN identifies the exact obstacle and pose instead of reporting clearance", () => {
   const moving = mergeStl(
@@ -38,9 +49,26 @@ test("a conservative UNKNOWN identifies the exact obstacle and pose instead of r
   expect(result.undecidedAt.poseIndex).toBe(0);
   expect(result.undecidedAt.collision).toBe("UNKNOWN");
   expect(result.undecidedAt.reason).toBeTruthy();
+  const frame = result.undecidedAt.replayFrame;
+  expect(Array.from(frame.movingWorldFromLocal)).toEqual(Array.from(result.poses[result.undecidedAt.poseIndex]));
+  expect(Array.from(frame.obstacleWorldFromLocal)).toEqual(Array.from(translationMatrix([0,0,0])));
+  const replayed = meshesIntersect(readBinaryStl(moving),frame.movingWorldFromLocal,readBinaryStl(fixed),frame.obstacleWorldFromLocal);
+  expect(replayed.status).toBe("UNKNOWN");
   expect(result.testedTrianglePairs).toBeGreaterThanOrEqual(0);
 });
 
+test("a translated obstacle preserves its real world pose for independent collision replay", () => {
+  const obstaclePose = translationMatrix([5, 0, 0]);
+  const poses = Array.from({ length: 7 }, (_, i) => translationMatrix([5 + i / 2, 0, 0]));
+  const result = checkRigidPosePath({ ...base, poses, obstacleTransforms: { wall: obstaclePose } });
+  expect(result.status).toBe("FAIL");
+  if (!("blockedAt" in result)) throw new Error("Expected blocked pose");
+  expect(result.blockedAt.poseIndex).toBeGreaterThan(0);
+  expect(Array.from(result.blockedAt.replayFrame.obstacleWorldFromLocal)).toEqual(Array.from(obstaclePose));
+  expect(Array.from(result.blockedAt.replayFrame.movingWorldFromLocal)).toEqual(Array.from(poses[result.blockedAt.poseIndex]));
+  const repeated = meshesIntersect(readBinaryStl(base.moving), result.blockedAt.replayFrame.movingWorldFromLocal, readBinaryStl(base.obstacles.wall), result.blockedAt.replayFrame.obstacleWorldFromLocal);
+  expect(repeated.status).toBe(result.blockedAt.collision);
+});
 test("skipped samples, static paths and nonrigid poses cannot pass",()=>{
   const identity=translationMatrix([0,0,0]);
   expect(()=>checkRigidPosePath({...base,poses:[identity,translationMatrix([4,0,0])]})).toThrow("gap");
