@@ -335,9 +335,19 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
               </li>)}
             </ol>
           </details>
+          {report.fitBinding && <section className="mt-2" aria-label={t('Contract fit binding')}>
+            <p className="font-medium">{t('Contract fit binding')}: {report.fitBinding.status} · {t('Feature identity')}: {report.fitBinding.featureIdentityStatus}</p>
+            <p className="text-[var(--shell-text-label)]">{report.fitBinding.reason}</p>
+            <p className="text-[var(--shell-text-label)]">{t('A declared bore/shaft role is not independently verified. Candidate dimensions are diagnostic only, never final fit approval.')}</p>
+          </section>}
           {report.fits.length > 0 && <details className="mt-2">
             <summary>{t('Fit measurements')}</summary>
-            <ul>{report.fits.map(fit => <li key={fit.connectionId}>{fit.connectionId}: {fit.status} ({t('Raw measurement')}: {fit.measuredStatus}) · {fit.reason}</li>)}</ul>
+            <ul className="space-y-2">{report.fits.map(fit => <li key={fit.connectionId}>
+              <strong>{fit.connectionId}: {fit.status} ({t('Raw measurement')}: {fit.measuredStatus})</strong>
+              <p>{fit.reason}</p>
+              {fit.diametralClearanceMm && <p className="text-[var(--shell-text-label)]">{t('Candidate diametral clearance')}: {fit.diametralClearanceMm.min.toFixed(3)}–{fit.diametralClearanceMm.max.toFixed(3)} mm</p>}
+              {fit.axisOffsetMm !== null && <p className="text-[var(--shell-text-label)]">{t('Candidate axis offset')}: {fit.axisOffsetMm.toFixed(3)} mm</p>}
+            </li>)}</ul>
           </details>}
           <p className="mt-2 text-[var(--shell-text-label)]">{t('Sampled poses do not prove continuous clearance, tool access, manufacturability or physical function.')}</p>
         </section>}

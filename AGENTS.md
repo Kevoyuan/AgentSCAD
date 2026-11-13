@@ -37,6 +37,10 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 Use [`docs/ASSEMBLY_EXECUTION_BACKLOG.md`](docs/ASSEMBLY_EXECUTION_BACKLOG.md) as the ordered A01–A14 execution ledger. Do not equate source completion with mechanical validation; update the ledger after CI and evidence checkpoints. The on-demand assembly inspection route is `/api/jobs/{id}/assembly/evidence` (source/spec hashes required), triggered only from the Assembly panel. It renders and measures; do not add it to background polling or implicitly mark the job accepted. The read-only result contains both current contract-gated verdicts and unapproved raw measured statuses.
 
+## Candidate contract-bound fit checking
+
+`resolveContractFitRequirements` binds an explicitly asserted, required mm diametral clearance to exactly one named revolute joint/bore in the frozen contract. `prepareAssembly` evaluates candidate geometry from rendered part meshes; `manifest.fitBinding`, `fits[*].measuredStatus` and clearance numbers are diagnostic evidence, but `fits[*].status` and `evidence.assembly.status` remain NOT_RUN without independent target-feature identification/calibration. **Never infer bore vs shaft from the larger diameter**, silently pick the first of multiple joints, or label candidate fit as manufacturing/function PASS. Parent A04 is not complete until calibrated identity/uncertainty and negative decoys are proven.
+
 ## Assembly evidence snapshot contract
 
 A01 is the explicitly invoked, ephemeral `GET /api/jobs/{id}/assembly/evidence` (no persistence). A02 stores a *new*, independently server-measured, digest-bound history entry via `POST /api/jobs/{id}/assembly/evidence/snapshots?sourceSha256=...&specSha256=...`; read history via `GET /api/jobs/{id}/assembly/evidence/snapshots?limit=10&cursor=...`. Never trust client-provided evidence verdicts or overwrite a stored record. The API holds the assembly export lease while re-rendering and writing.

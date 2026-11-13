@@ -8,6 +8,7 @@ import { checkKinematics } from "./path-and-motion";
 import { renderAssemblySpecParts, type RenderedAssemblyPart } from "../tools/assembly-part-renderer";
 import type { ScadExecutionOptions } from "../tools/scad-renderer";
 import { RequirementContractSchema, requirementContractHash } from "../requirements/requirement-contract";
+import { resolveContractFitRequirements } from "../requirements/contract-bridge";
 
 const sha256 = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
 type Rendered = { parts: RenderedAssemblyPart[]; purchasedPartIds: string[] };
@@ -124,17 +125,29 @@ export async function prepareAssembly(input: {
     : input.contractGate
     ? (input.contractGate.evidenceCurrent ? null : input.contractGate.reason?.trim() || "The requirement contract has not been confirmed against the current request, so its results cannot count.")
     : null;
-  const fits = (input.fitRequirements ?? []).map((requirement) => {
+  const fitBinding = input.fitRequirements === undefined && contract
+    ? resolveContractFitRequirements(contract, spec) : null;
+  const fits = (input.fitRequirements ?? fitBinding?.requirements ?? []).map((requirement) => {
     const measurement = measureRevoluteFit({
       spec, connectionId: requirement.connectionId, meshes,
       boreInstanceId: requirement.boreInstanceId, stationsMm: requirement.stationsMm,
     });
     const assessment = assessFit(measurement, requirement);
     const gated = applyContractGate(assessment.status, assessment.reason, gateReason);
+    // The requested bore/shaft role is declared, not independently identified.
+    // A candidate measurement (including a candidate FAIL) is useful for
+    // diagnostics but cannot certify the real interface without feature identity
+    // calibration. Explicit caller-provided fit checks remain unchanged.
+    const roleUnknown = fitBinding?.required === true && fitBinding.featureIdentityStatus === "NOT_RUN";
+    const standing = roleUnknown && (gated.status === "PASS" || gated.status === "FAIL")
+      ? "NOT_RUN" as const : gated.status;
+    const reason = standing === "NOT_RUN" && roleUnknown
+      ? gated.reason + " Candidate bore/shaft identity was taken from the declaration and is not independently verified."
+      : gated.reason;
     return {
       connectionId: requirement.connectionId,
-      status: gated.status,
-      reason: gated.reason,
+      status: standing,
+      reason,
       measuredStatus: assessment.status,
       stationsMm: measurement.stationsMm,
       diametralClearanceMm: measurement.clearanceMm,
@@ -180,9 +193,10 @@ export async function prepareAssembly(input: {
   const motionEvidence = kinematics
     ? applyContractGate(kinematics.motion.status as EvidenceStatus, kinematics.motion.reason, gateReason)
     : { status: "NOT_RUN" as EvidenceStatus, reason: "Motion was not checked." };
+  const unboundRequiredFit = fitBinding?.required === true && fitBinding.status === "NOT_RUN";
   const assemblyEvidence = combine(
-    [...fits.map((fit) => fit.status as EvidenceStatus), ...(kinematics ? [pathEvidence.status] : [])],
-    [...fits.map((fit) => `${fit.connectionId}: ${fit.reason}`), ...(kinematics ? [`path: ${pathEvidence.reason}`] : [])],
+    [...fits.map(fit => fit.status as EvidenceStatus), ...(unboundRequiredFit ? ["NOT_RUN" as const] : []), ...(kinematics ? [pathEvidence.status] : [])],
+    [...fits.map(fit => fit.connectionId + ": " + fit.reason), ...(unboundRequiredFit && fitBinding ? ["contract fit: " + fitBinding.reason] : []), ...(kinematics ? ["path: " + pathEvidence.reason] : [])],
     "Declared poses and connections were not checked against geometry.",
   );
   const identityEvidence = applyContractGate(identity.status as EvidenceStatus, identity.reason, gateReason);
@@ -200,6 +214,13 @@ export async function prepareAssembly(input: {
     instances: spec.instances.map((instance) => ({ ...instance })),
     subassemblies: spec.subassemblies.map((subassembly) => ({ ...subassembly })),
     fits,
+    fitBinding: fitBinding ? {
+      method: "contract-revolute-fit-binding/v1",
+      status: fitBinding.status,
+      required: fitBinding.required,
+      reason: fitBinding.reason,
+      featureIdentityStatus: fitBinding.featureIdentityStatus,
+    } : null,
     kinematics,
     declaredDisassembly: declaredDisassemblyRecord,
     /**
