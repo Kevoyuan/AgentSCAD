@@ -68,7 +68,7 @@ export function checkRigidPosePath(input: {
       testedTrianglePairs += collision.testedPairs;
       if(collision.status==="UNKNOWN")return {
         ...base,status:"NOT_RUN" as const,reason:collision.reason,posesEvaluated:i+1,testedTrianglePairs,
-        undecidedAt:{poseIndex:i,obstacleId:other.id,collision:collision.status,testedPairs:collision.testedPairs,budgetExhausted:collision.budgetExhausted,reason:collision.reason},
+        undecidedAt:{poseIndex:i,obstacleId:other.id,collision:collision.status,testedPairs:collision.testedPairs,budgetExhausted:collision.budgetExhausted,reason:collision.reason,
           replayFrame:{
             frame:"right-handed-mm-row-major-4x4/v1" as const,
             movingWorldFromLocal:poses[i],
@@ -76,6 +76,7 @@ export function checkRigidPosePath(input: {
             movingMeshSha256:base.movingSha256,
             obstacleMeshSha256:base.obstacles[other.id],
           },
+        },
       };
       if(collision.blocked)return {
         ...base,status:"FAIL" as const,reason:i===0?"Initial pose intersects":"A sampled path pose intersects",posesEvaluated:i+1,testedTrianglePairs,
