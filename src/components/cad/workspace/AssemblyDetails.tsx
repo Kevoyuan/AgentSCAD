@@ -105,6 +105,49 @@ export async function fetchAssemblyEvidence(jobId: string, sourceSha256: string,
   } catch { return { error: 'Assembly measurement could not be completed.' as const } }
 }
 
+type EvidenceSnapshotView = {
+  id: string
+  savedAt: string
+  integrity: 'PASS' | 'ERROR'
+  bindingCurrent: boolean
+  reasons: string[]
+  snapshot: { schemaVersion: 1; checkedAt: string; checkerVersion: string; snapshotSha256: string; report: AssemblyEvidenceReport } | null
+}
+
+export async function fetchAssemblyEvidenceHistory(jobId: string, request: Request = fetch, cursor?: string) {
+  try {
+    const base = '/api/jobs/' + encodeURIComponent(jobId) + '/assembly/evidence/snapshots'
+    const response = await request(base + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''), { credentials: 'include' })
+    if (!response.ok) return { error: 'Saved assembly evidence could not be loaded.' as const }
+    const data = await response.json() as { snapshots?: EvidenceSnapshotView[]; nextCursor?: string | null }
+    if (!Array.isArray(data.snapshots)) return { error: 'Saved assembly evidence could not be loaded.' as const }
+    return { snapshots: data.snapshots, nextCursor: typeof data.nextCursor === 'string' ? data.nextCursor : null }
+  } catch { return { error: 'Saved assembly evidence could not be loaded.' as const } }
+}
+
+export async function recordAssemblyEvidenceSnapshot(jobId: string, sourceSha256: string, specSha256: string, request: Request = fetch) {
+  if (!/^[a-f0-9]{64}$/.test(sourceSha256) || !/^[a-f0-9]{64}$/.test(specSha256)) {
+    return { error: 'The source is unavailable. Refresh the assembly information.' as const }
+  }
+  try {
+    const query = new URLSearchParams({ sourceSha256, specSha256 })
+    const response = await request('/api/jobs/' + encodeURIComponent(jobId) + '/assembly/evidence/snapshots?' + query, {
+      method: 'POST', credentials: 'include',
+    })
+    if (response.status === 409) return { error: 'The source or assembly changed. Refresh the assembly information before checking.' as const }
+    if (response.status === 422) return { error: 'Assembly parts are not independently selectable or have no generated meshes.' as const }
+    if (response.status !== 201) return { error: 'Assembly evidence snapshot could not be recorded.' as const }
+    const data = await response.json() as { id?: string; snapshot?: EvidenceSnapshotView['snapshot'] }
+    if (!data.snapshot || data.snapshot.schemaVersion !== 1 ||
+      data.snapshot.report.sourceSha256 !== sourceSha256 ||
+      data.snapshot.report.specificationSha256 !== specSha256 ||
+      !/^[a-f0-9]{64}$/.test(data.snapshot.snapshotSha256) || !data.id) {
+      return { error: 'Saved evidence does not match the requested assembly.' as const }
+    }
+    return { id: data.id }
+  } catch { return { error: 'Assembly evidence snapshot could not be recorded.' as const } }
+}
+
 function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
@@ -128,6 +171,11 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
   const [inspecting, setInspecting] = React.useState(false)
   const [inspection, setInspection] = React.useState<{ jobId: string; report: AssemblyEvidenceReport } | null>(null)
   const [inspectionError, setInspectionError] = React.useState('')
+  const [savingEvidence, setSavingEvidence] = React.useState(false)
+  const [historyLoading, setHistoryLoading] = React.useState(false)
+  const [historyError, setHistoryError] = React.useState('')
+  const [historyMessage, setHistoryMessage] = React.useState('')
+  const [savedHistory, setSavedHistory] = React.useState<{ jobId: string; sourceSha256: string; specSha256: string; snapshots: EvidenceSnapshotView[]; nextCursor: string | null } | null>(null)
   const [downloadError, setDownloadError] = React.useState('')
   if (data.spec === null) return data.embeddedStatus === 'invalid' ? <p role="alert" className="py-2 text-xs text-[var(--shell-fail)]">{t('The generated assembly description could not be read. It is not verified.')}</p> : null
   const parsed = validateAssemblySpec(data.spec)
@@ -190,6 +238,48 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
     inspection.report.sourceSha256 === data.sourceSha256 &&
     inspection.report.specificationSha256 === data.specSha256
       ? inspection.report : null
+  const loadHistory = async () => {
+    if (!jobId || !canDownload || !data.sourceSha256 || !data.specSha256) return
+    setHistoryLoading(true)
+    setHistoryError('')
+    const result = await fetchAssemblyEvidenceHistory(jobId)
+    if (result.error) setHistoryError(result.error)
+    else if (result.snapshots) setSavedHistory({ jobId, sourceSha256: data.sourceSha256, specSha256: data.specSha256, snapshots: result.snapshots, nextCursor: result.nextCursor ?? null })
+    setHistoryLoading(false)
+  }
+  const saveEvidence = async () => {
+    if (!jobId || !canDownload || !data.sourceSha256 || !data.specSha256) return
+    setSavingEvidence(true)
+    setHistoryError('')
+    setHistoryMessage('')
+    const result = await recordAssemblyEvidenceSnapshot(jobId, data.sourceSha256, data.specSha256)
+    if (result.error) setHistoryError(result.error)
+    else {
+      setHistoryMessage('Evidence was re-measured and recorded in immutable history.')
+      const saved = await fetchAssemblyEvidenceHistory(jobId)
+      if (saved.snapshots) setSavedHistory({ jobId, sourceSha256: data.sourceSha256, specSha256: data.specSha256, snapshots: saved.snapshots, nextCursor: saved.nextCursor ?? null })
+      else if (saved.error) setHistoryError(saved.error)
+    }
+    setSavingEvidence(false)
+  }
+  const loadOlderHistory = async () => {
+    if (!jobId || !savedHistory?.nextCursor || historyLoading || !canDownload) return
+    setHistoryLoading(true)
+    setHistoryError('')
+    const result = await fetchAssemblyEvidenceHistory(jobId, fetch, savedHistory.nextCursor)
+    if (result.error) setHistoryError(result.error)
+    else if (result.snapshots) {
+      setSavedHistory(previous => previous && previous.jobId === jobId && previous.sourceSha256 === data.sourceSha256 &&
+        previous.specSha256 === data.specSha256
+          ? { ...previous, snapshots: [...previous.snapshots, ...result.snapshots!], nextCursor: result.nextCursor ?? null }
+          : previous)
+    }
+    setHistoryLoading(false)
+  }
+  const history = savedHistory !== null && savedHistory.jobId === jobId &&
+    savedHistory.sourceSha256 === data.sourceSha256 &&
+    savedHistory.specSha256 === data.specSha256 && !data.stale
+      ? savedHistory.snapshots : null
   const generatedParts = spec.parts.filter(part => part.source === 'generated')
   const hasPurchasedInstances = spec.instances.some(instance => spec.parts.some(part => part.id === instance.partId && part.source === 'purchased'))
   return (
@@ -250,6 +340,30 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
             <ul>{report.fits.map(fit => <li key={fit.connectionId}>{fit.connectionId}: {fit.status} ({t('Raw measurement')}: {fit.measuredStatus}) · {fit.reason}</li>)}</ul>
           </details>}
           <p className="mt-2 text-[var(--shell-text-label)]">{t('Sampled poses do not prove continuous clearance, tool access, manufacturability or physical function.')}</p>
+        </section>}
+      </div>}
+      {canDownload && generatedParts.length > 0 && <div className="mt-3 border-t border-[color:var(--shell-hairline)] pt-2">
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={savingEvidence || inspecting || historyLoading || bundling || layingOut || downloading !== null} onClick={() => void saveEvidence()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{savingEvidence ? t('Recording measurement…') : t('Save new evidence snapshot')}</button>
+          <button type="button" disabled={savingEvidence || historyLoading} onClick={() => void loadHistory()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{historyLoading ? t('Loading history…') : t('View saved evidence')}</button>
+        </div>
+        <p className="mt-1 text-[var(--shell-text-label)]">{t('Saving re-runs the measurements on the server. A snapshot is historical when source, specification, requirement confirmation or checker version changes.')}</p>
+        {historyMessage && <p role="status" className="mt-1 text-[var(--shell-text-label)]">{t(historyMessage)}</p>}
+        {historyError && <p role="alert" className="mt-1 text-[var(--shell-fail)]">{t(historyError)}</p>}
+        {history && <section className="mt-2" aria-label={t('Saved evidence history')}>
+          {history.length === 0 ? <p>{t('No evidence snapshots recorded yet.')}</p>
+          : <ol className="space-y-2">{history.map(item => <li key={item.id} className="rounded border border-[color:var(--shell-hairline)] p-2">
+              <p>{new Date(item.savedAt).toLocaleString()} · {item.integrity !== 'PASS' ? t('Corrupt evidence record') : item.bindingCurrent ? t('Matches current versions') : t('Historical only — NOT current')}</p>
+              {item.reasons.length > 0 && <p className="text-[var(--shell-fail)]">{item.reasons.join('; ')}</p>}
+              {item.snapshot && <>
+                <p className="font-mono text-[var(--shell-text-label)]">{item.snapshot.snapshotSha256.slice(0, 16)}</p>
+                <p>{t('Disassembly standing')}: {item.bindingCurrent ? item.snapshot.report.evidence.disassembly.status : 'NOT_RUN'} {item.bindingCurrent ? '' : '(' + t('Historical result; not current') + ')'}</p>
+                <p>{t('Raw measurement')}: {item.snapshot.report.disassembly.measuredStatus} · {t('Requirement contract')}: {item.snapshot.report.contract.evidenceCurrent ? t('Confirmed') : t('Unconfirmed or stale')}</p>
+                <button type="button" className="mt-1 rounded border border-[color:var(--shell-hairline)] px-2 py-1" onClick={() => saveBlob(new Blob([JSON.stringify(item, null, 2)], { type: 'application/json' }), 'agentscad-evidence-' + item.snapshot!.snapshotSha256.slice(0, 12) + '.json')}>{t('Download evidence JSON')}</button>
+              </>}
+            </li>)}</ol>}
+          {savedHistory?.nextCursor && <button type="button" disabled={historyLoading} onClick={() => void loadOlderHistory()} className="mt-2 rounded border border-[color:var(--shell-hairline)] px-2 py-1">{t('Load older evidence')}</button>}
+          <p className="mt-2 text-[var(--shell-text-label)]">{t('Saved hashes detect changes but do not authenticate source or prove physical function. Refresh this history after edits.')}</p>
         </section>}
       </div>}
       <details className="mt-2">
