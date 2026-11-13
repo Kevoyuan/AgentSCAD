@@ -28,15 +28,15 @@ describe("independent sampled section role", () => {
     expect(observed.stationsChecked).toBe(3);
   });
 
-  test("solid within a tube is an ambiguous three-contour decoy, not a verified bore", () => {
+  test("a nested solid insert changes a claimed bore into an observed solid rather than false bore PASS", () => {
     const merged = mergeStl(
       tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 10, segments: 64 }),
       prismStl({ radius: 1, height: 10, segments: 64 }),
     );
     const observed = sample(merged);
-    expect(observed.status).toBe("NOT_RUN");
-    expect(observed.observedRole).toBeNull();
-    expect(observed.reason).toContain("does not consistently");
+    expect(observed.status).toBe("OBSERVED");
+    expect(observed.observedRole).toBe("shaft");
+    expect(observed.crossingsPerRay).toBe(3);
   });
 
   test("a centre outside the profile is not misidentified as a shaft or a bore", () => {
