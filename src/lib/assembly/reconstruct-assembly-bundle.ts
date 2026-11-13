@@ -145,7 +145,8 @@ export function reconstructAssemblyBundle(input: {
         local: stl, posed: input.referenceStl,
         transform: IDENTITY, toleranceMm: input.toleranceMm,
       });
-      reference.status = result.status;
+      reference.status = result.status === "PASS" || result.status === "FAIL" || result.status === "NOT_RUN"
+        ? result.status : "ERROR";
       reference.reason = result.reason;
       reference.method = result.method;
       if ("bboxErrorMm" in result) reference.bboxErrorMm = result.bboxErrorMm;
