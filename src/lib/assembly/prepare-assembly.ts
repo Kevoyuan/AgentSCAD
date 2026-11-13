@@ -139,10 +139,27 @@ export async function prepareAssembly(input: {
     // diagnostics but cannot certify the real interface without feature identity
     // calibration. Explicit caller-provided fit checks remain unchanged.
     const roleUnknown = fitBinding?.required === true && fitBinding.featureIdentityStatus === "NOT_RUN";
+    // A confident-looking diameter is never approval when the *actual* section
+    // is solid where a bore was declared, or cannot be independently classified.
+    // Preserve the numeric raw measurement; do not erase a known outside-band
+    // failure in explicit caller-supplied requirements.
+    const boreObserved = measurement.bore?.roleCheck;
+    const shaftObserved = measurement.shaft?.roleCheck;
+    const sectionUnresolved = !boreObserved || !shaftObserved ||
+      boreObserved.status !== "OBSERVED" || shaftObserved.status !== "OBSERVED";
+    const sectionMismatch = boreObserved?.observedRole === "shaft" ||
+      shaftObserved?.observedRole === "bore";
     const standing = roleUnknown && (gated.status === "PASS" || gated.status === "FAIL")
-      ? "NOT_RUN" as const : gated.status;
-    const reason = standing === "NOT_RUN" && roleUnknown
-      ? gated.reason + " Candidate bore/shaft identity was taken from the declaration and is not independently verified."
+      ? "NOT_RUN" as const
+      : gated.status === "PASS" && (sectionUnresolved || sectionMismatch) ? "NOT_RUN" as const : gated.status;
+    const roleReason = roleUnknown
+      ? " Candidate bore/shaft identity was taken from the declaration and is not independently verified."
+      : "";
+    const sectionReason = sectionMismatch
+      ? " The actual sampled section contradicts its declared bore/shaft role."
+      : sectionUnresolved ? " The sampled section topology could not establish local bore/shaft roles." : "";
+    const reason = standing === "NOT_RUN"
+      ? gated.reason + roleReason + sectionReason
       : gated.reason;
     return {
       connectionId: requirement.connectionId,
@@ -156,6 +173,8 @@ export async function prepareAssembly(input: {
       axisOffsetMm: measurement.axis?.offsetMm ?? null,
       axisAngleDeg: measurement.axis?.angleDeg ?? null,
       seedOffsetMm: measurement.bore?.seedOffsetMm ?? null,
+      boreRoleCheck: measurement.bore?.roleCheck ?? null,
+      shaftRoleCheck: measurement.shaft?.roleCheck ?? null,
       unknowns: measurement.unknowns,
     };
   });

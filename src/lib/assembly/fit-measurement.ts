@@ -8,6 +8,7 @@
  */
 import { validateAssemblySpec } from "./assembly-spec";
 import { measureCylindricalFeature, type CylindricalFeatureMeasurement } from "../geometry/cylindrical-feature";
+import { observeSectionFeatureRole, type SectionRoleEvidence } from "../geometry/section-feature-role";
 import { extentAlongAxis, normalize, readBinaryStl, type Vec3 } from "../geometry/stl-mesh";
 
 export interface FitSide {
@@ -15,6 +16,8 @@ export interface FitSide {
   partId: string;
   role: "bore" | "shaft";
   measurement: CylindricalFeatureMeasurement;
+  /** Independently observed local cross-section role; not proof of intended feature identity. */
+  roleCheck: SectionRoleEvidence | null;
   /** Measured axis in assembly coordinates. */
   axisInAssembly: { point: Vec3; direction: Vec3 } | null;
   /** Largest distance between the declared axis and the measured feature centre. */
@@ -83,7 +86,7 @@ export function measureRevoluteFit(input: {
   maxRadiusMm?: number;
 }): RevoluteFitMeasurement {
   const unknowns = [
-    "The feature role is declared by the caller, not measured from the mesh.",
+    "The intended feature is declared by the caller; sampled section topology now independently observes solid vs void near its candidate axis, but feature intent and calibration remain unknown.",
     "Only the sampled axial stations are measured; other stations are not covered.",
     "Radial clearance is measured, not assembly, motion or physical function.",
   ];
@@ -155,6 +158,9 @@ export function measureRevoluteFit(input: {
 
   const measure = (side: typeof instanceA, partId: string, stl: Buffer, frame: { origin: Vec3; direction: Vec3 }, role: "bore" | "shaft", localStations: number[]): FitSide => {
     const measurement = measureCylindricalFeature({ stl, axis: frame, role, stationsMm: localStations, rays: input.rays, maxRadiusMm: input.maxRadiusMm });
+    const roleCheck = measurement.status === "MEASURED"
+      ? observeSectionFeatureRole({ stl, axis: frame, stationsMm: localStations, centers: measurement.stations.map(station => station.center) })
+      : null;
     let axisInAssembly: { point: Vec3; direction: Vec3 } | null = null;
     let seedOffsetMm: number | null = null;
     if (measurement.status === "MEASURED" && measurement.axis) {
@@ -164,7 +170,7 @@ export function measureRevoluteFit(input: {
       };
       seedOffsetMm = Math.max(...measurement.stations.map((station) => Math.hypot(station.center[0], station.center[1])));
     }
-    return { instanceId: side.id, partId, role, measurement, axisInAssembly, seedOffsetMm };
+    return { instanceId: side.id, partId, role, measurement, roleCheck, axisInAssembly, seedOffsetMm };
   };
 
   const boreInstance = input.boreInstanceId === instanceA.id ? instanceA : instanceB;

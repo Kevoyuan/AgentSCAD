@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { prismStl } from "../geometry/__tests__/prism";
+import { tubeStl, mergeStl } from "../geometry/__tests__/solids";
 import { assessFit, measureRevoluteFit } from "./fit-measurement";
 
 const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
@@ -45,6 +46,43 @@ describe("revolute fit measurement", () => {
     expect(result.axis!.offsetMm).toBeLessThan(1e-3);
     expect(result.axis!.angleDeg).toBeLessThan(1e-3);
     expect(result.bore!.seedOffsetMm).toBeLessThan(1e-3);
+  });
+
+  test("independent section structure reveals that a declared bore was actually solid", () => {
+    const checked = measureRevoluteFit({ spec: spec(), connectionId: "joint", meshes, boreInstanceId: "bore-instance" });
+    expect(checked.status).toBe("MEASURED");
+    expect(checked.bore?.roleCheck?.status).toBe("OBSERVED");
+    expect(checked.bore?.roleCheck?.observedRole).toBe("shaft");
+    expect(checked.shaft?.roleCheck?.observedRole).toBe("shaft");
+    // Numeric clearance alone must never be described as proof of a bore.
+    expect(checked.clearanceMm?.min).toBeGreaterThan(0);
+  });
+
+  test("sampled closed annular bore and solid pin are observed from STL, not declared names", () => {
+    const actual = {
+      bore: tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 10, segments: 64 }),
+      shaft: prismStl({ radius: 3, height: 12, z0: -1, segments: 64 }),
+    };
+    const checked = measureRevoluteFit({ spec: spec(), connectionId: "joint", meshes: actual, boreInstanceId: "bore-instance" });
+    expect(checked.status).toBe("MEASURED");
+    expect(checked.bore?.roleCheck?.status).toBe("OBSERVED");
+    expect(checked.bore?.roleCheck?.observedRole).toBe("bore");
+    expect(checked.shaft?.roleCheck?.status).toBe("OBSERVED");
+    expect(checked.shaft?.roleCheck?.observedRole).toBe("shaft");
+    expect(checked.clearanceMm?.min).toBeCloseTo(2 * inradius(3.2, 64) - 6, 4);
+  });
+
+  test("nested-shell decoy never obtains an observed bore role", () => {
+    const actual = {
+      bore: mergeStl(
+        tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 10, segments: 64 }),
+        prismStl({ radius: 1, height: 10, segments: 64 }),
+      ),
+      shaft: meshes.shaft,
+    };
+    const checked = measureRevoluteFit({ spec: spec(), connectionId: "joint", meshes: actual, boreInstanceId: "bore-instance" });
+    // A regular-looking inner surface alone is not enough to trust a bore.
+    expect(checked.bore?.roleCheck?.status === "OBSERVED" && checked.bore?.roleCheck?.observedRole === "bore").toBe(false);
   });
 
   test("a frozen band that the geometry does not meet fails, and a wider documented band passes", () => {

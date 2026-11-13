@@ -4,6 +4,7 @@ import { deriveRequirementContract } from "./extract-requirements";
 import { toEvidenceRequirements, toFitRequirements, resolveContractFitRequirements } from "./contract-bridge";
 import { prepareAssembly } from "../assembly/prepare-assembly";
 import { prismStl } from "../geometry/__tests__/prism";
+import { tubeStl } from "../geometry/__tests__/solids";
 
 const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const axis = { origin: [0, 0, 0], direction: [0, 0, 1] };
@@ -83,7 +84,7 @@ describe("contract to fit requirement", () => {
 describe("request to measured evidence", () => {
   const render = async () => {
     const meshes = {
-      bore: prismStl({ radius: 3.2, height: 10, segments: 64 }),
+      bore: tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 10, segments: 64 }),
       shaft: prismStl({ radius: 3, height: 12, segments: 64, z0: -1 }),
     };
     return {

@@ -57,13 +57,13 @@ test("source, specification, confirmation revision and non-delivered state inval
   expect(evidenceSnapshotStanding(stored, context(req({ revision: 2 }))).reasons).toContain("Requirement confirmation changed");
   expect(evidenceSnapshotStanding(stored, context(req({ confirmedAt: "2026-11-13T12:04:00.000Z" }))).bindingCurrent).toBe(false);
   expect(evidenceSnapshotStanding(stored, { ...context(), isDelivered: false }).reasons).toContain("Job is not currently delivered");
-  expect(evidenceSnapshotStanding(stored, { ...context(), checkerVersion: "assembly-evidence/v2" }).reasons).toContain("Evidence checker version changed");
+  expect(evidenceSnapshotStanding(stored, { ...context(), checkerVersion: "assembly-evidence/v3" }).reasons).toContain("Evidence checker version changed");
 });
 
 test("old checker versions remain inspectable but cannot count as current", () => {
   const stored = createEvidenceSnapshot(report(), req());
   const { snapshotSha256: _oldHash, ...payload } = stored;
-  const oldPayload = { ...payload, checkerVersion: "assembly-evidence/v0" };
+  const oldPayload = { ...payload, checkerVersion: "assembly-evidence/v1" };
   const old = {
     ...oldPayload,
     snapshotSha256: createHash("sha256").update(canonicalJson(oldPayload)).digest("hex"),
