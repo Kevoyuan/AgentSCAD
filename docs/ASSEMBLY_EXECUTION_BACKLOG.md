@@ -1,6 +1,6 @@
 # AgentSCAD functional assembly — execution backlog
 
-Updated: 2026-11-13. Baseline: `main` after PR #21 (`352baf2`). Scope: [FUNCTIONAL_ASSEMBLY_PLAN.md](./FUNCTIONAL_ASSEMBLY_PLAN.md).
+Updated: 2026-11-13. Baseline: `main` after PR #37 (`cfccfd0`); A01 and A02 implementation checkpoints passed CI. Scope: [FUNCTIONAL_ASSEMBLY_PLAN.md](./FUNCTIONAL_ASSEMBLY_PLAN.md).
 Status describes **verified evidence**, not implementation effort. A passing CI run is not a functional or physical certificate.
 
 ## Final acceptance target
@@ -30,7 +30,7 @@ Every task is one bounded PR or a small series with negative tests. Each needs *
 | ID | Priority and dependency | Deliverable and acceptance criterion | Present status |
 |---|---|---|---|
 | [A01](https://github.com/Kevoyuan/AgentSCAD/issues/23) | P0 · after M2 | **On-demand measured assembly evidence**. Authenticated, current-hash guarded route runs deterministic part checks; UI shows actual vs contract-gated status, failure operation/other instance, pose index and sample coverage. No model calls or automatic rendering on page load. Tests for unconfirmed/stale, missed paths and refusal to fake PASS | **Implementation complete — [PR #22](https://github.com/Kevoyuan/AgentSCAD/pull/22), CI passed; physical and continuous evidence remain outside A01** |
-| [A02](https://github.com/Kevoyuan/AgentSCAD/issues/24) | P0 · after A01 | **Immutable evidence snapshot**. Persist digest-bound checked output and tool version; source/spec/requirements edits invalidate it; old results remain inspectable but never current; report export and API/UI tests | **In progress — snapshot storage, history pagination, validation and UI** |
+| [A02](https://github.com/Kevoyuan/AgentSCAD/issues/24) | P0 · after A01 | **Immutable evidence snapshot**. Persist digest-bound checked output and tool version; source/spec/requirements edits invalidate it; old results remain inspectable but never current; report export and API/UI tests | **Implementation complete — [PR #37](https://github.com/Kevoyuan/AgentSCAD/pull/37), Core CI and OpenSCAD Integration passed; no physical proof** |
 | [A03](https://github.com/Kevoyuan/AgentSCAD/issues/25) | P1 · A01/A02 | **M2 browser E2E & independent pose observations**. Real Chromium navigation, download ZIP, verify hashes + reconstruct, compare separately rendered pose; repeated non-origin instances and purchased-part gaps; no automated model spending | Not started |
 | [A04](https://github.com/Kevoyuan/AgentSCAD/issues/26) | P0 · A01 | **M3 contract-backed fit**. Generate fit requirements from confirmed contract and identified bore/shaft, independently measure mesh features; display min/max/uncertainty and negative-offset/decoy test results, conservatively NOT_RUN for unknown feature identity | Not started |
 | [A05](https://github.com/Kevoyuan/AgentSCAD/issues/27) | P0 · A01/A04 | **M3 joint/pose failure UI**. Actual collision pair and first failure sample surfaced and navigable; coverage/budget and allowed-contact visible. Inconclusive mesh test stays NOT_RUN | Not started |
