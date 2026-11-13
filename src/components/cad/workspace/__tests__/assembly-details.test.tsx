@@ -3,7 +3,7 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nContext } from '@/components/i18n-provider'
 import { createTranslator } from '@/lib/i18n'
-import { AssemblyDetails, AssemblyRevisions, fetchAssemblyBundle, fetchAssemblyLayout, fetchAssemblyEvidence, fetchAssemblyEvidenceHistory, recordAssemblyEvidenceSnapshot, fetchAssemblyPart, parseAssemblyDraft, saveAssemblyDraft } from '../AssemblyDetails'
+import { CollisionReplayDetails, AssemblyDetails, AssemblyRevisions, fetchAssemblyBundle, fetchAssemblyLayout, fetchAssemblyEvidence, fetchAssemblyEvidenceHistory, recordAssemblyEvidenceSnapshot, fetchAssemblyPart, parseAssemblyDraft, saveAssemblyDraft } from '../AssemblyDetails'
 
 const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 const spec = {
@@ -31,6 +31,24 @@ test('shows independent instances, connections and unexecuted evidence without i
   expect(html).not.toContain('Download')
 })
 
+test('replay matrices show original measured coordinates, not fabricated viewer camera focus', () => {
+  const witness = {
+    frame: 'right-handed-mm-row-major-4x4/v1',
+    movingWorldFromLocal: [1, 0, 0, 12, 0, 1, 0, 3, 0, 0, 1, -1, 0, 0, 0, 1],
+    obstacleWorldFromLocal: identity,
+    movingMeshSha256: 'a'.repeat(64),
+    obstacleMeshSha256: 'b'.repeat(64),
+  }
+  const html = renderToStaticMarkup(<I18nContext.Provider value={{ locale: 'en', setLocale() {}, t: createTranslator('en') }}><CollisionReplayDetails replay={witness} /></I18nContext.Provider>)
+  expect(html).toContain('Replay sampled collision pose')
+  expect(html).toContain('right-handed-mm-row-major-4x4/v1')
+  expect(html).toContain('a'.repeat(64))
+  expect(html).toContain('b'.repeat(64))
+  expect(html).toContain('12')
+  expect(html).toContain('3')
+  expect(html).toContain('single-STL viewport')
+  expect(html).not.toContain('Exact contact point')
+})
 test('stale evidence cannot appear current; Chinese labels are available', () => {
   const html = render({ spec, stale: true, evidence: { identity: { status: 'PASS' } } }, 'zh-CN')
   expect(html).toContain('此装配描述对应较早的源码版本')
