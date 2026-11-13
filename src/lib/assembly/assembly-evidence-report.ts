@@ -72,6 +72,7 @@ export function summarizeAssemblyEvidence(bundle: Bundle) {
       measuredStatus: fit.measuredStatus,
       reason: fit.reason,
       diametralClearanceMm: fit.diametralClearanceMm,
+      radialEnclosure: fit.radialEnclosure,
       boreDiameterMm: fit.boreDiameterMm,
       shaftDiameterMm: fit.shaftDiameterMm,
       axisOffsetMm: fit.axisOffsetMm,
@@ -88,6 +89,7 @@ export function summarizeAssemblyEvidence(bundle: Bundle) {
       "A collision witness is only a midpoint of intersecting triangle centroids, not the exact contact point, collision penetration depth, or a continuous sweep.",
       "Missing fit/motion measurements are NOT_RUN and must not be promoted to PASS.",
       "Section topology now independently observes solid vs void at discrete stations; a matching observed role is not independent identification of the intended CAD feature or calibrated fit uncertainty. Auto-bound fit stays NOT_RUN.",
+      "Sampled radial margin subtracts measured centre offset from conservative polygon radii; its numerical guard band is not a calibrated uncertainty, continuous clearance, manufactured tolerance or full collision test.",
     ],
   };
 }
