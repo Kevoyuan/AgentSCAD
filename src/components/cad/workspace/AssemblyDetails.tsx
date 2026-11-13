@@ -114,13 +114,14 @@ type EvidenceSnapshotView = {
   snapshot: { schemaVersion: 1; checkedAt: string; checkerVersion: string; snapshotSha256: string; report: AssemblyEvidenceReport } | null
 }
 
-export async function fetchAssemblyEvidenceHistory(jobId: string, request: Request = fetch) {
+export async function fetchAssemblyEvidenceHistory(jobId: string, request: Request = fetch, cursor?: string) {
   try {
-    const response = await request('/api/jobs/' + encodeURIComponent(jobId) + '/assembly/evidence/snapshots', { credentials: 'include' })
+    const base = '/api/jobs/' + encodeURIComponent(jobId) + '/assembly/evidence/snapshots'
+    const response = await request(base + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''), { credentials: 'include' })
     if (!response.ok) return { error: 'Saved assembly evidence could not be loaded.' as const }
-    const data = await response.json() as { snapshots?: EvidenceSnapshotView[] }
+    const data = await response.json() as { snapshots?: EvidenceSnapshotView[]; nextCursor?: string | null }
     if (!Array.isArray(data.snapshots)) return { error: 'Saved assembly evidence could not be loaded.' as const }
-    return { snapshots: data.snapshots }
+    return { snapshots: data.snapshots, nextCursor: typeof data.nextCursor === 'string' ? data.nextCursor : null }
   } catch { return { error: 'Saved assembly evidence could not be loaded.' as const } }
 }
 
@@ -174,7 +175,7 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
   const [historyLoading, setHistoryLoading] = React.useState(false)
   const [historyError, setHistoryError] = React.useState('')
   const [historyMessage, setHistoryMessage] = React.useState('')
-  const [savedHistory, setSavedHistory] = React.useState<{ jobId: string; sourceSha256: string; specSha256: string; snapshots: EvidenceSnapshotView[] } | null>(null)
+  const [savedHistory, setSavedHistory] = React.useState<{ jobId: string; sourceSha256: string; specSha256: string; snapshots: EvidenceSnapshotView[]; nextCursor: string | null } | null>(null)
   const [downloadError, setDownloadError] = React.useState('')
   if (data.spec === null) return data.embeddedStatus === 'invalid' ? <p role="alert" className="py-2 text-xs text-[var(--shell-fail)]">{t('The generated assembly description could not be read. It is not verified.')}</p> : null
   const parsed = validateAssemblySpec(data.spec)
@@ -243,7 +244,7 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
     setHistoryError('')
     const result = await fetchAssemblyEvidenceHistory(jobId)
     if (result.error) setHistoryError(result.error)
-    else if (result.snapshots) setSavedHistory({ jobId, sourceSha256: data.sourceSha256, specSha256: data.specSha256, snapshots: result.snapshots })
+    else if (result.snapshots) setSavedHistory({ jobId, sourceSha256: data.sourceSha256, specSha256: data.specSha256, snapshots: result.snapshots, nextCursor: result.nextCursor ?? null })
     setHistoryLoading(false)
   }
   const saveEvidence = async () => {
@@ -256,10 +257,24 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
     else {
       setHistoryMessage('Evidence was re-measured and recorded in immutable history.')
       const saved = await fetchAssemblyEvidenceHistory(jobId)
-      if (saved.snapshots) setSavedHistory({ jobId, sourceSha256: data.sourceSha256, specSha256: data.specSha256, snapshots: saved.snapshots })
+      if (saved.snapshots) setSavedHistory({ jobId, sourceSha256: data.sourceSha256, specSha256: data.specSha256, snapshots: saved.snapshots, nextCursor: saved.nextCursor ?? null })
       else if (saved.error) setHistoryError(saved.error)
     }
     setSavingEvidence(false)
+  }
+  const loadOlderHistory = async () => {
+    if (!jobId || !savedHistory?.nextCursor || historyLoading || !canDownload) return
+    setHistoryLoading(true)
+    setHistoryError('')
+    const result = await fetchAssemblyEvidenceHistory(jobId, fetch, savedHistory.nextCursor)
+    if (result.error) setHistoryError(result.error)
+    else if (result.snapshots) {
+      setSavedHistory(previous => previous && previous.jobId === jobId && previous.sourceSha256 === data.sourceSha256 &&
+        previous.specSha256 === data.specSha256
+          ? { ...previous, snapshots: [...previous.snapshots, ...result.snapshots!], nextCursor: result.nextCursor ?? null }
+          : previous)
+    }
+    setHistoryLoading(false)
   }
   const history = savedHistory !== null && savedHistory.jobId === jobId &&
     savedHistory.sourceSha256 === data.sourceSha256 &&
@@ -347,6 +362,7 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
                 <button type="button" className="mt-1 rounded border border-[color:var(--shell-hairline)] px-2 py-1" onClick={() => saveBlob(new Blob([JSON.stringify(item, null, 2)], { type: 'application/json' }), 'agentscad-evidence-' + item.snapshot!.snapshotSha256.slice(0, 12) + '.json')}>{t('Download evidence JSON')}</button>
               </>}
             </li>)}</ol>}
+          {savedHistory?.nextCursor && <button type="button" disabled={historyLoading} onClick={() => void loadOlderHistory()} className="mt-2 rounded border border-[color:var(--shell-hairline)] px-2 py-1">{t('Load older evidence')}</button>}
           <p className="mt-2 text-[var(--shell-text-label)]">{t('Saved hashes detect changes but do not authenticate source or prove physical function. Refresh this history after edits.')}</p>
         </section>}
       </div>}
