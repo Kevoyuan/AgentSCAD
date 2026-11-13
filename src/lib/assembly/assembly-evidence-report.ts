@@ -23,6 +23,7 @@ export function summarizeAssemblyEvidence(bundle: Bundle) {
   const operations = declared.results.slice(0, 64).map(operation => {
     const path = operation.path;
     const blockedAt = path && "blockedAt" in path ? path.blockedAt : null;
+    const undecidedAt = path && "undecidedAt" in path ? path.undecidedAt : null;
     return {
       operationId: operation.operationId,
       instanceId: operation.instanceId,
@@ -35,7 +36,9 @@ export function summarizeAssemblyEvidence(bundle: Bundle) {
         translationStepMm: path.translationStepMm,
         rotationStepDeg: path.rotationStepDeg,
         coverage: path.coverage,
+        testedTrianglePairs: path.testedTrianglePairs,
         blockedAt: blockedAt ?? null,
+        undecidedAt: undecidedAt ?? null,
       } : null,
     };
   });
@@ -82,6 +85,7 @@ export function summarizeAssemblyEvidence(bundle: Bundle) {
       "Result applies to these source/specification/archive hashes only; no persistent job verdict was written.",
       "Contract-uncertain measured PASS is not an approved PASS. Only manifest.evidence carries the gated standing.",
       "Declared removal checks sampled geometry; no continuous clearance, thread engagement, tool access or physical function.",
+      "A collision witness is only a midpoint of intersecting triangle centroids, not the exact contact point, collision penetration depth, or a continuous sweep.",
       "Missing fit/motion measurements are NOT_RUN and must not be promoted to PASS.",
       "Section topology now independently observes solid vs void at discrete stations; a matching observed role is not independent identification of the intended CAD feature or calibrated fit uncertainty. Auto-bound fit stays NOT_RUN.",
     ],
