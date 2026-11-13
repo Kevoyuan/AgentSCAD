@@ -1088,5 +1088,10 @@
   "Disassembly standing": "拆卸证据状态",
   "Download evidence JSON": "下载证据 JSON",
   "Saved hashes detect changes but do not authenticate source or prove physical function. Refresh this history after edits.": "记录哈希只能检测数据改变，不能证明来源可信或物理功能可用。编辑后请重新加载历史记录。",
-  "Load older evidence": "加载更早的证据"
+  "Load older evidence": "加载更早的证据",
+  "Contract fit binding": "合同配合尺寸关联",
+  "Feature identity": "特征身份",
+  "A declared bore/shaft role is not independently verified. Candidate dimensions are diagnostic only, never final fit approval.": "声明中的孔轴身份尚未经独立验证。候选尺寸仅供诊断，不能作为最终配合验收结果。",
+  "Candidate diametral clearance": "候选直径间隙",
+  "Candidate axis offset": "候选轴线偏移"
 }
