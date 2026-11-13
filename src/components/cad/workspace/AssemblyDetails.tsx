@@ -331,7 +331,20 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
                 <strong>{op.operationId} ({op.instanceId}): {op.measuredStatus}</strong>
                 <p>{op.reason}</p>
                 {op.path && <p className="text-[var(--shell-text-label)]">{t('Sampled poses')}: {op.path.posesEvaluated}/{op.path.declaredPoseCount}; {t('Maximum translation step')}: {op.path.translationStepMm.toFixed(3)} mm; {t('Maximum rotation step')}: {op.path.rotationStepDeg.toFixed(2)}°</p>}
-                {op.path?.blockedAt && <p className="text-[var(--shell-fail)]">{t('First blocked pose')}: {op.path.blockedAt.poseIndex}; {t('Blocking instance')}: {op.path.blockedAt.obstacleId} ({op.path.blockedAt.collision})</p>}
+                {op.path && <p className="text-[var(--shell-text-label)]">{t('Triangle pairs evaluated')}: {op.path.testedTrianglePairs}</p>}
+                {op.path?.blockedAt && <div className="text-[var(--shell-fail)]">
+                  <p>{t('First blocked pose')}: {op.path.blockedAt.poseIndex}; {t('Blocking instance')}: {op.path.blockedAt.obstacleId} ({op.path.blockedAt.collision})</p>
+                  <p>{t('Triangle pairs evaluated at blocking pose')}: {op.path.blockedAt.testedPairs}</p>
+                  <p>{op.path.blockedAt.collisionReason}</p>
+                  {op.path.blockedAt.trianglePair && <p>{t('Intersecting triangle IDs')}: {op.path.blockedAt.trianglePair.movingTriangleIndex} / {op.path.blockedAt.trianglePair.obstacleTriangleIndex}</p>}
+                  {op.path.blockedAt.witnessCentroidPointMm && <p>{t('Approximate triangle-centroid witness (mm)')}: {op.path.blockedAt.witnessCentroidPointMm.map(x => x.toFixed(3)).join(', ')}</p>}
+                  <p>{t('The witness is not an exact contact point or penetration measurement.')}</p>
+                </div>}
+                {op.path?.undecidedAt && <div className="text-[var(--shell-fail)]">
+                  <p>{t('Undecided pose')}: {op.path.undecidedAt.poseIndex}; {t('Blocking instance')}: {op.path.undecidedAt.obstacleId} ({op.path.undecidedAt.collision})</p>
+                  <p>{t('Triangle pairs evaluated')}: {op.path.undecidedAt.testedPairs}; {t('Collision budget exhausted')}: {op.path.undecidedAt.budgetExhausted ? t('Yes') : t('No')}</p>
+                  <p>{op.path.undecidedAt.reason}</p>
+                </div>}
               </li>)}
             </ol>
           </details>
