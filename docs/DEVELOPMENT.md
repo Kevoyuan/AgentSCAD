@@ -248,6 +248,13 @@ The response carries source/spec/archive hashes, `evidence` statuses and reasons
 
 
 
+
+## A05.2 — collision reproduction with exact witness poses
+
+For each first sampled collision or undecidable BVH query, `rigid-pose-path` now captures the exact validated 4×4 row-major transforms of the **moving** and **obstacle** meshes used in that query, along with their actual rendered STL SHA-256 hashes. These values travel through the bounded A01 inspection and append-only A02 snapshots in `blockedAt.replayFrame` / `undecidedAt.replayFrame`. The UI provides expandable, selectable matrices. Regression tests re-run the independent triangle collision checker from the recorded matrices, including translated obstacles and an UNKNOWN mesh. Exact matrix output is evidence for a *single sampled pose*, not an exact contact point or sweep.
+
+**Viewport gap:** `ThreeDViewer` currently visualizes the single job STL; it is not a per-instance assembly renderer. Therefore A05.2 does NOT claim collision focus or drop a marker into unrelated geometry. A full assembly-scene renderer must load verified ZIP parts with instance placements and verify source/spec hashes before adding a 3D focus/highlight action. Existing readout is intentionally read-only. Evidence checker v5 makes earlier snapshot reports historical.
+
 ## A05.1 — collision pair evidence and undecided positions
 
 The deterministic `checkRigidPosePath` returns the first blocking (FAIL) sample as `blockedAt`, including `poseIndex`, `obstacleId`, collision status, the actual number of triangle-pair tests in that comparison, and `collisionReason`. If the BVH finds an intersecting pair, it also returns the indices of those two triangles and `witnessCentroidPointMm` (centroid midpoint as computed by the collision backend, **not** a precise intersection/contact coordinate). Containment may report no triangle witness; the UI must not fabricate one.
