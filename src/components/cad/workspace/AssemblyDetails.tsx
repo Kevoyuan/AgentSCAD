@@ -67,6 +67,24 @@ export async function fetchAssemblyBundle(jobId: string, sourceSha256: string, s
   } catch { return { error: 'The parts could not be exported.' as const } }
 }
 
+/** Reconstructs only complete generated-part layouts; no CAD function is implied. */
+export async function fetchAssemblyLayout(jobId: string, sourceSha256: string, specSha256: string, request: Request = fetch) {
+  if (!/^[a-f0-9]{64}$/.test(sourceSha256) || !/^[a-f0-9]{64}$/.test(specSha256)) {
+    return { error: 'The source is unavailable. Refresh the assembly information.' as const }
+  }
+  try {
+    const query = new URLSearchParams({ sourceSha256, specSha256, download: '1' })
+    const url = '/api/jobs/' + encodeURIComponent(jobId) + '/assembly/layout?' + query
+    const response = await request(url, { credentials: 'include' })
+    if (response.status === 409) return { error: 'The source or assembly changed. Refresh the assembly information before downloading.' as const }
+    if (response.status === 422) return { error: 'The layout is unavailable because parts are missing or geometry cannot be reconstructed.' as const }
+    if (!response.ok) return { error: 'The assembly layout could not be exported.' as const }
+    const blob = await response.blob()
+    if (!blob.size) return { error: 'The assembly layout could not be exported.' as const }
+    return { blob }
+  } catch { return { error: 'The assembly layout could not be exported.' as const } }
+}
+
 function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
@@ -86,6 +104,7 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
   const { t } = useI18n()
   const [downloading, setDownloading] = React.useState<string | null>(null)
   const [bundling, setBundling] = React.useState(false)
+  const [layingOut, setLayingOut] = React.useState(false)
   const [downloadError, setDownloadError] = React.useState('')
   if (data.spec === null) return data.embeddedStatus === 'invalid' ? <p role="alert" className="py-2 text-xs text-[var(--shell-fail)]">{t('The generated assembly description could not be read. It is not verified.')}</p> : null
   const parsed = validateAssemblySpec(data.spec)
@@ -123,7 +142,19 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
     }
     setBundling(false)
   }
+  const downloadLayout = async () => {
+    if (!jobId || !canDownload || !data.sourceSha256 || !data.specSha256) return
+    setLayingOut(true); setDownloadError('')
+    const result = await fetchAssemblyLayout(jobId, data.sourceSha256, data.specSha256)
+    if (result.error) { setDownloadError(result.error); setLayingOut(false); return }
+    if (result.blob) {
+      try { saveBlob(result.blob, 'agentscad-layout-' + jobId.replace(/[^A-Za-z0-9_-]/g, '_') + '.stl') }
+      catch { setDownloadError('The assembly layout could not be exported.') }
+    }
+    setLayingOut(false)
+  }
   const generatedParts = spec.parts.filter(part => part.source === 'generated')
+  const hasPurchasedInstances = spec.instances.some(instance => spec.parts.some(part => part.id === instance.partId && part.source === 'purchased'))
   return (
     <section className="border-t border-[color:var(--shell-hairline)] py-[10px] text-xs" aria-label={t('Assembly')}>
       <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--shell-text-label)]">{t('Assembly')}</h3>
@@ -142,8 +173,14 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
         })}
       </ul>
       {canDownload && generatedParts.length > 0 && <div className="mt-2">
-        <button type="button" disabled={bundling || downloading !== null} onClick={() => void downloadBundle()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{bundling ? t('Preparing…') : t('Download all parts (ZIP)')}</button>
+        <button type="button" disabled={bundling || layingOut || downloading !== null} onClick={() => void downloadBundle()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{bundling ? t('Preparing…') : t('Download all parts (ZIP)')}</button>
         <p className="mt-1 text-[var(--shell-text-label)]">{t('The archive holds one STL per generated part and a manifest with hashes. Identity, fit and motion are not verified.')}</p>
+      </div>}
+      {canDownload && generatedParts.length > 0 && <div className="mt-2">
+        {!hasPurchasedInstances
+          ? <button type="button" disabled={layingOut || bundling || downloading !== null} onClick={() => void downloadLayout()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{layingOut ? t('Preparing…') : t('Download assembly layout (STL)')}</button>
+          : <p className="text-[var(--shell-text-label)]">{t('Layout STL unavailable: purchased instances have no geometry. Download the ZIP instead.')}</p>}
+        <p className="mt-1 text-[var(--shell-text-label)]">{t('Layout STL positions part instances for viewing only. It is not a printable union or proof of fit, motion or physical function.')}</p>
       </div>}
       <details className="mt-2">
         <summary className="cursor-pointer">{t('{0} part types · {1} instances · {2} connections', { 0: spec.parts.length, 1: spec.instances.length, 2: spec.connections.length })}</summary>
