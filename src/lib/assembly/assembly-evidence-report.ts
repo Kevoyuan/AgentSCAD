@@ -73,6 +73,8 @@ export function summarizeAssemblyEvidence(bundle: Bundle) {
       shaftDiameterMm: fit.shaftDiameterMm,
       axisOffsetMm: fit.axisOffsetMm,
       axisAngleDeg: fit.axisAngleDeg,
+      boreRoleCheck: fit.boreRoleCheck,
+      shaftRoleCheck: fit.shaftRoleCheck,
       unknowns: fit.unknowns,
     })),
     omittedFits: Math.max(0, manifest.fits.length - 32),
@@ -81,7 +83,7 @@ export function summarizeAssemblyEvidence(bundle: Bundle) {
       "Contract-uncertain measured PASS is not an approved PASS. Only manifest.evidence carries the gated standing.",
       "Declared removal checks sampled geometry; no continuous clearance, thread engagement, tool access or physical function.",
       "Missing fit/motion measurements are NOT_RUN and must not be promoted to PASS.",
-      "A declared bore/shaft role is not independently identified; auto-bound clearance checks remain candidate observations, not validated fit PASS.",
+      "Section topology now independently observes solid vs void at discrete stations; a matching observed role is not independent identification of the intended CAD feature or calibrated fit uncertainty. Auto-bound fit stays NOT_RUN.",
     ],
   };
 }
