@@ -54,6 +54,8 @@ fs.writeFileSync(out, buffer);
   const { db } = await import("@/lib/db");
   const { PUT } = await import("@/app/api/jobs/[id]/assembly/route");
   const { GET } = await import("@/app/api/jobs/[id]/assembly/bundle/route");
+  const { GET: GET_LAYOUT } = await import("@/app/api/jobs/[id]/assembly/layout/route");
+  const { readBinaryStl, meshBounds } = await import("@/lib/geometry/stl-mesh");
   const { assemblySpecificationHash } = await import("@/lib/pipeline/assembly-spec-record");
   const { AssemblySpecSchema } = await import("@/lib/assembly/assembly-spec");
   const { readRequirementContract, saveRequirementContract, requirementRecordId } = await import("@/lib/requirements/requirement-contract-record");
@@ -127,6 +129,70 @@ fs.writeFileSync(out, buffer);
     expect(detail.partCount).toBe(2);
     expect(detail.bundleSha256).toBe(response.headers.get("X-AgentSCAD-Bundle-SHA256"));
     expect(detail.contract.binding.sha256).toBe(response.headers.get("X-AgentSCAD-Contract-SHA256"));
+  });
+
+  test("layout endpoint reconstructs a complete placed assembly without asserting fit", async () => {
+    const elevated = [...pose];
+    elevated[11] = 3;
+    const complete = {
+      ...spec, parts: spec.parts.filter(part => part.source === "generated"),
+      instances: [spec.instances[0], { ...spec.instances[1], transform: elevated }],
+    };
+    const { job, sourceHash, specHash: contractHash } = await create(source, complete);
+    const version = await db.jobArtifactVersion.create({
+      data: { jobId: job.id, scadSource: source, scadHash: sourceHash },
+    });
+    const requestUrl = url(sourceHash, contractHash);
+    const preview = await GET_LAYOUT(admin(requestUrl), context(job.id));
+    expect(preview.status).toBe(200);
+    expect(preview.headers.get("Content-Type")).toBe("model/stl");
+    expect(preview.headers.get("X-AgentSCAD-Layout-Status")).toBe("COMPLETE");
+    expect(preview.headers.get("X-AgentSCAD-Reference-Status")).toBe("NOT_RUN");
+    expect(preview.headers.get("X-AgentSCAD-Contract-Current")).toBe("false");
+    expect(preview.headers.get("X-AgentSCAD-Instance-Count")).toBe("2");
+    const stl = Buffer.from(await preview.arrayBuffer());
+    expect(readBinaryStl(stl).triangleCount).toBe(24);
+    expect(meshBounds(readBinaryStl(stl))).toEqual({ min: [0, 0, 0], max: [10, 10, 7] });
+    expect(createHash("sha256").update(stl).digest("hex")).toBe(preview.headers.get("X-AgentSCAD-Layout-SHA256"));
+    expect(await db.jobOutcome.count({ where: { jobId: job.id } })).toBe(0);
+    const downloaded = await GET_LAYOUT(admin(requestUrl + "&download=1"), context(job.id));
+    expect(downloaded.status).toBe(200);
+    const outcomes = await db.jobOutcome.findMany({ where: { jobId: job.id } });
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0].kind).toBe("exported");
+    expect(outcomes[0].artifactVersionId).toBe(version.id);
+    expect(JSON.parse(outcomes[0].detail!).artifact).toBe("assembly_layout");
+    expect(JSON.parse(outcomes[0].detail!).referenceStatus).toBe("NOT_RUN");
+  });
+
+  test("layout export never invents geometry for purchased parts or export a partial assembly", async () => {
+    const { job, sourceHash, specHash: contractHash } = await create();
+    const response = await GET_LAYOUT(admin(url(sourceHash, contractHash)), context(job.id));
+    expect(response.status).toBe(422);
+    expect((await response.json()).error).toContain("purchased parts");
+    expect(await db.jobOutcome.count({ where: { jobId: job.id } })).toBe(0);
+    const purchasedOnly = {
+      ...spec, parts: spec.parts.filter(part => part.source === "purchased"),
+      instances: spec.instances.filter(instance => instance.partId === "screw"),
+      groundedInstanceId: "screw1",
+    };
+    const only = await create(source, purchasedOnly);
+    expect((await GET_LAYOUT(admin(url(only.sourceHash, only.specHash)), context(only.job.id))).status).toBe(422);
+  });
+
+  test("layout endpoint retains job-session, source and specification version guards", async () => {
+    const complete = {
+      ...spec, parts: spec.parts.filter(part => part.source === "generated"),
+      instances: spec.instances.filter(instance => instance.partId !== "screw"),
+    };
+    const { job, sourceHash, specHash: contractHash } = await create(source, complete);
+    expect((await GET_LAYOUT(new Request(url(sourceHash, contractHash)) as never, context(job.id))).status).toBe(401);
+    expect((await GET_LAYOUT(admin(url("0".repeat(64), contractHash)), context(job.id))).status).toBe(409);
+    expect((await GET_LAYOUT(admin(url(sourceHash, "0".repeat(64))), context(job.id))).status).toBe(409);
+    expect((await GET_LAYOUT(admin("http://localhost/api?sourceSha256=" + sourceHash), context(job.id))).status).toBe(400);
+    await db.job.update({ where: { id: job.id }, data: { scadSource: source + "// updated" } });
+    expect((await GET_LAYOUT(admin(url(sourceHash, contractHash)), context(job.id))).status).toBe(409);
+    expect(await db.jobOutcome.count({ where: { jobId: job.id } })).toBe(0);
   });
 
   test("server confirmation is bound into the bundle; changing the request invalidates it", async () => {
