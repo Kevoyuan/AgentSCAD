@@ -37,7 +37,7 @@ function boreAndShaft(clearanceBand = { min: 0.1, max: 0.3 }) {
     motions: [], operations: [], manufacturing: null, assumptions: [], unknowns: [],
   };
   const meshes = {
-    bore: prismStl({ radius: 3.2, height: 10, segments: 64 }),
+    bore: tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 10, segments: 64 }),
     shaft: prismStl({ radius: 3, height: 12, segments: 64, z0: -1 }),
   };
   const fitRequirements = [{ connectionId: "joint", boreInstanceId: "bore-instance", diametralClearanceMm: clearanceBand }];
