@@ -166,6 +166,7 @@ AgentSCAD 坚持**“几何事实由确定性工具说话，代码生成由大�
 | 运行 CAD 评估基准 | `bun run cad:eval:fast` |
 | 离线验证下载的装配 ZIP | `bun run cad:assembly:verify path/to/assembly.zip` |
 | 从装配 ZIP 重建实例布局 STL | `bun run cad:assembly:reconstruct assembly.zip layout.stl` |
+| 在网页下载装配布局 | 装配面板 → **下载装配布局（STL）**（仅所有实例都有几何文件时可用，仅供查看） |
 
 ---
 
