@@ -62,6 +62,7 @@ export function summarizeAssemblyEvidence(bundle: Bundle) {
       omittedOperations: Math.max(0, declared.results.length - operations.length),
       operations,
     },
+    fitBinding: manifest.fitBinding,
     fits: manifest.fits.slice(0, 32).map(fit => ({
       connectionId: fit.connectionId,
       status: fit.status,
@@ -80,6 +81,7 @@ export function summarizeAssemblyEvidence(bundle: Bundle) {
       "Contract-uncertain measured PASS is not an approved PASS. Only manifest.evidence carries the gated standing.",
       "Declared removal checks sampled geometry; no continuous clearance, thread engagement, tool access or physical function.",
       "Missing fit/motion measurements are NOT_RUN and must not be promoted to PASS.",
+      "A declared bore/shaft role is not independently identified; auto-bound clearance checks remain candidate observations, not validated fit PASS.",
     ],
   };
 }
