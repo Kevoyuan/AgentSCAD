@@ -156,6 +156,8 @@ export async function prepareAssembly(input: {
       axisOffsetMm: measurement.axis?.offsetMm ?? null,
       axisAngleDeg: measurement.axis?.angleDeg ?? null,
       seedOffsetMm: measurement.bore?.seedOffsetMm ?? null,
+      boreRoleCheck: measurement.bore?.roleCheck ?? null,
+      shaftRoleCheck: measurement.shaft?.roleCheck ?? null,
       unknowns: measurement.unknowns,
     };
   });
