@@ -56,6 +56,8 @@ fs.writeFileSync(out, buffer);
   const { GET } = await import("@/app/api/jobs/[id]/assembly/bundle/route");
   const { GET: GET_LAYOUT } = await import("@/app/api/jobs/[id]/assembly/layout/route");
   const { GET: GET_EVIDENCE } = await import("@/app/api/jobs/[id]/assembly/evidence/route");
+  const { GET: GET_SNAPSHOTS, POST: POST_SNAPSHOT } = await import("@/app/api/jobs/[id]/assembly/evidence/snapshots/route");
+  const { ASSEMBLY_EVIDENCE_FIELD } = await import("@/lib/assembly/evidence-snapshot-record");
   const { readBinaryStl, meshBounds } = await import("@/lib/geometry/stl-mesh");
   const { assemblySpecificationHash } = await import("@/lib/pipeline/assembly-spec-record");
   const { AssemblySpecSchema } = await import("@/lib/assembly/assembly-spec");
@@ -287,6 +289,75 @@ fs.writeFileSync(out, buffer);
     expect(result.disassembly.status).toBe("FAIL");
     expect(result.disassembly.operations[0].path.blockedAt.poseIndex).toBe(0);
     expect(result.disassembly.operations[0].path.blockedAt.obstacleId).toBe("base1");
+  });
+
+  test("user-triggered snapshot saves real server measurement, never a supplied PASS", async () => {
+    const { job, sourceHash, specHash: contractHash } = await create();
+    const target = url(sourceHash, contractHash);
+    expect((await GET_SNAPSHOTS(new Request(target) as never, context(job.id))).status).toBe(401);
+    expect((await POST_SNAPSHOT(new Request(target, { method: "POST" }) as never, context(job.id))).status).toBe(401);
+    expect((await POST_SNAPSHOT(admin(url("0".repeat(64), contractHash), "POST"), context(job.id))).status).toBe(409);
+    const response = await POST_SNAPSHOT(admin(target, "POST", {
+      evidence: { physical: { status: "PASS" } }, report: { reportSchemaVersion: 1 },
+    }), context(job.id));
+    expect(response.status).toBe(201);
+    const stored = await response.json();
+    expect(stored.integrity).toBe("PASS");
+    expect(stored.snapshot.report.sourceSha256).toBe(sourceHash);
+    expect(stored.snapshot.report.specificationSha256).toBe(contractHash);
+    expect(stored.snapshot.report.evidence.physical.status).toBe("NOT_RUN");
+    expect(stored.snapshot.report.disassembly.measuredStatus).toBe("NOT_RUN");
+    expect(stored.snapshot.snapshotSha256).toMatch(/^[0-9a-f]{64}$/);
+    const history = await GET_SNAPSHOTS(admin(target), context(job.id));
+    expect(history.status).toBe(200);
+    expect(history.headers.get("Cache-Control")).toBe("no-store");
+    const list = (await history.json()).snapshots;
+    expect(list).toHaveLength(1);
+    expect(list[0].integrity).toBe("PASS");
+    expect(list[0].bindingCurrent).toBe(true);
+    expect(list[0].snapshot.snapshotSha256).toBe(stored.snapshot.snapshotSha256);
+    expect(await db.jobOutcome.count({ where: { jobId: job.id } })).toBe(0);
+  });
+
+  test("saved evidence is immutable; same hash with a new confirmation becomes history", async () => {
+    const { job, sourceHash, specHash: contractHash } = await create();
+    const target = url(sourceHash, contractHash);
+    const first = await POST_SNAPSHOT(admin(target, "POST"), context(job.id));
+    const second = await POST_SNAPSHOT(admin(target, "POST"), context(job.id));
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect((await first.json()).id).not.toBe((await second.json()).id);
+    expect(await db.jobVersion.count({ where: { jobId: job.id, field: ASSEMBLY_EVIDENCE_FIELD } })).toBe(2);
+    const derived = await readRequirementContract(job.id, job.inputRequest);
+    await saveRequirementContract({ job, contract: derived.contract, expectedContractSha256: null });
+    const afterConfirmation = await GET_SNAPSHOTS(admin(target), context(job.id));
+    const rows = (await afterConfirmation.json()).snapshots;
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row: { bindingCurrent: boolean }) => row.bindingCurrent === false)).toBe(true);
+    expect(rows[0].reasons).toContain("Requirement confirmation changed");
+    expect(rows[0].snapshot.report.evidence.disassembly.status).toBe("NOT_RUN");
+    await db.job.update({ where: { id: job.id }, data: { scadSource: source + "\n// new version" } });
+    const afterSourceChange = await GET_SNAPSHOTS(admin(target), context(job.id));
+    const stale = (await afterSourceChange.json()).snapshots;
+    expect(stale[0].bindingCurrent).toBe(false);
+    expect(stale[0].reasons).toContain("Source geometry changed");
+    expect(await db.jobOutcome.count({ where: { jobId: job.id } })).toBe(0);
+  });
+
+  test("corrupt stored record is returned as ERROR and cannot be promoted", async () => {
+    const { job, sourceHash, specHash: contractHash } = await create();
+    const response = await POST_SNAPSHOT(admin(url(sourceHash, contractHash), "POST"), context(job.id));
+    expect(response.status).toBe(201);
+    const saved = await response.json();
+    const row = await db.jobVersion.findUniqueOrThrow({ where: { id: saved.id } });
+    const payload = JSON.parse(row.newValue!);
+    payload.report.evidence.physical.status = "PASS";
+    await db.jobVersion.update({ where: { id: row.id }, data: { newValue: JSON.stringify(payload) } });
+    const history = await GET_SNAPSHOTS(admin(url(sourceHash, contractHash)), context(job.id));
+    const item = (await history.json()).snapshots[0];
+    expect(item.integrity).toBe("ERROR");
+    expect(item.bindingCurrent).toBe(false);
+    expect(item.snapshot).toBeNull();
   });
 
   test("a real removal path is exported as a gated verdict instead of a raw pass", async () => {
