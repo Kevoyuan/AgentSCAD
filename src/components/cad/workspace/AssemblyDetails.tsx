@@ -171,7 +171,7 @@ type CollisionReplayFrame = {
 }
 
 /** Original validated poses, not camera positions or guessed contact coordinates. */
-function CollisionReplayDetails({ replay }: { replay: CollisionReplayFrame }) {
+export function CollisionReplayDetails({ replay }: { replay: CollisionReplayFrame }) {
   const { t } = useI18n()
   return <details className="mt-1 rounded border border-[color:var(--shell-hairline)] p-2 text-[var(--shell-text-label)]">
     <summary className="cursor-pointer">{t('Replay sampled collision pose')}</summary>
