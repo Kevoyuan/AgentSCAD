@@ -37,6 +37,12 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 Use [`docs/ASSEMBLY_EXECUTION_BACKLOG.md`](docs/ASSEMBLY_EXECUTION_BACKLOG.md) as the ordered A01–A14 execution ledger. Do not equate source completion with mechanical validation; update the ledger after CI and evidence checkpoints. The on-demand assembly inspection route is `/api/jobs/{id}/assembly/evidence` (source/spec hashes required), triggered only from the Assembly panel. It renders and measures; do not add it to background polling or implicitly mark the job accepted. The read-only result contains both current contract-gated verdicts and unapproved raw measured statuses.
 
+## Assembly evidence snapshot contract
+
+A01 is the explicitly invoked, ephemeral `GET /api/jobs/{id}/assembly/evidence` (no persistence). A02 stores a *new*, independently server-measured, digest-bound history entry via `POST /api/jobs/{id}/assembly/evidence/snapshots?sourceSha256=...&specSha256=...`; read history via `GET /api/jobs/{id}/assembly/evidence/snapshots?limit=10&cursor=...`. Never trust client-provided evidence verdicts or overwrite a stored record. The API holds the assembly export lease while re-rendering and writing.
+
+Each snapshot binds source SHA, spec SHA, ZIP SHA, requirement confirmation fingerprint and checker version. Reads must re-check source/spec/confirmation/DELIVERED/checker version; stale rows are retained but **cannot count as current PASS**. `bindingCurrent` means version match, not that the function was accepted or physically validated. Digest is not an origin signature. Do not add snapshot creation to regular polling or use it as an accepted/rejected outcome. Update `ASSEMBLY_EVIDENCE_CHECKER_VERSION` when the check semantics change.
+
 ## Deployment policy
 
 - **Do not deploy to Vercel by default.** Git-triggered Vercel deployments for all branches, including `main` and PR previews, are disabled by `vercel.json` (`git.deploymentEnabled: false`).
