@@ -1087,5 +1087,6 @@
   "Historical result; not current": "历史结果，不是当前结论",
   "Disassembly standing": "拆卸证据状态",
   "Download evidence JSON": "下载证据 JSON",
-  "Saved hashes detect changes but do not authenticate source or prove physical function. Refresh this history after edits.": "记录哈希只能检测数据改变，不能证明来源可信或物理功能可用。编辑后请重新加载历史记录。"
+  "Saved hashes detect changes but do not authenticate source or prove physical function. Refresh this history after edits.": "记录哈希只能检测数据改变，不能证明来源可信或物理功能可用。编辑后请重新加载历史记录。",
+  "Load older evidence": "加载更早的证据"
 }
