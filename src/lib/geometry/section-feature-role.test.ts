@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { tubeStl, mergeStl } from "./__tests__/solids";
+import { tubeStl, mergeStl, boxStl } from "./__tests__/solids";
 import { prismStl } from "./__tests__/prism";
 import { observeSectionFeatureRole } from "./section-feature-role";
 
@@ -26,6 +26,17 @@ describe("independent sampled section role", () => {
     expect(observed.observedRole).toBe("bore");
     expect(observed.crossingsPerRay).toBe(2);
     expect(observed.stationsChecked).toBe(3);
+  });
+
+  test("external disconnected geometry adds pairs of ray crossings without filling the bore", () => {
+    const mesh = mergeStl(
+      tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 10, segments: 64 }),
+      boxStl([6, -1, 0], [8, 1, 10]),
+    );
+    const observed = sample(mesh);
+    expect(observed.status).toBe("OBSERVED");
+    expect(observed.observedRole).toBe("bore");
+    expect(observed.crossingsPerRay).toBeNull();
   });
 
   test("a nested solid insert changes a claimed bore into an observed solid rather than false bore PASS", () => {
