@@ -6,7 +6,7 @@
  * This is NOT proof that the observed section is the intended feature, that
  * a hole continues between stations, or that the entire part is manifold.
  */
-import { normalize, planeBasis, readBinaryStl, sectionMesh, type Vec3, type MeshSection } from "./stl-mesh";
+import { normalize, readBinaryStl, sectionMesh, type Vec3, type MeshSection } from "./stl-mesh";
 
 export type ObservedSectionRole = "shaft" | "bore";
 export type SectionRoleEvidence = {
