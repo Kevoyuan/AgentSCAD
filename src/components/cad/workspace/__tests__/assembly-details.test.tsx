@@ -3,7 +3,7 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nContext } from '@/components/i18n-provider'
 import { createTranslator } from '@/lib/i18n'
-import { AssemblyDetails, AssemblyRevisions, fetchAssemblyBundle, fetchAssemblyPart, parseAssemblyDraft, saveAssemblyDraft } from '../AssemblyDetails'
+import { AssemblyDetails, AssemblyRevisions, fetchAssemblyBundle, fetchAssemblyLayout, fetchAssemblyPart, parseAssemblyDraft, saveAssemblyDraft } from '../AssemblyDetails'
 
 const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 const spec = {
@@ -128,6 +128,40 @@ test('the archive download appears only for a current source and refuses ignored
   const conflict = await fetchAssemblyBundle('job', 'b'.repeat(64), 'c'.repeat(64), async () => new Response('', { status: 409 }))
   expect(conflict.error).toContain('changed')
   const invalid = await fetchAssemblyBundle('job', '', 'c'.repeat(64), request)
+  expect(invalid.error).toContain('unavailable')
+})
+
+test('layout download is shown only for a current fully generated assembly', () => {
+  const sha = 'a'.repeat(64)
+  const data = { spec: { ...spec, parts: spec.parts.filter(part => part.source === 'generated'), instances: spec.instances.filter(instance => instance.partId === 'base') }, stale: false, sourceSha256: sha, currentSourceSha256: sha, specSha256: 'c'.repeat(64), evidence }
+  expect(render(data, 'en', 'job')).toContain('Download assembly layout (STL)')
+  expect(render(data, 'en', 'job')).toContain('not a printable union or proof of fit')
+  expect(render({ ...data, stale: true }, 'en', 'job')).not.toContain('Download assembly layout (STL)')
+  expect(render(data, 'en', 'job', false)).not.toContain('Download assembly layout (STL)')
+  expect(render({ ...data, specSha256: undefined }, 'en', 'job')).not.toContain('Download assembly layout (STL)')
+  const missingPurchased = render({ ...data, spec }, 'en', 'job')
+  expect(missingPurchased).toContain('Layout STL unavailable: purchased instances have no geometry')
+  expect(missingPurchased).not.toContain('Download assembly layout (STL)')
+  expect(missingPurchased).toContain('Download all parts (ZIP)')
+})
+
+test('layout request preserves hashes and reports conflicts and incomplete geometry', async () => {
+  let url = ''
+  let credentials: RequestCredentials | undefined
+  const request = async (input: RequestInfo | URL, init?: RequestInit) => {
+    url = String(input); credentials = init?.credentials
+    return new Response('stl data')
+  }
+  const result = await fetchAssemblyLayout('job id', 'b'.repeat(64), 'c'.repeat(64), request)
+  const expected = '/api/jobs/job%20id/assembly/layout?sourceSha256=' + 'b'.repeat(64) + '&specSha256=' + 'c'.repeat(64) + '&download=1'
+  expect(url).toBe(expected)
+  expect(credentials).toBe('include')
+  expect(result.blob?.size).toBe(8)
+  const missing = await fetchAssemblyLayout('job', 'b'.repeat(64), 'c'.repeat(64), async () => new Response('', { status: 422 }))
+  expect(missing.error).toContain('missing')
+  const stale = await fetchAssemblyLayout('job', 'b'.repeat(64), 'c'.repeat(64), async () => new Response('', { status: 409 }))
+  expect(stale.error).toContain('changed')
+  const invalid = await fetchAssemblyLayout('job', '', 'c'.repeat(64), request)
   expect(invalid.error).toContain('unavailable')
 })
 
