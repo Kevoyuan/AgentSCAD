@@ -13,7 +13,7 @@ import type { RequirementContractRecord } from "../requirements/requirement-cont
  * Existing records then become historical even if SCAD and requirements match.
  */
 export const ASSEMBLY_EVIDENCE_FIELD = "__assembly_evidence_snapshot";
-export const ASSEMBLY_EVIDENCE_CHECKER_VERSION = "assembly-evidence/v1";
+export const ASSEMBLY_EVIDENCE_CHECKER_VERSION = "assembly-evidence/v2";
 const MAX_SNAPSHOT_BYTES = 512_000;
 const MAX_HISTORY_PAGE = 20;
 const SHA = /^[0-9a-f]{64}$/;
