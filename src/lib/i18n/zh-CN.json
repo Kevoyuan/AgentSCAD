@@ -1040,5 +1040,10 @@
   "The stored contract could not be read, so nothing counts as confirmed. Confirm the derived contract again to replace it.": "已存储的合同无法读取，因此没有内容算作已确认。请重新确认推导出的合同以替换它。",
   "The request changed after this contract was confirmed. Evidence produced under the old contract is not current; confirm the derived contract.": "请求在该合同确认后发生变化。按旧合同产出的证据不再有效，请确认重新推导的合同。",
   "The results were judged against a confirmed requirement contract.": "结果按已确认的需求合同判定。",
-  "No requirement contract was supplied, so the standing of these results against a confirmed contract was not evaluated.": "未提供需求合同，因此这些结果相对已确认合同的效力未被评估。"
+  "No requirement contract was supplied, so the standing of these results against a confirmed contract was not evaluated.": "未提供需求合同，因此这些结果相对已确认合同的效力未被评估。",
+  "Download assembly layout (STL)": "下载装配布局（STL）",
+  "Layout STL unavailable: purchased instances have no geometry. Download the ZIP instead.": "无法导出完整布局 STL：采购件没有几何数据。请改为下载 ZIP。",
+  "Layout STL positions part instances for viewing only. It is not a printable union or proof of fit, motion or physical function.": "布局 STL 仅用于查看各零件的位置，不是可直接打印的布尔合并模型，也不能证明配合、运动或实物功能正确。",
+  "The layout is unavailable because parts are missing or geometry cannot be reconstructed.": "由于零件缺失或几何无法重建，不能导出装配布局。",
+  "The assembly layout could not be exported.": "无法导出装配布局。"
 }
