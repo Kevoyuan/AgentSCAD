@@ -252,6 +252,10 @@ The response carries source/spec/archive hashes, `evidence` statuses and reasons
 
 
 
+## A07.2 — full proposal replay and preserved failed outcomes
+
+A07 repair events now store the exact candidate SCAD for each returned model proposal, including no-op, invariant-violating, unrenderable, still-failing and improved-but-unapproved source. Immutable event SHA binds candidate SCAD SHA, byte count, measured status and actual model usage; the parser refuses tampered candidate content. Accepted or rejected proposals are not user acceptance, and the original delivered Job is unchanged. The ceiling is 256 KiB of proposal source per attempt and 400 KiB per ledger event; larger source is refused, and its digest and byte count retained without recording bytes. Failed/no-progress/abandoned statuses remain distinct, and history for a changed source/spec/requirement fingerprint redacts proposal text while retaining the SHA and reasoning. Real OpenSCAD repair regression plus standard build, unit, API/DB and native OpenSCAD CI are required for A07 sign-off. API requests still need explicit 1–2 potentially billed model calls and a confirmed current contract.
+
 ## A07 — measured-failure geometry repair and immutable attempts
 
 A07 has a strict opt-in production execution path. Start with a DELIVERED source/spec whose exact assembly block is embedded in the source and whose user-frozen RequirementContract is currently confirmed. Explicitly allow 1 or 2 potentially billed model repair proposals in the Assembly details panel. The current geometry is independently rerendered and evaluated with the same frozen contract-derived fit band, one declared revolute joint, 12 disassembly and 24 motion samples. Quantified measured failures (part IDs, bore/shaft clearance, blocked angle/path) are fed into `runRepair`. The candidate's embedded declaration must match the original canonical assembly hash BEFORE any geometry render; changes to part count/selection, joint ranges, frames, orientations, motion or required clearance cannot buy a PASS. All accepted proposals are then rerendered and measured again. Unknown/unrun checks stay NOT_RUN.
