@@ -53,6 +53,12 @@ export interface RepairLoopAttempt {
   /** Frozen fit requirement hash, not candidate-selected measurement targets. */
   frozenRequirementsSha256?: string;
   /** Actual model usage when a proposal was returned; never invent euro charges. */
+  measurementProvenance?: {
+    sourceSha256:string;
+    specificationSha256:string;
+    partArtifactSha256:Record<string,string>;
+    manifestSha256:string;
+  };
   modelExecution?: {
     model: string;
     provider: string;
@@ -106,6 +112,21 @@ function evidenceComplete(manifest: AssemblyEvidenceManifest): boolean {
 function frozenFitHash(value: AssemblyFitRequirement[] | undefined) {
   return sha256(canonicalJson(value ?? []));
 }
+function provenanceOf(measurement:AssemblyMeasurement):RepairLoopAttempt["measurementProvenance"]{
+  const manifest=measurement.manifest as AssemblyEvidenceManifest & {
+    sourceSha256?:string;specificationSha256?:string;
+    parts?:Array<{id:string;artifactSha256:string|null}>;
+  };
+  if(!/^[a-f0-9]{64}$/.test(manifest.sourceSha256??"")||
+     !/^[a-f0-9]{64}$/.test(manifest.specificationSha256??""))return undefined;
+  return {
+    sourceSha256:manifest.sourceSha256!,
+    specificationSha256:manifest.specificationSha256!,
+    partArtifactSha256:Object.fromEntries((manifest.parts??[]).filter(p=>p.artifactSha256).map(p=>[p.id,p.artifactSha256!])),
+    manifestSha256:sha256(canonicalJson(manifest)),
+  };
+}
+
 
 function evidenceOf(manifest: AssemblyEvidenceManifest) {
   return {
@@ -174,6 +195,7 @@ export async function repairMeasuredFailures(input: {
     attempt: 0, scadSha256: sha256(currentScad), findings,
     evidence: evidenceOf(measurement.manifest), violations: [], accepted: true,
     phase: "measured", measuredAt: new Date().toISOString(), frozenRequirementsSha256,
+    measurementProvenance:provenanceOf(measurement),
   });
 
   const finish = (stoppedBecause: RepairLoopStop, reason: string): RepairLoopResult =>
@@ -269,6 +291,7 @@ export async function repairMeasuredFailures(input: {
         attempt, scadSha256: sha256(proposed), findings: [],
         evidence: evidenceOf(next.manifest), violations: violations.violations, accepted: false,
         phase:"rejected-before-render",reason:"Repaired candidate violated frozen invariants",modelExecution,
+        measurementProvenance:provenanceOf(next),
         measuredAt:new Date().toISOString(),frozenRequirementsSha256,
       });
       return finish("invariant-violated", `The repair weakened the assembly instead of fixing it: ${violations.violations.map((violation) => violation.message).join(" ")}`);
@@ -281,6 +304,7 @@ export async function repairMeasuredFailures(input: {
       attempt, scadSha256: sha256(proposed), findings: nextFindings,
       evidence: evidenceOf(next.manifest), violations: [], accepted: true,
       phase:"measured",measuredAt:new Date().toISOString(),frozenRequirementsSha256,modelExecution,
+      measurementProvenance:provenanceOf(next),
     });
     measurement = next;
     findings = nextFindings;
