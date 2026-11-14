@@ -115,10 +115,10 @@ export async function runProductionAssemblyRepair(input:ProductionAssemblyRepair
         scad:actual.generationResult.scad_source,
         modelExecution:run ? {
           model:run.model,provider:run.provider,latencyMs:run.latency_ms,
-          ...("prompt_tokens" in (run.usage??{}) && typeof run.usage?.prompt_tokens==="number"
-            ? {promptTokens:run.usage.prompt_tokens}:{}),
-          ...("completion_tokens" in (run.usage??{}) && typeof run.usage?.completion_tokens==="number"
-            ? {completionTokens:run.usage.completion_tokens}:{}),
+          ...(typeof run.usage?.promptTokens==="number"
+            ? {promptTokens:run.usage.promptTokens}:{}),
+          ...(typeof run.usage?.completionTokens==="number"
+            ? {completionTokens:run.usage.completionTokens}:{}),
         } : undefined,
       };
     },
