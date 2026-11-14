@@ -61,6 +61,8 @@ export async function observeSourcePoses(input: {
   spec: unknown;
   referenceSelector: string;
   samples: SourcePoseSample[];
+  expectedSourceSha256?: string;
+  expectedSpecificationSha256?: string;
   options?: ScadExecutionOptions;
   renderLocal?: (source: string, spec: AssemblySpec, options?: ScadExecutionOptions) => Promise<Rendered>;
   renderReference?: ReferenceRenderer;
@@ -79,6 +81,8 @@ export async function observeSourcePoses(input: {
   }
   const ids = new Set(spec.instances.map(instance => instance.id));
   const sourceSha256 = createHash("sha256").update(input.scadSource).digest("hex");
+  if (input.expectedSourceSha256 !== undefined && input.expectedSourceSha256 !== sourceSha256) throw new Error("CAD source has changed since the reference snapshot");
+  if (input.expectedSpecificationSha256 !== undefined && input.expectedSpecificationSha256 !== assemblySpecificationHash(spec)) throw new Error("Assembly specification changed since the reference snapshot");
   const renderLocal = input.renderLocal ?? renderAssemblySpecParts;
   const renderReference = input.renderReference ?? (async (source, selector, parameters, options) =>
     (await renderAssemblyParts({ scadSource: source, parts: [{ partId: "reference", selector }], parameters, options }))[0]);
