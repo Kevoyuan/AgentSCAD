@@ -251,6 +251,12 @@ The response carries source/spec/archive hashes, `evidence` statuses and reasons
 
 
 
+## A06.3.1 — read-only source pose inspection for current Jobs
+
+`POST /api/jobs/[id]/assembly/source-poses` receives an explicitly user-confirmed request with the current `sourceSha256`, `specSha256`, grounded `connectionId`, `sourceParameter` and `rotationDeg`. A bounded schema refuses arbitrary matrices, selector paths or additional keys. Only a current, complete generated assembly (<=8 parts, 2–12 instances) with matching declared revolute frames and an applicable [-rotation, +rotation] degree range qualifies. The server computes the true world axis from the grounded part's row-major 4×4 transform, constructs three rigid moving instance poses at −angle, 0, +angle, and separately asks OpenSCAD to re-render the source `all` selector for the **user-declared** variable values. It compares each independent STL against placed part meshes, preserving per-pose surface correspondence/area budget, reference hashes and NOT_RUN boundaries.
+
+The `lockAssemblyExport` lease provides authentication, source/spec and requirement-version isolation, heartbeat, abort and post-render revalidation. There is no export/download flag, paid-model call, background execution or JobOutcome. UI requires an explicit check box; source parameter semantics are *user-declared, not independently authenticated*. The top-level response always returns `productMotionApproval: NOT_RUN` and `physicalFunctionApproval: NOT_RUN`. A sampled geometry PASS must not become acceptance of full rotation, fit, continuous motion or real-world assembly. Only the first constrained single-grounded-revolute flow is implemented; multi-joint, generic production binding and physical motion remain A06.3 follow-ups.
+
 ## A06.2 — triangulation-independent sampled surface comparison
 
 Original native OpenSCAD source-pose comparisons reported hinge 0° PASS but −45°/+45° NOT_RUN, even when independent rendered surface **bounds** matched exactly. Because a correct CAD source may split a planar face into new triangles when evaluating a rotated Boolean assembly, A06.2 adds a bounded **bidirectional coplanar triangle-area coverage** method. Exact triangle-vertex matching remains a fast path. On correspondence failure it projects coplanar facet pairs to 2D, clips convex triangles, sums overlapping area for each source facet, and repeats in reverse. Plane distances, bounding boxes, per-facet numerical area budgets and a capped pair count prevent a triangle count or matching bounding-box false PASS.
