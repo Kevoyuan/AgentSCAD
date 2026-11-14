@@ -180,6 +180,7 @@ export function AssemblyRepairPanel({jobId,sourceSha256,specSha256}:{
             </button>
           </details>}
       </li>)}</ul>
+      {copyFeedback&&<p role="status" className="mt-1">{copyFeedback}</p>}
     </details>}
   </section>
 }
