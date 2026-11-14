@@ -512,6 +512,16 @@ fs.writeFileSync(out, buffer);
     expect(data.bindingSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(data.report.samples).toHaveLength(3);
     expect(data.report.samples.map((row: {id: string}) => row.id)).toEqual(["negative", "zero", "positive"]);
+    const dense = await POST_SOURCE_POSES(admin(endpoint, "POST", { ...params, sampleCount: 5 }), context(job.id));
+    expect(dense.status).toBe(200);
+    const denseReport = await dense.json();
+    expect(denseReport.binding.sampleCount).toBe(5);
+    expect(denseReport.binding.maximumSampleAngleGapDeg).toBe(5);
+    expect(denseReport.report.samples).toHaveLength(5);
+    expect(denseReport.productMotionApproval).toBe("NOT_RUN");
+    expect(denseReport.physicalFunctionApproval).toBe("NOT_RUN");
+    expect(denseReport.report.analyticRigidSweep.method).toBe("bounded-rigid-axis-swept-aabb/v1");
+
     expect(data.report.samples.every((row: {referenceStlSha256: string}) => /^[a-f0-9]{64}$/.test(row.referenceStlSha256))).toBe(true);
     expect(data.productMotionApproval).toBe("NOT_RUN");
     expect(data.physicalFunctionApproval).toBe("NOT_RUN");
