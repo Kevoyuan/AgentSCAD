@@ -53,7 +53,6 @@ export type RigidSweepEvidence = {
 
 const SHA = (stl: Buffer) => createHash("sha256").update(stl).digest("hex");
 const DEFAULT_BUDGET_MS = 12_000;
-const IDENTITY = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
 
 function finite(v: number) { return Number.isFinite(v); }
 function axisDistance(point: Vec3, origin: Vec3, direction: Vec3): number {
