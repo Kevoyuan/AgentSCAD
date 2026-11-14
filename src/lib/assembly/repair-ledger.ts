@@ -70,6 +70,13 @@ export function createRepairEvent(input: RepairLedgerBinding & {
   if(base.terminal?.reviewCandidateScad &&
     Buffer.byteLength(base.terminal.reviewCandidateScad,"utf8")>256*1024)
     throw new Error("Stored repair candidate exceeds 256 KiB");
+  const source=base.attempt?.candidateScadSource;
+  if(source!==undefined){
+    const size=Buffer.byteLength(source,"utf8");
+    if(size>256*1024 || sha256(source)!==base.attempt!.scadSha256 ||
+      base.attempt!.candidateByteLength!==size)
+      throw new Error("Repair candidate bytes do not match the measured SHA-256 binding");
+  }
   const event={...base,eventSha256:sha256(canonicalJson(base))};
   if(Buffer.byteLength(JSON.stringify(event),"utf8")>MAX_EVENT_BYTES)throw new Error("Repair event exceeds 400 KiB");
   return event;
@@ -86,6 +93,12 @@ export function parseRepairEvent(value:unknown):StoredAssemblyRepairEvent|null {
     !e.contractSha256||!SHA.test(e.contractSha256)||
     !e.requirementFingerprint||!SHA.test(e.requirementFingerprint)||
     !e.eventSha256||!SHA.test(e.eventSha256))return null;
+  if(e.attempt?.candidateScadSource!==undefined){
+    if(typeof e.attempt.candidateScadSource!=="string" ||
+      Buffer.byteLength(e.attempt.candidateScadSource,"utf8")>256*1024 ||
+      sha256(e.attempt.candidateScadSource)!==e.attempt.scadSha256 ||
+      e.attempt.candidateByteLength!==Buffer.byteLength(e.attempt.candidateScadSource,"utf8"))return null;
+  }
   const {eventSha256,...base}=e;
   return sha256(canonicalJson(base))===eventSha256 ? e as StoredAssemblyRepairEvent:null;
 }
