@@ -42,6 +42,10 @@ Use [`docs/ASSEMBLY_EXECUTION_BACKLOG.md`](docs/ASSEMBLY_EXECUTION_BACKLOG.md) a
 
 
 
+## A06.3.2 — cumulative deadline across source-pose checks
+
+The three-pose production endpoint has a **single 180-second wall-clock budget** shared by local-part rendering, independent reference renders, triangle comparison and final source/spec/requirement lease verification. `runSourcePoseWithinBudget` forwards the existing lease abort into a cancellable render signal; on user/job cancellation it yields 409, on cumulative deadline it yields retryable HTTP 503 with `Retry-After: 30`, without an evidence snapshot, export record, JobOutcome or any approved PASS. The timer and listener are always cleaned up after the call. Even if a renderer ignores abort or CPU work delays the timer callback, the post-completion elapsed-time check rejects a late PASS. The runtime cap cannot be extended by user input; actual OS processes use their own native/WASM timeouts in addition to this cumulative server-side bound. This limit is not proof of continuous motion.
+
 ## A06.3.1 — explicit authenticated production source-pose inspection
 
 A current, DELIVERED Job with a matching assembly source/spec SHA may now explicitly run `POST /api/jobs/{id}/assembly/source-poses`. The route uses **the existing** `lockAssemblyExport` session, execution mutex, requirement-version fingerprint, abort signal and post-render `verifyUnchanged()`. This is read-only, triggered only by the user selecting a grounded revolute connection, naming a **specific actual source variable**, choosing one symmetric angle inside declared joint/motion ranges, and checking a confirmation box. The only three samples are `−angle, 0, +angle`; the server independently derives all rigid matrices from the current joint frame, never trusts client-supplied transforms, and independently re-renders the `all` source selector via `observeSourcePoses`. Max 8 generated parts, 12 instances, 256 KiB CAD source and a 4 KiB request body; geometry/renderer budgets remain in force.
