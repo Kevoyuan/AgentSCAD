@@ -23,6 +23,9 @@ import type { DisassemblyPathEvidence, MotionRangeEvidence } from "./path-and-mo
 import type { RequirementContract } from "../requirements/requirement-contract";
 import type { AssemblyFitRequirement } from "./prepare-assembly";
 import { createHash } from "crypto";
+import { canonicalJson } from "../canonical-json";
+import { extractEmbeddedAssemblySpec } from "./embedded-spec";
+import { assemblySpecificationHash } from "./spec-hash";
 
 /** Everything the loop needs to know about one measured candidate. */
 export interface AssemblyMeasurement {
@@ -43,6 +46,12 @@ export interface RepairLoopAttempt {
   violations: RepairViolation[];
   /** False when the declaration was weakened; such an attempt is never measured. */
   accepted: boolean;
+  /** Never infer an unmeasured attempt from an empty findings array. */
+  phase?: "measured" | "rejected-before-render" | "measurement-error" | "proposal-error" | "aborted";
+  reason?: string;
+  measuredAt?: string;
+  /** Frozen fit requirement hash, not candidate-selected measurement targets. */
+  frozenRequirementsSha256?: string;
 }
 
 export type RepairLoopStop =
@@ -55,7 +64,9 @@ export type RepairLoopStop =
   /** The proposal returned the source it was given. */
   | "no-progress"
   /** The proposal could not be measured, or the model call failed. */
-  | "repair-failed";
+  | "repair-failed"
+  | "aborted"
+  | "incomplete-evidence";
 
 export interface RepairLoopResult {
   attempts: RepairLoopAttempt[];
@@ -65,12 +76,28 @@ export interface RepairLoopResult {
   findings: AssemblyFinding[];
   stoppedBecause: RepairLoopStop;
   reason: string;
+  /** Source of the last successfully measured and accepted candidate. */
+  finalScad: string;
+  finalScadSha256: string;
+  /** A run can have no measured FAIL while still having missing checks. */
+  evidenceComplete: boolean;
+  /** Every accepted/rejected proposal retains a bounded, signed-by-content observation. */
+  frozenRequirementsSha256: string;
 }
 
 const DEFAULT_MAX_ATTEMPTS = 2;
 const HARD_MAX_ATTEMPTS = 5;
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
+const MAX_SOURCE_BYTES = 256 * 1024;
+const MAX_REPAIR_WALL_MS = 240_000;
+const requiredStatuses = ["identity", "assembly", "motion"] as const;
+function evidenceComplete(manifest: AssemblyEvidenceManifest): boolean {
+  return requiredStatuses.every(layer => manifest.evidence[layer]?.status === "PASS");
+}
+function frozenFitHash(value: AssemblyFitRequirement[] | undefined) {
+  return sha256(canonicalJson(value ?? []));
+}
 
 function evidenceOf(manifest: AssemblyEvidenceManifest) {
   return {
@@ -96,36 +123,61 @@ export async function repairMeasuredFailures(input: {
   propose: (prompt: string, attempt: number) => Promise<{ scad: string }>;
   contract?: RequirementContract | null;
   signal?: AbortSignal;
-  /** Called after every attempt is recorded, so a caller can stream progress. */
-  onAttempt?: (attempt: RepairLoopAttempt) => void;
+  /**
+   * Require source-embedded declaration to match the originally measured spec
+   * byte-for-byte in canonical meaning before every candidate render.
+   * Production MUST set true; legacy pure unit/fixture repair remains compatible.
+   */
+  strictEmbeddedSpec?: boolean;
+  maxWallMs?: number;
+  /** Called and awaited after each attempt, suitable for append-only persistence. */
+  onAttempt?: (attempt: RepairLoopAttempt) => void | Promise<void>;
 }): Promise<RepairLoopResult> {
   const maxAttempts = Math.min(Math.max(1, input.maxAttempts ?? DEFAULT_MAX_ATTEMPTS), HARD_MAX_ATTEMPTS);
+  const started = performance.now();
+  const wallMs = input.maxWallMs ?? MAX_REPAIR_WALL_MS;
+  if (!Number.isSafeInteger(wallMs) || wallMs < 1 || wallMs > MAX_REPAIR_WALL_MS) throw new Error("Invalid repair execution budget");
+  if (Buffer.byteLength(input.scad, "utf8") > MAX_SOURCE_BYTES) throw new Error("Original assembly source exceeds 256 KiB repair limit");
   const attempts: RepairLoopAttempt[] = [];
-
-  const record = (attempt: RepairLoopAttempt) => {
+  const record = async (attempt: RepairLoopAttempt) => {
     attempts.push(attempt);
-    input.onAttempt?.(attempt);
+    await input.onAttempt?.(attempt);
   };
-
+  const expired = () => input.signal?.aborted || performance.now()-started >= wallMs;
+  const stopped = () => input.signal?.aborted ? "Job or repair execution was aborted" : "Total repair execution time budget exhausted";
+  if (expired()) throw new Error(stopped());
   let measurement = await input.measure(input.scad);
+  const originalSpecHash = assemblySpecificationHash(measurement.spec as never);
+  const originalEmbedded = input.strictEmbeddedSpec ? extractEmbeddedAssemblySpec(input.scad) : null;
+  if (input.strictEmbeddedSpec && (
+    originalEmbedded?.status !== "valid" ||
+    assemblySpecificationHash(originalEmbedded.spec) !== originalSpecHash
+  )) throw new Error("Original assembly source lacks the exact frozen embedded specification");
+  const frozenRequirements = measurement.fitRequirements;
+  const frozenRequirementsSha256 = frozenFitHash(frozenRequirements);
   let findings = collectAssemblyFindings({
     manifest: measurement.manifest, fitRequirements: measurement.fitRequirements, kinematics: measurement.kinematics,
   });
   let currentScad = input.scad;
-  record({
+  await record({
     attempt: 0, scadSha256: sha256(currentScad), findings,
     evidence: evidenceOf(measurement.manifest), violations: [], accepted: true,
+    phase: "measured", measuredAt: new Date().toISOString(), frozenRequirementsSha256,
   });
 
   const finish = (stoppedBecause: RepairLoopStop, reason: string): RepairLoopResult =>
-    ({ attempts, final: measurement, findings, stoppedBecause, reason });
+    ({ attempts, final: measurement, findings, stoppedBecause, reason,
+      finalScad: currentScad, finalScadSha256: sha256(currentScad),
+      frozenRequirementsSha256, evidenceComplete: evidenceComplete(measurement.manifest) });
 
   if (findings.length === 0) {
-    return finish("no-findings", "No measured check failed, so nothing was repaired.");
+    return evidenceComplete(measurement.manifest)
+      ? finish("no-findings", "All applicable measured layers passed; nothing was repaired.")
+      : finish("incomplete-evidence", "No measured FAIL was available, but some required geometry checks are not PASS. No repair or approval was manufactured.");
   }
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    input.signal?.throwIfAborted();
+    if (expired()) return finish("aborted", stopped());
     const prompt = buildAssemblyRepairPrompt({
       originalRequest: input.originalRequest,
       spec: measurement.spec as never,
@@ -137,28 +189,73 @@ export async function repairMeasuredFailures(input: {
     try {
       proposed = (await input.propose(prompt, attempt)).scad;
     } catch (error) {
-      return finish("repair-failed", `The repair call failed: ${error instanceof Error ? error.message : String(error)}`);
+      await record({
+        attempt, scadSha256: sha256(currentScad), findings: [], evidence: evidenceOf(measurement.manifest),
+        accepted: false, violations: [], phase: "proposal-error",
+        reason: "The repair call failed: " + (error instanceof Error ? error.message : String(error)),
+        frozenRequirementsSha256,
+      });
+      return finish(input.signal?.aborted ? "aborted" : "repair-failed", attempts.at(-1)!.reason!);
     }
-    if (!proposed.trim()) {
-      return finish("repair-failed", "The repair returned empty source, so the previous candidate was kept.");
+    if (expired()) {
+      await record({attempt, scadSha256: sha256(proposed), findings: [], evidence: evidenceOf(measurement.manifest),
+        accepted:false, violations:[], phase:"aborted", reason:stopped(), frozenRequirementsSha256});
+      return finish("aborted", stopped());
+    }
+    if (!proposed.trim() || Buffer.byteLength(proposed,"utf8") > MAX_SOURCE_BYTES) {
+      const reason = proposed.trim() ? "The repaired source exceeded 256 KiB and was rejected before rendering." :
+        "The repair returned empty source, so the previous candidate was kept.";
+      await record({attempt,scadSha256:sha256(proposed),findings:[],evidence:evidenceOf(measurement.manifest),
+        accepted:false,violations:[],phase:"proposal-error",reason,frozenRequirementsSha256});
+      return finish("repair-failed", reason);
     }
     if (proposed.trim() === currentScad.trim()) {
       return finish("no-progress", "The repair returned the source it was given, so re-measuring would repeat the same result.");
     }
 
-    // The proposal must be measured before it can be judged, but a declaration
-    // that already broke an invariant is not worth rendering.
+    // A candidate that rewrites its embedded requirements is rejected BEFORE
+    // any OpenSCAD render; it cannot buy a PASS by altering its own spec.
+    if (input.strictEmbeddedSpec) {
+      const embedded = extractEmbeddedAssemblySpec(proposed);
+      const candidateHash = embedded.status === "valid" ? assemblySpecificationHash(embedded.spec) : null;
+      if (candidateHash !== originalSpecHash) {
+        const reason = "The candidate omitted or altered the frozen embedded specification; no geometry was rendered.";
+        await record({attempt,scadSha256:sha256(proposed),findings:[],evidence:evidenceOf(measurement.manifest),
+          accepted:false,violations:[{code:"invalid",message:reason}],
+          phase:"rejected-before-render",reason,frozenRequirementsSha256});
+        return finish("invariant-violated", reason);
+      }
+    }
     let next: AssemblyMeasurement;
     try {
       next = await input.measure(proposed);
     } catch (error) {
-      return finish("repair-failed", `The repaired source could not be measured: ${error instanceof Error ? error.message : String(error)}`);
+      const reason = "The repaired source could not be measured: " + (error instanceof Error ? error.message : String(error));
+      await record({attempt,scadSha256:sha256(proposed),findings:[],evidence:evidenceOf(measurement.manifest),
+        accepted:false,violations:[],phase:"measurement-error",reason,frozenRequirementsSha256});
+      return finish(input.signal?.aborted ? "aborted" : "repair-failed", reason);
+    }
+    if (expired()) {
+      await record({attempt,scadSha256:sha256(proposed),findings:[],evidence:evidenceOf(next.manifest),
+        accepted:false,violations:[],phase:"aborted",reason:stopped(),frozenRequirementsSha256});
+      return finish("aborted", stopped());
     }
     const violations = assertRepairPreservesAssembly({ before: measurement.spec, after: next.spec, contract: input.contract });
+    if (frozenFitHash(next.fitRequirements) !== frozenRequirementsSha256) {
+      violations.violations.push({ code:"requirement-relaxed",
+        message:"The proposed geometry changed the frozen fit measurement requirements."});
+      violations.ok=false;
+    }
+    if (input.strictEmbeddedSpec && assemblySpecificationHash(next.spec as never) !== originalSpecHash) {
+      violations.violations.push({code:"invalid",message:"Measured candidate spec differs from original frozen assembly."});
+      violations.ok=false;
+    }
     if (!violations.ok) {
-      record({
+      await record({
         attempt, scadSha256: sha256(proposed), findings: [],
         evidence: evidenceOf(next.manifest), violations: violations.violations, accepted: false,
+        phase:"rejected-before-render",reason:"Repaired candidate violated frozen invariants",
+        measuredAt:new Date().toISOString(),frozenRequirementsSha256,
       });
       return finish("invariant-violated", `The repair weakened the assembly instead of fixing it: ${violations.violations.map((violation) => violation.message).join(" ")}`);
     }
@@ -166,16 +263,19 @@ export async function repairMeasuredFailures(input: {
     const nextFindings = collectAssemblyFindings({
       manifest: next.manifest, fitRequirements: next.fitRequirements, kinematics: next.kinematics,
     });
-    record({
+    await record({
       attempt, scadSha256: sha256(proposed), findings: nextFindings,
       evidence: evidenceOf(next.manifest), violations: [], accepted: true,
+      phase:"measured",measuredAt:new Date().toISOString(),frozenRequirementsSha256,
     });
     measurement = next;
     findings = nextFindings;
     currentScad = proposed;
 
     if (findings.length === 0) {
-      return finish("no-findings", `Attempt ${attempt} closed every measured failure.`);
+      return evidenceComplete(measurement.manifest)
+        ? finish("no-findings", `Attempt ${attempt} closed every measured failure.`)
+        : finish("incomplete-evidence", "Measured FAIL findings were closed, but required check coverage is still incomplete.");
     }
   }
 
