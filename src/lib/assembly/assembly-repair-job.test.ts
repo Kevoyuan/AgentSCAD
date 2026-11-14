@@ -5,7 +5,7 @@ import { runProductionAssemblyRepair } from "./assembly-repair-job";
 import type { AssemblyMeasurement } from "./repair-loop";
 import { deriveRequirementContract } from "../requirements/extract-requirements";
 
-const userRequest="A complete hinged assembly that rotates 45 degrees";
+const userRequest="A complete hinged assembly that rotates 45 degrees with clearance 0.35 to 0.45 mm";
 async function fixture() {
   const source=await readFile("benchmarks/assembly/axial_hinge.scad","utf8");
   const parsed=validateAssemblySpec(JSON.parse(
@@ -18,14 +18,20 @@ async function fixture() {
     spec:parsed.data,source:scad(source),scad,contract:deriveRequirementContract({request:userRequest}),
   };
 }
+const frozenFit=[{connectionId:"hinge",boreInstanceId:"moving-instance",diametralClearanceMm:{min:0.35,max:0.45}}];
 const evidence=(status:"PASS"|"FAIL"|"NOT_RUN"):AssemblyMeasurement["manifest"]=>({
   evidence:{
     identity:{status:"PASS",reason:"separately rendered"},
-    assembly:{status,reason:status==="FAIL"?"collision":"measured"},
+    assembly:{status,reason:status==="FAIL"?"measured clearance outside contract":"measured"},
     motion:{status:"PASS",reason:"range sampled"},
   },
   contract:{evidenceCurrent:true},
-  fits:[],
+  fits:[{
+    connectionId:"hinge",status,measuredStatus:status,
+    reason:status==="FAIL"?"diametral clearance below required band":"measured",
+    diametralClearanceMm:{min:status==="FAIL"?0.20:0.39,max:status==="FAIL"?0.22:0.41},
+    boreDiameterMm:{min:6.4,max:6.4},shaftDiameterMm:{min:6,max:6},
+  }],
 });
 describe("A07 production closure with frozen original user requirements",()=>{
   test("a measured failure is fed to one opted-in proposal, then independently remeasured",async()=>{
@@ -46,7 +52,7 @@ describe("A07 production closure with frozen original user requirements",()=>{
         checked.push(source);
         return {
           spec:f.spec,manifest:evidence(source===f.source?"FAIL":"PASS"),
-          kinematics:null,fitRequirements:[],
+          kinematics:null,fitRequirements:frozenFit,
         };
       },
       onAttempt:item=>{events.push(item.phase??"");},
@@ -81,7 +87,7 @@ describe("A07 production closure with frozen original user requirements",()=>{
       modelProposal:async()=>({scad:f.scad("cube(2);",weakened)}),
       measureOverride:async()=>{
         measurements++;
-        return {spec:f.spec,manifest:evidence("FAIL"),kinematics:null,fitRequirements:[]};
+        return {spec:f.spec,manifest:evidence("FAIL"),kinematics:null,fitRequirements:frozenFit};
       },
     });
     expect(result.stoppedBecause).toBe("invariant-violated");
@@ -96,7 +102,7 @@ describe("A07 production closure with frozen original user requirements",()=>{
       originalRequest:userRequest,scadSource:f.source,spec:f.spec,contract:f.contract,
       maxAttempts:2,signal:new AbortController().signal,
       modelProposal:async()=>{proposals++;return {scad:"cube(2);"};},
-      measureOverride:async()=>({spec:f.spec,manifest:evidence("NOT_RUN"),kinematics:null,fitRequirements:[]}),
+      measureOverride:async()=>({spec:f.spec,manifest:evidence("NOT_RUN"),kinematics:null,fitRequirements:frozenFit}),
     });
     expect(proposals).toBe(0);
     expect(result.stoppedBecause).toBe("incomplete-evidence");
