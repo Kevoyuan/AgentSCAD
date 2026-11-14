@@ -35,6 +35,25 @@ describe("A06.3 explicit grounded joint parameter binding", () => {
     expect(binding.sourceBindingConfirmedByUser).toBe(true);
   });
 
+  test("bounded 3, 5, 7 or 9 source poses preserve endpoints, zero and measured angular step", async () => {
+    const f = await fixture();
+    for (const sampleCount of [3,5,7,9] as const) {
+      const { binding } = bindSourcePoseJobRequest({ ...f,
+        raw: { ...body, sampleCount, rotationDeg: 36 },
+      });
+      const angles = binding.samples.map(s => s.parameters.hinge_angle);
+      expect(angles).toHaveLength(sampleCount);
+      expect(angles[0]).toBeCloseTo(-36, 10);
+      expect(angles[angles.length-1]).toBeCloseTo(36, 10);
+      expect(angles[(sampleCount-1)/2]).toBe(0);
+      expect(binding.maximumSampleAngleGapDeg).toBeCloseTo(72/(sampleCount-1), 10);
+      expect(new Set(binding.samples.map(s=>s.id)).size).toBe(sampleCount);
+    }
+    for (const count of [1,2,4,8,10,-3,NaN]) {
+      expect(() => bindSourcePoseJobRequest({ ...f, raw: { ...body, sampleCount: count } })).toThrow();
+    }
+  });
+
   test("derives the correct non-origin world-axis, without trusting a precomputed client transform", async () => {
     const f = await fixture();
     const spec = structuredClone(f.spec);

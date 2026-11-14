@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { canonicalJson } from "@/lib/canonical-json";
 import { observeSourcePoses } from "@/lib/assembly/source-pose-observer";
+import { SOURCE_POSE_CHECKER_VERSION } from "@/lib/assembly/source-pose-version";
+import { usesOpenScadWasm } from "@/lib/tools/openscad-backend";
 import { runSourcePoseWithinBudget, SourcePoseDeadlineExceeded, SourcePoseLeaseAborted } from "@/lib/assembly/source-pose-budget";
 import { bindSourcePoseJobRequest, InvalidSourcePoseJobRequest } from "@/lib/assembly/source-pose-job-request";
 import { AssemblyIdentityError } from "@/lib/assembly/assembly-bundle";
@@ -72,6 +74,11 @@ export async function POST(request: NextRequest, { params }: Context) {
       const measured = await observeSourcePoses({
         scadSource: source, spec: lease!.spec,
         referenceSelector: "all", samples: binding.samples,
+        analyticSweep: {
+          movingInstanceId: binding.movingInstanceId,
+          axis: binding.axis,
+          anglesDeg: binding.samples.map(sample => sample.parameters[binding.sourceParameter]),
+        },
         // Narrowed after the strict SHA validation above; these are immutable
         // string values even across the asynchronous observer callback.
         expectedSourceSha256: fields.sourceSha256 as string,
@@ -87,16 +94,21 @@ export async function POST(request: NextRequest, { params }: Context) {
       sourceSha256: fields.sourceSha256,
       specSha256: fields.specSha256,
       contractSha256: lease.requirements.contractSha256,
+      checkerVersion: SOURCE_POSE_CHECKER_VERSION,
+      rendererBackend: usesOpenScadWasm() ? "wasm" : "native",
       connectionId: binding.connectionId,
       sourceParameter: binding.sourceParameter,
       movingInstanceId: binding.movingInstanceId,
       rotationDeg: binding.rotationDeg,
+      sampleCount: binding.sampleCount,
       samples: binding.samples,
     })).digest("hex");
     return NextResponse.json({
       schemaVersion: 1,
       sourceSha256: fields.sourceSha256, specSha256: fields.specSha256,
       contractSha256: lease.requirements.contractSha256,
+      checkerVersion: SOURCE_POSE_CHECKER_VERSION,
+      rendererBackend: usesOpenScadWasm() ? "wasm" : "native",
       confirmedRequirementCurrent: lease.requirements.evidenceCurrent,
       bindingSha256,
       binding: {
@@ -105,6 +117,8 @@ export async function POST(request: NextRequest, { params }: Context) {
         movingInstanceId: binding.movingInstanceId,
         groundedInstanceId: binding.groundedInstanceId,
         rotationDeg: binding.rotationDeg,
+        sampleCount: binding.sampleCount,
+        maximumSampleAngleGapDeg: binding.maximumSampleAngleGapDeg,
         axis: binding.axis,
         userConfirmed: true,
         independentParameterSemanticsVerified: false,
@@ -112,7 +126,7 @@ export async function POST(request: NextRequest, { params }: Context) {
       report,
       productMotionApproval: "NOT_RUN",
       physicalFunctionApproval: "NOT_RUN",
-      limitations: "Only three explicit source/pose surface observations. The user-selected parameter is not independently mapped to the intended mechanism. No continuous sweep, contact/force proof, tool access, manufacturing approval or JobOutcome acceptance.",
+      limitations: "Only 3–9 independent source-pose surface observations. The optional interval checker certifies or rejects only analytic declared rigid-part motion, not the actual source-variable behavior between rendered frames. The selected source parameter is not independently linked to intended mechanism semantics. Product motion, forces, physical fit and manufacturing approval remain NOT_RUN.",
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof InvalidSourcePoseJobRequest) {

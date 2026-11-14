@@ -15,6 +15,7 @@ import { renderAssemblyParts } from "../assembly-part-renderer";
 import { repairMeasuredFailures } from "../../assembly/repair-loop";
 import { observeSourcePoses } from "../../assembly/source-pose-observer";
 import { rotationAboutAxis } from "../../assembly/path-and-motion";
+import { bindSourcePoseJobRequest } from "../../assembly/source-pose-job-request";
 
 const pose = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const identity = pose;
@@ -476,5 +477,49 @@ generated_part();
     })).rejects.toThrow("not right-handed rigid");
     expect(renders).toBe(0);
   }, 60000);
+
+
+  test("A06 final: independently matching source poses still expose hidden 22.5 degree physical STL obstruction", async () => {
+    const original = await readFile("benchmarks/assembly/axial_hinge.scad", "utf8");
+    const spec = await hingeSpec();
+    // A small fixed post at radius ~20 mm is outside the swept leaf at the
+    // -45°, 0° and +45° reference angles, but intersects it around +22.5°.
+    // The test uses real OpenSCAD CSG STL renders, not mocked collision boxes.
+    const changed = original.replace(
+      "    translate([0, 0, -0.1]) cylinder(h = 12.1, d = 6);",
+      "    translate([0, 0, -0.1]) cylinder(h = 12.1, d = 6);\n" +
+      "    translate([18.4, 7.65, 1.5]) cube([0.5, 0.5, 2]);",
+    );
+    expect(changed).not.toBe(original);
+    const { binding } = bindSourcePoseJobRequest({
+      scadSource: changed, spec,
+      raw: {
+        sourceSha256: createHash("sha256").update(changed).digest("hex"),
+        specSha256: createHash("sha256").update(JSON.stringify(spec)).digest("hex"),
+        connectionId: "hinge", sourceParameter: "hinge_angle",
+        rotationDeg: 45, confirmedBinding: true,
+      },
+    });
+    const report = await observeSourcePoses({
+      scadSource: changed, spec, referenceSelector: "all",
+      samples: binding.samples,
+      expectedSourceSha256: createHash("sha256").update(changed).digest("hex"),
+      analyticSweep: {
+        movingInstanceId: binding.movingInstanceId,
+        axis: binding.axis,
+        anglesDeg: binding.samples.map(sample => sample.parameters.hinge_angle),
+      },
+    });
+    expect(report.samples.map(x => x.status)).toEqual(["PASS","PASS","PASS"]);
+    const sweep = report.analyticRigidSweep;
+    expect(sweep?.method).toBe("bounded-rigid-axis-swept-aabb/v1");
+    expect(sweep?.status).toBe("FAIL");
+    expect(sweep?.collisionAt).not.toBeNull();
+    expect(sweep!.collisionAt!.angleDeg).toBeGreaterThan(0);
+    expect(sweep!.collisionAt!.angleDeg).toBeLessThan(45);
+    expect(sweep!.collisionAt!.obstacleInstanceId).toBe("fixed-instance");
+    expect(sweep!.evaluatedAnglesDeg.length).toBeGreaterThan(3);
+    expect(report.coverage).toContain("no continuous sweep of actual source-generated behavior");
+  }, 240000);
 
 });

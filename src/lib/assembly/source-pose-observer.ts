@@ -14,6 +14,8 @@ import { buildAssemblyBundle } from "./assembly-bundle";
 import { reconstructAssemblyBundle } from "./reconstruct-assembly-bundle";
 import { renderAssemblyParts, renderAssemblySpecParts, type RenderedAssemblyPart } from "../tools/assembly-part-renderer";
 import type { ScadExecutionOptions } from "../tools/scad-renderer";
+import { verifyAnalyticRigidSweep, type RigidSweepEvidence } from "./source-rigid-sweep";
+import type { Vec3 } from "../geometry/stl-mesh";
 
 type Rendered = { parts: RenderedAssemblyPart[]; purchasedPartIds: string[] };
 export type SourcePoseSample = {
@@ -49,6 +51,7 @@ export type SourcePoseReport = {
   originalSpecificationSha256: string;
   referenceSelector: string;
   samples: SourcePoseObservation[];
+  analyticRigidSweep?: RigidSweepEvidence;
   reason: string;
   coverage: string;
 };
@@ -65,6 +68,13 @@ export async function observeSourcePoses(input: {
   spec: unknown;
   referenceSelector: string;
   samples: SourcePoseSample[];
+  /** Auxiliary conservative clearance for the declared rigid geometry, not actual
+   * source motion semantics between the independently rendered samples. */
+  analyticSweep?: {
+    movingInstanceId: string;
+    axis: { origin: Vec3; direction: Vec3 };
+    anglesDeg: number[];
+  };
   expectedSourceSha256?: string;
   expectedSpecificationSha256?: string;
   options?: ScadExecutionOptions;
@@ -75,7 +85,7 @@ export async function observeSourcePoses(input: {
   if (!checkedSpec.success) throw new Error("Invalid source-pose assembly specification");
   if (!input.scadSource.trim()) throw new Error("Source-pose observation requires nonempty CAD source");
   if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(input.referenceSelector)) throw new Error("Invalid reference selector");
-  if (input.samples.length < 2 || input.samples.length > 8) throw new Error("Source-pose comparison requires 2 to 8 explicit samples");
+  if (input.samples.length < 2 || input.samples.length > 9) throw new Error("Source-pose comparison requires 2 to 9 explicit samples");
   if (new Set(input.samples.map(sample => sample.id)).size !== input.samples.length) throw new Error("Duplicate source pose sample IDs");
   const spec = checkedSpec.data;
   if (!spec.instances.length || spec.instances.length > 32 ||
@@ -152,6 +162,12 @@ export async function observeSourcePoses(input: {
       limitations: "One source-parameter pose, measured triangulated surfaces only. No continuous clearance, semantic parameter-to-motion identity, force, physical fit or full product acceptance.",
     });
   }
+  input.options?.signal?.throwIfAborted();
+  const analyticRigidSweep = input.analyticSweep === undefined ? undefined : verifyAnalyticRigidSweep({
+    spec, parts: local.parts, movingInstanceId: input.analyticSweep.movingInstanceId,
+    axis: input.analyticSweep.axis, anglesDeg: input.analyticSweep.anglesDeg,
+    signal: input.options?.signal,
+  });
   const statuses = results.map(item => item.status);
   const status: ResultStatus = statuses.includes("ERROR") ? "ERROR" :
     statuses.includes("FAIL") ? "FAIL" :
@@ -161,7 +177,8 @@ export async function observeSourcePoses(input: {
     status, sourceSha256,
     originalSpecificationSha256: assemblySpecificationHash(spec),
     referenceSelector: input.referenceSelector, samples: results,
+    ...(analyticRigidSweep ? { analyticRigidSweep } : {}),
     reason: "Independently rendered source reference versus placed parts at explicit samples, not product motion approval.",
-    coverage: results.length + " explicitly enumerated pose samples; no continuous sweep, allowed contacts, tools or manufacturing.",
+    coverage: results.length + " independently rendered source parameter poses; no continuous sweep of actual source-generated behavior is proven. Optional analytic rigid-sweep bounds concern only declared rigid-part trajectories, not source behavior between observations, tools or manufacture.",
   };
 }
