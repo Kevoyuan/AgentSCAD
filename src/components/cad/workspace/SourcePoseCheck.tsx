@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useI18n } from '@/components/i18n-provider'
 import type { AssemblySpec } from '@/lib/assembly/assembly-spec'
 import type { SourcePoseReport } from '@/lib/assembly/source-pose-observer'
+import { CollisionReplayAction } from './CollisionReplayAction'
 
 type SourcePoseJobView = {
   schemaVersion: 1
@@ -102,6 +103,8 @@ export function SourcePoseCheck({ jobId, sourceSha256, specSha256, spec }: {
   const validAngle = Number.isFinite(angle) && angle >= 1 && angle <= maximum
   const key = [jobId, sourceSha256, specSha256, connectionId, sourceParameter, rotation, sampleCount].join(':')
   const displayed = saved?.key === key ? saved.data : null
+  const observedCollision = displayed?.report.analyticRigidSweep?.collisionAt ?? null
+  const observedCollisionPoseIndex = observedCollision ? (displayed?.report.analyticRigidSweep?.evaluatedAnglesDeg.indexOf(observedCollision.angleDeg) ?? -1) : -1
 
   const run = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -188,6 +191,26 @@ export function SourcePoseCheck({ jobId, sourceSha256, specSha256, spec }: {
           {' '}{displayed.report.analyticRigidSweep.collisionAt.obstacleInstanceId}
           {' '}({displayed.report.analyticRigidSweep.collisionAt.collision})
         </p>}
+        {observedCollision && observedCollisionPoseIndex >= 0 &&
+          (observedCollision.collision === 'INTERSECT' || observedCollision.collision === 'CONTAINED') &&
+          <CollisionReplayAction
+            jobId={jobId} sourceSha256={sourceSha256} specSha256={specSha256}
+            evidenceArchiveSha256={displayed.report.samples[Math.floor(displayed.report.samples.length / 2)].archiveSha256}
+            target={{
+              movingInstanceId:displayed.binding.movingInstanceId,
+              obstacleInstanceId:observedCollision.obstacleInstanceId,
+              collision:observedCollision.collision,
+              poseIndex:observedCollisionPoseIndex,
+              frame:{
+                frame:'right-handed-mm-row-major-4x4/v1',
+                movingWorldFromLocal:observedCollision.movingWorldFromLocal,
+                obstacleWorldFromLocal:observedCollision.obstacleWorldFromLocal,
+                movingMeshSha256:observedCollision.movingMeshSha256,
+                obstacleMeshSha256:observedCollision.obstacleMeshSha256,
+              },
+              witnessCentroidPointMm:observedCollision.witnessCentroidPointMm,
+            }}
+          />}
         {displayed.report.analyticRigidSweep.unresolvedIntervals.length > 0 && <details className="mt-1">
           <summary>{t('Unresolved rigid motion angle intervals')} ({displayed.report.analyticRigidSweep.unresolvedIntervals.length})</summary>
           <ul className="mt-1">{displayed.report.analyticRigidSweep.unresolvedIntervals.map((interval, i) =>
