@@ -426,6 +426,7 @@ generated_part();
       expectedSourceSha256: createHash("sha256").update(scadSource).digest("hex"),
       samples: [...samples, badAxis],
     });
+    console.info("A06_SOURCE_POSE_DIAGNOSTIC", JSON.stringify(report.samples.map(item => ({ id: item.id, status: item.status, reason: item.reason, bboxErrorMm: item.bboxErrorMm, maxVertexErrorMm: item.maxVertexErrorMm, matchedTriangles: item.matchedTriangles }))));
     expect(report.method).toBe("independent-source-pose-stl-comparison/v1");
     expect(report.samples).toHaveLength(4);
     expect(report.samples.slice(0, 3).map(item => item.status)).toEqual(["PASS", "PASS", "PASS"]);
