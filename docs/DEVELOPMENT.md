@@ -251,6 +251,12 @@ The response carries source/spec/archive hashes, `evidence` statuses and reasons
 
 
 
+## A06.2 — triangulation-independent sampled surface comparison
+
+Original native OpenSCAD source-pose comparisons reported hinge 0° PASS but −45°/+45° NOT_RUN, even when independent rendered surface **bounds** matched exactly. Because a correct CAD source may split a planar face into new triangles when evaluating a rotated Boolean assembly, A06.2 adds a bounded **bidirectional coplanar triangle-area coverage** method. Exact triangle-vertex matching remains a fast path. On correspondence failure it projects coplanar facet pairs to 2D, clips convex triangles, sums overlapping area for each source facet, and repeats in reverse. Plane distances, bounding boxes, per-facet numerical area budgets and a capped pair count prevent a triangle count or matching bounding-box false PASS.
+
+Diagnostic fields (algorithm name, pair count, triangles checked, largest observed area mismatch and numerical budget) propagate into reference and source-pose reports. Negative cases include removed patches with unchanged outer bounds, duplicate surfaces, extra internal facets, bent/coplanar-projection impostors, degenerates and exhausted budgets. The result is **only** a measured tessellated-surface comparison at explicitly supplied source parameters—not continuous mechanism motion, volume identity, true closed manifold, physically calibrated error or manufacturing acceptance. An inconclusive patch is NOT_RUN, never promoted on insufficient evidence.
+
 ## A06.1 — source-driven native pose reference
 
 The new `src/lib/assembly/source-pose-observer.ts` implements a bounded, explicitly invoked source-pose reference workflow. For each requested original OpenSCAD source parameter (for example hinge_angle at −45°, 0°, +45°), it independently renders the **whole source** using the declared selector while separately placing the previously rendered local-part STL meshes using supplied rigid 4×4 matrices. `reconstructAssemblyBundle` verifies part archive hashes and checks real triangles against the independently rendered reference. Reports retain source SHA, base and posed specification SHA, part meshes, reference STL SHA, reconstruction SHA, archive hash, comparison status and method per sampled pose.
