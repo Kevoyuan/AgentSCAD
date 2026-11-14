@@ -55,6 +55,31 @@ test("the explicit POST sends only source binding, never client-computed world m
   expect(result.data?.report.samples).toHaveLength(3);
 });
 
+test("seven source frames require a matching seven-frame response and do not accept forged physical clearance", async () => {
+  const q = { ...query, sampleCount: 7 as const };
+  const result = await fetchSourcePoseCheck(q, async (_url, init) => {
+    const sent = JSON.parse(String(init?.body));
+    expect(sent.sampleCount).toBe(7);
+    return Response.json({
+      schemaVersion:1, sourceSha256:sha, specSha256:specSha,
+      report: {
+        sourceSha256:sha, status:"PASS",
+        samples:Array.from({length:7},(_,i)=>({id:"pose"+i,status:"PASS"})),
+        analyticRigidSweep:{status:"NOT_RUN",unresolvedIntervals:[{fromDeg:0,toDeg:2,reason:"Near miss"}]},
+      },
+      binding: {connectionId:"hinge",sourceParameter:"hinge_angle",
+        rotationDeg:15,sampleCount:7,independentParameterSemanticsVerified:false},
+      productMotionApproval:"NOT_RUN",physicalFunctionApproval:"NOT_RUN",
+    });
+  });
+  expect(result.error).toBeUndefined();
+  expect(result.data?.report.samples).toHaveLength(7);
+  const short = await fetchSourcePoseCheck(q, async()=>Response.json({
+    ...result.data,report:{...result.data?.report,samples:[{id:"fake"}]},
+  }));
+  expect(short.error).toContain("not bound");
+});
+
 test("stale, forged and unapproved source-pose responses cannot masquerade as current data", async () => {
   const invalid = {
     schemaVersion: 1, sourceSha256: sha, specSha256: specSha,
