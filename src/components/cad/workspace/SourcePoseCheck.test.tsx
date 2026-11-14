@@ -6,6 +6,7 @@ import { I18nContext } from "@/components/i18n-provider";
 import { createTranslator } from "@/lib/i18n";
 import { validateAssemblySpec } from "@/lib/assembly/assembly-spec";
 import { fetchSourcePoseCheck, SourcePoseCheck } from "./SourcePoseCheck";
+import { SOURCE_POSE_CHECKER_VERSION } from "@/lib/assembly/source-pose-version";
 
 const sha = "a".repeat(64);
 const specSha = "b".repeat(64);
@@ -43,7 +44,7 @@ test("the explicit POST sends only source binding, never client-computed world m
     expect(payload.confirmedBinding).toBe(true);
     expect(payload.rotationDeg).toBe(15);
     return Response.json({
-      schemaVersion: 1, sourceSha256: sha, specSha256: specSha,
+      schemaVersion: 1, checkerVersion: SOURCE_POSE_CHECKER_VERSION, rendererBackend: "native", sourceSha256: sha, specSha256: specSha,
       binding: { connectionId: "hinge", sourceParameter: "hinge_angle",
         rotationDeg: 15, independentParameterSemanticsVerified: false },
       report: { status: "PASS", sourceSha256: sha, samples: [{ id: "negative" }, { id: "zero" }, { id: "positive" }] },
@@ -61,7 +62,7 @@ test("seven source frames require a matching seven-frame response and do not acc
     const sent = JSON.parse(String(init?.body));
     expect(sent.sampleCount).toBe(7);
     return Response.json({
-      schemaVersion:1, sourceSha256:sha, specSha256:specSha,
+      schemaVersion:1, checkerVersion:SOURCE_POSE_CHECKER_VERSION, rendererBackend:"native", sourceSha256:sha, specSha256:specSha,
       report: {
         sourceSha256:sha, status:"PASS",
         samples:Array.from({length:7},(_,i)=>({id:"pose"+i,status:"PASS"})),
