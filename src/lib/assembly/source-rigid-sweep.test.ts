@@ -59,7 +59,7 @@ describe("A06 bounded analytic rigid-sweep collision evidence", () => {
     expect(result.collisionAt).not.toBeNull();
     expect(result.collisionAt?.angleDeg).toBeCloseTo(22.5,6);
     expect(result.collisionAt?.obstacleInstanceId).toBe("obstacle-instance");
-    expect(["INTERSECT","CONTAINED"]).toContain(result.collisionAt?.collision);
+    expect(result.collisionAt !== null && ["INTERSECT","CONTAINED"].includes(result.collisionAt.collision)).toBe(true);
     expect(result.collisionAt?.movingMeshSha256).toBe(arm.sha256);
     expect(result.evaluatedAnglesDeg).toContain(22.5);
     expect(result.reason).toContain("actual STL collision");
