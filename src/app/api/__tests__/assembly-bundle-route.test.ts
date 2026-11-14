@@ -603,6 +603,38 @@ fs.writeFileSync(out, buffer);
     expect((await db.job.findUniqueOrThrow({where:{id:job.id}})).scadSource).toBe(source);
   });
 
+  test("A07 paid failed proposal history stores replayable exact source but redacts it after Job source changes",async()=>{
+    const {job,sourceHash,specHash:currentSpecHash}=await create();
+    const req=await readRequirementContract(job.id,job.inputRequest);
+    const {fingerprintRequirementState}=await import("@/lib/assembly/evidence-snapshot-record");
+    const candidate="cube(2); // rejected candidate";
+    const candidateSha=createHash("sha256").update(candidate).digest("hex");
+    const event=createRepairEvent({
+      jobId:job.id,runId:"00000000-0000-4000-8000-000000000002",
+      sourceSha256:sourceHash,specificationSha256:currentSpecHash,
+      contractSha256:req.contractSha256,requirementFingerprint:fingerprintRequirementState(req),
+      eventIndex:1,state:"ATTEMPT",attempt:{
+        attempt:1,scadSha256:candidateSha,candidateScadSource:candidate,
+        candidateByteLength:Buffer.byteLength(candidate,"utf8"),
+        findings:[],evidence:{identity:"PASS",assembly:"FAIL",motion:"NOT_RUN"},
+        violations:[],accepted:false,phase:"measurement-error",reason:"Native OpenSCAD could not render",
+      },
+    });
+    await appendRepairEvent(event);
+    const current=await GET_ASSEMBLY_REPAIR(admin("http://localhost"),context(job.id));
+    const now=(await current.json()).events;
+    expect(now[0].bindingCurrent).toBe(true);
+    expect(now[0].event.attempt.candidateScadSource).toBe(candidate);
+    expect(now[0].event.attempt.scadSha256).toBe(candidateSha);
+    await db.job.update({where:{id:job.id},data:{scadSource:source+"\n// changed"}});
+    const stale=await GET_ASSEMBLY_REPAIR(admin("http://localhost"),context(job.id));
+    const old=(await stale.json()).events;
+    expect(old[0].integrity).toBe("PASS");
+    expect(old[0].bindingCurrent).toBe(false);
+    expect(old[0].event.attempt.scadSha256).toBe(candidateSha);
+    expect(old[0].event.attempt.candidateScadSource).toBeUndefined();
+  });
+
   test("rejects missing authorization, stale hashes and unknown jobs", async () => {
     const { job, sourceHash, specHash: contractHash } = await create();
     expect((await GET(new Request(url(sourceHash, contractHash)) as never, context(job.id))).status).toBe(401);
