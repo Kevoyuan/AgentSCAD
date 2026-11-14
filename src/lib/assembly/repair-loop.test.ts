@@ -140,6 +140,23 @@ describe("the measured repair loop", () => {
     expect(result.finalScad).toBe("cube(1);");
   });
 
+  test("oversized returned model source retains SHA and byte length but never persists oversized text", async () => {
+    const proposal="/* too large */"+ " ".repeat(270_000);
+    const result=await repairMeasuredFailures({
+      originalRequest:"hinge",scad:"cube(1);",
+      measure:async()=>measurement("FAIL"),
+      propose:async()=>({scad:proposal,modelExecution:{
+        model:"test-model",provider:"unit",latencyMs:7,promptTokens:100,
+      }}),
+    });
+    expect(result.stoppedBecause).toBe("repair-failed");
+    expect(result.attempts[1].candidateByteLength).toBe(Buffer.byteLength(proposal,"utf8"));
+    expect(result.attempts[1].candidateScadSource).toBeUndefined();
+    expect(result.attempts[1].scadSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.attempts[1].modelExecution?.promptTokens).toBe(100);
+    expect(result.finalScad).toBe("cube(1);");
+  });
+
   test("the attempt budget bounds the loop and the shortfall is reported", async () => {
     let proposals = 0;
     const result = await repairMeasuredFailures({
