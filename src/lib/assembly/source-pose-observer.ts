@@ -179,6 +179,6 @@ export async function observeSourcePoses(input: {
     referenceSelector: input.referenceSelector, samples: results,
     ...(analyticRigidSweep ? { analyticRigidSweep } : {}),
     reason: "Independently rendered source reference versus placed parts at explicit samples, not product motion approval.",
-    coverage: results.length + " independently rendered source parameter poses; optional analytic rigid-sweep bounds concern only declared part trajectories, not source behavior between observations, tools or manufacture.",
+    coverage: results.length + " independently rendered source parameter poses; no continuous sweep of actual source-generated behavior is proven. Optional analytic rigid-sweep bounds concern only declared rigid-part trajectories, not source behavior between observations, tools or manufacture.",
   };
 }
