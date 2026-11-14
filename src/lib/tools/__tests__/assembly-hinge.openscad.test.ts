@@ -393,7 +393,8 @@ generated_part();
 
     // The shortened arm keeps every part and every declared number, so the guard
     // accepts it and the second measurement is the one that counts.
-    expect(result.stoppedBecause).toBe("no-findings");
+    expect(result.stoppedBecause).toBe("incomplete-evidence");
+    expect(result.evidenceComplete).toBe(false);
     expect(result.attempts[1].accepted).toBe(true);
     expect(result.attempts[1].violations).toEqual([]);
     expect(result.attempts[1].evidence.motion).toBe("PASS");
