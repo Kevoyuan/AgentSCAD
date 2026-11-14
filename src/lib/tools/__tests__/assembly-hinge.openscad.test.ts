@@ -428,12 +428,13 @@ generated_part();
     });
     expect(report.method).toBe("independent-source-pose-stl-comparison/v1");
     expect(report.samples).toHaveLength(4);
-    // OpenSCAD re-triangulates the nonzero rotated assembly even though its
-    // bounding-box envelope matches exactly. The bijective triangle matcher
-    // cannot certify that surface, so NOT_RUN is the only honest standing.
-    expect(report.samples.slice(0, 3).map(item => item.status)).toEqual(["NOT_RUN", "PASS", "NOT_RUN"]);
-    expect(report.samples[0].reason).toContain("No triangle correspondence");
-    expect(report.samples[2].reason).toContain("No triangle correspondence");
+    // OpenSCAD re-triangulates the rotated source, so proof now requires
+    // bidirectional coplanar facet coverage rather than vertex correspondence.
+    expect(report.samples.slice(0, 3).map(item => item.status)).toEqual(["PASS", "PASS", "PASS"]);
+    expect(report.samples[0].comparisonMethod).toBe("bidirectional-coplanar-triangle-area/v1");
+    expect(report.samples[2].comparisonMethod).toBe("bidirectional-coplanar-triangle-area/v1");
+    expect(report.samples[0].testedPairs).toBeGreaterThan(0);
+    expect(report.samples[2].testedPairs).toBeGreaterThan(0);
     expect(report.samples[0].bboxErrorMm).toBe(0);
     expect(report.samples[2].bboxErrorMm).toBe(0);
     expect(report.samples[1].matchedTriangles).toBeGreaterThan(0);
