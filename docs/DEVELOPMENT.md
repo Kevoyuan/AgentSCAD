@@ -251,6 +251,15 @@ The response carries source/spec/archive hashes, `evidence` statuses and reasons
 
 
 
+
+## A06 completion checkpoint — controlled source observations + analytic bounded rigid sweep
+
+A user can request 3, 5, 7 or 9 source-controlled poses for a single grounded revolute joint, with the explicit parameter and symmetric angular limits, via the on-demand authenticated Job source-pose API. The server generates world transforms, renders actual independent full-assembly OpenSCAD STLs, and compares them to the separately rendered local part meshes. The source report displays per-pose PASS/FAIL/NOT_RUN, method, reference/part hash and numerical deviation, plus the largest source-sample step.
+
+The extra analytic-rigid-sweep diagnostic constructs BVHs of each real generated STL. Every original reference angle is collision tested. Each angular interval is cleared **only** if a midpoint AABB expanded by `2 * maximumVertexAxisRadius * sin(intervalRadians/4)` is provably disjoint from all static obstacle AABBs. Otherwise the sampler recurses and collision tests newly chosen midpoints. A hit is FAIL at the observed angle; time/depth/triangle-pair exhaustion or inseparable envelopes are NOT_RUN with explicit unresolved intervals and maximum remaining angular gap. Intentional contacts have no automatic exception. An analytic PASS only establishes non-interference of *the declared rigid rotation*, never that the OpenSCAD source parameter actually generates that trajectory between independently rendered frames. Source parameter semantics, physical fit, forces, mechanisms needing more than a grounded single joint, continuous actual source behavior and manufacturing acceptance remain NOT_RUN.
+
+Adversarial tests include hidden obstacles around 22.5° undetected by original −45°/0°/+45° reference frames, erroneous axes and stale source, bounded unknowns, complete separation, and true native OpenSCAD re-renders. No background render, accepted product-motion outcome, export event or Vercel deployment.
+
 ## A06.3.2 — cumulative production-source-pose execution budget
 
 `POST /api/jobs/[id]/assembly/source-poses` now wraps **all three OpenSCAD reference poses and the final version recheck** in a 180s total wall deadline. The upstream lease signal and total deadline combine into one renderer signal; a source/spec/edit cancellation remains HTTP 409, while a deadline returns HTTP 503 with `Retry-After: 30` and no approval or persisted result. Both timers and event listeners are cleaned up. A monotonic elapsed-time recheck prevents a renderer that ignores abort or blocks the event loop from returning a false late PASS. Deterministic tests cover success, timeout, ignored abort, synchronous CPU block, invalid budgets and upstream abort priority.
