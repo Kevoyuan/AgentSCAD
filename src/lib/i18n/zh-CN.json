@@ -1163,5 +1163,7 @@
   "Maximum unresolved interval": "最大未判定角度区间",
   "Observed intermediate collision at": "检测到中间角度碰撞",
   "Unresolved rigid motion angle intervals": "无法证明净空的角度区间",
-  "Rigid sweep status describes an assumed analytic rotation, not verified OpenSCAD behavior between reference frames or physical function.": "刚体运动检查仅基于假定的解析旋转，不证明两个源码参考位姿之间的 OpenSCAD 实际行为或实物功能。"
+  "Rigid sweep status describes an assumed analytic rotation, not verified OpenSCAD behavior between reference frames or physical function.": "刚体运动检查仅基于假定的解析旋转，不证明两个源码参考位姿之间的 OpenSCAD 实际行为或实物功能。",
+  "Checker version": "检查器版本",
+  "OpenSCAD renderer": "OpenSCAD 渲染后端"
 }
