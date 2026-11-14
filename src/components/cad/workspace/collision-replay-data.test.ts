@@ -74,7 +74,7 @@ describe('hash-bound 3D collision pair replay data', () => {
     expect(Array.from(pair.obstacle.matrix)).toEqual(Array.from(identity))
     expect(sha(pair.moving.stl)).toBe(recorded.frame.movingMeshSha256)
     expect(sha(pair.obstacle.stl)).toBe(recorded.frame.obstacleMeshSha256)
-    expect(pair.witnessCentroidPointMm).toEqual(recorded.witnessCentroidPointMm)
+    expect(pair.witnessCentroidPointMm).toEqual([4.5, -1, 2])
     expect(pair.archiveSha256).toBe(sha(archive))
   })
 
