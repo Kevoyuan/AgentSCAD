@@ -40,6 +40,10 @@ export interface RepairLoopAttempt {
   /** 0 is the candidate as generated; each repair increments it. */
   attempt: number;
   scadSha256: string;
+  /** Returned source is persisted for exact replay when at most 256 KiB. */
+  candidateScadSource?: string;
+  /** Always record byte count even for an oversized proposal withheld by policy. */
+  candidateByteLength?: number;
   findings: AssemblyFinding[];
   evidence: { identity: string; assembly: string; motion: string };
   /** Empty for the original, and for a repair that kept the declaration intact. */
@@ -47,7 +51,7 @@ export interface RepairLoopAttempt {
   /** False when the declaration was weakened; such an attempt is never measured. */
   accepted: boolean;
   /** Never infer an unmeasured attempt from an empty findings array. */
-  phase?: "measured" | "rejected-before-render" | "measurement-error" | "proposal-error" | "aborted";
+  phase?: "measured" | "rejected-before-render" | "measurement-error" | "proposal-error" | "no-progress" | "aborted";
   reason?: string;
   measuredAt?: string;
   /** Frozen fit requirement hash, not candidate-selected measurement targets. */
@@ -104,6 +108,10 @@ const HARD_MAX_ATTEMPTS = 5;
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 const MAX_SOURCE_BYTES = 256 * 1024;
+const returnedSource = (scad: string) => ({
+  candidateByteLength: Buffer.byteLength(scad,"utf8"),
+  ...(Buffer.byteLength(scad,"utf8")<=MAX_SOURCE_BYTES ? { candidateScadSource:scad } : {}),
+});
 const MAX_REPAIR_WALL_MS = 240_000;
 const requiredStatuses = ["identity", "assembly", "motion"] as const;
 function evidenceComplete(manifest: AssemblyEvidenceManifest): boolean {
@@ -235,18 +243,27 @@ export async function repairMeasuredFailures(input: {
     }
     if (expired()) {
       await record({attempt, scadSha256: sha256(proposed), findings: [], evidence: evidenceOf(measurement.manifest),
-        accepted:false, violations:[], phase:"aborted", reason:stopped(), frozenRequirementsSha256, modelExecution});
+        accepted:false, violations:[], phase:"aborted", reason:stopped(), frozenRequirementsSha256, modelExecution,
+        ...returnedSource(proposed)});
       return finish("aborted", stopped());
     }
     if (!proposed.trim() || Buffer.byteLength(proposed,"utf8") > MAX_SOURCE_BYTES) {
       const reason = proposed.trim() ? "The repaired source exceeded 256 KiB and was rejected before rendering." :
         "The repair returned empty source, so the previous candidate was kept.";
       await record({attempt,scadSha256:sha256(proposed),findings:[],evidence:evidenceOf(measurement.manifest),
-        accepted:false,violations:[],phase:"proposal-error",reason,frozenRequirementsSha256,modelExecution});
+        accepted:false,violations:[],phase:"proposal-error",reason,frozenRequirementsSha256,modelExecution,
+        ...returnedSource(proposed)});
       return finish("repair-failed", reason);
     }
     if (proposed.trim() === currentScad.trim()) {
-      return finish("no-progress", "The repair returned the source it was given, so re-measuring would repeat the same result.");
+      const reason="The repair returned the source it was given, so re-measuring would repeat the same result.";
+      await record({
+        attempt,scadSha256:sha256(proposed),...returnedSource(proposed),
+        findings:[],evidence:evidenceOf(measurement.manifest),
+        accepted:false,violations:[],phase:"no-progress",reason,
+        modelExecution,frozenRequirementsSha256,
+      });
+      return finish("no-progress", reason);
     }
 
     // A candidate that rewrites its embedded requirements is rejected BEFORE
@@ -258,7 +275,8 @@ export async function repairMeasuredFailures(input: {
         const reason = "The candidate omitted or altered the frozen embedded specification; no geometry was rendered.";
         await record({attempt,scadSha256:sha256(proposed),findings:[],evidence:evidenceOf(measurement.manifest),
           accepted:false,violations:[{code:"invalid",message:reason}],
-          phase:"rejected-before-render",reason,frozenRequirementsSha256,modelExecution});
+          phase:"rejected-before-render",reason,frozenRequirementsSha256,modelExecution,
+          ...returnedSource(proposed)});
         return finish("invariant-violated", reason);
       }
     }
@@ -268,12 +286,14 @@ export async function repairMeasuredFailures(input: {
     } catch (error) {
       const reason = "The repaired source could not be measured: " + (error instanceof Error ? error.message : String(error));
       await record({attempt,scadSha256:sha256(proposed),findings:[],evidence:evidenceOf(measurement.manifest),
-        accepted:false,violations:[],phase:"measurement-error",reason,frozenRequirementsSha256,modelExecution});
+        accepted:false,violations:[],phase:"measurement-error",reason,frozenRequirementsSha256,modelExecution,
+        ...returnedSource(proposed)});
       return finish(input.signal?.aborted ? "aborted" : "repair-failed", reason);
     }
     if (expired()) {
       await record({attempt,scadSha256:sha256(proposed),findings:[],evidence:evidenceOf(next.manifest),
-        accepted:false,violations:[],phase:"aborted",reason:stopped(),frozenRequirementsSha256,modelExecution});
+        accepted:false,violations:[],phase:"aborted",reason:stopped(),frozenRequirementsSha256,modelExecution,
+        ...returnedSource(proposed)});
       return finish("aborted", stopped());
     }
     const violations = assertRepairPreservesAssembly({ before: measurement.spec, after: next.spec, contract: input.contract });
@@ -291,6 +311,7 @@ export async function repairMeasuredFailures(input: {
         attempt, scadSha256: sha256(proposed), findings: [],
         evidence: evidenceOf(next.manifest), violations: violations.violations, accepted: false,
         phase:"rejected-before-render",reason:"Repaired candidate violated frozen invariants",modelExecution,
+        ...returnedSource(proposed),
         measurementProvenance:provenanceOf(next),
         measuredAt:new Date().toISOString(),frozenRequirementsSha256,
       });
@@ -304,6 +325,7 @@ export async function repairMeasuredFailures(input: {
       attempt, scadSha256: sha256(proposed), findings: nextFindings,
       evidence: evidenceOf(next.manifest), violations: [], accepted: true,
       phase:"measured",measuredAt:new Date().toISOString(),frozenRequirementsSha256,modelExecution,
+      ...returnedSource(proposed),
       measurementProvenance:provenanceOf(next),
     });
     measurement = next;
