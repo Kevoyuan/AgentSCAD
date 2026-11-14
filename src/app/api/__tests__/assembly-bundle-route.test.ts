@@ -57,6 +57,8 @@ fs.writeFileSync(out, buffer);
   const { GET: GET_LAYOUT } = await import("@/app/api/jobs/[id]/assembly/layout/route");
   const { GET: GET_EVIDENCE } = await import("@/app/api/jobs/[id]/assembly/evidence/route");
   const { POST: POST_SOURCE_POSES } = await import("@/app/api/jobs/[id]/assembly/source-poses/route");
+  const { POST: POST_ASSEMBLY_REPAIR, GET: GET_ASSEMBLY_REPAIR } = await import("@/app/api/jobs/[id]/assembly/repair/route");
+  const { ASSEMBLY_REPAIR_LEDGER_FIELD, createRepairEvent, appendRepairEvent } = await import("@/lib/assembly/repair-ledger");
   const { GET: GET_SNAPSHOTS, POST: POST_SNAPSHOT } = await import("@/app/api/jobs/[id]/assembly/evidence/snapshots/route");
   const { ASSEMBLY_EVIDENCE_FIELD } = await import("@/lib/assembly/evidence-snapshot-record");
   const { readBinaryStl, meshBounds } = await import("@/lib/geometry/stl-mesh");
@@ -541,6 +543,65 @@ fs.writeFileSync(out, buffer);
     const foreign = await POST_SOURCE_POSES(admin(endpoint, "POST", params), context("nonexistent-job"));
     expect(foreign.status).toBe(404);
   }, 60000);
+
+  test("A07 refuses unauthorized, stale, unconfirmed or non-opted-in paid repair without invoking a model", async () => {
+    const {job,sourceHash,specHash:currentSpecHash}=await create();
+    const endpoint="http://localhost/api/jobs/"+job.id+"/assembly/repair";
+    const payload={
+      sourceSha256:sourceHash,specSha256:currentSpecHash,
+      confirmedPaidModelCalls:true,maxAttempts:1,
+    };
+    const unauthorized=await POST_ASSEMBLY_REPAIR(new Request(endpoint,{
+      method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify(payload),
+    }) as never,context(job.id));
+    expect(unauthorized.status).toBe(401);
+    const malformed=await POST_ASSEMBLY_REPAIR(admin(endpoint,"POST",{...payload,confirmedPaidModelCalls:false}),context(job.id));
+    expect(malformed.status).toBe(422);
+    const stale=await POST_ASSEMBLY_REPAIR(admin(endpoint,"POST",{...payload,sourceSha256:"0".repeat(64)}),context(job.id));
+    expect(stale.status).toBe(409);
+    const unconfirmed=await POST_ASSEMBLY_REPAIR(admin(endpoint,"POST",payload),context(job.id));
+    expect(unconfirmed.status).toBe(409);
+    const unknown=await POST_ASSEMBLY_REPAIR(admin(endpoint,"POST",payload),context("nonexistent"));
+    expect(unknown.status).toBe(404);
+    const history=await GET_ASSEMBLY_REPAIR(admin(endpoint),context(job.id));
+    expect(history.status).toBe(200);
+    expect((await history.json()).events).toEqual([]);
+    const historyUnauth=await GET_ASSEMBLY_REPAIR(new Request(endpoint) as never,context(job.id));
+    expect(historyUnauth.status).toBe(401);
+    expect(await db.jobVersion.count({where:{jobId:job.id,field:ASSEMBLY_REPAIR_LEDGER_FIELD}})).toBe(0);
+    expect(await db.jobOutcome.count({where:{jobId:job.id}})).toBe(0);
+  });
+
+  test("A07 historical failed/aborted attempts survive and reject tampering, without a JobOutcome",async()=>{
+    const {job,sourceHash,specHash:currentSpecHash}=await create();
+    const requirements=await readRequirementContract(job.id,job.inputRequest);
+    const {fingerprintRequirementState}=await import("@/lib/assembly/evidence-snapshot-record");
+    const ctx={
+      jobId:job.id,runId:"00000000-0000-4000-8000-000000000001",
+      sourceSha256:sourceHash,specificationSha256:currentSpecHash,
+      contractSha256:requirements.contractSha256,
+      requirementFingerprint:fingerprintRequirementState(requirements),
+    };
+    const event=createRepairEvent({...ctx,eventIndex:0,state:"ABORTED",terminal:{
+      stoppedBecause:"aborted",reason:"Lease cancelled during model call",
+      finalScadSha256:sourceHash,evidenceComplete:false,reviewCandidateScad:null,
+    }});
+    const stored=await appendRepairEvent(event);
+    const history=await GET_ASSEMBLY_REPAIR(admin("http://localhost"),context(job.id));
+    const events=(await history.json()).events;
+    expect(events).toHaveLength(1);
+    expect(events[0].integrity).toBe("PASS");
+    expect(events[0].bindingCurrent).toBe(true);
+    expect(events[0].event.terminal.stoppedBecause).toBe("aborted");
+    await db.jobVersion.update({where:{id:stored.id},data:{newValue:JSON.stringify({...event,eventSha256:"f".repeat(64)})}});
+    const altered=await GET_ASSEMBLY_REPAIR(admin("http://localhost"),context(job.id));
+    const broken=(await altered.json()).events;
+    expect(broken[0].integrity).toBe("ERROR");
+    expect(broken[0].bindingCurrent).toBe(false);
+    expect(await db.jobOutcome.count({where:{jobId:job.id}})).toBe(0);
+    expect((await db.job.findUniqueOrThrow({where:{id:job.id}})).scadSource).toBe(source);
+  });
 
   test("rejects missing authorization, stale hashes and unknown jobs", async () => {
     const { job, sourceHash, specHash: contractHash } = await create();

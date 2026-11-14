@@ -367,6 +367,7 @@ generated_part();
     const prompts: string[] = [];
     const result = await repairMeasuredFailures({
       originalRequest: "一个能转半圈的铰链，直径间隙 0.35 到 0.45 mm",
+      strictEmbeddedSpec:true,
       scad: embedded(20.5),
       measure,
       propose: async (prompt) => { prompts.push(prompt); return { scad: embedded(5.5) }; },
@@ -392,7 +393,8 @@ generated_part();
 
     // The shortened arm keeps every part and every declared number, so the guard
     // accepts it and the second measurement is the one that counts.
-    expect(result.stoppedBecause).toBe("no-findings");
+    expect(result.stoppedBecause).toBe("incomplete-evidence");
+    expect(result.evidenceComplete).toBe(false);
     expect(result.attempts[1].accepted).toBe(true);
     expect(result.attempts[1].violations).toEqual([]);
     expect(result.attempts[1].evidence.motion).toBe("PASS");

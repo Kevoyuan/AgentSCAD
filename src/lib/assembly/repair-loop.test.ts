@@ -160,7 +160,8 @@ describe("the measured repair loop", () => {
     expect(result.reason).toContain("OpenSCAD exited");
     // The failure to render is not evidence about the original part.
     expect(result.final.manifest.evidence.assembly.status).toBe("FAIL");
-    expect(result.attempts).toHaveLength(1);
+    expect(result.attempts).toHaveLength(2);
+    expect(result.attempts[1].phase).toBe("measurement-error");
   });
 
   test("an empty proposal is refused rather than measured", async () => {
@@ -173,6 +174,7 @@ describe("the measured repair loop", () => {
     expect(result.stoppedBecause).toBe("repair-failed");
     expect(result.reason).toContain("empty source");
     expect(measurements).toBe(1);
+    expect(result.attempts[1].phase).toBe("proposal-error");
   });
 
   test("a model call that throws leaves the original candidate intact", async () => {
@@ -195,6 +197,74 @@ describe("the measured repair loop", () => {
       onAttempt: (attempt) => seen.push(attempt.attempt),
     });
     expect(seen).toEqual([0, 1]);
+  });
+
+  test("a candidate with a different embedded spec is rejected before OpenSCAD can render", async () => {
+    const scad = (declared: unknown, radius: number) =>
+      "/* AGENTSCAD_ASSEMBLY_V1\n" + JSON.stringify(declared) +
+      "\nEND_AGENTSCAD_ASSEMBLY */\n" + "sphere(" + radius + ");";
+    const original = scad(spec(), 1);
+    const weakened = structuredClone(spec());
+    weakened.connections[0].range = { min: -5, max: 5, unit: "deg" };
+    const calls: string[] = [];
+    const history: string[] = [];
+    const result = await repairMeasuredFailures({
+      originalRequest:"a complete hinge", scad:original, strictEmbeddedSpec:true,
+      measure: async source => { calls.push(source); return measurement("FAIL"); },
+      propose:async()=>({scad:scad(weakened,2)}),
+      onAttempt:async item=>{await Promise.resolve();history.push(item.phase??"");},
+    });
+    expect(calls).toEqual([original]);
+    expect(result.stoppedBecause).toBe("invariant-violated");
+    expect(result.attempts[1].phase).toBe("rejected-before-render");
+    expect(result.attempts[1].accepted).toBe(false);
+    expect(result.finalScad).toBe(original);
+    expect(history).toEqual(["measured","rejected-before-render"]);
+  });
+
+  test("a proposed relaxed clearance requirement is refused even when its measured layer PASSes", async () => {
+    const original = "difference() { cylinder(d=8,h=2); cylinder(d=6,h=3); }";
+    const result = await repairMeasuredFailures({
+      originalRequest:"keep clearance 0.1–0.3 mm", scad:original,
+      measure: async source => source===original ? measurement("FAIL") : measurement("PASS",{
+        fitRequirements:[{ connectionId:"hinge",boreInstanceId:"leaf-b",
+          diametralClearanceMm:{min:0.35,max:0.45} }],
+      }),
+      propose:async()=>({scad:original+" // loosen requirement"}),
+    });
+    expect(result.stoppedBecause).toBe("invariant-violated");
+    expect(result.attempts[1].violations.some(v=>v.code==="requirement-relaxed")).toBe(true);
+    expect(result.finalScad).toBe(original);
+    expect(result.final.manifest.evidence.assembly.status).toBe("FAIL");
+  });
+
+  test("missing motion evidence cannot be interpreted as a successful repair", async () => {
+    const result = await repairMeasuredFailures({
+      originalRequest:"full assembly",scad:"cube(1);",
+      measure:async()=>measurement("PASS",{
+        manifest:{ ...measured("PASS"),evidence:{
+          identity:{status:"PASS",reason:"distinct"},assembly:{status:"PASS",reason:"fit"},
+          motion:{status:"NOT_RUN",reason:"no sampled motion"},
+        }},
+      }),
+      propose:async()=>{throw new Error("Do not propose without measured failures");},
+    });
+    expect(result.stoppedBecause).toBe("incomplete-evidence");
+    expect(result.evidenceComplete).toBe(false);
+    expect(result.findings).toHaveLength(0);
+  });
+
+  test("failed proposals are still sent to the async attempt ledger", async () => {
+    const events: string[] = [];
+    const result = await repairMeasuredFailures({
+      originalRequest:"hinge",scad:"cube(1);",
+      measure:async()=>measurement("FAIL"),
+      propose:async()=>{throw new Error("provider blocked");},
+      onAttempt:async item=>{await Promise.resolve();events.push(item.phase??"none");},
+    });
+    expect(events).toEqual(["measured","proposal-error"]);
+    expect(result.attempts[1].accepted).toBe(false);
+    expect(result.stoppedBecause).toBe("repair-failed");
   });
 
   test("a repair that shrinks the declared range is refused even though the motion would pass", async () => {
