@@ -34,6 +34,10 @@ export type SourcePoseObservation = {
   archiveSha256: string;
   comparisonMethod: string | null;
   matchedTriangles?: number;
+  testedPairs?: number;
+  trianglesChecked?: number;
+  maximumAreaMismatchMm2?: number;
+  maximumAreaBudgetMm2?: number;
   bboxErrorMm?: number;
   maxVertexErrorMm?: number;
   limitations: string;
@@ -139,6 +143,10 @@ export async function observeSourcePoses(input: {
       reconstructedStlSha256: compared.report.assembledStlSha256,
       archiveSha256: bundle.sha256, comparisonMethod: observation.method,
       ...("matchedTriangles" in observation ? { matchedTriangles: observation.matchedTriangles } : {}),
+      ...("testedPairs" in observation ? { testedPairs: observation.testedPairs } : {}),
+      ...("trianglesChecked" in observation ? { trianglesChecked: observation.trianglesChecked } : {}),
+      ...("maximumAreaMismatchMm2" in observation ? { maximumAreaMismatchMm2: observation.maximumAreaMismatchMm2 } : {}),
+      ...("maximumAreaBudgetMm2" in observation ? { maximumAreaBudgetMm2: observation.maximumAreaBudgetMm2 } : {}),
       ...("bboxErrorMm" in observation ? { bboxErrorMm: observation.bboxErrorMm } : {}),
       ...("maxVertexErrorMm" in observation ? { maxVertexErrorMm: observation.maxVertexErrorMm } : {}),
       limitations: "One source-parameter pose, measured triangulated surfaces only. No continuous clearance, semantic parameter-to-motion identity, force, physical fit or full product acceptance.",
