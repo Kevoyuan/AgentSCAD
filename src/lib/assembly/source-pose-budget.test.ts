@@ -42,6 +42,16 @@ describe("cumulative source-pose execution budget", () => {
     }, 5)).rejects.toBeInstanceOf(SourcePoseDeadlineExceeded);
   });
 
+  test("synchronous renderer work that blocks the timeout callback still cannot be approved late", async () => {
+    const upstream = new AbortController();
+    await expect(runSourcePoseWithinBudget(upstream.signal, async () => {
+      const deadline = performance.now() + 18;
+      // Simulates a synchronous geometry comparison blocking the timer queue.
+      while (performance.now() < deadline) {}
+      return "PASS";
+    }, 5)).rejects.toBeInstanceOf(SourcePoseDeadlineExceeded);
+  });
+
   test("upstream job/lease cancellation retains priority over deadline, before and during rendering", async () => {
     const upstream = new AbortController();
     upstream.abort(new Error("Version changed"));
