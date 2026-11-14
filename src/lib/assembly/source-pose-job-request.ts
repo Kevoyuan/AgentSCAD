@@ -13,6 +13,7 @@ const RequestSchema = z.object({
   connectionId: z.string().regex(identifier),
   sourceParameter: z.string().regex(scadParameter),
   rotationDeg: z.number().finite().min(1).max(90),
+  sampleCount: z.union([z.literal(3), z.literal(5), z.literal(7), z.literal(9)]).optional(),
   /** Separate, explicit confirmation; never treated as frozen requirement acceptance. */
   confirmedBinding: z.literal(true),
 }).strict();
@@ -24,6 +25,8 @@ export type SourcePoseJobBinding = {
   movingInstanceId: string;
   groundedInstanceId: string;
   rotationDeg: number;
+  sampleCount: 3 | 5 | 7 | 9;
+  maximumSampleAngleGapDeg: number;
   axis: { origin: [number, number, number]; direction: [number, number, number] };
   samples: SourcePoseSample[];
   /** Only confirms which parameter the user chose. NOT a proof of CAD semantics. */
@@ -95,9 +98,14 @@ export function bindSourcePoseJobRequest(input: {
   const length = Math.hypot(...rotated);
   if (!(length > 0)) return reject("No usable grounded rotation axis.");
   const direction: [number, number, number] = [rotated[0]/length,rotated[1]/length,rotated[2]/length];
-  const sampleAngles = [-request.rotationDeg, 0, request.rotationDeg];
+  const sampleCount = request.sampleCount ?? 3;
+  const sampleAngles = Array.from({length:sampleCount},(_,i)=> {
+    const angle = request.rotationDeg * (2*i/(sampleCount-1)-1);
+    // Preserve exactly zero in the central sample for numerical evidence.
+    return i===(sampleCount-1)/2 ? 0 : angle;
+  });
   const samples = sampleAngles.map((angle): SourcePoseSample => ({
-    id: angle < 0 ? "negative" : angle > 0 ? "positive" : "zero",
+    id: sampleCount===3 ? (angle < 0 ? "negative" : angle > 0 ? "positive" : "zero") : "pose" + sampleAngles.indexOf(angle),
     parameters: { [request.sourceParameter]: angle },
     transforms: {
       [moving.id]: multiplyMatrices(rotationAboutAxis(origin, direction, angle * Math.PI / 180), moving.transform),
@@ -109,6 +117,8 @@ export function bindSourcePoseJobRequest(input: {
       connectionId: joint.id, sourceParameter: request.sourceParameter,
       movingInstanceId: moving.id, groundedInstanceId: grounded.id,
       rotationDeg: request.rotationDeg,
+      sampleCount,
+      maximumSampleAngleGapDeg: 2 * request.rotationDeg/(sampleCount-1),
       axis: { origin, direction }, samples, sourceBindingConfirmedByUser: true,
     },
   };
