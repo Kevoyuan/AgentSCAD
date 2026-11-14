@@ -1152,5 +1152,16 @@
   "These are explicitly sampled surface observations, not confirmed or continuous mechanical motion.": "这些只是明确指定角度下的表面观测结果，并非已验收或连续的机械运动证明。",
   "The job or assembly changed during the source-pose check. Refresh before retrying.": "检查期间任务或装配版本已变更。刷新后重新执行。",
   "Source-pose inspection failed.": "源码位姿检查失败。",
-  "Source-pose results are not bound to this version and declared parameter.": "源码位姿结果与当前版本或指定变量不匹配。"
+  "Source-pose results are not bound to this version and declared parameter.": "源码位姿结果与当前版本或指定变量不匹配。",
+  "Independent source pose samples": "独立源码位姿采样数量",
+  "Source pose angular step": "源码位姿最大角度间隔",
+  "More source poses improve observation density, not continuous motion proof.": "增加采样可提高观测密度，但不能代替连续运动证明。",
+  "Rendering source poses…": "正在渲染源码位姿…",
+  "Run source-pose comparisons": "运行源码位姿对照检查",
+  "Analytic rigid sweep clearance": "解析刚体运动路径净空",
+  "Additional collision samples checked": "碰撞检查的实际角度数",
+  "Maximum unresolved interval": "最大未判定角度区间",
+  "Observed intermediate collision at": "检测到中间角度碰撞",
+  "Unresolved rigid motion angle intervals": "无法证明净空的角度区间",
+  "Rigid sweep status describes an assumed analytic rotation, not verified OpenSCAD behavior between reference frames or physical function.": "刚体运动检查仅基于假定的解析旋转，不证明两个源码参考位姿之间的 OpenSCAD 实际行为或实物功能。"
 }
