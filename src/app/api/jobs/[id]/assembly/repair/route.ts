@@ -187,8 +187,11 @@ export async function GET(request:NextRequest,{params}:Context){
       // Only expose saved candidate source when bound to the current exact
       // user-confirmed version; stale history remains inspectable by digest.
       event:item.event&&item.bindingCurrent?item.event:
-        item.event?{...item.event,terminal:item.event.terminal?
-          {...item.event.terminal,reviewCandidateScad:null}:null}:null,
+        item.event?{...item.event,
+          attempt:item.event.attempt?
+            {...item.event.attempt,candidateScadSource:undefined}:null,
+          terminal:item.event.terminal?
+            {...item.event.terminal,reviewCandidateScad:null}:null}:null,
     })),
   },{headers:{"Cache-Control":"no-store"}});
 }
