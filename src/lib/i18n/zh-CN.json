@@ -1122,5 +1122,17 @@
   "Obstacle mesh SHA-256": "阻挡零件网格 SHA-256",
   "Moving mesh world transform": "运动零件的世界坐标变换",
   "Obstacle mesh world transform": "阻挡零件的世界坐标变换",
-  "Replay requires the matching verified part STL artifacts and source/specification hashes. These sampled poses do not prove continuous motion.": "重放必须使用匹配且通过哈希核对的零件 STL、源码和装配规格。离散采样位姿不能证明连续运动。"
+  "Replay requires the matching verified part STL artifacts and source/specification hashes. These sampled poses do not prove continuous motion.": "重放必须使用匹配且通过哈希核对的零件 STL、源码和装配规格。离散采样位姿不能证明连续运动。",
+  "Loading verified collision meshes…": "正在校验并加载碰撞零件…",
+  "View collision pair in 3D": "在 3D 中查看碰撞双方",
+  "Loads the authenticated part ZIP on demand and checks both STL hashes against this measured collision. No export or model call.": "按需读取有权限的零件 ZIP，并将双方 STL 哈希与实际碰撞记录逐一核对；不产生导出记录，也不调用模型。",
+  "Collision pair replay is unavailable": "碰撞双方重放不可用",
+  "Replayed ZIP SHA-256": "本次重放 ZIP 的 SHA-256",
+  "The ZIP was independently regenerated. Its overall hash differs from the inspection snapshot, but the two selected STL hashes match the measured witness.": "ZIP 已重新生成，整体哈希与测量快照不同，但选定的两个 STL 哈希与测量证据一致。",
+  "Collision pair 3D replay": "碰撞双方的 3D 重放",
+  "Pose": "位姿",
+  "Blue: moving part · Orange: obstacle · Pink: approximate triangle-centroid witness (when available).": "蓝色：运动零件 · 橙色：阻挡零件 · 粉色：三角面重心估计位置（有证据时）。",
+  "3D replay of measured collision pair": "实测碰撞双方的 3D 重放",
+  "3D replay unavailable": "3D 重放不可用",
+  "Drag to rotate, scroll to zoom. Only two sampled meshes are shown; no continuous clearance, physical fit or exact contact is established.": "拖动旋转、滚轮缩放。这里只显示采样位姿中的两个网格，不代表连续净空、实物配合或精确接触点已得到验证。"
 }

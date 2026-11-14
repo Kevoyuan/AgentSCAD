@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useI18n } from '@/components/i18n-provider'
 import { validateAssemblySpec } from '@/lib/assembly/assembly-spec'
 import type { AssemblyEvidenceReport } from '@/lib/assembly/assembly-evidence-report'
+import { CollisionReplayAction } from './CollisionReplayAction'
 
 type AssemblyResponse = { spec: unknown | null; stale: boolean; sourceSha256?: string | null; currentSourceSha256?: string | null; specSha256?: string | null; provenance?: 'generated' | 'user' | null; embeddedStatus?: 'valid' | 'invalid' | 'absent'; evidence?: Record<string, { status?: string }> }
 type AssemblyRevisionView = { id: string; revision: number | null; savedAt: string; specSha256: string; sourceSha256?: string | null; stale: boolean; spec: unknown }
@@ -365,12 +366,36 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
                   {op.path.blockedAt.witnessCentroidPointMm && <p>{t('Approximate triangle-centroid witness (mm)')}: {op.path.blockedAt.witnessCentroidPointMm.map(x => x.toFixed(3)).join(', ')}</p>}
                   <p>{t('The witness is not an exact contact point or penetration measurement.')}</p>
                   {op.path.blockedAt.replayFrame && <CollisionReplayDetails replay={op.path.blockedAt.replayFrame} />}
+                  {canDownload && jobId && op.path.blockedAt.replayFrame && <CollisionReplayAction
+                    jobId={jobId} sourceSha256={report.sourceSha256} specSha256={report.specificationSha256}
+                    evidenceArchiveSha256={report.archiveSha256}
+                    target={{
+                      movingInstanceId: op.instanceId,
+                      obstacleInstanceId: op.path.blockedAt.obstacleId,
+                      collision: op.path.blockedAt.collision,
+                      poseIndex: op.path.blockedAt.poseIndex,
+                      frame: op.path.blockedAt.replayFrame,
+                      witnessCentroidPointMm: op.path.blockedAt.witnessCentroidPointMm,
+                    }}
+                  />}
                 </div>}
                 {op.path?.undecidedAt && <div className="text-[var(--shell-fail)]">
                   <p>{t('Undecided pose')}: {op.path.undecidedAt.poseIndex}; {t('Blocking instance')}: {op.path.undecidedAt.obstacleId} ({op.path.undecidedAt.collision})</p>
                   <p>{t('Triangle pairs evaluated')}: {op.path.undecidedAt.testedPairs}; {t('Collision budget exhausted')}: {op.path.undecidedAt.budgetExhausted ? t('Yes') : t('No')}</p>
                   <p>{op.path.undecidedAt.reason}</p>
                   {op.path.undecidedAt.replayFrame && <CollisionReplayDetails replay={op.path.undecidedAt.replayFrame} />}
+                  {canDownload && jobId && op.path.undecidedAt.replayFrame && <CollisionReplayAction
+                    jobId={jobId} sourceSha256={report.sourceSha256} specSha256={report.specificationSha256}
+                    evidenceArchiveSha256={report.archiveSha256}
+                    target={{
+                      movingInstanceId: op.instanceId,
+                      obstacleInstanceId: op.path.undecidedAt.obstacleId,
+                      collision: op.path.undecidedAt.collision,
+                      poseIndex: op.path.undecidedAt.poseIndex,
+                      frame: op.path.undecidedAt.replayFrame,
+                      witnessCentroidPointMm: null,
+                    }}
+                  />}
                 </div>}
               </li>)}
             </ol>

@@ -3,6 +3,7 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nContext } from '@/components/i18n-provider'
 import { createTranslator } from '@/lib/i18n'
+import { CollisionReplayAction } from '../CollisionReplayAction'
 import { CollisionReplayDetails, AssemblyDetails, AssemblyRevisions, fetchAssemblyBundle, fetchAssemblyLayout, fetchAssemblyEvidence, fetchAssemblyEvidenceHistory, recordAssemblyEvidenceSnapshot, fetchAssemblyPart, parseAssemblyDraft, saveAssemblyDraft } from '../AssemblyDetails'
 
 const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
@@ -49,6 +50,29 @@ test('replay matrices show original measured coordinates, not fabricated viewer 
   expect(html).toContain('single-STL viewport')
   expect(html).not.toContain('Exact contact point')
 })
+test('a collision witness offers an explicit, lazy 3D replay without claiming continuous or physical clearance', () => {
+  const target = {
+    movingInstanceId: 'pin1', obstacleInstanceId: 'base1',
+    collision: 'INTERSECT' as const, poseIndex: 7,
+    frame: {
+      frame: 'right-handed-mm-row-major-4x4/v1' as const,
+      movingWorldFromLocal: identity, obstacleWorldFromLocal: identity,
+      movingMeshSha256: 'a'.repeat(64), obstacleMeshSha256: 'b'.repeat(64),
+    },
+    witnessCentroidPointMm: [1, 2, 3],
+  }
+  const html = renderToStaticMarkup(
+    <I18nContext.Provider value={{ locale: 'en', setLocale() {}, t: createTranslator('en') }}>
+      <CollisionReplayAction jobId="job" sourceSha256={'a'.repeat(64)} specSha256={'b'.repeat(64)}
+        evidenceArchiveSha256={'c'.repeat(64)} target={target} />
+    </I18nContext.Provider>,
+  )
+  expect(html).toContain('View collision pair in 3D')
+  expect(html).toContain('on demand')
+  expect(html).not.toContain('<canvas')
+  expect(html).not.toContain('Collision pair 3D replay —')
+})
+
 test('stale evidence cannot appear current; Chinese labels are available', () => {
   const html = render({ spec, stale: true, evidence: { identity: { status: 'PASS' } } }, 'zh-CN')
   expect(html).toContain('此装配描述对应较早的源码版本')
