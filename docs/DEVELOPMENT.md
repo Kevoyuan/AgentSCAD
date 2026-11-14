@@ -251,6 +251,10 @@ The response carries source/spec/archive hashes, `evidence` statuses and reasons
 
 
 
+## A06.3.2 — cumulative production-source-pose execution budget
+
+`POST /api/jobs/[id]/assembly/source-poses` now wraps **all three OpenSCAD reference poses and the final version recheck** in a 180s total wall deadline. The upstream lease signal and total deadline combine into one renderer signal; a source/spec/edit cancellation remains HTTP 409, while a deadline returns HTTP 503 with `Retry-After: 30` and no approval or persisted result. Both timers and event listeners are cleaned up. A monotonic elapsed-time recheck prevents a renderer that ignores abort or blocks the event loop from returning a false late PASS. Deterministic tests cover success, timeout, ignored abort, synchronous CPU block, invalid budgets and upstream abort priority.
+
 ## A06.3.1 — read-only source pose inspection for current Jobs
 
 `POST /api/jobs/[id]/assembly/source-poses` receives an explicitly user-confirmed request with the current `sourceSha256`, `specSha256`, grounded `connectionId`, `sourceParameter` and `rotationDeg`. A bounded schema refuses arbitrary matrices, selector paths or additional keys. Only a current, complete generated assembly (<=8 parts, 2–12 instances) with matching declared revolute frames and an applicable [-rotation, +rotation] degree range qualifies. The server computes the true world axis from the grounded part's row-major 4×4 transform, constructs three rigid moving instance poses at −angle, 0, +angle, and separately asks OpenSCAD to re-render the source `all` selector for the **user-declared** variable values. It compares each independent STL against placed part meshes, preserving per-pose surface correspondence/area budget, reference hashes and NOT_RUN boundaries.

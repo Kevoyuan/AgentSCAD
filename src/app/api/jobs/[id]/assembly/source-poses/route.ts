@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { canonicalJson } from "@/lib/canonical-json";
 import { observeSourcePoses } from "@/lib/assembly/source-pose-observer";
+import { runSourcePoseWithinBudget, SourcePoseDeadlineExceeded, SourcePoseLeaseAborted } from "@/lib/assembly/source-pose-budget";
 import { bindSourcePoseJobRequest, InvalidSourcePoseJobRequest } from "@/lib/assembly/source-pose-job-request";
 import { AssemblyIdentityError } from "@/lib/assembly/assembly-bundle";
 import { AssemblyExportRejection, lockAssemblyExport } from "@/lib/pipeline/assembly-export-guard";
@@ -67,14 +68,21 @@ export async function POST(request: NextRequest, { params }: Context) {
     const source = lease.job.scadSource;
     if (!source) throw new AssemblyExportRejection(409, "Job has no delivered CAD source.");
     const { binding } = bindSourcePoseJobRequest({ raw, spec: lease.spec, scadSource: source });
-    const report = await observeSourcePoses({
-      scadSource: source, spec: lease.spec,
-      referenceSelector: "all", samples: binding.samples,
-      expectedSourceSha256: fields.sourceSha256,
-      expectedSpecificationSha256: fields.specSha256,
-      options: { signal: lease.signal },
+    const report = await runSourcePoseWithinBudget(lease.signal, async (signal) => {
+      const measured = await observeSourcePoses({
+        scadSource: source, spec: lease!.spec,
+        referenceSelector: "all", samples: binding.samples,
+        // Narrowed after the strict SHA validation above; these are immutable
+        // string values even across the asynchronous observer callback.
+        expectedSourceSha256: fields.sourceSha256 as string,
+        expectedSpecificationSha256: fields.specSha256 as string,
+        options: { signal },
+      });
+      // The final source/spec/requirements check is part of the same deadline,
+      // and a late result cannot be elevated to a completed observation.
+      await lease!.verifyUnchanged();
+      return measured;
     });
-    await lease.verifyUnchanged();
     const bindingSha256 = createHash("sha256").update(canonicalJson({
       sourceSha256: fields.sourceSha256,
       specSha256: fields.specSha256,
@@ -115,6 +123,8 @@ export async function POST(request: NextRequest, { params }: Context) {
       return NextResponse.json({ error: "Job changed or is processing" }, { status: 409 });
     }
     if (error instanceof AssemblyIdentityError) return NextResponse.json({ error: error.message }, { status: 422 });
+    if (error instanceof SourcePoseLeaseAborted) return NextResponse.json({ error: error.message }, { status: 409 });
+    if (error instanceof SourcePoseDeadlineExceeded) return NextResponse.json({ error: error.message }, { status: 503, headers: { "Cache-Control": "no-store", "Retry-After": "30" } });
     console.error("Could not independently inspect source poses", error);
     return NextResponse.json({ error: "Source-pose inspection failed; no motion approval was recorded" }, { status: 500 });
   } finally {
