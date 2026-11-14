@@ -163,7 +163,7 @@ export async function repairMeasuredFailures(input: {
   strictEmbeddedSpec?: boolean;
   maxWallMs?: number;
   /** Called and awaited after each attempt, suitable for append-only persistence. */
-  onAttempt?: (attempt: RepairLoopAttempt) => void | Promise<void>;
+  onAttempt?: (attempt: RepairLoopAttempt) => unknown | Promise<unknown>;
 }): Promise<RepairLoopResult> {
   const maxAttempts = Math.min(Math.max(1, input.maxAttempts ?? DEFAULT_MAX_ATTEMPTS), HARD_MAX_ATTEMPTS);
   const started = performance.now();
