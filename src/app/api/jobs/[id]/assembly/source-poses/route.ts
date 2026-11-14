@@ -72,8 +72,10 @@ export async function POST(request: NextRequest, { params }: Context) {
       const measured = await observeSourcePoses({
         scadSource: source, spec: lease!.spec,
         referenceSelector: "all", samples: binding.samples,
-        expectedSourceSha256: fields.sourceSha256,
-        expectedSpecificationSha256: fields.specSha256,
+        // Narrowed after the strict SHA validation above; these are immutable
+        // string values even across the asynchronous observer callback.
+        expectedSourceSha256: fields.sourceSha256 as string,
+        expectedSpecificationSha256: fields.specSha256 as string,
         options: { signal },
       });
       // The final source/spec/requirements check is part of the same deadline,
