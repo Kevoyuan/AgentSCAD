@@ -512,7 +512,6 @@ generated_part();
     });
     expect(report.samples.map(x => x.status)).toEqual(["PASS","PASS","PASS"]);
     const sweep = report.analyticRigidSweep;
-    console.info("A06_HIDDEN_COLLISION_DIAGNOSTIC", JSON.stringify({ status:sweep?.status, reason:sweep?.reason, collisionAt:sweep?.collisionAt, evaluatedAngles:sweep?.evaluatedAnglesDeg, testedPairs:sweep?.testedTrianglePairs, unresolved:sweep?.unresolvedIntervals }));
     expect(sweep?.method).toBe("bounded-rigid-axis-swept-aabb/v1");
     expect(sweep?.status).toBe("FAIL");
     expect(sweep?.collisionAt).not.toBeNull();
