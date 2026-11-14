@@ -40,6 +40,13 @@ Use [`docs/ASSEMBLY_EXECUTION_BACKLOG.md`](docs/ASSEMBLY_EXECUTION_BACKLOG.md) a
 
 
 
+
+## A05.3 — authenticated collision-pair 3D replay (not full-scene verification)
+
+A current, user-triggered A01 evidence report exposes a button to view the *two measured STL meshes* for its first `blockedAt` or `undecidedAt` witness. The UI fetches `/assembly/bundle?sourceSha256=...&specSha256=...` under the existing job/session lock **without** `download=1`, so no export event occurs. The browser checks authenticated bundle header/archive bytes, manifest source/spec version, specification UTF-8 SHA, declared part-instance mapping and both **actual STL SHA-256 hashes against the A05.2 witness**, refusing missing purchased geometry, tampered bytes, invalid rigid transforms or mismatched versions. Bounded ZIP inflation must never uncompress unrelated parts. Only on explicit click does the Three.js/Z-up viewport load, placing each mesh at the exact recorded row-major world matrix and optionally marking the **approximate centroid witness** for actual `INTERSECT` only.
+
+This is a collision-**pair** scene, not a full assembly scene or the main single-STL viewport. It does not replay other surroundings, prove a continuous path, calibrate contact depth, or certify physical assembly. `UNKNOWN` never draws an invented contact marker. The archive can be freshly generated with a different global hash; if both exact selected STL byte hashes and source/spec hashes match, the pair is still the same measured geometry. Keep the full A05 parent open for complete assembly context, allowed-contact semantics and navigation.
+
 ## A05.2 — replayable collision frames (pre-viewport integration)
 
 A failed or undecidable `checkRigidPosePath` now carries `replayFrame` on `blockedAt` or `undecidedAt`: exact validated row-major 4×4 `movingWorldFromLocal` and `obstacleWorldFromLocal` transforms *actually fed to BVH*, plus both STL SHA-256 values and the fixed right-handed millimetre coordinate convention. This is the smallest version-bound input needed to independently repeat the **sampled** collision measurement from the exported parts; it does not prove continuous motion or exact contact. The UI displays raw matrices for replay. Keep the saved report bound to source/spec/archive hashes, and bump the checker version to v5 so older history is not current.
