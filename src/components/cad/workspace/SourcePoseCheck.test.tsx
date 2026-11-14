@@ -66,6 +66,11 @@ test("stale, forged and unapproved source-pose responses cannot masquerade as cu
   const fake = async () => Response.json(invalid);
   const result = await fetchSourcePoseCheck(query, fake);
   expect(result.error).toContain("not bound");
+  const deadline = await fetchSourcePoseCheck(query, async () => Response.json({
+    error: "The complete source-pose inspection exceeded its 180-second execution budget. No motion approval was recorded.",
+  }, { status: 503, headers: { "Retry-After": "30" } }));
+  expect(deadline.error).toContain("execution budget");
+  expect(deadline.data).toBeUndefined();
   const stale = await fetchSourcePoseCheck(query, async () => new Response("", { status: 409 }));
   expect(stale.error).toContain("Refresh");
   const falseHash = await fetchSourcePoseCheck(query, async () => Response.json({
