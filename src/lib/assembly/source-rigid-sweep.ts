@@ -104,7 +104,7 @@ export function verifyAnalyticRigidSweep(input: {
   const started = performance.now();
   const maxDepth = input.maxDepth ?? 9;
   const maxEvaluations = input.maxEvaluations ?? 96;
-  const maxPairTests = input.maxPairTests ?? 80_000;
+  const maxPairTests = input.maxPairTests ?? 1_000_000;
   const budgetMs = input.budgetMs ?? DEFAULT_BUDGET_MS;
   requireBudgetNumber(maxDepth, 0, 12, "subdivision depth");
   requireBudgetNumber(maxEvaluations, 2, 256, "angle evaluations");
