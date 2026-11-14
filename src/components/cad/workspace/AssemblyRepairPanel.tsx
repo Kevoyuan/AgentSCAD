@@ -30,7 +30,7 @@ type RepairResponse = {
   reason:string
   evidenceComplete:boolean
   attempts:AttemptView[]
-  verifiedCandidate:{scadSource:string;scadSha256:string;applied:false;userAccepted:false}|null
+  verifiedCandidate:{scadSource:string;scadSha256:string;allRepairFindingsClosed?:boolean;incompleteEvidence?:boolean;applied:false;userAccepted:false}|null
   deliveryChanged:false
   physicalFunctionApproval:'NOT_RUN'
 }
@@ -144,7 +144,8 @@ export function AssemblyRepairPanel({jobId,sourceSha256,specSha256}:{
         </details>}
       </li>)}</ol>
       {result.verifiedCandidate&&<details>
-        <summary>{t('Verified repair candidate — not applied')}</summary>
+        <summary>{t('Measured repair candidate — not applied')}</summary>
+        {result.verifiedCandidate.incompleteEvidence&&<p>{t('Some geometry checks remain NOT_RUN; this is a review candidate, not verified complete functionality.')}</p>}
         <p>{t('Review and copy this complete SCAD source into the CAD editor. Applying it later is a separate explicit operation that rebuilds all artifacts.')}</p>
         <textarea readOnly value={result.verifiedCandidate.scadSource} rows={7}
           className="mt-1 w-full rounded border border-[color:var(--shell-hairline)] bg-transparent p-1 font-mono text-xs"/>
