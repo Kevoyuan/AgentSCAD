@@ -510,6 +510,8 @@ fs.writeFileSync(out, buffer);
     expect(data.binding.sourceParameter).toBe("hinge_angle");
     expect(data.binding.independentParameterSemanticsVerified).toBe(false);
     expect(data.bindingSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(data.checkerVersion).toBe("source-pose-observer/v2+bounded-rigid-axis-swept-aabb/v1");
+    expect(data.rendererBackend).toBe("native");
     expect(data.report.samples).toHaveLength(3);
     expect(data.report.samples.map((row: {id: string}) => row.id)).toEqual(["negative", "zero", "positive"]);
     const dense = await POST_SOURCE_POSES(admin(endpoint, "POST", { ...params, sampleCount: 5 }), context(job.id));
