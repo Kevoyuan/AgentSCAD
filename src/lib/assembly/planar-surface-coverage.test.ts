@@ -82,6 +82,15 @@ describe("bounded triangulation-independent planar surface area coverage", () =>
     expect(result.status).not.toBe("PASS");
   });
 
+  test("disjoint triangles sharing the same X slab still consume the broadphase budget", () => {
+    const base = triangles(original);
+    const away = base.map(triangle => triangle.map(p => [p[0], p[1] + 100, p[2]] as Vec3));
+    const result = comparePlanarSurfaceCoverage(base, away, 1e-4, 2);
+    expect(result.status).toBe("NOT_RUN");
+    expect(result.reason).toContain("budget");
+    expect(result.testedPairs).toBe(3);
+  });
+
   test("tolerances and pathological budgets never imply a hidden PASS", () => {
     const base = triangles(original);
     const changed = split(base,0);
