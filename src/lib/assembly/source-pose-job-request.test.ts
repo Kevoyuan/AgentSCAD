@@ -86,7 +86,7 @@ describe("A06.3 explicit grounded joint parameter binding", () => {
 
   test("does not create proof when source is oversized or motion declares a narrower range", async () => {
     const f = await fixture();
-    expect(() => bindSourcePoseJobRequest({ ...f, scadSource: f.scadSource + "\n" + " ".repeat(260_000), raw: body })).toThrow("exceeds");
+    expect(() => bindSourcePoseJobRequest({ ...f, scadSource: f.scadSource + "\n" + " ".repeat(270_000), raw: body })).toThrow("exceeds");
     const motion = structuredClone(f.spec);
     motion.motions[0].range.min = -10;
     expect(() => bindSourcePoseJobRequest({ ...f, spec: motion, raw: body })).toThrow("motion range");
