@@ -118,7 +118,26 @@ describe("the measured repair loop", () => {
     });
     expect(result.stoppedBecause).toBe("no-progress");
     expect(measurements).toBe(1);
-    expect(result.attempts).toHaveLength(1);
+    expect(result.attempts).toHaveLength(2);
+    expect(result.attempts[1].phase).toBe("no-progress");
+    expect(result.attempts[1].candidateScadSource).toBe("cube(1);");
+    expect(result.attempts[1].scadSha256).toBe(result.attempts[0].scadSha256);
+  });
+
+  test("unchanged paid proposal is still recorded with model usage and replayable bytes", async () => {
+    const recorded: string[] = [];
+    const result = await repairMeasuredFailures({
+      originalRequest:"hinge",scad:"cube(1);",
+      measure:async()=>measurement("FAIL"),
+      propose:async()=>({scad:"cube(1);",modelExecution:{
+        model:"test-model",provider:"unit",latencyMs:50,promptTokens:100,completionTokens:20,
+      }}),
+      onAttempt:async attempt=>{recorded.push(attempt.phase??"");},
+    });
+    expect(recorded).toEqual(["measured","no-progress"]);
+    expect(result.attempts[1].modelExecution?.completionTokens).toBe(20);
+    expect(result.attempts[1].candidateByteLength).toBe(Buffer.byteLength("cube(1);"));
+    expect(result.finalScad).toBe("cube(1);");
   });
 
   test("the attempt budget bounds the loop and the shortfall is reported", async () => {
