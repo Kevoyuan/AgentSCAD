@@ -113,7 +113,7 @@ export async function POST(request:NextRequest,{params}:Context) {
     );
     await lease.verifyUnchanged();
     const hasCandidate=result.finalScadSha256!==sourceSha256 &&
-      result.stoppedBecause==="no-findings" && result.evidenceComplete;
+      result.findings.length===0 && ["no-findings","incomplete-evidence"].includes(result.stoppedBecause);
     const candidate=hasCandidate?result.finalScad:null;
     const terminal=await persist("FINISHED",{terminal:{
       stoppedBecause:result.stoppedBecause,reason:result.reason,
@@ -133,6 +133,8 @@ export async function POST(request:NextRequest,{params}:Context) {
       reason:result.reason,evidenceComplete:result.evidenceComplete,
       verifiedCandidate:hasCandidate?{
         scadSource:candidate,scadSha256:result.finalScadSha256,
+        allRepairFindingsClosed:true,
+        incompleteEvidence:!result.evidenceComplete,
         /** Not auto-applied or automatically approved by the user. */
         applied:false,userAccepted:false,
       }:null,
@@ -141,8 +143,9 @@ export async function POST(request:NextRequest,{params}:Context) {
     },{headers:{"Cache-Control":"no-store"}});
   }catch(error){
     if(binding&&!hasTerminal){
-      try{await persist("ERROR",{terminal:{
-        stoppedBecause:"error",reason:error instanceof Error?error.message:"Repair execution failed",
+      const aborted=error instanceof JobExecutionStopped || error instanceof RepairDeadline;
+      try{await persist(aborted?"ABORTED":"ERROR",{terminal:{
+        stoppedBecause:aborted?"aborted":"error",reason:error instanceof Error?error.message:"Repair execution failed",
         finalScadSha256:binding.sourceSha256,evidenceComplete:false,
         reviewCandidateScad:null,
       }});}catch(logError){console.error("Failed to append failed A07 repair event",logError);}
