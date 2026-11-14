@@ -56,6 +56,7 @@ fs.writeFileSync(out, buffer);
   const { GET } = await import("@/app/api/jobs/[id]/assembly/bundle/route");
   const { GET: GET_LAYOUT } = await import("@/app/api/jobs/[id]/assembly/layout/route");
   const { GET: GET_EVIDENCE } = await import("@/app/api/jobs/[id]/assembly/evidence/route");
+  const { POST: POST_SOURCE_POSES } = await import("@/app/api/jobs/[id]/assembly/source-poses/route");
   const { GET: GET_SNAPSHOTS, POST: POST_SNAPSHOT } = await import("@/app/api/jobs/[id]/assembly/evidence/snapshots/route");
   const { ASSEMBLY_EVIDENCE_FIELD } = await import("@/lib/assembly/evidence-snapshot-record");
   const { readBinaryStl, meshBounds } = await import("@/lib/geometry/stl-mesh");
@@ -477,6 +478,57 @@ fs.writeFileSync(out, buffer);
     expect(response.status).toBe(422);
     expect((await response.json()).error).toContain("no generated parts");
   });
+
+  test("explicit source pose API runs only for a real current authorized job and never approves motion", async () => {
+    const hingeSource = source + "\nhinge_angle = 0;\n";
+    const fixture = {
+      ...spec, parts: spec.parts.filter(part => part.source !== "purchased"),
+      instances: spec.instances.filter(instance => instance.partId !== "screw"),
+      connections: [{
+        id: "hinge", type: "revolute", a: "base1", b: "lid1",
+        frameA: { origin: [0,0,0], direction: [0,0,1] },
+        frameB: { origin: [0,0,0], direction: [0,0,1] },
+        range: { min: -15, max: 15, unit: "deg" },
+        pitchMm: null, ratio: null, allowedContact: [],
+      }],
+    };
+    const { job, sourceHash, specHash: currentSpecHash } = await create(hingeSource, fixture);
+    const params = {
+      sourceSha256: sourceHash, specSha256: currentSpecHash,
+      connectionId: "hinge", sourceParameter: "hinge_angle",
+      rotationDeg: 10, confirmedBinding: true,
+    };
+    const endpoint = "http://localhost/api/jobs/" + job.id + "/assembly/source-poses";
+    const response = await POST_SOURCE_POSES(admin(endpoint, "POST", params), context(job.id));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    const data = await response.json();
+    expect(data.schemaVersion).toBe(1);
+    expect(data.sourceSha256).toBe(sourceHash);
+    expect(data.specSha256).toBe(currentSpecHash);
+    expect(data.binding.movingInstanceId).toBe("lid1");
+    expect(data.binding.sourceParameter).toBe("hinge_angle");
+    expect(data.binding.independentParameterSemanticsVerified).toBe(false);
+    expect(data.bindingSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(data.report.samples).toHaveLength(3);
+    expect(data.report.samples.map((row: {id: string}) => row.id)).toEqual(["negative", "zero", "positive"]);
+    expect(data.report.samples.every((row: {referenceStlSha256: string}) => /^[a-f0-9]{64}$/.test(row.referenceStlSha256))).toBe(true);
+    expect(data.productMotionApproval).toBe("NOT_RUN");
+    expect(data.physicalFunctionApproval).toBe("NOT_RUN");
+    expect(await db.jobOutcome.count({ where: { jobId: job.id } })).toBe(0);
+    expect(await db.jobVersion.count({ where: { jobId: job.id, field: ASSEMBLY_EVIDENCE_FIELD } })).toBe(0);
+
+    const unauth = await POST_SOURCE_POSES(new Request(endpoint, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params),
+    }) as never, context(job.id));
+    expect(unauth.status).toBe(401);
+    const invalid = await POST_SOURCE_POSES(admin(endpoint, "POST", { ...params, confirmedBinding: false }), context(job.id));
+    expect(invalid.status).toBe(422);
+    const stale = await POST_SOURCE_POSES(admin(endpoint, "POST", { ...params, sourceSha256: "f".repeat(64) }), context(job.id));
+    expect(stale.status).toBe(409);
+    const foreign = await POST_SOURCE_POSES(admin(endpoint, "POST", params), context("nonexistent-job"));
+    expect(foreign.status).toBe(404);
+  }, 60000);
 
   test("rejects missing authorization, stale hashes and unknown jobs", async () => {
     const { job, sourceHash, specHash: contractHash } = await create();
