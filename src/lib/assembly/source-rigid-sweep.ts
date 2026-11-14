@@ -205,36 +205,44 @@ export function verifyAnalyticRigidSweep(input: {
     const result=point(angle);
     if(result==="FAIL"||result==="UNKNOWN")break;
   }
-  let unresolvedAfterBudget=false;
-  const sweep=(a:number,b:number,depth:number):void=>{
-    if(first||stoppedBecause) {unresolvedAfterBudget=true;return;}
+  // Breadth-first traversal is necessary: a very close but harmless hinge
+  // contact at one side can consume the depth/budget before a real obstruction
+  // in another interval is ever sampled by depth-first recursion.
+  const queue = input.anglesDeg.slice(1).map((toDeg,i)=>({
+    fromDeg:input.anglesDeg[i],toDeg,depth:0,
+  }));
+  let head=0;
+  while(head<queue.length && !first && !stoppedBecause) {
+    const {fromDeg:a,toDeg:b,depth}=queue[head++];
+    if(expired()) {stoppedBecause="Swept evaluation deadline or job abort";break;}
     const mid=(a+b)/2;
-    const matrix=transformation(mid);
-    const placed=placeBvh(movingBvh,matrix);
-    // Maximum distance travelled by any vertex from midpoint throughout
-    // [a,b] for a fixed-axis rotation. Angles are <=180° by validation.
+    const placed=placeBvh(movingBvh,transformation(mid));
+    // Every rigid triangle vertex is within the expanded midpoint AABB
+    // throughout [a,b]. With max |a|,|b| <= 180°, 2*r*sin(Δ/4) is
+    // a rigorous maximum displacement from the midpoint to either endpoint.
     const padding=2*radius*Math.sin(((b-a)*Math.PI/180)/4)+1e-6;
     if(obstacles.every(o=>boxesDisjointWithPadding(placed.worldBounds,o.bvh.worldBounds,padding,1e-6))){
       certifiedIntervals++;
-      return;
+      continue;
     }
     if(depth>=maxDepth){
       unresolved(a,b,"Expanded swept AABB still overlaps an obstacle at maximum subdivision depth");
-      return;
+      continue;
     }
     const state=point(mid);
-    if(state==="FAIL")return;
+    if(state==="FAIL")break;
     if(state==="UNKNOWN"){
       unresolved(a,b,stoppedBecause??"Collision sampling inconclusive");
-      return;
+      break;
     }
-    sweep(a,mid,depth+1);
-    if(!first&&!stoppedBecause)sweep(mid,b,depth+1);
-  };
-  if(!first&&!stoppedBecause){
-    for(let i=1;i<input.anglesDeg.length;i++){
-      sweep(input.anglesDeg[i-1],input.anglesDeg[i],0);
-      if(first||stoppedBecause)break;
+    queue.push({fromDeg:a,toDeg:mid,depth:depth+1},{fromDeg:mid,toDeg:b,depth:depth+1});
+  }
+  // If any budget stops the traversal, every unevaluated queued interval is
+  // still unresolved. Do not turn unexamined regions into positive clearance.
+  if(!first && stoppedBecause) {
+    for(let i=head;i<queue.length;i++) {
+      const {fromDeg,toDeg}=queue[i];
+      unresolved(fromDeg,toDeg,stoppedBecause);
     }
   }
   if(expired()&&!stoppedBecause) stoppedBecause="Swept evaluation deadline or job abort";
@@ -243,7 +251,7 @@ export function verifyAnalyticRigidSweep(input: {
   const maximumUnresolvedGapDeg = unresolvedIntervals.length
     ? Math.max(...unresolvedIntervals.map(item=>item.toDeg-item.fromDeg))
     : stoppedBecause ? initialMaximumAngleGapDeg : 0;
-  const status:RigidSweepStatus=first?"FAIL":stoppedBecause||unresolvedIntervals.length||unresolvedAfterBudget?"NOT_RUN":"PASS";
+  const status:RigidSweepStatus=first?"FAIL":stoppedBecause||unresolvedIntervals.length?"NOT_RUN":"PASS";
   const reason=first
     ? "An actual STL collision was measured at a bounded sampled angle; source semantics outside checked angles remain unverified."
     : status==="PASS"?"All analytic rigid-motion intervals have mathematically conservative separated swept AABB envelopes."
