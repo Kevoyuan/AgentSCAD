@@ -43,6 +43,10 @@ Use [`docs/ASSEMBLY_EXECUTION_BACKLOG.md`](docs/ASSEMBLY_EXECUTION_BACKLOG.md) a
 
 
 
+## A07.2 — replayable rejected/no-progress model proposals
+
+Every model-provided SCAD candidate now produces an explicit append-only ATTEMPT event even when it is **identical to the current source**, so an opted-in paid call cannot disappear from history as `no-progress`. The event binds the exact UTF-8 proposal bytes (maximum 256 KiB), byte length, SHA-256, actual provider/model/token usage if returned, phase, reasons and validation findings. For oversized output, the ledger retains only its SHA/byte count and a rejection reason; no over-budget candidate text is persisted or rendered. The ledger refuses candidate source that does not match the claimed SHA and stored byte length, including content-level tampering even if the envelope is recomputed. Prior source/contract histories are still readable by authorized sessions with current-vs-stale standing; stale candidate source is **redacted**, preserving only the digest, phase and measured explanation. This is replayability of a model output, not independent evidence of its correctness or user acceptance. No source is applied from history automatically.
+
 ## A07 — bounded, independently remeasured geometry repair (current partial implementation)
 
 `repairMeasuredFailures` enforces a **production opt-in strict embedded-spec gate before rendering a proposal**. A repair may change only CAD geometry; it must preserve the original exact part selectors, instance transforms, quantities, joint frames, allowed contacts, motion ranges and all user-frozen requirements. The original fit measurement requirements are SHA-bound and used for EVERY successive candidate; a candidate cannot choose an easier clearance band or silently omit an operation. Measured but unverified layers remain NOT_RUN; zero measured findings with incomplete evidence does NOT mean completion. Each accepted or rejected/failed/aborted attempt retains the source hash, actual measured statuses, numerical findings, measured part/manifest hashes where available, and recorded model/provider/token observations.
