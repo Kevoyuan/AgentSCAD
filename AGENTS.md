@@ -42,6 +42,15 @@ Use [`docs/ASSEMBLY_EXECUTION_BACKLOG.md`](docs/ASSEMBLY_EXECUTION_BACKLOG.md) a
 
 
 
+
+## A06 final — native source-pose observations, hidden-intermediate collisions and bounded gaps
+
+The real Job source-pose inspector now offers **3/5/7/9 independently rendered source poses** at evenly spaced angles within an explicitly confirmed grounded revolute joint range. The maximum original-source observation gap (degrees) is reported. The backend derives every pose matrix from the current grounded joint and preserves immutable source/spec/requirements/part/reference hashes under the existing lease and 180s total deadline. The source selector/parameter binding is user-confirmed intent, not independently identified feature semantics.
+
+After independently rendering each requested source pose, `verifyAnalyticRigidSweep` inspects actual generated-part STLs with each stationary instance transform. It checks every original sampled angle plus additional *adaptive intermediate* angles. It returns FAIL immediately for a witnessed triangle collision/containment, including angle, obstacle, poses and both STL hashes. For **continuous intervals of the *declared analytic rigid rotation only***, the midpoint transformed mesh AABB expanded by the maximum vertex displacement `2 * r * sin(intervalRadians / 4)` contains the entire swept surface; a rigorously disjoint padded envelope proves that particular interval separated. Ambiguous intervals are subdivided under explicit angle-evaluation/depth/time/triangle-pair budgets; unresolved subranges remain NOT_RUN. **Do not** turn broadphase overlap, a discrete missed collision or any budget exhaustion into PASS.
+
+Even if every independently rendered source pose passes and *all analytic rigid sweep intervals* are certified, actual OpenSCAD source behavior **between** samples is not independently established (a parameter could change mesh geometry non-rigidly or differently); product motion and physical approval stay NOT_RUN. The A06 method covers honest sampled source observations and conservative analytic clearance, not an unconditional continuous source-motion/physical proof. Cross-contract/real hardware validation remains downstream.
+
 ## A06.3.2 — cumulative deadline across source-pose checks
 
 The three-pose production endpoint has a **single 180-second wall-clock budget** shared by local-part rendering, independent reference renders, triangle comparison and final source/spec/requirement lease verification. `runSourcePoseWithinBudget` forwards the existing lease abort into a cancellable render signal; on user/job cancellation it yields 409, on cumulative deadline it yields retryable HTTP 503 with `Retry-After: 30`, without an evidence snapshot, export record, JobOutcome or any approved PASS. The timer and listener are always cleaned up after the call. Even if a renderer ignores abort or CPU work delays the timer callback, the post-completion elapsed-time check rejects a late PASS. The runtime cap cannot be extended by user input; actual OS processes use their own native/WASM timeouts in addition to this cumulative server-side bound. This limit is not proof of continuous motion.
