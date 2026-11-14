@@ -24,7 +24,7 @@ test("source-pose inspection controls are explicit and never render/request on p
   expect(html).toContain("hinge: fixed-instance / moving-instance");
   expect(html).toContain("type=\"checkbox\"");
   expect(html).toContain("disabled=\"\"");
-  expect(html).toContain("Run three source-pose comparisons");
+  expect(html).toContain("Run source-pose comparisons");
   expect(html).not.toContain("Raw sampled surface comparison");
 });
 
