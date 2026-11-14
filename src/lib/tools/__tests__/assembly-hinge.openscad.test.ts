@@ -367,6 +367,7 @@ generated_part();
     const prompts: string[] = [];
     const result = await repairMeasuredFailures({
       originalRequest: "一个能转半圈的铰链，直径间隙 0.35 到 0.45 mm",
+      strictEmbeddedSpec:true,
       scad: embedded(20.5),
       measure,
       propose: async (prompt) => { prompts.push(prompt); return { scad: embedded(5.5) }; },
