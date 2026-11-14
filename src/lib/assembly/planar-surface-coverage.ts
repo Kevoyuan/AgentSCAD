@@ -140,10 +140,13 @@ function coverDirection(source: Face[], target: Face[], toleranceMm: number, rem
     let areaCovered = 0;
     for (const b of sorted) {
       if (b.bounds[0] > a.bounds[3] + toleranceMm) break;
+      // Count EVERY X-range broadphase candidate, including other-axis
+      // rejections. Otherwise many disjoint triangles in the same X slab
+      // could consume unbounded CPU without spending the declared budget.
+      if (++testedPairs > remainingPairs) return observed("NOT_RUN", "Planar surface comparison pair budget exceeded.", i, i);
       if (b.bounds[3] < a.bounds[0] - toleranceMm ||
         b.bounds[1] > a.bounds[4] + toleranceMm || b.bounds[4] < a.bounds[1] - toleranceMm ||
         b.bounds[2] > a.bounds[5] + toleranceMm || b.bounds[5] < a.bounds[2] - toleranceMm) continue;
-      if (++testedPairs > remainingPairs) return observed("NOT_RUN", "Planar surface comparison pair budget exceeded.", i, i);
       if (!planeCompatible(a, b, toleranceMm)) continue;
       const overlap = projectedOverlapArea(a, b);
       if (!Number.isFinite(overlap)) return observed("NOT_RUN", "Non-finite planar overlap area.", i, i);
