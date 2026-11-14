@@ -64,10 +64,12 @@ export function createRepairEvent(input: RepairLedgerBinding & {
     attempt:input.attempt??null,terminal:input.terminal??null,
   };
   if ((base.state==="ATTEMPT") !== (base.attempt!==null)||
-    (["FINISHED","ABORTED","ERROR"].includes(base.state)) !== (base.terminal!==null)||
-    (base.terminal?.reviewCandidateScad && Buffer.byteLength(base.terminal.reviewCandidateScad,"utf8")>256*1024)) {
+    (["FINISHED","ABORTED","ERROR"].includes(base.state)) !== (base.terminal!==null)) {
     throw new Error("Inconsistent repair attempt/terminal event");
   }
+  if(base.terminal?.reviewCandidateScad &&
+    Buffer.byteLength(base.terminal.reviewCandidateScad,"utf8")>256*1024)
+    throw new Error("Stored repair candidate exceeds 256 KiB");
   const event={...base,eventSha256:sha256(canonicalJson(base))};
   if(Buffer.byteLength(JSON.stringify(event),"utf8")>MAX_EVENT_BYTES)throw new Error("Repair event exceeds 400 KiB");
   return event;
