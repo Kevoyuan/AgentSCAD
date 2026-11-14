@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { canonicalJson } from "@/lib/canonical-json";
 import { observeSourcePoses } from "@/lib/assembly/source-pose-observer";
+import { SOURCE_POSE_CHECKER_VERSION } from "@/lib/assembly/source-pose-version";
+import { usesOpenScadWasm } from "@/lib/tools/openscad-backend";
 import { runSourcePoseWithinBudget, SourcePoseDeadlineExceeded, SourcePoseLeaseAborted } from "@/lib/assembly/source-pose-budget";
 import { bindSourcePoseJobRequest, InvalidSourcePoseJobRequest } from "@/lib/assembly/source-pose-job-request";
 import { AssemblyIdentityError } from "@/lib/assembly/assembly-bundle";
@@ -92,6 +94,8 @@ export async function POST(request: NextRequest, { params }: Context) {
       sourceSha256: fields.sourceSha256,
       specSha256: fields.specSha256,
       contractSha256: lease.requirements.contractSha256,
+      checkerVersion: SOURCE_POSE_CHECKER_VERSION,
+      rendererBackend: usesOpenScadWasm() ? "wasm" : "native",
       connectionId: binding.connectionId,
       sourceParameter: binding.sourceParameter,
       movingInstanceId: binding.movingInstanceId,
@@ -103,6 +107,8 @@ export async function POST(request: NextRequest, { params }: Context) {
       schemaVersion: 1,
       sourceSha256: fields.sourceSha256, specSha256: fields.specSha256,
       contractSha256: lease.requirements.contractSha256,
+      checkerVersion: SOURCE_POSE_CHECKER_VERSION,
+      rendererBackend: usesOpenScadWasm() ? "wasm" : "native",
       confirmedRequirementCurrent: lease.requirements.evidenceCurrent,
       bindingSha256,
       binding: {
