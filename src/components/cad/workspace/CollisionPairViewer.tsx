@@ -1,6 +1,8 @@
 'use client'
 
 import * as React from 'react'
+import { useI18n } from '@/components/i18n-provider'
+import type { Object3D, BufferGeometry, MeshStandardMaterial, SphereGeometry, MeshBasicMaterial } from 'three'
 import type { CollisionReplayPair } from './collision-replay-data'
 
 /**
@@ -9,7 +11,6 @@ import type { CollisionReplayPair } from './collision-replay-data'
  * STL viewport, a boolean-unioned assembly or a swept-motion simulation.
  */
 export function CollisionPairViewer({ pair }: { pair: CollisionReplayPair }) {
-  const { useI18n } = require('@/components/i18n-provider') as typeof import('@/components/i18n-provider')
   const { t } = useI18n()
   const mount = React.useRef<HTMLDivElement>(null)
   const [error, setError] = React.useState('')
@@ -46,8 +47,8 @@ export function CollisionPairViewer({ pair }: { pair: CollisionReplayPair }) {
       scene.add(keyLight)
 
       const loader = new STLLoader()
-      const objects: THREE.Object3D[] = []
-      const resources: Array<{ geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial }> = []
+      const objects: Object3D[] = []
+      const resources: Array<{ geometry: BufferGeometry; material: MeshStandardMaterial }> = []
       const addMesh = (entry: CollisionReplayPair['moving'], color: number) => {
         // STLLoader.parse expects ArrayBuffer; an owned copy also avoids view offsets.
         const bytes = new Uint8Array(entry.stl.length)
@@ -82,8 +83,8 @@ export function CollisionPairViewer({ pair }: { pair: CollisionReplayPair }) {
         : center
       // An INTERSECT witness is a midpoint of triangle centroids, not an exact
       // point of contact. UNKNOWN and CONTAINED never receive a fake marker.
-      let witnessGeometry: THREE.SphereGeometry | null = null
-      let witnessMaterial: THREE.MeshBasicMaterial | null = null
+      let witnessGeometry: SphereGeometry | null = null
+      let witnessMaterial: MeshBasicMaterial | null = null
       if (pair.collision === 'INTERSECT' && pair.witnessCentroidPointMm) {
         witnessGeometry = new THREE.SphereGeometry(Math.max(0.08, span * 0.009), 16, 12)
         witnessMaterial = new THREE.MeshBasicMaterial({ color: 0xfc437a, depthTest: false })
