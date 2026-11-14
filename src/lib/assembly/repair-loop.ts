@@ -128,7 +128,7 @@ export async function repairMeasuredFailures(input: {
   /** Fixed for the whole run: the loop never measures with anything else. */
   measure: (scad: string) => Promise<AssemblyMeasurement>;
   /** One model call. Returning the same source ends the loop as `no-progress`. */
-  propose: (prompt: string, attempt: number) => Promise<{
+  propose: (prompt: string, attempt: number, context?: { currentScad: string; findings: AssemblyFinding[] }) => Promise<{
     scad: string;
     modelExecution?: RepairLoopAttempt["modelExecution"];
   }>;
@@ -199,7 +199,7 @@ export async function repairMeasuredFailures(input: {
     let proposed: string;
     let modelExecution: RepairLoopAttempt["modelExecution"];
     try {
-      const reply=await input.propose(prompt, attempt);
+      const reply=await input.propose(prompt, attempt, { currentScad, findings });
       proposed=reply.scad;
       modelExecution=reply.modelExecution;
     } catch (error) {
