@@ -72,6 +72,11 @@ export async function POST(request: NextRequest, { params }: Context) {
       const measured = await observeSourcePoses({
         scadSource: source, spec: lease!.spec,
         referenceSelector: "all", samples: binding.samples,
+        analyticSweep: {
+          movingInstanceId: binding.movingInstanceId,
+          axis: binding.axis,
+          anglesDeg: binding.samples.map(sample => sample.parameters[binding.sourceParameter]),
+        },
         // Narrowed after the strict SHA validation above; these are immutable
         // string values even across the asynchronous observer callback.
         expectedSourceSha256: fields.sourceSha256 as string,
@@ -91,6 +96,7 @@ export async function POST(request: NextRequest, { params }: Context) {
       sourceParameter: binding.sourceParameter,
       movingInstanceId: binding.movingInstanceId,
       rotationDeg: binding.rotationDeg,
+      sampleCount: binding.sampleCount,
       samples: binding.samples,
     })).digest("hex");
     return NextResponse.json({
@@ -105,6 +111,8 @@ export async function POST(request: NextRequest, { params }: Context) {
         movingInstanceId: binding.movingInstanceId,
         groundedInstanceId: binding.groundedInstanceId,
         rotationDeg: binding.rotationDeg,
+        sampleCount: binding.sampleCount,
+        maximumSampleAngleGapDeg: binding.maximumSampleAngleGapDeg,
         axis: binding.axis,
         userConfirmed: true,
         independentParameterSemanticsVerified: false,
@@ -112,7 +120,7 @@ export async function POST(request: NextRequest, { params }: Context) {
       report,
       productMotionApproval: "NOT_RUN",
       physicalFunctionApproval: "NOT_RUN",
-      limitations: "Only three explicit source/pose surface observations. The user-selected parameter is not independently mapped to the intended mechanism. No continuous sweep, contact/force proof, tool access, manufacturing approval or JobOutcome acceptance.",
+      limitations: "Only 3–9 independent source-pose surface observations. The optional interval checker certifies or rejects only analytic declared rigid-part motion, not the actual source-variable behavior between rendered frames. The selected source parameter is not independently linked to intended mechanism semantics. Product motion, forces, physical fit and manufacturing approval remain NOT_RUN.",
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof InvalidSourcePoseJobRequest) {
