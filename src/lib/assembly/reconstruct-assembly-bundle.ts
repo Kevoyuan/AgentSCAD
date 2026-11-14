@@ -26,6 +26,10 @@ export type ReferenceComparison = {
   bboxErrorMm?: number;
   maxVertexErrorMm?: number;
   matchedTriangles?: number;
+  testedPairs?: number;
+  trianglesChecked?: number;
+  maximumAreaMismatchMm2?: number;
+  maximumAreaBudgetMm2?: number;
 };
 
 export type ReconstructedAssemblyReport = {
@@ -152,6 +156,10 @@ export function reconstructAssemblyBundle(input: {
       if ("bboxErrorMm" in result) reference.bboxErrorMm = result.bboxErrorMm;
       if ("maxVertexErrorMm" in result) reference.maxVertexErrorMm = result.maxVertexErrorMm;
       if ("matchedTriangles" in result) reference.matchedTriangles = result.matchedTriangles;
+      if ("testedPairs" in result) reference.testedPairs = result.testedPairs;
+      if ("trianglesChecked" in result) reference.trianglesChecked = result.trianglesChecked;
+      if ("maximumAreaMismatchMm2" in result) reference.maximumAreaMismatchMm2 = result.maximumAreaMismatchMm2;
+      if ("maximumAreaBudgetMm2" in result) reference.maximumAreaBudgetMm2 = result.maximumAreaBudgetMm2;
     } catch (error) {
       reference.status = "ERROR";
       reference.reason = error instanceof Error ? error.message : "Reference comparison failed";
