@@ -88,9 +88,9 @@ export async function prepareCollisionReplayPair(
     target.witnessCentroidPointMm.every(Number.isFinite)
   ), 'A reported witness is invalid or not from an actual triangle intersection.')
 
-  const wanted = new Set(['manifest.json', 'specification.json'])
-  // Conservative bounds before inflation; only these metadata + STL entries
-  // are used. Other generated parts remain in the ZIP but are not inflated.
+  // Conservative bounds are enforced before inflation. First scan ZIP names
+  // while inflating only the two metadata files, then extract only the exact
+  // moving/obstacle STL files after resolving instance IDs from the spec.
   let entryCount = 0, totalInflated = 0
   const present = new Set<string>()
   let extracted: Record<string, Uint8Array>
@@ -105,7 +105,7 @@ export async function prepareCollisionReplayPair(
         requireReplay(Number.isSafeInteger(entry.originalSize) && entry.originalSize <= MAX_ENTRY_BYTES, 'Oversized ZIP entry.')
         totalInflated += entry.originalSize
         requireReplay(totalInflated <= MAX_TOTAL_BYTES, 'Uncompressed ZIP exceeds replay budget.')
-        return wanted.has(entry.name) || entry.name.endsWith('.stl')
+        return entry.name === 'manifest.json' || entry.name === 'specification.json'
       },
     })
   } catch (error) {
@@ -124,6 +124,14 @@ export async function prepareCollisionReplayPair(
   const declarations = new Map(parsed.data.parts.map(item => [item.id, item]))
   const inventory = Array.isArray(manifest.parts) ? manifest.parts : []
   requireReplay(inventory.length === parsed.data.parts.length, 'ZIP part inventory differs from the specification.')
+  const movingPartId = instances.get(target.movingInstanceId)?.partId
+  const obstaclePartId = instances.get(target.obstacleInstanceId)?.partId
+  requireReplay(movingPartId && obstaclePartId, 'Collision witness uses an unknown assembly instance.')
+  const requiredStls = new Set([movingPartId + '.stl', obstaclePartId + '.stl'])
+  // No unbounded decompression: the pass above checked every declared ZIP entry
+  // size and total. This second pass inflates at most the two witness STL files.
+  const stlEntries = unzipSync(archive, { filter: entry => requiredStls.has(entry.name) })
+  extracted = { ...extracted, ...stlEntries }
 
   const getPart = async (instanceId: string, expectedHash: string) => {
     const instance = instances.get(instanceId)
