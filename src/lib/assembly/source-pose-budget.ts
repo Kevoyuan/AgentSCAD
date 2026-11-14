@@ -30,6 +30,7 @@ export async function runSourcePoseWithinBudget<T>(
     throw new Error("Invalid cumulative source-pose execution budget.");
   }
   if (upstream.aborted) throw new SourcePoseLeaseAborted();
+  const startedAt = performance.now();
   const combined = new AbortController();
   let timedOut = false;
   const onUpstreamAbort = () => combined.abort(upstream.reason);
@@ -43,11 +44,11 @@ export async function runSourcePoseWithinBudget<T>(
     if (upstream.aborted) throw new SourcePoseLeaseAborted();
     const result = await task(combined.signal);
     if (upstream.aborted) throw new SourcePoseLeaseAborted();
-    if (timedOut) throw new SourcePoseDeadlineExceeded();
+    if (timedOut || performance.now() - startedAt >= budgetMs) throw new SourcePoseDeadlineExceeded();
     return result;
   } catch (error) {
     if (upstream.aborted) throw new SourcePoseLeaseAborted();
-    if (timedOut) throw new SourcePoseDeadlineExceeded();
+    if (timedOut || performance.now() - startedAt >= budgetMs) throw new SourcePoseDeadlineExceeded();
     throw error;
   } finally {
     clearTimeout(timer);
