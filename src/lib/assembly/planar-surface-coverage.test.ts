@@ -55,7 +55,7 @@ describe("bounded triangulation-independent planar surface area coverage", () =>
     const pieces = split(triangles(original), 0);
     const missing = stlOf(pieces.filter((_, i) => i !== 1));
     const result = checkReconstructedMesh({ local: original, posed: missing, transform: id });
-    expect(result.bboxErrorMm).toBe(0);
+    expect("bboxErrorMm" in result && result.bboxErrorMm).toBe(0);
     expect(result.status).toBe("NOT_RUN");
     expect(result.reason).toContain("unproven surface coverage");
   });
@@ -63,7 +63,7 @@ describe("bounded triangulation-independent planar surface area coverage", () =>
   test("additional internal geometry cannot PASS with matching envelope", () => {
     const extra = mergeStl(original, boxStl([0.5,0.5,0.5],[0.6,0.6,0.6]));
     const result = checkReconstructedMesh({ local: original, posed: extra, transform: id });
-    expect(result.bboxErrorMm).toBe(0);
+    expect("bboxErrorMm" in result && result.bboxErrorMm).toBe(0);
     expect(result.status).not.toBe("PASS");
   });
 
