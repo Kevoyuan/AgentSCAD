@@ -13,6 +13,8 @@ import { readBinaryStl } from "../../geometry/stl-mesh";
 import { evaluateAssembly, type Requirement } from "../../../../scripts/eval/assembly-evidence";
 import { renderAssemblyParts } from "../assembly-part-renderer";
 import { repairMeasuredFailures } from "../../assembly/repair-loop";
+import { observeSourcePoses } from "../../assembly/source-pose-observer";
+import { rotationAboutAxis } from "../../assembly/path-and-motion";
 
 const pose = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const identity = pose;
@@ -399,4 +401,79 @@ generated_part();
     expect(result.final.manifest.evidence.physical.status).toBe("NOT_RUN");
     expect(result.attempts[0].scadSha256).not.toBe(result.attempts[1].scadSha256);
   }, 240000);
+
+  test("A06.1 independently re-renders -45/0/+45 degree source poses and rejects a wrong axis", async () => {
+    const scadSource = await readFile("benchmarks/assembly/axial_hinge.scad", "utf8");
+    const spec = await hingeSpec();
+    const samples = [-45, 0, 45].map(angle => ({
+      id: "hinge-" + angle,
+      parameters: { hinge_angle: angle },
+      transforms: {
+        "moving-instance": rotationAboutAxis([0, 0, 0], [0, 0, 1], angle * Math.PI / 180),
+      },
+    }));
+    // A source renderer parameter is *independent* of the instance-matrix
+    // reconstruction. Explicit enumeration is not a continuous-motion claim.
+    const badAxis = {
+      id: "wrong-axis",
+      parameters: { hinge_angle: 45 },
+      transforms: {
+        "moving-instance": rotationAboutAxis([0, 0, 0], [1, 0, 0], 45 * Math.PI / 180),
+      },
+    };
+    const report = await observeSourcePoses({
+      scadSource, spec, referenceSelector: "all",
+      expectedSourceSha256: createHash("sha256").update(scadSource).digest("hex"),
+      samples: [...samples, badAxis],
+    });
+    expect(report.method).toBe("independent-source-pose-stl-comparison/v1");
+    expect(report.samples).toHaveLength(4);
+    // OpenSCAD re-triangulates the nonzero rotated assembly even though its
+    // bounding-box envelope matches exactly. The bijective triangle matcher
+    // cannot certify that surface, so NOT_RUN is the only honest standing.
+    expect(report.samples.slice(0, 3).map(item => item.status)).toEqual(["NOT_RUN", "PASS", "NOT_RUN"]);
+    expect(report.samples[0].reason).toContain("No triangle correspondence");
+    expect(report.samples[2].reason).toContain("No triangle correspondence");
+    expect(report.samples[0].bboxErrorMm).toBe(0);
+    expect(report.samples[2].bboxErrorMm).toBe(0);
+    expect(report.samples[1].matchedTriangles).toBeGreaterThan(0);
+    expect(report.samples[3].status).toBe("FAIL");
+    expect(report.samples[3].bboxErrorMm).toBeGreaterThan(16);
+    expect(report.status).toBe("FAIL");
+    expect(report.samples.every(item => item.sourceSha256 === report.sourceSha256)).toBe(true);
+    expect(report.samples.slice(0, 3).every(item => item.referenceStlSha256.length === 64)).toBe(true);
+    expect(new Set(report.samples.slice(0, 3).map(item => item.referenceStlSha256)).size).toBe(3);
+    expect(report.coverage).toContain("no continuous sweep");
+  }, 240000);
+
+  test("A06.1 refuses source edits and invalid rigid or missing source-pose bindings before rendering", async () => {
+    const scadSource = await readFile("benchmarks/assembly/axial_hinge.scad", "utf8");
+    const spec = await hingeSpec();
+    const samples = [0, 45].map(angle => ({
+      id: "pose-" + angle, parameters: { hinge_angle: angle },
+      transforms: { "moving-instance": rotationAboutAxis([0, 0, 0], [0, 0, 1], angle * Math.PI / 180) },
+    }));
+    let renders = 0;
+    const fakeLocal = async () => { renders++; throw new Error("Should not render stale CAD"); };
+    await expect(observeSourcePoses({
+      scadSource: scadSource + "\n// edited",
+      spec, referenceSelector: "all", samples,
+      expectedSourceSha256: createHash("sha256").update(scadSource).digest("hex"),
+      renderLocal: fakeLocal,
+    })).rejects.toThrow("source has changed");
+    expect(renders).toBe(0);
+    await expect(observeSourcePoses({
+      scadSource, spec, referenceSelector: "all", samples,
+      expectedSpecificationSha256: "f".repeat(64), renderLocal: fakeLocal,
+    })).rejects.toThrow("specification changed");
+    expect(renders).toBe(0);
+    const invalid = structuredClone(samples);
+    invalid[1].transforms["moving-instance"][0] = 2;
+    await expect(observeSourcePoses({
+      scadSource, spec, referenceSelector: "all", samples: invalid,
+      renderLocal: fakeLocal,
+    })).rejects.toThrow("not right-handed rigid");
+    expect(renders).toBe(0);
+  }, 60000);
+
 });

@@ -250,6 +250,13 @@ The response carries source/spec/archive hashes, `evidence` statuses and reasons
 
 
 
+
+## A06.1 — source-driven native pose reference
+
+The new `src/lib/assembly/source-pose-observer.ts` implements a bounded, explicitly invoked source-pose reference workflow. For each requested original OpenSCAD source parameter (for example hinge_angle at −45°, 0°, +45°), it independently renders the **whole source** using the declared selector while separately placing the previously rendered local-part STL meshes using supplied rigid 4×4 matrices. `reconstructAssemblyBundle` verifies part archive hashes and checks real triangles against the independently rendered reference. Reports retain source SHA, base and posed specification SHA, part meshes, reference STL SHA, reconstruction SHA, archive hash, comparison status and method per sampled pose.
+
+Native OpenSCAD hinge observations currently give PASS at 0° (808 matched triangles), NOT_RUN at −45°/+45° (bbox errors 0 mm but triangulations cannot be bijectively matched), and FAIL for wrong-axis rotation (bbox error >16 mm). This is **not** three verified motion poses. An additional synthetic test confirms the generic orchestration genuinely returns PASS for two independently matching translated meshes and FAIL for an incorrectly bound source parameter. A modified source, altered expected specification, and invalid non-rigid matrices must be rejected **before rendering**. This is a focused original-fixture proof, not a product-wide runtime motion verifier or an independent user-intent calibration. No implied continuous motion, mechanism force, contact tolerance or physical manufacturing evidence is promoted; A06 remains partial.
+
 ## A05.3 — browser 3D replay of a hash-matched collision pair
 
 On a current A01 report, each first actual FAIL/UNKNOWN collision now has an explicit "View collision pair in 3D" action. Clicking fetches the production version-guarded `assembly/bundle` endpoint **without** an export record and performs browser SHA-256 verification of actual returned ZIP bytes, canonical specification bytes and the two involved STL files against the A05.2 replay witness. The browser only inflates the metadata and the two needed STLs, within preflight ZIP budgets. It resolves moving and obstacle by **instance IDs**, not by part names or the first same-part instance. Repeated instances remain distinct through their own 4×4 world transforms. On a mismatch, no scene is rendered.
