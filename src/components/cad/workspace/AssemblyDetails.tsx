@@ -5,6 +5,7 @@ import { useI18n } from '@/components/i18n-provider'
 import { validateAssemblySpec } from '@/lib/assembly/assembly-spec'
 import type { AssemblyEvidenceReport } from '@/lib/assembly/assembly-evidence-report'
 import { CollisionReplayAction } from './CollisionReplayAction'
+import { SourcePoseCheck } from './SourcePoseCheck'
 
 type AssemblyResponse = { spec: unknown | null; stale: boolean; sourceSha256?: string | null; currentSourceSha256?: string | null; specSha256?: string | null; provenance?: 'generated' | 'user' | null; embeddedStatus?: 'valid' | 'invalid' | 'absent'; evidence?: Record<string, { status?: string }> }
 type AssemblyRevisionView = { id: string; revision: number | null; savedAt: string; specSha256: string; sourceSha256?: string | null; stale: boolean; spec: unknown }
@@ -472,6 +473,10 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
         {spec.connections.length > 0 && <><h4 className="mt-3 font-medium">{t('Connections')}</h4><ul className="mt-1 space-y-1">{spec.connections.map(connection => <li key={connection.id}>{instanceLabel(connection.a)} ↔ {instanceLabel(connection.b)} <span className="text-[var(--shell-text-label)]">({t(connection.type)})</span></li>)}</ul></>}
         {spec.unknowns.length > 0 && <><h4 className="mt-3 font-medium">{t('Unknown conditions')}</h4><ul className="mt-1 space-y-1">{spec.unknowns.map((unknown, index) => <li key={index}>{unknown}</li>)}</ul></>}
       </details>
+      {canDownload && jobId && data.sourceSha256 && data.specSha256 && !hasPurchasedInstances &&
+        <SourcePoseCheck key={jobId + ':' + data.sourceSha256 + ':' + data.specSha256}
+          jobId={jobId} sourceSha256={data.sourceSha256}
+          specSha256={data.specSha256} spec={spec} />}
     </section>
   )
 }
