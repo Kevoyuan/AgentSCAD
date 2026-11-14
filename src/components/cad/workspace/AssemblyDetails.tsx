@@ -6,6 +6,7 @@ import { validateAssemblySpec } from '@/lib/assembly/assembly-spec'
 import type { AssemblyEvidenceReport } from '@/lib/assembly/assembly-evidence-report'
 import { CollisionReplayAction } from './CollisionReplayAction'
 import { SourcePoseCheck } from './SourcePoseCheck'
+import { AssemblyRepairPanel } from './AssemblyRepairPanel'
 
 type AssemblyResponse = { spec: unknown | null; stale: boolean; sourceSha256?: string | null; currentSourceSha256?: string | null; specSha256?: string | null; provenance?: 'generated' | 'user' | null; embeddedStatus?: 'valid' | 'invalid' | 'absent'; evidence?: Record<string, { status?: string }> }
 type AssemblyRevisionView = { id: string; revision: number | null; savedAt: string; specSha256: string; sourceSha256?: string | null; stale: boolean; spec: unknown }
@@ -477,6 +478,10 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
         <SourcePoseCheck key={jobId + ':' + data.sourceSha256 + ':' + data.specSha256}
           jobId={jobId} sourceSha256={data.sourceSha256}
           specSha256={data.specSha256} spec={spec} />}
+      {canDownload && jobId && data.sourceSha256 && data.specSha256 &&
+        data.embeddedStatus === 'valid' && !hasPurchasedInstances &&
+        <AssemblyRepairPanel key={'repair:' + jobId + ':' + data.sourceSha256 + ':' + data.specSha256}
+          jobId={jobId} sourceSha256={data.sourceSha256} specSha256={data.specSha256} />}
     </section>
   )
 }
