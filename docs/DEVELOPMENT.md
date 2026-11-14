@@ -249,6 +249,13 @@ The response carries source/spec/archive hashes, `evidence` statuses and reasons
 
 
 
+
+## A05.3 — browser 3D replay of a hash-matched collision pair
+
+On a current A01 report, each first actual FAIL/UNKNOWN collision now has an explicit "View collision pair in 3D" action. Clicking fetches the production version-guarded `assembly/bundle` endpoint **without** an export record and performs browser SHA-256 verification of actual returned ZIP bytes, canonical specification bytes and the two involved STL files against the A05.2 replay witness. The browser only inflates the metadata and the two needed STLs, within preflight ZIP budgets. It resolves moving and obstacle by **instance IDs**, not by part names or the first same-part instance. Repeated instances remain distinct through their own 4×4 world transforms. On a mismatch, no scene is rendered.
+
+A separate Three.js/Z-up viewer places the two exact STL geometries with `THREE.Matrix4.set` using the recorded row-major matrix convention; the witness point is rendered only for `INTERSECT` and labelled a BVH triangle-centroid midpoint approximation. For `UNKNOWN`, no fake collision point is drawn. Orbit/zoom is inspection-only, and no motion is inferred. The current job STL viewer is unchanged. This is **not a whole-assembly viewport**: other instances/removed parts, allowed contacts, continuous collision checks and hardware fit still require A05/A06/A13 work. 3D replay is disabled for stale reports and missing purchased-part STL geometry. No extra paid-model calls or background rendering.
+
 ## A05.2 — collision reproduction with exact witness poses
 
 For each first sampled collision or undecidable BVH query, `rigid-pose-path` now captures the exact validated 4×4 row-major transforms of the **moving** and **obstacle** meshes used in that query, along with their actual rendered STL SHA-256 hashes. These values travel through the bounded A01 inspection and append-only A02 snapshots in `blockedAt.replayFrame` / `undecidedAt.replayFrame`. The UI provides expandable, selectable matrices. Regression tests re-run the independent triangle collision checker from the recorded matrices, including translated obstacles and an UNKNOWN mesh. Exact matrix output is evidence for a *single sampled pose*, not an exact contact point or sweep.
