@@ -70,8 +70,8 @@ describe('hash-bound 3D collision pair replay data', () => {
     const pair = await prepareCollisionReplayPair(archive, sourceSha, specSha, recorded)
     expect(pair.moving.instanceId).toBe('pin1')
     expect(pair.obstacle.instanceId).toBe('base1')
-    expect(Array.from(pair.moving.matrix)).toEqual(moved)
-    expect(Array.from(pair.obstacle.matrix)).toEqual(identity)
+    expect(Array.from(pair.moving.matrix)).toEqual(Array.from(moved))
+    expect(Array.from(pair.obstacle.matrix)).toEqual(Array.from(identity))
     expect(sha(pair.moving.stl)).toBe(recorded.frame.movingMeshSha256)
     expect(sha(pair.obstacle.stl)).toBe(recorded.frame.obstacleMeshSha256)
     expect(pair.witnessCentroidPointMm).toEqual(recorded.witnessCentroidPointMm)
@@ -86,8 +86,8 @@ describe('hash-bound 3D collision pair replay data', () => {
     expect(sha(pair.moving.stl)).toBe(sha(pair.obstacle.stl))
     expect(pair.moving.instanceId).toBe('pin2')
     expect(pair.obstacle.instanceId).toBe('pin1')
-    expect(pair.moving.matrix).toEqual(identity)
-    expect(pair.obstacle.matrix).toEqual(moved)
+    expect(Array.from(pair.moving.matrix)).toEqual(Array.from(identity))
+    expect(Array.from(pair.obstacle.matrix)).toEqual(Array.from(moved))
   })
 
   test('tampered bytes, changed witness hash and stale specification all fail closed', async () => {
@@ -124,7 +124,7 @@ describe('hash-bound 3D collision pair replay data', () => {
     const observed: Array<{url: string; credentials?: RequestCredentials}> = []
     const request = async (url: RequestInfo | URL, init?: RequestInit) => {
       observed.push({ url: String(url), credentials: init?.credentials })
-      return new Response(archive, { headers })
+      return new Response(new Uint8Array(archive).buffer, { headers })
     }
     const pair = await fetchCollisionReplayPair('job id', sourceSha, specSha, recorded, request)
     expect(pair.poseIndex).toBe(6)
@@ -136,7 +136,7 @@ describe('hash-bound 3D collision pair replay data', () => {
     await expect(fetchCollisionReplayPair('job', sourceSha, specSha, recorded,
       async () => new Response('', { status: 409 }))).rejects.toThrow('changed')
     await expect(fetchCollisionReplayPair('job', sourceSha, specSha, recorded,
-      async () => new Response(archive, { headers: { 'X-AgentSCAD-Bundle-SHA256': 'f'.repeat(64) } }))).rejects.toThrow('Archive bytes')
+      async () => new Response(new Uint8Array(archive).buffer, { headers: { 'X-AgentSCAD-Bundle-SHA256': 'f'.repeat(64) } }))).rejects.toThrow('Archive bytes')
     await expect(fetchCollisionReplayPair('job', '', specSha, recorded, request)).rejects.toThrow('hashes required')
   })
 })
