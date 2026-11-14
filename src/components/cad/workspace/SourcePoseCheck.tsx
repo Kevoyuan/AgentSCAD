@@ -18,6 +18,8 @@ type SourcePoseJobView = {
     movingInstanceId: string
     groundedInstanceId: string
     rotationDeg: number
+    sampleCount?: number
+    maximumSampleAngleGapDeg?: number
     axis: { origin: number[]; direction: number[] }
     userConfirmed: boolean
     independentParameterSemanticsVerified: false
@@ -36,6 +38,7 @@ export async function fetchSourcePoseCheck(input: {
   connectionId: string
   sourceParameter: string
   rotationDeg: number
+  sampleCount?: 3 | 5 | 7 | 9
 }, request: Request = fetch): Promise<{ data?: SourcePoseJobView; error?: string }> {
   try {
     const response = await request('/api/jobs/' + encodeURIComponent(input.jobId) + '/assembly/source-poses', {
@@ -46,6 +49,7 @@ export async function fetchSourcePoseCheck(input: {
         sourceSha256: input.sourceSha256, specSha256: input.specSha256,
         connectionId: input.connectionId, sourceParameter: input.sourceParameter,
         rotationDeg: input.rotationDeg, confirmedBinding: true,
+        ...(input.sampleCount && input.sampleCount !== 3 ? { sampleCount: input.sampleCount } : {}),
       }),
     })
     if (response.status === 409) return { error: 'The job or assembly changed during the source-pose check. Refresh before retrying.' }
@@ -56,11 +60,12 @@ export async function fetchSourcePoseCheck(input: {
     const data = await response.json() as SourcePoseJobView
     if (data?.schemaVersion !== 1 || data.sourceSha256 !== input.sourceSha256 ||
       data.specSha256 !== input.specSha256 || data.report?.sourceSha256 !== input.sourceSha256 ||
-      data.report?.status === undefined || data.report.samples?.length !== 3 ||
+      data.report?.status === undefined || data.report.samples?.length !== (input.sampleCount ?? 3) ||
       data.productMotionApproval !== 'NOT_RUN' || data.physicalFunctionApproval !== 'NOT_RUN' ||
       data.binding.connectionId !== input.connectionId ||
       data.binding.sourceParameter !== input.sourceParameter ||
       data.binding.rotationDeg !== input.rotationDeg ||
+      (data.binding.sampleCount !== undefined && data.binding.sampleCount !== (input.sampleCount ?? 3)) ||
       data.binding.independentParameterSemanticsVerified !== false) {
       return { error: 'Source-pose results are not bound to this version and declared parameter.' }
     }
@@ -86,6 +91,7 @@ export function SourcePoseCheck({ jobId, sourceSha256, specSha256, spec }: {
   const [connectionId, setConnectionId] = React.useState(joints[0]?.id ?? '')
   const [sourceParameter, setSourceParameter] = React.useState('')
   const [rotation, setRotation] = React.useState('15')
+  const [sampleCount, setSampleCount] = React.useState<3 | 5 | 7 | 9>(3)
   const [confirmed, setConfirmed] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState('')
@@ -94,7 +100,7 @@ export function SourcePoseCheck({ jobId, sourceSha256, specSha256, spec }: {
   const maximum = selected?.range ? Math.min(90, -selected.range.min, selected.range.max) : 0
   const angle = Number(rotation)
   const validAngle = Number.isFinite(angle) && angle >= 1 && angle <= maximum
-  const key = [jobId, sourceSha256, specSha256, connectionId, sourceParameter, rotation].join(':')
+  const key = [jobId, sourceSha256, specSha256, connectionId, sourceParameter, rotation, sampleCount].join(':')
   const displayed = saved?.key === key ? saved.data : null
 
   const run = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -105,7 +111,7 @@ export function SourcePoseCheck({ jobId, sourceSha256, specSha256, spec }: {
     setSaved(null)
     const result = await fetchSourcePoseCheck({
       jobId, sourceSha256, specSha256, connectionId,
-      sourceParameter: sourceParameter.trim(), rotationDeg: angle,
+      sourceParameter: sourceParameter.trim(), rotationDeg: angle, sampleCount,
     })
     if (result.data) setSaved({ key, data: result.data })
     else setError(result.error ?? 'Source-pose inspection failed.')
@@ -137,14 +143,25 @@ export function SourcePoseCheck({ jobId, sourceSha256, specSha256, spec }: {
           onChange={event => { setRotation(event.target.value); setConfirmed(false) }}
           className="rounded border border-[color:var(--shell-hairline)] bg-transparent p-1" />
       </label>
-      <p>{t('Three independently rendered poses will be checked')}: −{validAngle ? angle : '?'}°, 0°, +{validAngle ? angle : '?'}°.</p>
+      <label className="flex flex-col gap-1">
+        {t('Independent source pose samples')}
+        <select value={sampleCount} onChange={event => {
+          setSampleCount(Number(event.target.value) as 3 | 5 | 7 | 9)
+          setConfirmed(false)
+        }} className="rounded border border-[color:var(--shell-hairline)] bg-transparent p-1">
+          {[3, 5, 7, 9].map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </label>
+      <p>{t('Source pose angular step')}: {validAngle ? (2 * angle / (sampleCount-1)).toFixed(2) : '?'}°.
+        {t('More source poses improve observation density, not continuous motion proof.')}
+      </p>
       <label className="flex items-start gap-2">
         <input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />
         <span>{t('I confirm this source parameter and joint binding; CAD source semantics and physical function are still unverified.')}</span>
       </label>
       <button type="submit" disabled={loading || !confirmed || !validAngle || !sourceParameter.trim()}
         className="self-start rounded border border-[color:var(--shell-hairline)] px-2 py-1">
-        {loading ? t('Rendering three source poses…') : t('Run three source-pose comparisons')}
+        {loading ? t('Rendering source poses…') : t('Run source-pose comparisons')}
       </button>
     </form>
     {error && <p role="alert" className="mt-2 text-[var(--shell-fail)]">{t(error)}</p>}
@@ -160,6 +177,24 @@ export function SourcePoseCheck({ jobId, sourceSha256, specSha256, spec }: {
           <p>{t('Maximum planar area mismatch')}: {sample.maximumAreaMismatchMm2.toFixed(6)} mm²</p>}
         <p className="break-all">{t('Reference STL SHA-256')}: {sample.referenceStlSha256}</p>
       </li>)}</ol>
+      {displayed.report.analyticRigidSweep && <section className="mt-2 border-t border-[color:var(--shell-hairline)] pt-2">
+        <p className="font-medium">{t('Analytic rigid sweep clearance')}: {displayed.report.analyticRigidSweep.status}</p>
+        <p>{displayed.report.analyticRigidSweep.reason}</p>
+        <p>{t('Additional collision samples checked')}: {displayed.report.analyticRigidSweep.evaluatedAnglesDeg.length};
+          {' '}{t('Maximum unresolved interval')}: {displayed.report.analyticRigidSweep.maximumUnresolvedGapDeg.toFixed(3)}°
+        </p>
+        {displayed.report.analyticRigidSweep.collisionAt && <p className="text-[var(--shell-fail)]">
+          {t('Observed intermediate collision at')}: {displayed.report.analyticRigidSweep.collisionAt.angleDeg.toFixed(3)}°;
+          {' '}{displayed.report.analyticRigidSweep.collisionAt.obstacleInstanceId}
+          {' '}({displayed.report.analyticRigidSweep.collisionAt.collision})
+        </p>}
+        {displayed.report.analyticRigidSweep.unresolvedIntervals.length > 0 && <details className="mt-1">
+          <summary>{t('Unresolved rigid motion angle intervals')} ({displayed.report.analyticRigidSweep.unresolvedIntervals.length})</summary>
+          <ul className="mt-1">{displayed.report.analyticRigidSweep.unresolvedIntervals.map((interval, i) =>
+            <li key={i}>{interval.fromDeg.toFixed(3)}°–{interval.toDeg.toFixed(3)}°: {interval.reason}</li>)}</ul>
+        </details>}
+        <p>{t('Rigid sweep status describes an assumed analytic rotation, not verified OpenSCAD behavior between reference frames or physical function.')}</p>
+      </section>}
       <p className="mt-2">{t('These are explicitly sampled surface observations, not confirmed or continuous mechanical motion.')}</p>
       <p>{displayed.limitations}</p>
     </div>}
