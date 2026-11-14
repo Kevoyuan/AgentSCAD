@@ -4,10 +4,13 @@ import * as React from 'react'
 import { useI18n } from '@/components/i18n-provider'
 import type { AssemblySpec } from '@/lib/assembly/assembly-spec'
 import type { SourcePoseReport } from '@/lib/assembly/source-pose-observer'
+import { SOURCE_POSE_CHECKER_VERSION } from '@/lib/assembly/source-pose-version'
 import { CollisionReplayAction } from './CollisionReplayAction'
 
 type SourcePoseJobView = {
   schemaVersion: 1
+  checkerVersion: typeof SOURCE_POSE_CHECKER_VERSION
+  rendererBackend: 'wasm' | 'native'
   sourceSha256: string
   specSha256: string
   contractSha256: string
@@ -59,7 +62,9 @@ export async function fetchSourcePoseCheck(input: {
       return { error: typeof issue.error === 'string' ? issue.error : 'Source-pose inspection failed.' }
     }
     const data = await response.json() as SourcePoseJobView
-    if (data?.schemaVersion !== 1 || data.sourceSha256 !== input.sourceSha256 ||
+    if (data?.schemaVersion !== 1 || data.checkerVersion !== SOURCE_POSE_CHECKER_VERSION ||
+      !['native','wasm'].includes(data.rendererBackend) ||
+      data.sourceSha256 !== input.sourceSha256 ||
       data.specSha256 !== input.specSha256 || data.report?.sourceSha256 !== input.sourceSha256 ||
       data.report?.status === undefined || data.report.samples?.length !== (input.sampleCount ?? 3) ||
       data.productMotionApproval !== 'NOT_RUN' || data.physicalFunctionApproval !== 'NOT_RUN' ||
@@ -171,6 +176,7 @@ export function SourcePoseCheck({ jobId, sourceSha256, specSha256, spec }: {
     {displayed && <div className="mt-2">
       <p className="font-medium">{t('Raw sampled surface comparison')}: {displayed.report.status}</p>
       <p>{t('Binding SHA-256')}: <code className="break-all">{displayed.bindingSha256}</code></p>
+      <p>{t('Checker version')}: {displayed.checkerVersion}; {t('OpenSCAD renderer')}: {displayed.rendererBackend}</p>
       <p>{t('Approved motion')}: {displayed.productMotionApproval}; {t('Physical function')}: {displayed.physicalFunctionApproval}</p>
       <ol className="mt-1 space-y-2">{displayed.report.samples.map(sample => <li key={sample.id}>
         <strong>{sample.id}: {sample.status}</strong>
