@@ -1666,3 +1666,20 @@ before/after分别保留9及11份原始制造/姿态/总装STL、全部参数与
 费用：本轮 0.154928 元；新 key 累计（第71-73节）0.382180 元，账户显示余额约 99.4 元；所有 ledger 均 TERMINAL，没有活动预留，临时凭据只在仓库外存在并在运行后删除，归档与仓库中未发现 key。未执行完整 WASM、浏览器端到端、实物或用户验收。
 
 验证：普通测试 1083 PASS / 3 SKIP / 0 FAIL（1086 项、163 文件、6055 断言、28.58 秒）；typecheck、lint、diff 检查通过。原生套件 44 PASS / 1 SKIP / 0 FAIL（45 项、8 文件、611.54 秒；1 项环境跳过，不计为通过）；本轮改动为试验报告指标、修复提示常量和付费试验提示，不改变几何检查判据。
+
+## 74. 源码驱动的多关节曲柄滑块姿态验证（2026-11-16）
+
+产品源码运动证据此前只覆盖单个 grounded 两实例铰链，M4 需要的多关节闭环没有源码驱动验证。本轮新增原创工具 `src/lib/tools/slider-crank-source-pose.ts`：用冻结的曲柄半径 8 mm 与连杆长度 28 mm 独立计算每个输入角下的封闭环位姿，不读取 SCAD 源码自己的 `cx`/`cz`/`travel`/`rod_angle` 赋值；源码只作为被测量对象。协议把四个角色（frame、crank、rod、slider）绑定到各自的 `agentscad_pose` 选择器和 `motion_angle` 参数，制造参数固定为 `agentscad_pose=false, motion_angle=0`，姿态参数为 `agentscad_pose=true`，用既有双向凸片表面比较和同输入总装重构。
+
+单元测试覆盖：0° 与 90° 的解析位姿、跨 8 个角度的连杆末端闭合、协议四角色/参数/超时/选择器结构，以及重复角度、非法角色、保留参数、重复选择器、半径超过连杆时在渲染前拒绝。
+
+原生测试（新增文件 `slider-crank-source-pose.openscad.test.ts`，纳入 `test:openscad`）：
+
+1. 冻结 `benchmarks/assembly/slider_crank.scad` 在 0/60/120/240/300° 五个输入下，四个姿态视图与独立预期位姿逐实例 PASS，同输入总装的三角形对应也 PASS，且存在可观测变化（42.03 秒）。
+2. 把源码的 `crank_radius` 从 8 改成 9、预期仍用冻结的 8：检查 FAIL，证明半径是从实际渲染测得，而不是读取源码自报（9.16 秒）。
+3. 把曲柄旋转改为常量 0（unused motion parameter）：整体为 NOT_RUN，90° 下 `crank1` 的期望旋转没有可观测证据，不能算 PASS（31.62 秒）。
+4. 单独加入 180° 输入：`crank1` 在现有表面变化见证下为 “No independent surface-difference witness”，整体 NOT_RUN；该采样被记录为相位不可观测，而不是通过（16.69 秒）。
+
+边界：这是工具级证据，尚未接入 `prepareContractAssembly`/A001、装配包或产品导出；只覆盖五个离散角度和一次 180° 不可观测记录，不证明连续轨迹；源码驱动的装拆路径、保持力、磨损、制造公差和实物功能都未验证；一维曲柄滑块不等于 V8 多缸。M4 仍未完成。本轮没有模型调用或费用增量；账户余额与上轮相同。
+
+验证：普通测试 1086 PASS / 3 SKIP / 0 FAIL（1089 项、164 文件、6101 断言、28.26 秒）；typecheck、lint 通过。原生套件 48 PASS / 1 SKIP / 0 FAIL（49 项、9 文件、710.28 秒；1 项环境跳过，不计为通过）。
