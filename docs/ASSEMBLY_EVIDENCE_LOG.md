@@ -1650,3 +1650,19 @@ before/after分别保留9及11份原始制造/姿态/总装STL、全部参数与
 两轮合计 8 次调用、保守费用 0.227252 元，账户 CNY 99.98 → 99.87（显示值），两个授权 ledger 均为 TERMINAL、四次调用均记录 usage；临时凭据文件在仓库外并在结束后删除，归档中没有找到 key 字符串。结论：强制提示提高了“内嵌声明与 sourceInput”的产出率，但模型仍普遍不声明保持探针，且生成的几何在运动、孔轴、连通性上存在实质错误；本轮没有任何保留要求被测量为 PASS，也没有模型自主生成、修复、A001 或用户验收成绩。保留守卫在该模型的修复稿上真实拦截了声明削弱，这是产品保护有效的证据，不是模型能力成绩。
 
 验证：普通测试 1081 PASS / 3 SKIP / 0 FAIL（1084 项、163 文件、6045 断言、30.48 秒）；typecheck、lint、diff 检查通过。本轮只修改付费试验提示、冻结任务集和证据日志，原生测试不导入这些文件；最近一次全原生套件（44 PASS / 1 SKIP / 0 FAIL，45 项、8 文件、686.25 秒）在提交 `3bc6909` 的代码上执行，此后原生相关源文件未变。未执行完整 WASM、浏览器端到端、实物或用户验收；两轮试验的 judge 使用派生合同归因门禁，`intent-preserved` 仍为 NOT_RUN，报告不能解释为用户接受。后续应把“单件闭合、孔轴真实圆柱、声明范围内无干涉、保持探针”做成本仓库可见的生成前自检提示，并用同样的冻结任务集验证其效果；仅继续增加无提示重试缺乏证据支持。
+
+## 73. 试验加入 measured-core 指标，修复保留项收敛到可测量（2026-11-16）
+
+第72节的真实修复尝试被声明保留守卫拦截（模型改变了连接 `fitStationsMm`/`frameA` 或删除了 `sourceInput`）。本轮把这类拒绝变成可量化的进展：新增 measured-core 试验指标，并把连接的测量范围写进修复保留项。
+
+实现一（`scripts/eval/generation-trial.ts`）：每任务增加 `measuredCorePassed`/`measuredCoreReason`，定义为除 `intent-preserved` 外全部证据均为 PASS；任何 FAIL/ERROR/NOT_RUN 或 `unresolved-*` 都阻止 core，无证据时为 null。报告 summary 增加 `measuredCorePassed` 与 `measuredCoreRate`，格式化输出打印该比率。`intent-preserved` 仍为 NOT_RUN，因此 measured-core 只表示“可测量几何层通过”，不表示完整要求或用户验收。
+
+实现二（`src/lib/assembly/repair-findings.ts`、`scripts/eval/paid-assembly-trial.ts`）：`ASSEMBLY_REPAIR_INVARIANTS` 新增“连接 `frameA`、`frameB` 与声明的 `fitStationsMm` 不得改变；若几何无法容纳这些测量范围，应说明限制并保持声明不变”。付费试验的修复系统提示现在逐条附上产品同一组保留项，不再只依赖技能文本。
+
+真实试验（`.agentscad/experiments/paid-deepseek-assembly-C5l0EP`，同一冻结任务集 `retention-tasks-v2.json`，两题各一次修复）：4 次真实调用，deepseek-v4-flash，保守记账 0.154928 元，`codeUnchangedDuringRun` 为 true，ledger 为 TERMINAL。与第72节不同，本轮**没有出现保留守卫拒绝**：两次修复都进入了实际测量，说明新增保留项被模型采用或至少没有触发被拒原因。第 1 题首次仍无有效内嵌声明，修复稿有声明但 `base` 存在非流形边、重建 ERROR、孔中心角色 AMBIGUOUS、−45° 处与 `base` 干涉；第 2 题两次都有声明，配合 PASS、实测关节帧 PASS、零件连通 PASS，但装配/拆卸轨迹出现 2.5 mm 位姿间距（超出 0.25 mm 采样界），重建超预算/ERROR，−30° 处与 `base` 干涉。两题均未声明 `translationProbes`，`axial-retention` 仍 NOT_RUN，`source-motion` 也因运动锁定 NOT_RUN。
+
+报告 summary：`passRate 0`（结构上 intent-preserved 为 NOT_RUN，试验不能报告验收通过），`measuredCorePassed 0 / measuredCoreRate 0`。因此本轮的真实结论是：修复保留项改动消除了“修复被守卫直接拒绝”的失败模式，试验现在能对修复稿进行完整测量；但模型几何仍不正确，保持探针仍缺失，measured-core 为 0。该指标把后续模型改进变成可比较的数字。
+
+费用：本轮 0.154928 元；新 key 累计（第71-73节）0.382180 元，账户显示余额约 99.4 元；所有 ledger 均 TERMINAL，没有活动预留，临时凭据只在仓库外存在并在运行后删除，归档与仓库中未发现 key。未执行完整 WASM、浏览器端到端、实物或用户验收。
+
+验证：普通测试 1083 PASS / 3 SKIP / 0 FAIL（1086 项、163 文件、6055 断言、28.58 秒）；typecheck、lint、diff 检查通过。原生套件 44 PASS / 1 SKIP / 0 FAIL（45 项、8 文件、611.54 秒；1 项环境跳过，不计为通过）；本轮改动为试验报告指标、修复提示常量和付费试验提示，不改变几何检查判据。
