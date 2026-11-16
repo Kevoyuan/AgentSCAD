@@ -30,8 +30,10 @@ const argument=(name:string,fallback:string)=>{
 const MAX_CNY=Number(argument("--max-cny","28"));
 if(!Number.isFinite(MAX_CNY)||MAX_CNY<=0)throw new Error("--max-cny must be a positive number");
 const AUTHORIZATION_PATH=argument("--authorization",".agentscad/experiments/deepseek-28cny-authorization-2026-11-05.json");
-const MAX_INPUT_BOUND=100000;
-const MAX_OUTPUT=65536;
+const MAX_INPUT_BOUND=Number(argument("--max-input-bound","100000"));
+const MAX_OUTPUT=Number(argument("--max-output-tokens","65536"));
+if(!Number.isInteger(MAX_INPUT_BOUND)||MAX_INPUT_BOUND<1000||MAX_INPUT_BOUND>1000000)throw new Error("--max-input-bound must be an integer from 1000 to 1000000");
+if(!Number.isInteger(MAX_OUTPUT)||MAX_OUTPUT<1000||MAX_OUTPUT>65536)throw new Error("--max-output-tokens must be an integer from 1000 to 65536");
 const CALL_CAP_CNY=(MAX_INPUT_BOUND*2+MAX_OUTPUT*8)/1e6;
 // Legacy trial report uses USD fields. This fixed bookkeeping conversion is
 // never used for the authoritative CNY budget and is not an exchange-rate quote.

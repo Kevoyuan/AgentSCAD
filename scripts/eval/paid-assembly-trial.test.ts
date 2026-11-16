@@ -67,3 +67,14 @@ test("a cap below the worst-case reservation is refused before admission",async(
   expect(result.code).toBe(1);
   expect(result.stderr).toContain("exceed authorization");
 },30000);
+
+test("explicit token bounds determine the per-call reservation",async()=>{
+  const retention="scripts/eval/assembly-generation/retention-tasks-v1.json";
+  const result=await dryRun(["--tasks",retention,"--non-thinking","--max-input-bound","30000","--max-output-tokens","16000","--max-cny","0.4","--authorization",".agentscad/experiments/test-ledger.json"]);
+  expect(result.code).toBe(0);
+  const plan=JSON.parse(result.stdout);
+  expect(plan.maxInputTokenBound).toBe(30000);
+  expect(plan.maxOutputTokens).toBe(16000);
+  expect(plan.perCallReservationCny).toBeCloseTo(0.188,6);
+  expect(plan.worstCaseCny).toBeCloseTo(0.188,6);
+},30000);
