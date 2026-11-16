@@ -89,7 +89,9 @@ async function main() {
   if(!coding||!planning)throw new Error("Missing generation skills");
   const system=[skillInstructions(coding),skillInstructions(planning),
     "For this authorized trial, use only original geometry and OpenSCAD built-in primitives. Do not include external libraries. Preserve the exact user requirements. Return one complete SCAD code block.",
-    "For a revolute connection declare boreInstanceId as the instance containing the mating bore. It is an allowed optional connection key. Supply local connection frames and instance transforms consistently. Do not fabricate validation claims."].join("\n\n");
+    "For a revolute connection declare boreInstanceId as the instance containing the mating bore. It is an allowed optional connection key. Supply local connection frames and instance transforms consistently. Do not fabricate validation claims.",
+    "Mandatory output contract: the response must contain exactly one embedded declaration block. It begins with /* AGENTSCAD_ASSEMBLY_V1, contains one valid JSON object of the assembly contract described above, and ends with END_AGENTSCAD_ASSEMBLY */. A response without that block is rejected before any geometry is measured. When a condition is unknown, record it in the declaration's unknowns or assumptions instead of omitting the declaration.",
+    "Declare the revolute motion's source binding (parameter plus a pose selector for every instance), and declare blocked and clear translationProbes along the joint axis when the request asks for axial retention or an independent release. These are declarations measured by the evaluator, not claimed results."].join("\n\n");
   const needsRepair = seed !== null || tasks.tasks.some(task => task.maxRepairs > 0);
   const repair = needsRepair ? await loadSkill("scad-repair") : null;
   if (needsRepair && !repair) throw new Error("Missing repair skill");
