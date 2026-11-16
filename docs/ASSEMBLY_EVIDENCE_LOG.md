@@ -1608,3 +1608,17 @@ before/after分别保留9及11份原始制造/姿态/总装STL、全部参数与
 旧合同保留既有确认和历史。界面在编辑时从原请求预填新识别的条件，用户可记录或修改，并通过正常确认建立新版本。隔离SQLite上的真实API和浏览器验证了新合同确认、旧合同预填与版本更新，旧A001证据正确失效。实际浏览器装配检查返回HTTP 200并记录了装配和拆卸PASS，源码运动为NOT_RUN。最终增加英语without否定的保护后，浏览器报告的工具指纹已过期，最终版本浏览器复验待执行。
 
 普通测试1070 PASS、3 SKIP、0 FAIL。首次浏览器开发服务直接以Bun启动时Prisma模块加载失败，改用Node后完成上述交互。初始构建缓存已移到实验目录外，原日志保留。本轮未调用模型，累计保守费用仍为3.418716/28元。
+
+## 70. 轴向保持断言绑定工作姿态与拆卸轨迹，A001 首次在完整明确合同下通过（2026-11-16）
+
+第69节已能保留明确的轴向保持要求，但 A001 对该 requirement 仍无自动断言：合同一旦明确要求保持，候选总体状态只能 NOT_RUN。本轮把已有的声明式轴向平移探针接成该要求的自动断言，并让它绑定候选自己声明的工作姿态与拆卸轨迹。
+
+实现位于 `src/lib/validation/assembly-requirement-assertions.ts`。新增 `assessAxialRetention`：只在 `manifest.contract.evidenceCurrent === true` 时评估；要求候选恰好声明一条 revolute 连接并给出 `frameA` 轴；只采纳与世界系关节轴平行的声明平移探针，且所有轴向探针必须移动同一关节实例；blocked 探针必须从声明的工作姿态起始（装配位姿绕关节轴旋转，且角度在该连接声明 motion 范围内）。当合同要求独立拆卸时，blocked 探针方向必须与候选自己声明的拆卸轨迹撤出方向一致，clear 探针必须从该拆卸轨迹的一个采样位姿起始且同向；没有可采样的拆卸轨迹则 NOT_RUN。当合同不要求独立拆卸时，blocked 探针须在工作姿态覆盖正负两个轴向方向。实测 FAIL 保持 FAIL，ERROR 保持 ERROR，优先于缺失/不可用；门禁降级的 NOT_RUN 不转 PASS。断言理由限定为声明几何证据，并明确阻挡物身份、保持力、误触解锁、连续间隙、磨损和物理功能未验证。该 requirement 进入 `hasAssemblyRequirementAssertion`，不再出现在“无自动断言”的未验证列表。
+
+测试：单元新增 7 个断言用例，覆盖正常通过、缺探针、插入方向冒充撤出、clear 起点不在拆卸轨迹、blocked 起点非工作姿态、仅单侧 blocked（无独立释放要求）、缺失结果与实测 FAIL 混合时的优先级、未确认/拒绝合同、非轴向探针、混合移动实例、缺 frameA、多 revolute、非 required-true。原生新增两个用例，均使用冻结的研究者对照件 `thick-hinge-control-2026-11-11.scad`（SHA-256 `48df6641bb8d7abf40b2d39daee4ad709c75b000666da28830e02b4a16fad37b`）：（a）请求“工作姿态必须有轴向防脱”时 7 条声明探针 PASS、`axial-retention` 断言 PASS，未确认对照 NOT_RUN；（b）完整明确合同（2 件、直径间隙 0.35–0.45 mm、±45°、可组装可拆卸、明确轴向防脱与独立释放）在模拟确认及冻结种子 `11223344556677889900aabbccddeeff` 下，**A001 PASS，六项 requirement 断言全部 PASS**（含轴向保持、运动范围、配合与零件数）。这是该产品路径首次在完整明确合同下通过 A001；候选是研究者尺寸对照，确认是测试模拟，不是模型自主生成或用户验收。A001 PASS 依赖 source-motion 的 90 秒预算；并发重负载时该项可能变为 NOT_RUN（本轮在另一实验并发运行时观察到一次，单独重跑 PASS），原生套件按顺序运行，不据此声称性能基线。
+
+同时清理两处早于 2026-11-08 source-motion 接入的原生测试期望，未放宽任何检查器判据：`retention-release` 的离线 judge 路径不再把 `sampled-motion` 期望为 PASS（judge 没有确认合同，source half 不可运行，现按 NOT_RUN 断言）；`pipeline-assembly` 的真实铰链导出测试不再把 `motion-range-*` 期望为 PASS（`axial_hinge.scad` 没有源码参数/姿态绑定；零件数与间隙仍按 PASS 断言，错误请求的零件数 FAIL 保留）。`test:openscad` 现纳入此前未在声明套件中的 `pipeline-assembly` 与 `assembly-reconstruction`，默认超时保持 60 秒，各用例沿用自身显式超时。
+
+验证：普通测试 1077 PASS / 3 SKIP / 0 FAIL（1080 项、163 文件、6032 断言、29.22 秒）；原生套件 43 PASS / 1 SKIP / 0 FAIL（44 项、8 文件、597.08 秒；1 项 skip 为缺少 Python 网格依赖的既有环境跳过，不计为通过）；typecheck、lint、diff 检查通过。未执行完整 WASM、浏览器端到端、实物或真实模型调用；费用增量 0，累计保守上界仍 3.418716/28 元。
+
+边界：断言只覆盖声明的离散探针、工作姿态和拆卸轨迹采样，不证明工作姿态全域、连续路径、阻挡物身份、保持力、意外解锁、制造公差或实物功能；离线 judge（`scripts/eval/judge-assembly.ts`）尚未输出该断言，付费试验的该 requirement 仍显示 NOT_RUN；`geometry` 层、工具/夹持可达空间和连续覆盖仍缺证据；M4 多关节、M5 传动、M6 V8、M7 实物、M8 隐藏集仍未完成。
