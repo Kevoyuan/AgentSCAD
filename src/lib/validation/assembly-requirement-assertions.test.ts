@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { validateAssemblySpec } from "../assembly/assembly-spec";
 import type { prepareContractAssembly } from "../assembly/prepare-contract-assembly";
 import { deriveRequirementContract } from "../requirements/extract-requirements";
+import { extractEmbeddedAssemblySpec } from "../assembly/embedded-spec";
 import { assessAssemblyRequirements } from "./assembly-requirement-assertions";
 
 const contract = deriveRequirementContract({ request: "两件式铰链，直径间隙0.35到0.45mm，能转±45°，可组装可拆" });
@@ -44,4 +45,150 @@ test("requirements use the candidate's own export, fit and sampled motion eviden
   expect(tooWide["diametral-clearance"].status).toBe("FAIL");
   const unconfirmed = results({ ...prepared, fits: [{ ...prepared.fits[0], status: "NOT_RUN", reason: "not confirmed" }] });
   expect(unconfirmed["diametral-clearance"].status).toBe("NOT_RUN");
+});
+
+const retentionFixture = await readFile(
+  "scripts/eval/assembly-fixtures/candidates/thick-hinge-control-2026-11-11.scad", "utf8");
+const retentionExtracted = extractEmbeddedAssemblySpec(retentionFixture);
+if (retentionExtracted.status !== "valid") throw new Error("Retention fixture has no valid declaration");
+const retentionSpec = retentionExtracted.spec;
+const retentionRequest = "两件式铰链，直径间隙0.35到0.45mm，工作姿态必须有轴向防脱，可拆卸";
+const retentionContract = deriveRequirementContract({ request: retentionRequest });
+const retentionOnlyContract = deriveRequirementContract({ request: "两件式铰链，工作姿态必须有轴向防脱" });
+type ProbeResult = { id: string; instanceId: string; status: string; reason: string; measuredStatus?: string };
+const retentionPrepared = (mutate?: (results: ProbeResult[]) => ProbeResult[], evidenceCurrent: boolean | null = true): Prepared => {
+  const results = (retentionSpec.translationProbes ?? []).map((probe) => ({
+    id: probe.id, instanceId: probe.instanceId, status: "PASS", reason: "A sampled translation is blocked", measuredStatus: "PASS",
+  }));
+  return {
+    parts: [{}, {}],
+    manifest: {
+      contract: { evidenceCurrent },
+      evidence: { identity: { status: "PASS", reason: "distinct exported designs" } },
+      translationProbes: { status: "PASS", reason: "declared probes passed", results: mutate ? mutate(results) : results },
+    },
+    fits: [],
+    kinematics: null,
+  } as unknown as Prepared;
+};
+const retentionAssertion = (candidate: Prepared, spec: typeof retentionSpec = retentionSpec, contract = retentionContract) =>
+  assessAssemblyRequirements(contract, spec, candidate).find((item) => item.id === "axial-retention");
+const probesWith = (predicate: (probe: NonNullable<typeof retentionSpec.translationProbes>[number]) => boolean) => ({
+  ...retentionSpec,
+  translationProbes: (retentionSpec.translationProbes ?? []).filter(predicate),
+});
+
+test("axial retention binds a blocked working pose to the declared withdrawal direction", () => {
+  expect(retentionContract.requirements.find((item) => item.id === "axial-retention")?.required).toBe(true);
+  const passing = retentionAssertion(retentionPrepared())!;
+  expect(passing.status).toBe("PASS");
+  expect(passing.reason).toContain("withdrawal direction");
+  expect(passing.reason).toContain("holding force");
+
+  const noProbes = { ...retentionSpec, translationProbes: [] };
+  expect(retentionAssertion(retentionPrepared(), noProbes)!.status).toBe("NOT_RUN");
+});
+
+test("a blocked insertion probe cannot substitute for withdrawal retention", () => {
+  const insertionOnly = probesWith((probe) => probe.id.endsWith("_down") || probe.expected === "clear");
+  const result = retentionAssertion(retentionPrepared(), insertionOnly)!;
+  expect(result.status).toBe("NOT_RUN");
+  expect(result.reason).toContain("withdrawal direction");
+});
+
+test("a clear probe must start at a declared disassembly pose", () => {
+  const moved: typeof retentionSpec = {
+    ...retentionSpec,
+    translationProbes: (retentionSpec.translationProbes ?? []).map((probe) =>
+      probe.id === "released_withdrawal"
+        ? { ...probe, startTransform: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 100, 0, 0, 0, 1] }
+        : probe),
+  };
+  const result = retentionAssertion(retentionPrepared(), moved)!;
+  expect(result.status).toBe("NOT_RUN");
+  expect(result.reason).toContain("disassembly pose");
+});
+
+test("a blocked probe must start at a declared working pose", () => {
+  const floated: typeof retentionSpec = {
+    ...retentionSpec,
+    translationProbes: (retentionSpec.translationProbes ?? []).map((probe) =>
+      probe.expected === "blocked"
+        ? { ...probe, startTransform: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 5, 0, 0, 0, 1] }
+        : probe),
+  };
+  const result = retentionAssertion(retentionPrepared(), floated)!;
+  expect(result.status).toBe("NOT_RUN");
+  expect(result.reason).toContain("working pose");
+});
+
+test("retention without independent release requires blocked probes in both axial directions", () => {
+  expect(retentionOnlyContract.requirements.some((item) => item.id === "axial-retention" && item.required)).toBe(true);
+  const passing = retentionAssertion(retentionPrepared(), retentionSpec, retentionOnlyContract)!;
+  expect(passing.status).toBe("PASS");
+  expect(passing.reason).toContain("both axial directions");
+
+  const positiveOnly = probesWith((probe) => probe.expected === "clear" || probe.translationMm[2] > 0);
+  const result = retentionAssertion(retentionPrepared(), positiveOnly, retentionOnlyContract)!;
+  expect(result.status).toBe("NOT_RUN");
+  expect(result.reason).toContain("both axial directions");
+});
+
+test("measured failures and unavailable evidence keep precedence over missing results", () => {
+  const mixed = retentionPrepared((results) => results
+    .filter((result) => result.id !== "hold_zero0_up")
+    .map((result) => result.id === "hold_zero0_down" ? { ...result, status: "FAIL", reason: "measured penetration" } : result));
+  const failed = retentionAssertion(mixed)!;
+  expect(failed.status).toBe("FAIL");
+  expect(failed.reason).toContain("hold_zero0_down");
+
+  const unconfirmed = retentionAssertion(retentionPrepared(undefined, null))!;
+  expect(unconfirmed.status).toBe("NOT_RUN");
+  expect(unconfirmed.reason).toContain("confirmed requirement contract");
+  const rejected = retentionAssertion(retentionPrepared(undefined, false))!;
+  expect(rejected.status).toBe("NOT_RUN");
+  expect(rejected.reason).toContain("confirmed requirement contract");
+
+  const gated = retentionPrepared((results) => results.map((result) => ({
+    ...result, status: "NOT_RUN", reason: "The requirement contract has not been confirmed.",
+  })));
+  const gatedResult = retentionAssertion(gated)!;
+  expect(gatedResult.status).toBe("NOT_RUN");
+  expect(gatedResult.reason).toContain("not been confirmed");
+});
+
+test("axial retention rejects probes that do not move one joint instance along the declared axis", () => {
+  const lateral: typeof retentionSpec = {
+    ...retentionSpec,
+    translationProbes: (retentionSpec.translationProbes ?? []).map((probe) => ({
+      ...probe, translationMm: [4, 0, 0] as [number, number, number],
+    })),
+  };
+  expect(retentionAssertion(retentionPrepared(), lateral)!.status).toBe("NOT_RUN");
+
+  const mixedBodies: typeof retentionSpec = {
+    ...retentionSpec,
+    translationProbes: (retentionSpec.translationProbes ?? []).map((probe, index) =>
+      index === 0 ? { ...probe, instanceId: "a1" } : probe),
+  };
+  expect(retentionAssertion(retentionPrepared(), mixedBodies)!.status).toBe("NOT_RUN");
+
+  const withoutAxis: typeof retentionSpec = {
+    ...retentionSpec,
+    connections: retentionSpec.connections.map((connection) => ({ ...connection, frameA: null })),
+  };
+  expect(retentionAssertion(retentionPrepared(), withoutAxis)!.status).toBe("NOT_RUN");
+
+  const twoRevolutes: typeof retentionSpec = {
+    ...retentionSpec,
+    connections: [...retentionSpec.connections, { ...retentionSpec.connections[0], id: "hinge-2" }],
+  };
+  expect(retentionAssertion(retentionPrepared(), twoRevolutes)!.status).toBe("NOT_RUN");
+
+  const notRequiredTrue = {
+    ...retentionContract,
+    requirements: retentionContract.requirements.map((item) =>
+      item.id === "axial-retention" ? { ...item, expected: { kind: "equals" as const, value: false } } : item),
+  };
+  expect(retentionAssertion(retentionPrepared(), retentionSpec, notRequiredTrue)!.status).toBe("NOT_RUN");
 });

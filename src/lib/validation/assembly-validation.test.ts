@@ -28,15 +28,16 @@ test("unresolved retention blocks an aggregate pass but cannot hide a measured f
  const explicit={...input,inputRequest:input.inputRequest+"。工作姿态必须有几何轴向防脱。"};
  const [unmeasured]=await validateAssemblyArtifact(explicit,prepare(evidence));
  expect(unmeasured.status).toBe("NOT_RUN");
- expect(unmeasured.message).toContain("requirement axial-retention NOT_RUN: No automatic assertion is implemented");
+ expect(unmeasured.message).toContain("requirement axial-retention NOT_RUN:");
+ expect(unmeasured.message).not.toContain("No automatic assertion is implemented");
  expect(unmeasured.message).not.toContain("轴向保持方式未说明");
 });
 
-test("an explicitly confirmed retention assertion is not silently treated as measured",()=>{
+test("an explicitly confirmed retention assertion is routed to its measured-probe assertion",()=>{
  const contract=deriveRequirementContract({request:"两件式铰链可组装可拆卸"});
  const requirement={id:"axial-retention",layer:"assembly" as const,required:true,applicable:true,
    expected:{kind:"equals" as const,value:true},provenance:"confirmed" as const,statement:null};
- expect(unverifiedAssemblyRequirements({...contract,requirements:[...contract.requirements,requirement]}).map(item=>item.id)).toContain("axial-retention");
+ expect(unverifiedAssemblyRequirements({...contract,requirements:[...contract.requirements,requirement]}).map(item=>item.id)).not.toContain("axial-retention");
  expect(unverifiedAssemblyRequirements({...contract,requirements:[...contract.requirements,{...requirement,required:false}]}).map(item=>item.id)).not.toContain("axial-retention");
 });
 
