@@ -71,7 +71,7 @@ function readme(
   },
   parts: RenderedAssemblyPart[],
 ): string {
-  const layers = ["requirements", "identity", "geometry", "reconstruction", "jointFrames", "assembly", "assemblyPath", "disassembly", "rigidMotion", "sourceMotion", "motion", "physical"];
+  const layers = ["requirements", "identity", "geometry", "topology", "reconstruction", "jointFrames", "assembly", "assemblyPath", "disassembly", "rigidMotion", "sourceMotion", "motion", "physical"];
   const contract = manifest.contract;
   const standing = contract === undefined || contract.evidenceCurrent === null
     ? "confirmation not evaluated"

@@ -4,7 +4,7 @@ import { prepareAssembly } from "./prepare-assembly";
 import { AssemblySpecSchema } from "./assembly-spec";
 import { assemblySpecificationHash } from "./spec-hash";
 import { prismStl } from "../geometry/__tests__/prism";
-import { tubeStl, boxStl, mergeStl } from "../geometry/__tests__/solids";
+import { tubeStl, boxStl, mergeStl, twoBoxesStl } from "../geometry/__tests__/solids";
 import { deriveRequirementContract } from "../requirements/extract-requirements";
 import { requirementContractHash } from "../requirements/requirement-contract";
 
@@ -94,6 +94,27 @@ const stl = (() => {
   return buffer;
 })();
 const output = () => ({ parts: [{ partId: "leaf", stl, sha256: createHash("sha256").update(stl).digest("hex"), triangleCount: 1, diagnostics: "" }], purchasedPartIds: ["pin"] });
+
+describe("topology evidence", () => {
+  const sha = (buffer: Buffer) => createHash("sha256").update(buffer).digest("hex");
+  const renderParts = (buffer: Buffer) => async () => ({ parts: [{ partId: "leaf", stl: buffer,
+    sha256: sha(buffer), triangleCount: buffer.readUInt32LE(80), diagnostics: "" }], purchasedPartIds: ["pin"] });
+  test("a closed single surface passes topology without claiming dimensions", async () => {
+    const result = await prepareAssembly({ scadSource: "cube(1);", spec: spec(), render: renderParts(boxStl([0, 0, 0], [1, 1, 1])) });
+    expect(result.manifest.evidence.topology.status).toBe("PASS");
+    expect(result.manifest.evidence.topology.reason).toContain("Dimensions");
+    expect(result.manifest.evidence.geometry.status).toBe("NOT_RUN");
+  });
+  test("separated pieces fail topology", async () => {
+    const result = await prepareAssembly({ scadSource: "cube(1);", spec: spec(), render: renderParts(twoBoxesStl()) });
+    expect(result.manifest.evidence.topology.status).toBe("FAIL");
+    expect(result.manifest.evidence.topology.reason).toContain("leaf");
+  });
+  test("an open surface is not promoted to a topology pass", async () => {
+    const result = await prepareAssembly({ scadSource: "cube(1);", spec: spec(), render: renderParts(stl) });
+    expect(result.manifest.evidence.topology.status).toBe("NOT_RUN");
+  });
+});
 
 describe("prepare assembly candidate", () => {
   test("binds source, specification, part artifacts and repeated instances without claiming identity or functionality", async () => {

@@ -290,6 +290,15 @@ export async function prepareAssembly(input: {
       geometry: partConnectivity.some(p=>p.status==="FAIL")
         ? {status:"FAIL" as const,reason:partConnectivity.filter(p=>p.status==="FAIL").map(p=>`${p.partId}: ${p.reason}`).join(" ")}
         : { status: "NOT_RUN" as const, reason: "Full topology and dimensions were not independently checked; see partConnectivity for the limited surface check." },
+      topology: partConnectivity.length === 0
+        ? { status: "NOT_RUN" as const, reason: "No generated part meshes were available for a topology check." }
+        : partConnectivity.some(p=>p.status==="FAIL")
+          ? { status: "FAIL" as const, reason: partConnectivity.filter(p=>p.status==="FAIL").map(p=>`${p.partId}: ${p.reason}`).join(" ") }
+          : partConnectivity.some(p=>p.status==="ERROR")
+            ? { status: "ERROR" as const, reason: partConnectivity.filter(p=>p.status==="ERROR").map(p=>`${p.partId}: ${p.reason}`).join(" ") }
+            : partConnectivity.every(p=>p.status==="PASS")
+              ? { status: "PASS" as const, reason: "Every generated part is a single closed, consistently oriented, edge-connected surface. Dimensions, self-intersections, wall thickness, material, manufacture and physical function are not established by this topology check." }
+              : { status: "NOT_RUN" as const, reason: `Topology is not certified for: ${partConnectivity.filter(p=>p.status!=="PASS").map(p=>`${p.partId} ${p.status}: ${p.reason}`).join(" ")}` },
       assembly: assemblyEvidence,
       assemblyPath: declaredAssemblyEvidence,
       reconstruction: reconstructionEvidence,
