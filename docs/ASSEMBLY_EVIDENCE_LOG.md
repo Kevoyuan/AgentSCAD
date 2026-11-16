@@ -1638,3 +1638,15 @@ before/after分别保留9及11份原始制造/姿态/总装STL、全部参数与
 模型输出的 11,123 字节 SCAD 没有任何 `AGENTSCAD_ASSEMBLY_V1` 内嵌装配声明，judge 在测量前直接阻断：任务 FAIL、evidence 为空，findings 为 “The source carries no valid embedded assembly declaration”。这次结果只证明当前模型在该任务与提示下仍未按技能要求提交装配声明，不构成几何、运动、保持、自主修复或用户验收证据。系统提示已通过 `scad-coding`/`scad-planning` 技能包含声明格式，但本轮没有在提示层再显式重复该格式，也没有使用修复重试；这两项留给下一轮有余额时验证。
 
 验证：普通测试 1081 PASS / 3 SKIP / 0 FAIL（1084 项、163 文件、6045 断言、32.40 秒）；原生套件 44 PASS / 1 SKIP / 0 FAIL（45 项、8 文件、686.25 秒；1 项环境跳过，不计为通过）；typecheck、lint、diff 检查通过。模型费用只发生在本次有界调用，独立于此前 28 元授权的 3.418716 元累计；该账户剩余约 0.22 元，后续付费试验需要补充余额或继续使用有界单次预留。未执行完整 WASM、浏览器端到端、实物或用户验收。
+
+## 72. 强制内嵌声明的真实试验：声明产出增加，保持探针仍缺失，修复被保留守卫阻断（2026-11-16）
+
+第71节的一次有界调用没有内嵌装配声明。账户补充余额后（CNY 99.98），本轮先强化付费试验系统提示：试验提示明确要求响应必须包含唯一的 `/* AGENTSCAD_ASSEMBLY_V1 ... END_AGENTSCAD_ASSEMBLY */` JSON 块，缺失即视为无效；随后又明确要求轴向保持/独立释放时必须声明 `translationProbes`，给出 id、instanceId、startTransform、translationMm、samples、expected 的精确字段和 blocked/clear 配对含义。两轮提示均作为独立提交，均由试验器在付费调用前快照并在运行前后核对哈希。
+
+第一轮（`.agentscad/experiments/paid-deepseek-assembly-blH6Co`，冻结任务集 `retention-tasks-v2.json`，两题各允许一次修复）：4 次真实调用，deepseek-v4-flash，保守记账 0.112910 元，`codeUnchangedDuringRun` 为 true。强制声明指令生效：第 1 题两次尝试、第 2 题第二次尝试都产出了可解析的内嵌声明与 sourceInput；但 `translationProbes` 仍为空。第 1 题首次尝试的零件数、装配路径、拆卸路径 PASS，零件 `leaf` 却被连通检查判为分离碎片，±45° 范围在 -45° 处与 `barrel` 干涉，孔测量在 -6 mm 截面失败（270 条射线未命中材料，不是圆柱截面），因此 motion/source/retention 无法成立。修复尝试把几何改得更差：装配/拆卸路径转为 FAIL、刚性运动 FAIL，最终仍无通过。第 2 题首次尝试没有有效声明，第二次声明存在但网格有非流形边、重建 ERROR，同样无通过。
+
+第二轮（`.agentscad/experiments/paid-deepseek-assembly-jEoYc7`，同一任务集）：4 次真实调用，保守记账 0.114342 元，`codeUnchangedDuringRun` 为 true。第 1 题首次尝试的零件连通性转为 PASS、装配声明与 sourceInput 仍在，但装配/拆卸路径与运动仍 FAIL，`translationProbes` 依旧为空；修复被声明保留守卫拒绝（“连接 hinge_joint 被删除或改变了 fit 测量站/frameA”），守卫正确地阻止了削弱声明的修复，但也意味着本轮没有可评价的修复结果。第 2 题首次尝试编译失败，修复被守卫拒绝（“运动 hinge_motion 被删除或改变了 source input binding”）。
+
+两轮合计 8 次调用、保守费用 0.227252 元，账户 CNY 99.98 → 99.87（显示值），两个授权 ledger 均为 TERMINAL、四次调用均记录 usage；临时凭据文件在仓库外并在结束后删除，归档中没有找到 key 字符串。结论：强制提示提高了“内嵌声明与 sourceInput”的产出率，但模型仍普遍不声明保持探针，且生成的几何在运动、孔轴、连通性上存在实质错误；本轮没有任何保留要求被测量为 PASS，也没有模型自主生成、修复、A001 或用户验收成绩。保留守卫在该模型的修复稿上真实拦截了声明削弱，这是产品保护有效的证据，不是模型能力成绩。
+
+验证：普通测试 1081 PASS / 3 SKIP / 0 FAIL（1084 项、163 文件、6045 断言、30.48 秒）；typecheck、lint、diff 检查通过。本轮只修改付费试验提示、冻结任务集和证据日志，原生测试不导入这些文件；最近一次全原生套件（44 PASS / 1 SKIP / 0 FAIL，45 项、8 文件、686.25 秒）在提交 `3bc6909` 的代码上执行，此后原生相关源文件未变。未执行完整 WASM、浏览器端到端、实物或用户验收；两轮试验的 judge 使用派生合同归因门禁，`intent-preserved` 仍为 NOT_RUN，报告不能解释为用户接受。后续应把“单件闭合、孔轴真实圆柱、声明范围内无干涉、保持探针”做成本仓库可见的生成前自检提示，并用同样的冻结任务集验证其效果；仅继续增加无提示重试缺乏证据支持。
