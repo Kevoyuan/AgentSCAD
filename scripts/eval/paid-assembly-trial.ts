@@ -20,7 +20,16 @@ import {ASSEMBLY_VERIFIER_SOURCES} from "../../src/lib/assembly/verification-typ
 import {loadSeededRepair} from "./seeded-repair";
 
 const MODEL="deepseek-v4-flash";
-const MAX_CNY=28;
+const argument=(name:string,fallback:string)=>{
+  const index=process.argv.indexOf(name);
+  if(index<0)return fallback;
+  const value=process.argv[index+1];
+  if(!value||value.startsWith("--"))throw new Error(`${name} requires a value`);
+  return value;
+};
+const MAX_CNY=Number(argument("--max-cny","28"));
+if(!Number.isFinite(MAX_CNY)||MAX_CNY<=0)throw new Error("--max-cny must be a positive number");
+const AUTHORIZATION_PATH=argument("--authorization",".agentscad/experiments/deepseek-28cny-authorization-2026-11-05.json");
 const MAX_INPUT_BOUND=100000;
 const MAX_OUTPUT=65536;
 const CALL_CAP_CNY=(MAX_INPUT_BOUND*2+MAX_OUTPUT*8)/1e6;
@@ -42,7 +51,7 @@ async function main() {
   const seed=seedPath?await loadSeededRepair(seedPath,tasks):null;
   const maxCalls=worstCaseCalls(tasks);
   if(maxCalls*CALL_CAP_CNY>MAX_CNY)throw new Error("Worst-case call reservations exceed authorization");
-  const plan={taskPath,seed:seed?.provenance??null,model:MODEL,maxCny:MAX_CNY,maxCalls,maxInputTokenBound:MAX_INPUT_BOUND,maxOutputTokens:MAX_OUTPUT,
+  const plan={taskPath,seed:seed?.provenance??null,model:MODEL,authorizationPath:AUTHORIZATION_PATH,maxCny:MAX_CNY,maxCalls,maxInputTokenBound:MAX_INPUT_BOUND,maxOutputTokens:MAX_OUTPUT,
     promptSkills:{generation:["scad-coding","scad-planning"],repair:["scad-coding","scad-planning","scad-repair"]},
     reasoningEffort:process.argv.includes("--non-thinking")?"none":"high",
     inputCnyPerMillion:2,outputCnyPerMillion:8,perCallReservationCny:CALL_CAP_CNY,worstCaseCny:maxCalls*CALL_CAP_CNY,
@@ -52,7 +61,7 @@ async function main() {
     scope:"Real LLM SCAD generation with derived-contract offline geometry judging, not the browser product flow or physical function. Hard-stop overtravel is not evaluated by the legacy judge."};
   if(!process.argv.includes("--run")){
     if(process.argv.includes("--continue-authorized")) {
-      const prior=JSON.parse(await fs.readFile(".agentscad/experiments/deepseek-28cny-authorization-2026-11-05.json","utf8"));
+      const prior=JSON.parse(await fs.readFile(AUTHORIZATION_PATH,"utf8"));
       if(prior.status!=="TERMINAL"||prior.maxCny!==MAX_CNY||prior.model!==MODEL||!Array.isArray(prior.calls))throw new Error("Previous authorization is not terminal or does not match");
       if(prior.calls.some((call:CallEntry)=>!Number.isFinite(call.accountedCny)||call.accountedCny<0))throw new Error("Invalid previous cost ledger");
       plan.priorAccountedCny=prior.calls.reduce((sum:number,call:CallEntry)=>sum+call.accountedCny,0);
@@ -109,7 +118,7 @@ async function main() {
   let halted:string|null=null;
   // Single-use admission prevents a resumed shell from silently starting a new
   // batch against the same 28 CNY authorization after a process interruption.
-  const authorizationPath=".agentscad/experiments/deepseek-28cny-authorization-2026-11-05.json";
+  const authorizationPath=AUTHORIZATION_PATH;
   let priorCalls:CallEntry[]=[];
   let authorizationInitialBalance=initialBalance;
   if(process.argv.includes("--continue-authorized")) {

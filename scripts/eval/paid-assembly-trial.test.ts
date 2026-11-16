@@ -54,3 +54,16 @@ test("continued dry run includes prior charges and rejects an exhausted authoriz
     }
   } finally {await fs.rm(dir,{recursive:true,force:true});}
 });
+
+test("an explicit authorization path and cap are carried into the plan",async()=>{
+  const result=await dryRun(["--tasks",tasks,"--non-thinking","--max-cny","5","--authorization",".agentscad/experiments/test-ledger.json"]);
+  expect(result.code).toBe(0);
+  const plan=JSON.parse(result.stdout);
+  expect(plan.maxCny).toBe(5);
+  expect(plan.authorizationPath).toContain("test-ledger.json");
+},30000);
+test("a cap below the worst-case reservation is refused before admission",async()=>{
+  const result=await dryRun(["--tasks",tasks,"--non-thinking","--max-cny","0.5","--authorization",".agentscad/experiments/test-ledger.json"]);
+  expect(result.code).toBe(1);
+  expect(result.stderr).toContain("exceed authorization");
+},30000);
