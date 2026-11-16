@@ -281,7 +281,7 @@ export async function prepareAssembly(input: {
       binding: contractBinding,
       evidenceCurrent: gateReason ? false : input.contractGate ? true : null,
       reason: gateReason ?? (input.contractGate
-        ? gateReason ?? "The results were judged against a confirmed requirement contract."
+        ? input.contractGate.reason?.trim() || "The results were judged against a confirmed requirement contract."
         : "Confirmation was not evaluated; a bound contract does not imply user approval."),
     },
     evidence: {

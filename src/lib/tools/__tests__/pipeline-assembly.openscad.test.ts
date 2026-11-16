@@ -72,3 +72,18 @@ test("a complete explicit contract with declared axial probes reaches A001 PASS"
  expect(requirements["axial-retention"].reason).toContain("declared-geometry evidence");
  expect(row.message).not.toContain("axial-retention NOT_RUN");
 },240000);
+
+test("offline trial measures source motion and axial retention under a derived-contract attribution gate",async()=>{
+ const geometry=await fs.readFile("scripts/eval/assembly-fixtures/candidates/thick-hinge-control-2026-11-11.scad","utf8");
+ const prompt="做一个两件式铰链，直径间隙0.35到0.45毫米，能转±45度，可组装可拆卸，工作姿态必须有轴向防脱，独立释放后才能拆下";
+ const result=await judgeAssemblyCandidate({prompt,scad:geometry,sourceSamplingSeed:"11223344556677889900aabbccddeeff"});
+ // The intent layer has no independent coverage audit, so a trial can only
+ // report per-assertion evidence, never a user-acceptance pass.
+ expect(result.passed).toBe(false);
+ const evidence=Object.fromEntries(result.evidence.map(item=>[item.id,item.status]));
+ for(const id of ["sampled-motion","rigid-motion","source-motion","axial-retention","assembly-path","disassembly-path","diametral-clearance"])
+  expect(evidence[id]).toBe("PASS");
+ expect(evidence["intent-preserved"]).toBe("NOT_RUN");
+ expect(result.trialAttribution).toContain("not user confirmation");
+ expect(result.findings.join("\n")).toContain("Measurement attribution");
+},300000);

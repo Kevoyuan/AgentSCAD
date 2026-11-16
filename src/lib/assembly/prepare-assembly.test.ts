@@ -244,6 +244,17 @@ describe("assembly fit evidence", () => {
     expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
   });
 
+  test("a trial attribution reason is preserved while the measurement gate is current", async () => {
+    const result = await prepareAssembly({
+      scadSource: "cube(1);", spec: jointSpec(), render: jointRender,
+      fitRequirements: [{ connectionId: "joint", boreInstanceId: "bore-instance", diametralClearanceMm: { min: 0.35, max: 0.45 } }],
+      contractGate: { evidenceCurrent: true, reason: "Trial evaluator: derived contract used for measurement attribution only." },
+    });
+    expect(result.manifest.contract.evidenceCurrent).toBe(true);
+    expect(result.manifest.contract.reason).toContain("Trial evaluator");
+    expect(result.manifest.contract.reason).not.toContain("confirmed requirement contract");
+  });
+
   test("omitting the gate records that approval was never evaluated", async () => {
     const result = await prepareAssembly({
       scadSource: "cube(1);", spec: jointSpec(), render: jointRender,
