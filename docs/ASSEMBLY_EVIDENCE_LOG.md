@@ -1622,3 +1622,19 @@ before/after分别保留9及11份原始制造/姿态/总装STL、全部参数与
 验证：普通测试 1077 PASS / 3 SKIP / 0 FAIL（1080 项、163 文件、6032 断言、29.22 秒）；原生套件 43 PASS / 1 SKIP / 0 FAIL（44 项、8 文件、597.08 秒；1 项 skip 为缺少 Python 网格依赖的既有环境跳过，不计为通过）；typecheck、lint、diff 检查通过。未执行完整 WASM、浏览器端到端、实物或真实模型调用；费用增量 0，累计保守上界仍 3.418716/28 元。
 
 边界：断言只覆盖声明的离散探针、工作姿态和拆卸轨迹采样，不证明工作姿态全域、连续路径、阻挡物身份、保持力、意外解锁、制造公差或实物功能；离线 judge（`scripts/eval/judge-assembly.ts`）尚未输出该断言，付费试验的该 requirement 仍显示 NOT_RUN；`geometry` 层、工具/夹持可达空间和连续覆盖仍缺证据；M4 多关节、M5 传动、M6 V8、M7 实物、M8 隐藏集仍未完成。
+
+## 71. 试验评估接入源码运动与轴向保持，并在低余额下完成一次有界真实调用（2026-11-16）
+
+离线 judge 之前没有把派生合同传给准备函数，源码运动因缺少门禁无法运行，轴向保持也没有比较器观测，因此付费试验无法测量第70节新增的能力。本轮把这两层接入试验评估，并在给定 key 的账户余额只有 0.24 元时完成一次有界真实调用。
+
+实现（`scripts/eval/judge-assembly.ts`、`src/lib/assembly/prepare-assembly.ts`）：judge 以显式试验归因门禁把派生合同传给 `prepareAssembly`，门禁理由写明这是“测量归因”，不是用户确认或验收；`prepareAssembly` 在门禁 current 时保留调用方给出的理由，不再默认写成已确认合同。judge 的 challenge 种子由 prompt 与源码确定性派生（可用 `sourceSamplingSeed` 重放），judgement 带同一归因文字；当合同要求 sampled-motion 时额外给出 `rigid-motion`、`source-motion` 诊断，并把轴向保持断言映射为 `axial-retention` 观测。`intent-preserved` 仍为 NOT_RUN，因此试验的 `passed` 依然不能当作完整意图保留或用户验收。原生用例确认研究者辅助对照件在 trial 归因下 sampled-motion、rigid-motion、source-motion、axial-retention、装配与拆卸全部 PASS，而 intent-preserved 保持 NOT_RUN。
+
+付费试验器（`scripts/eval/paid-assembly-trial.ts`）新增 `--authorization`、`--max-cny`、`--max-input-bound`、`--max-output-tokens`，默认值不变；预留金额、请求 `max_tokens`、usage 校验和停机条件都使用显式上限。新增冻结的单任务保留试验集 `scripts/eval/assembly-generation/retention-tasks-v1.json`（SHA-256 `ad4c2daca02217fd8341bdba1fd335ed4f2cd4167c0ed221f0ac83a8732a8cc8`），题目要求两件式铰链、0.35–0.45 mm 直径间隙、±45°、可组装可拆卸、工作姿态明确轴向防脱并独立释放。
+
+第一次有界尝试（`.agentscad/experiments/paid-deepseek-assembly-q2tIR2`）在模型准入前被拒绝：账户 CNY 余额 0.24 低于单次 0.724288 元预留；零调用、零费用，ledger 为 TERMINAL。这说明余额门槛在调用前生效，不把失败伪装成模型结果。
+
+第二次尝试把输入上限设为 30000 字节、输出上限 16000 token，单次预留 0.188 元（`.agentscad/experiments/paid-deepseek-assembly-qZAKPU`）。实际一次调用返回 deepseek-flash，3806 输入 / 3156 输出 token，finishReason stop，耗时约 16.5 秒，按高峰价保守记账 0.03286 元；账户余额 0.24 → 0.22 元。`codeUnchangedDuringRun` 为 true，列出的直接源文件在运行前后哈希一致；请求、回复、SCAD、judgement、ledger、工具快照均保存在该目录，credential 只存在于仓库外临时文件并在结束后删除。
+
+模型输出的 11,123 字节 SCAD 没有任何 `AGENTSCAD_ASSEMBLY_V1` 内嵌装配声明，judge 在测量前直接阻断：任务 FAIL、evidence 为空，findings 为 “The source carries no valid embedded assembly declaration”。这次结果只证明当前模型在该任务与提示下仍未按技能要求提交装配声明，不构成几何、运动、保持、自主修复或用户验收证据。系统提示已通过 `scad-coding`/`scad-planning` 技能包含声明格式，但本轮没有在提示层再显式重复该格式，也没有使用修复重试；这两项留给下一轮有余额时验证。
+
+验证：普通测试 1081 PASS / 3 SKIP / 0 FAIL（1084 项、163 文件、6045 断言、32.40 秒）；原生套件 44 PASS / 1 SKIP / 0 FAIL（45 项、8 文件、686.25 秒；1 项环境跳过，不计为通过）；typecheck、lint、diff 检查通过。模型费用只发生在本次有界调用，独立于此前 28 元授权的 3.418716 元累计；该账户剩余约 0.22 元，后续付费试验需要补充余额或继续使用有界单次预留。未执行完整 WASM、浏览器端到端、实物或用户验收。
