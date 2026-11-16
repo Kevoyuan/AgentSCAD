@@ -31,7 +31,7 @@ test("offline judging does not rotate a grounded second endpoint as if it were m
  expect(row.assemblyEvidence?.requirements.find(item=>item.id==="motion-range-negative-end")?.status).toBe("NOT_RUN");
 },60000);
 
-test("real hinge exports and sampled range are compared with the frozen requested count and endpoints",async()=>{
+test("real hinge exports are compared with the frozen requested count while the range stays unmeasured without a source binding",async()=>{
  const spec=JSON.parse(await fs.readFile("scripts/eval/assembly-fixtures/axial-hinge-operations-v2.spec.json","utf8"));
  const geometry=await fs.readFile("benchmarks/assembly/axial_hinge.scad","utf8");
  const source=`/* AGENTSCAD_ASSEMBLY_V1\n${JSON.stringify(spec)}\nEND_AGENTSCAD_ASSEMBLY */\n${geometry}`;
@@ -40,12 +40,35 @@ test("real hinge exports and sampled range are compared with the frozen requeste
  const goodRequest="两件式铰链，直径间隙0.35到0.45mm，能转±45°，可组装可拆";
  const [good]=await validateAssemblyArtifact({inputRequest:goodRequest,scadSource:source},prepare);
  const assertions=Object.fromEntries(good.assemblyEvidence!.requirements.map(item=>[item.id,item]));
- for(const id of ["distinct-exported-parts","motion-range-negative-end","motion-range-positive-end","diametral-clearance"])
+ for(const id of ["distinct-exported-parts","diametral-clearance"])
   expect(assertions[id].status).toBe("PASS");
+ // The axial hinge source has no source-driven parameter/pose binding, so the
+ // source half of motion evidence is unavailable and the range cannot be asserted.
+ // The static sampled endpoints are not a substitute for that missing evidence.
+ for(const id of ["motion-range-negative-end","motion-range-positive-end"])
+  expect(assertions[id].status).toBe("NOT_RUN");
+ expect(assertions["motion-range-negative-end"].reason).toContain("source");
  // The independently unresolved retention question still blocks the aggregate.
  expect(good.status).toBe("NOT_RUN");expect(good.message).toContain("axial-retention NOT_RUN");
  const [wrong]=await validateAssemblyArtifact({inputRequest:"三件式铰链，直径间隙0.35到0.45mm，能转±60°，可组装可拆",scadSource:source},prepare);
  const missing=Object.fromEntries(wrong.assemblyEvidence!.requirements.map(item=>[item.id,item]));
  expect(wrong.status).toBe("FAIL");expect(missing["distinct-exported-parts"].status).toBe("FAIL");
- expect(missing["motion-range-negative-end"].status).toBe("FAIL");expect(missing["motion-range-positive-end"].status).toBe("FAIL");
+ for(const id of ["motion-range-negative-end","motion-range-positive-end"])
+  expect(missing[id].status).toBe("NOT_RUN");
 },60000);
+
+test("a complete explicit contract with declared axial probes reaches A001 PASS",async()=>{
+ const geometry=await fs.readFile("scripts/eval/assembly-fixtures/candidates/thick-hinge-control-2026-11-11.scad","utf8");
+ const request="做一个两件式铰链，直径间隙0.35到0.45毫米，能转±45度，可组装可拆卸，工作姿态必须有轴向防脱，独立释放后才能拆下";
+ // Simulate confirmation only in this isolated test; no user decision or database is written.
+ // The frozen seed makes the seeded challenge pose reproducible; the product path generates a fresh seed per run.
+ const prepare:typeof prepareContractAssembly=(input)=>prepareContractAssembly({...input,contractGate:{evidenceCurrent:true},sourceSamplingSeed:"11223344556677889900aabbccddeeff"});
+ const [row]=await validateAssemblyArtifact({inputRequest:request,scadSource:geometry},prepare);
+ expect(row.status).toBe("PASS");
+ expect(row.passed).toBe(true);
+ const requirements=Object.fromEntries(row.assemblyEvidence!.requirements.map(item=>[item.id,item]));
+ for(const id of ["distinct-exported-parts","motion-range-negative-end","motion-range-positive-end","diametral-clearance","axial-retention"])
+  expect(requirements[id].status).toBe("PASS");
+ expect(requirements["axial-retention"].reason).toContain("declared-geometry evidence");
+ expect(row.message).not.toContain("axial-retention NOT_RUN");
+},240000);

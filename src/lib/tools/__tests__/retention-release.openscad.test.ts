@@ -14,6 +14,10 @@ import { readBinaryStl, meshBounds } from "../../geometry/stl-mesh";
 import {validateAssemblyArtifact} from "../../validation/assembly-validation";
 import {judgeAssemblyCandidate} from "../../../../scripts/eval/judge-assembly";
 import {measureRevoluteFit} from "../../assembly/fit-measurement";
+import { prepareContractAssembly } from "../../assembly/prepare-contract-assembly";
+import { deriveRequirementContract } from "../../requirements/extract-requirements";
+import { assessAssemblyRequirements } from "../../validation/assembly-requirement-assertions";
+import { unverifiedAssemblyRequirements } from "../../validation/assembly-validation";
 
 test("retained generated hinge cannot hide invalid schema, non-manifold contact or default overlap",async()=>{
   const scadSource=await readFile("scripts/eval/assembly-fixtures/failures/controlled-release-hinge-2026-11-07.scad","utf8");
@@ -300,10 +304,39 @@ test("retained model repair measures its declared guide region without qualifyin
     },
   });
   expect(result.passed).toBe(false);
-  for (const id of ["part-connectivity", "assembly-path", "disassembly-path", "sampled-motion", "diametral-clearance",
+  for (const id of ["part-connectivity", "assembly-path", "disassembly-path", "diametral-clearance",
     "assembly-reconstruction", "measured-joint-frames", "declared-translation-probes"]) {
     expect(result.evidence.find(item => item.id === id)?.status).toBe("PASS");
   }
+  // The offline judge has no confirmed contract, so the source-driven half of
+  // motion evidence cannot run; this candidate has an ideal rigid motion sample only.
+  expect(result.evidence.find(item => item.id === "sampled-motion")?.status).toBe("NOT_RUN");
   expect(result.evidence.find(item => item.id === "intent-preserved")?.status).toBe("NOT_RUN");
   expect(result.evidence.find(item => item.id === "unresolved-axial-retention")?.status).toBe("NOT_RUN");
 }, 60000);
+
+
+test("an explicit axial-retention requirement is measured by the declared axial probes", async () => {
+  const raw = await readFile("scripts/eval/assembly-fixtures/candidates/thick-hinge-control-2026-11-11.scad", "utf8");
+  expect(createHash("sha256").update(raw).digest("hex")).toBe("48df6641bb8d7abf40b2d39daee4ad709c75b000666da28830e02b4a16fad37b");
+  const extracted = extractEmbeddedAssemblySpec(raw);
+  if (extracted.status !== "valid") throw new Error("Frozen researcher control has no valid declaration");
+  expect(extracted.spec.translationProbes).toHaveLength(7);
+  const request = "两件式铰链，直径间隙0.35到0.45mm，工作姿态必须有轴向防脱";
+  const contract = deriveRequirementContract({ request });
+  expect(contract.requirements.some(item => item.id === "axial-retention" && item.required)).toBe(true);
+
+  const prepared = await prepareContractAssembly({ scadSource: raw, spec: extracted.spec,
+    contractSnapshot: { contract, request }, contractGate: { evidenceCurrent: true } });
+  expect(prepared.manifest.translationProbes.results.every(item => item.status === "PASS")).toBe(true);
+  const assertion = assessAssemblyRequirements(contract, extracted.spec, prepared).find(item => item.id === "axial-retention");
+  expect(assertion?.status).toBe("PASS");
+  expect(assertion?.reason).toContain("declared-geometry evidence");
+  expect(unverifiedAssemblyRequirements(contract).map(item => item.id)).not.toContain("axial-retention");
+
+  const unconfirmed = await prepareContractAssembly({ scadSource: raw, spec: extracted.spec,
+    contractSnapshot: { contract, request }, contractGate: { evidenceCurrent: false, reason: "Not confirmed for this test." } });
+  const gated = assessAssemblyRequirements(contract, extracted.spec, unconfirmed).find(item => item.id === "axial-retention");
+  expect(gated?.status).toBe("NOT_RUN");
+  expect(gated?.reason).toContain("confirmed requirement contract");
+}, 180000);
