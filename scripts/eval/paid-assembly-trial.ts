@@ -10,7 +10,7 @@ import {loadSkill,skillInstructions} from "../../src/lib/skill-resolver";
 import {extractOpenScadCodeFromText} from "../../src/lib/harness/structured-output";
 import {sanitizeGeneratedScadSource} from "../../src/lib/tools/scad-sanitizer";
 import {extractEmbeddedAssemblySpec} from "../../src/lib/assembly/embedded-spec";
-import {assertRepairPreservesAssembly} from "../../src/lib/assembly/repair-findings";
+import {assertRepairPreservesAssembly, ASSEMBLY_REPAIR_INVARIANTS} from "../../src/lib/assembly/repair-findings";
 import {deriveRequirementContract} from "../../src/lib/requirements/extract-requirements";
 import {loadTaskSet,planTrial,runTrial,TrialRefused,worstCaseCalls} from "./generation-trial";
 import {judgeAssemblyCandidate} from "./judge-assembly";
@@ -97,7 +97,9 @@ async function main() {
   const repair = needsRepair ? await loadSkill("scad-repair") : null;
   if (needsRepair && !repair) throw new Error("Missing repair skill");
   const repairSystem = repair ? [system, skillInstructions(repair),
-    "For this trial return one complete SCAD code block containing the declaration. Keep all unresolved conditions explicit."].join("\n\n") : system;
+    "For this trial return one complete SCAD code block containing the declaration. Keep all unresolved conditions explicit.",
+    "The repaired declaration is checked against the previous one. These invariants are mandatory:",
+    ...ASSEMBLY_REPAIR_INVARIANTS.map(rule => `- ${rule}`)].join("\n\n") : system;
   await fs.mkdir(".agentscad/experiments",{recursive:true});
   const directory=await fs.mkdtemp(path.join(".agentscad/experiments","paid-deepseek-assembly-"));
   // Freeze direct evaluator sources before any paid call, preserving paths.

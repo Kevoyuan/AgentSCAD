@@ -227,6 +227,7 @@ export const ASSEMBLY_REPAIR_INVARIANTS: readonly string[] = [
   "Keep every part, instance and connection listed above. Do not merge two parts into one, do not drop a joint, do not rename an instance.",
   "Do not change the declared motion range to a smaller one.",
   "Do not change which instance carries the bore.",
+  "Keep each connection's frameA, frameB and declared fitStationsMm unchanged. Changing the measurement scope is not a repair; if the geometry cannot accommodate them, state the limitation and leave the declaration unchanged.",
   "Keep the grounded instance and every declared operation's ID, action and instance. Paths and order may be corrected but must be measured again; deleting a failed operation is not a repair.",
   "Keep every declared translation probe unchanged, including its start pose, displacement, samples and expected result. It is a geometric experiment, not force evidence.",
   "Do not change the requirement. The requirement belongs to the user; only the geometry may change.",
