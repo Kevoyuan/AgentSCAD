@@ -1712,3 +1712,15 @@ before/after分别保留9及11份原始制造/姿态/总装STL、全部参数与
 原生验证受主机限制未完成：本轮主机多次长时间挂起，完整原生套件在墙钟超时下失败（多个用例超时，不能归因于代码）；在可运行窗口内单独完成的检查为：assembly-reconstruction 单用例 PASS（18.1 秒）、pipeline 正常验证用例 PASS（4.58 秒）、assembly-hinge 选择器用例 PASS（187.85 秒）。最近一次完整原生套件仍是提交 `783b8bf` 的 48 PASS / 1 SKIP / 0 FAIL（49 项、9 文件）；topology 层与本轮的 source protocol/准备函数改动尚缺同版本完整原生结果，该缺口保留、不宣称关闭。
 
 边界：只支持 canonical 轴对齐的四实例曲柄滑块；协议验证的是“源码输出是否与声明 frame 推导的期望一致”，仍需要实测配合/轴测量和用户合同才能成为产品证据；没有 A001/bundle 通过、连续运动、装拆、载荷或实物证据。本轮没有模型调用，新 key 费用仍为 0.623558 元，账户余额约 98.6 元。
+
+## 77. 曲柄滑块源码证据进入产品准备输出（2026-11-17）
+
+本轮把上一节的源码驱动曲柄滑块工具接入产品准备函数，并用一个带内嵌装配声明的原创夹具做端到端原生验证。
+
+新增 `benchmarks/assembly/slider_crank_declared.scad`：在既有原创 `slider_crank.scad` 几何上嵌入四实例装配声明（frame/crank/rod/slider，三个 revolute + 一个 prismatic，frame 接地，crank_axis 为驱动 revolute，motion 声明 `motion_angle` 与四实例 pose selectors，曲柄轴 fit stations 为 −8.8/−8.0/−7.2 mm）。声明是候选方案，源码输出仍由独立解析期望测量。
+
+原生产品路径测试 `slider-crank-product-source.openscad.test.ts` 直接调用 `prepareAssembly` 的 `sliderCrank` 模式（研究者模拟确认合同、crank_axis 直径间隙 0.1–0.6 mm、冻结采样种子）：曲柄轴配合实测 PASS，`sourceMotion` PASS 且保存五个范围五分位输入与同输入总装重构，`rigidMotion` 按设计为 NOT_RUN 并写明多关节刚体采样未实现，综合 `motion` 为 NOT_RUN；仅驱动 revolute 有配合要求，其余三个连接显式保持未测量（jointFrames NOT_RUN 且列出未测连接），没有把未测关节写成通过。把源码 `crank_radius` 从 8 改成 9 后同一路径 `sourceMotion` FAIL。两次原生运行分别 73.1 秒和 34.9 秒。
+
+边界：这是产品 manifest 级证据，尚未接入 `prepareContractAssembly` 的自动识别、A001 或装配包；A001 的 motion 断言同时要求刚性运动与源码运动，因此仍不会通过；连续轨迹、装拆、载荷、制造与实物未验证；canonical 轴对齐与零位姿限制仍在；声明-源码一致性不等于用户意图或设计正确。本轮没有模型调用，新 key 累计费用仍 0.623558 元。
+
+主机状态与验证：本轮主机负载均值一度达到 9–21，系统维护进程占用大量 CPU。完整原生套件重跑得到 37 PASS / 1 SKIP / 11 FAIL（49 项、9 文件、2265.79 秒），11 个失败全部是 120–180 秒墙钟超时或源码运动预算耗尽，不是断言回归；同一环境下单独运行本轮产品测试 2 PASS。普通测试 1094 PASS / 3 SKIP / 0 FAIL（1097 项、164 文件、6135 断言、48.41 秒）；typecheck、lint 通过。完整原生全套在正常负载下仍需补验，不能把本次受限运行当作通过。
