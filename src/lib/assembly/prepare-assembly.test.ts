@@ -116,6 +116,32 @@ describe("topology evidence", () => {
   });
 });
 
+describe("multi-joint kinematics mode", () => {
+  test("a slider-crank mode never fabricates single-axis rigid motion", async () => {
+    const ids = ["frame", "crank", "rod", "slider"];
+    const spec = {
+      schemaVersion: 1, units: "mm", coordinateSystem: "right-handed",
+      parts: ids.map((id) => ({ id, name: id, selector: id, source: "generated" as const, material: null })),
+      instances: ids.map((id) => ({ id: `${id}1`, partId: id, subassemblyId: null, transform: pose as never })),
+      subassemblies: [], connections: [], groundedInstanceId: "frame1", motions: [], operations: [],
+      manufacturing: null, assumptions: [], unknowns: [],
+    };
+    const sha = (buffer: Buffer) => createHash("sha256").update(buffer).digest("hex");
+    const box = boxStl([0, 0, 0], [1, 1, 1]);
+    const result = await prepareAssembly({
+      scadSource: "cube(1);", spec, kinematics: { connectionId: "crank_axis", sliderCrank: true },
+      contractGate: { evidenceCurrent: false },
+      render: async () => ({ parts: ids.map((id) => ({ partId: id, stl: box, sha256: sha(box),
+        triangleCount: box.readUInt32LE(80), diagnostics: "" })), purchasedPartIds: [] }),
+    });
+    expect(result.manifest.evidence.rigidMotion.status).toBe("NOT_RUN");
+    expect(result.manifest.evidence.rigidMotion.reason).toContain("Multi-joint rigid sampling");
+    expect(result.manifest.evidence.sourceMotion.status).toBe("NOT_RUN");
+    expect(result.manifest.evidence.motion.status).toBe("NOT_RUN");
+    expect(result.manifest.kinematics).toBeNull();
+  });
+});
+
 describe("prepare assembly candidate", () => {
   test("binds source, specification, part artifacts and repeated instances without claiming identity or functionality", async () => {
     const result = await prepareAssembly({ scadSource: "cube(1);", spec: spec(), render: async () => output() });

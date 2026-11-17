@@ -14,7 +14,7 @@ import { checkMeasuredJointFrames, JOINT_FRAME_CONSISTENCY_LIMITS } from "./meas
 import { RequirementContractSchema, requirementContractHash, unknownsInScope, withDerivedUnknowns } from "../requirements/requirement-contract";
 import { deriveRequirementContract } from "../requirements/extract-requirements";
 import { checkDeclaredTranslationProbes } from "./declared-translation-probes";
-import { buildHingeSourceProtocol } from "./source-motion-protocol";
+import { buildSourcePoseProtocol } from "./source-pose-protocol";
 import { verifySourcePoses, type SourcePoseArtifact } from "../tools/source-pose-verification";
 
 const sha256 = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
@@ -76,6 +76,8 @@ export async function prepareAssembly(input: {
     movingInstanceIds?: string[];
     pathSteps?: number;
     motionSteps?: number;
+    /** Multi-joint source-driven evidence only; naive single-axis rigid sampling is not applied. */
+    sliderCrank?: boolean;
   };
   /**
    * Confirmation state of the requirement contract these results are judged
@@ -177,7 +179,7 @@ export async function prepareAssembly(input: {
   });
   // Kinematics runs after the gate is known so its own verdicts are downgraded
   // the same way as every other layer.
-  const kinematics = input.kinematics
+  const kinematics = input.kinematics && !input.kinematics.sliderCrank
     ? checkKinematics({
         spec,
         meshes,
@@ -207,13 +209,15 @@ export async function prepareAssembly(input: {
   };
   let motionEvidence = kinematics
     ? applyContractGate(kinematics.motion.status as EvidenceStatus, kinematics.motion.reason, gateReason)
-    : { status: "NOT_RUN" as EvidenceStatus, reason: "Motion was not checked." };
+    : input.kinematics?.sliderCrank
+      ? { status: "NOT_RUN" as const, reason: "Multi-joint rigid sampling is not implemented; only source-driven evidence is available for this mechanism." }
+      : { status: "NOT_RUN" as EvidenceStatus, reason: "Motion was not checked." };
   const motionFrames=fits.find(fit=>fit.connectionId===input.kinematics?.connectionId)?.jointFrames;
   if(kinematics?.motion.status==="PASS"&&motionEvidence.status==="PASS"&&motionFrames?.status!=="PASS") {
     motionEvidence={status:motionFrames?.status??"NOT_RUN",reason:`Rigid-pose collision samples passed, but the actual mating feature axes were not verified against the declared motion frame: ${motionFrames?.reason??"No measured mating feature axes."}`};
   }
   const rigidMotionEvidence = motionEvidence;
-  const sourceProtocol = buildHingeSourceProtocol(spec, input.sourceSamplingSeed ?? randomBytes(16).toString("hex"));
+  const sourceProtocol = buildSourcePoseProtocol(spec, input.sourceSamplingSeed ?? randomBytes(16).toString("hex"));
   const canVerifySource = sourceProtocol.status === "READY" && input.contractGate?.evidenceCurrent === true
     && contractBinding?.requestMatches === true && gateReason === null
     && motionFrames?.status === "PASS" && input.kinematics?.connectionId === sourceProtocol.connectionId;
