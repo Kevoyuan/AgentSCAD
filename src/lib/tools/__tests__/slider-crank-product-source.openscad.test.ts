@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import { extractEmbeddedAssemblySpec } from "../../assembly/embedded-spec";
 import { prepareAssembly } from "../../assembly/prepare-assembly";
 import { prepareContractAssembly } from "../../assembly/prepare-contract-assembly";
+import { buildAssemblyBundle } from "../../assembly/assembly-bundle";
+import { unzipSync, strFromU8 } from "fflate";
 import { deriveRequirementContract } from "../../requirements/extract-requirements";
 
 const request = "做一个曲柄滑块机构，曲柄半径 8 mm，连杆长度 28 mm，直径间隙 0.1 到 0.6 mm，能转 360 度";
@@ -56,3 +58,29 @@ test("a changed crank radius fails the product source-motion evidence", async ()
   expect(result.manifest.evidence.sourceMotion.status).toBe("FAIL");
   expect(result.manifest.evidence.motion.status).not.toBe("PASS");
 }, 240000);
+
+
+test("the assembly bundle records rigid, source and composite motion for the declared slider-crank", async () => {
+  const scadSource = await readFile(fixturePath, "utf8");
+  const extracted = extractEmbeddedAssemblySpec(scadSource);
+  if (extracted.status !== "valid") throw new Error(`declared slider-crank is ${extracted.status}`);
+  const contract = deriveRequirementContract({ request });
+  const bundle = await buildAssemblyBundle({
+    scadSource, spec: extracted.spec,
+    contractSnapshot: { contract, request },
+    contractGate: { evidenceCurrent: true, reason: "Researcher test confirmation; not a user decision." },
+    sourceSamplingSeed: "11223344556677889900aabbccddeeff",
+    modifiedAt: new Date("2026-11-17T00:00:00Z"),
+  });
+  expect(bundle.manifest.evidence.rigidMotion.status).toBe("PASS");
+  expect(bundle.manifest.evidence.sourceMotion.status).toBe("PASS");
+  expect(bundle.manifest.evidence.motion.status).toBe("PASS");
+  expect(bundle.manifest.evidence.topology.status).toBe("PASS");
+  expect(bundle.manifest.sourcePoseArchive.files.length).toBeGreaterThan(20);
+  const files = unzipSync(new Uint8Array(bundle.zip));
+  const readme = strFromU8(files["README.txt"]);
+  expect(readme).toContain("- rigidMotion: PASS");
+  expect(readme).toContain("- sourceMotion: PASS");
+  expect(readme).toContain("- motion: PASS");
+  expect(readme).toContain("- topology: PASS");
+}, 600000);

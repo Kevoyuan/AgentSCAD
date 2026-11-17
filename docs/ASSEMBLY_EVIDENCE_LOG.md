@@ -1737,3 +1737,17 @@ before/after分别保留9及11份原始制造/姿态/总装STL、全部参数与
 边界：九点为有限采样，不证明点间无碰撞或连续轨迹；位姿期望来自声明 frame，不是独立设计意图；prismatic 轴、其余关节配合、装拆、载荷、制造与实物均未验证；canonical 轴对齐与零位姿限制仍在。本轮无模型调用，新 key 累计仍 0.623558 元。
 
 验证：普通测试 1094 PASS / 3 SKIP / 0 FAIL（1097 项、164 文件、6135 断言、27.11 秒）；typecheck、lint 通过；两个产品原生测试 PASS。主机负载仍高，完整原生套件未重跑；上一轮完整尝试的墙钟超时状态继续按未验证记录。
+
+## 79. 多关节装配包证据与 A001 缺口定位（2026-11-17）
+
+本轮验证第78节的多关节准备输出能否进入装配包，并记录 A001 在曲柄滑块上的真实阻断点。
+
+装配包原生测试（`slider-crank-product-source.openscad.test.ts` 新增用例）：对原创声明夹具调用 `buildAssemblyBundle`，合同模拟确认、自动选择曲柄滑块协议与配合要求。生成的 ZIP manifest 与 README 均显示 `rigidMotion: PASS`、`sourceMotion: PASS`、`motion: PASS`、`topology: PASS`；`sourcePoseArchive.files` 超过 20 份，包含制造、姿态与同输入总装网格。这说明多关节的双层运动证据已进入可下载证据包，而不只是内存 manifest。单次 bundle 运行 116.2 秒（主机高负载下）。
+
+A001 诊断（同一夹具、`validateAssemblyArtifact` 用模拟确认合同）：结果 **A001 NOT_RUN**。各层：identity PASS、topology PASS、rigidMotion PASS；reconstruction NOT_RUN（15 秒预算在主机高负载下耗尽）；sourceMotion NOT_RUN（90 秒源码预算在同一高负载运行中耗尽）；assembly NOT_RUN；jointFrames NOT_RUN（`crank_axis` 实测两侧轴与声明 frame 一致，但 `crank_pin`、`wrist`、`slide` 没有测量轴）；contract 的 `motion-range` 与 `crank-geometry` 仍是未知项；`diametral-clearance` 断言因“需要恰好一条 revolute”而 NOT_RUN。结论：A001 目前同时被合同未知项、多关节配合/滑轨证据缺口和单铰链断言假设阻断，而不是被 motion 几何本身阻断。
+
+同一产品测试文件在本轮并发/高负载下整体运行过一次 1 PASS / 2 FAIL，失败为 90 秒源码预算或 15 秒重构预算耗尽后的 NOT_RUN；随后单用例分别运行 bundle 116.2 秒 PASS、正向 74.7–97.9 秒 PASS、负向 24.8–44.9 秒 PASS。主机 load average 一度为 13，系统与 WorkBuddy 进程占满 CPU。因此这些失败按环境预算耗尽记录，不当作断言回归，也不能当作完整原生套件通过。
+
+下一步的 A001 收口顺序：先让需求抽取把显式曲柄半径、连杆长度与转动范围变成 requirement 并消除对应未知项；再为 `crank_pin`/`wrist` 增加实测配合、为 prismatic `slide` 设计可测轴证据；最后让间隙断言支持多关节中明确命名的连接，而不是要求整份声明只有一条 revolute。完成这些之前不宣称 M4 完成或 A001 通过。
+
+验证：普通测试 1094 PASS / 3 SKIP / 0 FAIL（1097 项、164 文件、6135 断言）；typecheck、lint 通过。本轮无模型调用，新 key 累计仍 0.623558 元。
