@@ -5,6 +5,8 @@ import { prepareContractAssembly } from "../../assembly/prepare-contract-assembl
 import { deriveRequirementContract } from "../../requirements/extract-requirements";
 import { assessAssemblyRequirements } from "../../validation/assembly-requirement-assertions";
 import { validateAssemblyArtifact } from "../../validation/assembly-validation";
+import { buildAssemblyBundle } from "../../assembly/assembly-bundle";
+import { strFromU8, unzipSync } from "fflate";
 
 const request = "做一个曲柄滑块机构，曲柄半径 8 mm，连杆长度 28 mm，直径间隙 0.1 到 0.6 mm，能转 ±45 度";
 const fixturePath = "benchmarks/assembly/piston_crank_declared.scad";
@@ -57,4 +59,32 @@ test("the four-joint piston-crank reaches A001 under a simulated confirmed contr
   const assertions = Object.fromEntries((row.assemblyEvidence?.requirements ?? []).map((item) => [item.id, item.status]));
   for (const id of ["crank-radius", "rod-length", "diametral-clearance", "motion-range-deg"])
     expect(assertions[id], id).toBe("PASS");
+}, 600000);
+
+
+test("the piston-crank bundle carries the four-joint A001 evidence with a configured budget", async () => {
+  const scadSource = await readFile(fixturePath, "utf8");
+  const extracted = extractEmbeddedAssemblySpec(scadSource);
+  if (extracted.status !== "valid") throw new Error(`declared piston crank is ${extracted.status}`);
+  const contract = deriveRequirementContract({ request });
+  const bundle = await buildAssemblyBundle({
+    scadSource, spec: extracted.spec,
+    contractSnapshot: { contract, request },
+    contractGate: { evidenceCurrent: true, reason: "Researcher test confirmation; not a user decision." },
+    sourceSamplingSeed: "11223344556677889900aabbccddeeff",
+    reconstructionBudgetMs: 60000,
+    modifiedAt: new Date("2026-11-17T00:00:00Z"),
+  });
+  const layers = bundle.manifest.evidence;
+  for (const id of ["identity", "topology", "reconstruction", "jointFrames", "assembly", "rigidMotion", "sourceMotion", "motion"])
+    expect(layers[id as keyof typeof layers]?.status, `${id}: ${layers[id as keyof typeof layers]?.reason}`).toBe("PASS");
+  expect(bundle.manifest.fits).toHaveLength(4);
+  expect(bundle.manifest.mechanismDimensions.status).toBe("MEASURED");
+  const files = unzipSync(new Uint8Array(bundle.zip));
+  const readme = strFromU8(files["README.txt"]);
+  expect(readme).toContain("- reconstruction: PASS");
+  expect(readme).toContain("- jointFrames: PASS");
+  expect(readme).toContain("- motion: PASS");
+  expect(readme).toContain("- crank radius: 8.000 mm");
+  expect(readme).toContain("- rod length: 28.000 mm");
 }, 600000);
