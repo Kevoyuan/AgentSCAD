@@ -20,7 +20,6 @@ import {ASSEMBLY_VERIFIER_SOURCES} from "../../src/lib/assembly/verification-typ
 
 import {loadSeededRepair} from "./seeded-repair";
 
-const MODEL="deepseek-v4-flash";
 const argument=(name:string,fallback:string)=>{
   const index=process.argv.indexOf(name);
   if(index<0)return fallback;
@@ -35,7 +34,12 @@ const MAX_INPUT_BOUND=Number(argument("--max-input-bound","100000"));
 const MAX_OUTPUT=Number(argument("--max-output-tokens","65536"));
 if(!Number.isInteger(MAX_INPUT_BOUND)||MAX_INPUT_BOUND<1000||MAX_INPUT_BOUND>1000000)throw new Error("--max-input-bound must be an integer from 1000 to 1000000");
 if(!Number.isInteger(MAX_OUTPUT)||MAX_OUTPUT<1000||MAX_OUTPUT>65536)throw new Error("--max-output-tokens must be an integer from 1000 to 65536");
-const CALL_CAP_CNY=(MAX_INPUT_BOUND*2+MAX_OUTPUT*8)/1e6;
+const MODEL=argument("--model","deepseek-v4-flash");
+if(!/^[a-z0-9.-]{3,64}$/.test(MODEL))throw new Error("--model must be a provider model id");
+const INPUT_CNY_PER_MILLION=Number(argument("--input-price","2"));
+const OUTPUT_CNY_PER_MILLION=Number(argument("--output-price","8"));
+if(!(INPUT_CNY_PER_MILLION>=0)||!Number.isFinite(INPUT_CNY_PER_MILLION)||!(OUTPUT_CNY_PER_MILLION>=0)||!Number.isFinite(OUTPUT_CNY_PER_MILLION))throw new Error("Model prices must be finite and non-negative");
+const CALL_CAP_CNY=(MAX_INPUT_BOUND*INPUT_CNY_PER_MILLION+MAX_OUTPUT*OUTPUT_CNY_PER_MILLION)/1e6;
 // Legacy trial report uses USD fields. This fixed bookkeeping conversion is
 // never used for the authoritative CNY budget and is not an exchange-rate quote.
 const CNY_PER_BOOK_USD=8;
@@ -57,7 +61,7 @@ async function main() {
   const plan={taskPath,seed:seed?.provenance??null,model:MODEL,authorizationPath:AUTHORIZATION_PATH,maxCny:MAX_CNY,maxCalls,maxInputTokenBound:MAX_INPUT_BOUND,maxOutputTokens:MAX_OUTPUT,
     promptSkills:{generation:["scad-coding","scad-planning"],repair:["scad-coding","scad-planning","scad-repair"]},
     reasoningEffort:process.argv.includes("--non-thinking")?"none":"high",
-    inputCnyPerMillion:2,outputCnyPerMillion:8,perCallReservationCny:CALL_CAP_CNY,worstCaseCny:maxCalls*CALL_CAP_CNY,
+    inputCnyPerMillion:INPUT_CNY_PER_MILLION,outputCnyPerMillion:OUTPUT_CNY_PER_MILLION,perCallReservationCny:CALL_CAP_CNY,worstCaseCny:maxCalls*CALL_CAP_CNY,
     priorAccountedCny:0,totalAuthorizationWorstCaseCny:maxCalls*CALL_CAP_CNY,
     pricingSource:"https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",taskSetSha256:tasks.taskSetSha256,
     stopConditions:["CNY reservation or call ceiling","two consecutive fully failed tasks","any ambiguous transport billing or missing usage","unknown provider/model or account unavailable"],
@@ -191,7 +195,7 @@ async function main() {
           const {reasoningContent,...publicCompletion}=completion;
           await fs.writeFile(`${prefix}-response.json`,JSON.stringify({...publicCompletion,reasoningCharacters:reasoningContent?.length??0},null,2));
           entry.usage=completion.usage;entry.returnedModel=completion.model;
-          if(![MODEL,"deepseek-flash","deepseek-v4.1-flash-1017"].includes(completion.model.toLowerCase())) {
+          if(![MODEL,"deepseek-flash","deepseek-v4.1-flash-1017","deepseek-v4-pro"].includes(completion.model.toLowerCase())) {
             halted="Provider returned an unexpected model; remaining calls stopped";
             throw new Error(halted);
           }
@@ -200,7 +204,7 @@ async function main() {
             halted="Missing or out-of-reservation usage; remaining calls stopped";
             throw new Error(halted);
           }
-          entry.accountedCny=(input*2+output*8)/1e6;
+          entry.accountedCny=(input*INPUT_CNY_PER_MILLION+output*OUTPUT_CNY_PER_MILLION)/1e6;
           entry.state="COMPLETED";await ledger();
           let scad:string;
           if(declarationMode){
@@ -219,7 +223,7 @@ async function main() {
           if(error instanceof ModelRequestError) {
             const usage=error.evidence?.usage;
             if(usage?.promptTokens!==undefined&&usage.completionTokens!==undefined&&usage.promptTokens<=MAX_INPUT_BOUND&&usage.completionTokens<=MAX_OUTPUT) {
-              entry.usage=usage;entry.accountedCny=(usage.promptTokens*2+usage.completionTokens*8)/1e6;
+              entry.usage=usage;entry.accountedCny=(usage.promptTokens*INPUT_CNY_PER_MILLION+usage.completionTokens*OUTPUT_CNY_PER_MILLION)/1e6;
             }
             await fs.writeFile(`${prefix}-model-error.json`,JSON.stringify({code:error.code,message:error.message,evidence:error.evidence},null,2));
           }

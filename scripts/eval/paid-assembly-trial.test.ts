@@ -80,3 +80,15 @@ test("explicit token bounds determine the per-call reservation",async()=>{
   expect(plan.perCallReservationCny).toBeCloseTo(0.188,6);
   expect(plan.worstCaseCny).toBeCloseTo(0.188,6);
 },30000);
+
+
+test("an explicit stronger model carries its own prices into the plan",async()=>{
+  const result=await dryRun(["--tasks","scripts/eval/assembly-generation/retention-tasks-v3.json","--model","deepseek-v4-pro","--input-price","9","--output-price","27","--max-input-bound","60000","--max-output-tokens","20000","--max-cny","7","--non-thinking"]);
+  expect(result.code).toBe(0);
+  const plan=JSON.parse(result.stdout);
+  expect(plan.model).toBe("deepseek-v4-pro");
+  expect(plan.inputCnyPerMillion).toBe(9);
+  expect(plan.outputCnyPerMillion).toBe(27);
+  expect(plan.perCallReservationCny).toBeCloseTo(1.08, 6);
+  expect(plan.taskSetSha256).toBe("fbf5cd056b047953e763d9afefda79d63497e23496ec560f30bcf66caae85bf8");
+});
