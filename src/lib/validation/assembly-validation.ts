@@ -96,6 +96,7 @@ export async function validateAssemblyArtifact(input: {
     details.push(...unresolvedRequirements.map(unknown => `requirement ${unknown.id} NOT_RUN: ${unknown.question}`));
     details.push(...uncheckedRequirements.map(requirement => `requirement ${requirement.id} NOT_RUN: No automatic assertion is implemented for this requirement.`));
     details.push(...assertions.map(assertion => `requirement ${assertion.id} ${assertion.status}: ${assertion.reason}`));
+    details.push("Digital evidence only: this verdict does not establish physical function, manufacturing tolerance or user acceptance.");
     return [{ ...row(status, [...details, ...findings.map(finding => finding.message)].join("\n")),
       assemblyEvidence: { sourceSha256: createHash("sha256").update(input.scadSource).digest("hex"), manifest: prepared.manifest, requirements: assertions } }];
   } catch (error) {

@@ -6,6 +6,7 @@ import { RequirementContractSchema } from "../requirements/requirement-contract"
 import { toFitRequirements } from "../requirements/contract-bridge";
 import { automaticHingeKinematics } from "./automatic-hinge-kinematics";
 import { automaticSliderCrankKinematics } from "./automatic-slider-crank";
+import { resolveAssemblyReconstructionBudgetMs } from "./reconstruction-budget";
 
 /** Shared by explicit verification and export; never invokes a model. */
 export async function prepareContractAssembly(input:Parameters<typeof prepareAssembly>[0]) {
@@ -16,6 +17,10 @@ export async function prepareContractAssembly(input:Parameters<typeof prepareAss
     contractSnapshot:input.contractSnapshot?structuredClone(input.contractSnapshot):undefined,
     fitRequirements:input.fitRequirements?structuredClone(input.fitRequirements):undefined,
     kinematics:input.kinematics?structuredClone(input.kinematics):undefined};
+  // Every preparation path (product validation, evidence route, bundle) can opt
+  // into a larger reconstruction timeout for complex assemblies. The default is
+  // unchanged when the operations variable is unset.
+  input.reconstructionBudgetMs ??= resolveAssemblyReconstructionBudgetMs();
   const assemblyMesh=input.assemblyMesh??(!input.render
     ?(await renderAssemblyParts({scadSource:input.scadSource,parts:[{partId:"assembly",selector:"all"}],options:input.options}))[0]:null);
   const contract=input.contractSnapshot?RequirementContractSchema.parse(input.contractSnapshot.contract):null;

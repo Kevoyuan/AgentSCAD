@@ -23,6 +23,7 @@ test("unresolved retention blocks an aggregate pass but cannot hide a measured f
  const input={inputRequest:"两件式铰链，间隙0.35到0.45mm，能转±45°，可组装可拆卸，3D打印",scadSource:source};
  const [pending]=await validateAssemblyArtifact(input,prepare(evidence));
  expect(pending.status).toBe("NOT_RUN");expect(pending.message).toContain("axial-retention NOT_RUN");
+ expect(pending.message).toContain("Digital evidence only");
  const [failed]=await validateAssemblyArtifact(input,prepare({...evidence,motion:{status:"FAIL",reason:"collision"}}));
  expect(failed.status).toBe("FAIL");expect(failed.message).toContain("axial-retention NOT_RUN");
  const explicit={...input,inputRequest:input.inputRequest+"。工作姿态必须有几何轴向防脱。"};
