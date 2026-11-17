@@ -22,7 +22,9 @@ export interface SliderCrankDimensions {
 }
 
 const STATION_FAMILIES: number[][] = [
+  [0.5, 1, 1.5], [-0.5, 0, 0.5], [0, 0.5, 1], [-1, 0, 1],
   [1, 2, 3], [0.5, 1, 2], [1.5, 2.5, 3.5], [2, 3, 4], [3, 4, 5], [0, 1, 2],
+  [4, 5, 6], [5, 6, 7], [6, 7, 8],
 ];
 const identityAssumptions = [
   "The declared connection frames seed the section search; the measured centres are refined from mesh vertices.",
@@ -83,20 +85,33 @@ export function measureSliderCrankDimensions(input: { spec: AssemblySpec; meshes
   if (shaft.status !== "MEASURED") return { ...base, status: "ERROR", reason: `Crank pin could not be measured: ${shaft.reason}` };
   const boreA = featureCenter({ stl: rod.stl, origin: rodPinFrame.origin, direction: rodPinFrame.direction, role: "bore", maxRadiusMm: 4 });
   if (boreA.status !== "MEASURED") return { ...base, status: "ERROR", reason: `Rod journal A could not be measured: ${boreA.reason}` };
+  // A piston-crank can end in an exposed wrist pin instead of a rod bore. The
+  // centre distance is the same measurement; try the bore role first, then the
+  // shaft role over the same declared station families.
   const boreB = featureCenter({ stl: rod.stl, origin: rodWristFrame.origin, direction: rodWristFrame.direction, role: "bore", maxRadiusMm: 4 });
-  if (boreB.status !== "MEASURED") return { ...base, status: "ERROR", reason: `Rod journal B could not be measured: ${boreB.reason}` };
-  const distance = (a: Vec3, b: Vec3) => Math.hypot(...a.map((value, index) => value - b[index]));
+  const wristB = boreB.status === "MEASURED"
+    ? boreB
+    : featureCenter({ stl: rod.stl, origin: rodWristFrame.origin, direction: rodWristFrame.direction, role: "shaft", maxRadiusMm: 4 });
+  if (wristB.status !== "MEASURED") return { ...base, status: "ERROR", reason: `Rod journal B could not be measured: ${wristB.reason}` };
   const pin = shaft.point;
   const axisOrigin = axisFrame.origin;
   const axisDirection = axisFrame.direction;
   const axisLength = Math.hypot(...axisDirection);
   if (!(axisLength > 0)) return { ...base, status: "ERROR", reason: "The crank axis has no usable direction." };
   const unit = axisDirection.map((value) => value / axisLength) as Vec3;
+  // Pin axes can be offset along their own axis (different instance poses and
+  // frame origins). The mechanism dimension is the distance in the plane
+  // perpendicular to the pin axis, not the raw centre-to-centre distance.
+  const planarDistance = (a: Vec3, b: Vec3) => {
+    const delta = a.map((value, index) => value - b[index]) as Vec3;
+    const along = delta[0] * unit[0] + delta[1] * unit[1] + delta[2] * unit[2];
+    return Math.hypot(delta[0] - along * unit[0], delta[1] - along * unit[1], delta[2] - along * unit[2]);
+  };
   const delta = pin.map((value, index) => value - axisOrigin[index]) as Vec3;
   const axial = delta[0] * unit[0] + delta[1] * unit[1] + delta[2] * unit[2];
   const perpendicular = delta.map((value, index) => value - axial * unit[index]) as Vec3;
   const radius = Math.hypot(...perpendicular);
-  const rodLength = distance(boreA.point, boreB.point);
+  const rodLength = planarDistance(boreA.point, wristB.point);
   if (!Number.isFinite(radius) || !(radius > 1e-6) || !Number.isFinite(rodLength) || !(rodLength > 1e-6))
     return { ...base, status: "ERROR", reason: "Measured radius or rod length is invalid." };
   return {
@@ -104,6 +119,6 @@ export function measureSliderCrankDimensions(input: { spec: AssemblySpec; meshes
     crankRadiusMm: radius, rodLengthMm: rodLength,
     crankPinRadiusMm: shaft.radius, rodBoreRadiusMm: boreA.radius,
     reason: `Measured crank radius ${radius.toFixed(6)} mm and rod length ${rodLength.toFixed(6)} mm from mesh sections.`,
-    coverage: `Crank pin ${shaft.stations.join("/")} mm and rod journals ${boreA.stations.join("/")} mm and ${boreB.stations.join("/")} mm along their declared frames; one station family per feature.`,
+    coverage: `Crank pin ${shaft.stations.join("/")} mm and rod journals ${boreA.stations.join("/")} mm and ${wristB.stations.join("/")} mm along their declared frames; one station family per feature.`,
   };
 }
