@@ -200,8 +200,17 @@ export const AssemblySpecSchema = z.object({
     if (!connections.has(m.inputConnectionId)) issue(["motions", i, "inputConnectionId"], "Unknown input connection ID");
     if (m.sourceInput) {
       const selectors = m.sourceInput.poseSelectors;
-      if (Object.keys(selectors).sort().join(",") !== [...instances].sort().join(","))
-        issue(["motions", i, "sourceInput", "poseSelectors"], "Every instance needs a pose selector");
+      const expectedInstances = [...instances].sort();
+      const actualInstances = Object.keys(selectors).sort();
+      const missingInstances = expectedInstances.filter((id) => !actualInstances.includes(id));
+      const unknownInstances = actualInstances.filter((id) => !expectedInstances.includes(id));
+      if (missingInstances.length || unknownInstances.length) {
+        const details = [
+          missingInstances.length ? `Missing: ${missingInstances.join(", ")}.` : "",
+          unknownInstances.length ? `Unknown: ${unknownInstances.join(", ")}.` : "",
+        ].filter(Boolean).join(" ");
+        issue(["motions", i, "sourceInput", "poseSelectors"], `Every instance needs a pose selector. ${details}`.trim());
+      }
       if (new Set(Object.values(selectors)).size !== Object.values(selectors).length || Object.values(selectors).includes("all"))
         issue(["motions", i, "sourceInput", "poseSelectors"], "Pose selectors must be distinct and cannot select all");
     }
