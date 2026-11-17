@@ -1780,3 +1780,20 @@ A001 仍未通过：jointFrames 需要 `crank_pin`、`wrist` 的实测配合和 
 原生产品测试更新：bundle 原生测试断言 README 含 `crank radius: 8.000 mm`、`rod length: 28.000 mm`，连同 rigidMotion/topology 等层一起检查；该用例 71.5 秒 PASS。A001 仍未通过：`crank_pin`、`wrist` 没有实测配合，prismatic `slide` 没有可测轴证据；主机负载仍高（load 10–25），完整原生套件未重跑。
 
 验证：普通测试 1101 PASS / 3 SKIP / 0 FAIL（1104 项、164 文件、6165 断言、30.36 秒）；typecheck、lint 通过。本轮无模型调用，新 key 累计仍 0.623558 元。下一步仍是多关节配合/滑轨证据，或转向分阶段生成把自主成功率从 0 抬起来。
+
+## 82. 真实试验定位到协议泄漏与声明反馈，并完成两项确定性修复（2026-11-17）
+
+本轮用新 key 对 `retention-tasks-v2.json`（两个显式保持铰链任务，maxRepairs=1）跑了两次小额真实试验，并据结果修了两个确定性缺口。
+
+试验 A（默认 high reasoning）：只发出 1 次模型调用，完成 token 达到 20000 上限且全部消耗在 reasoning 上，没有返回代码；任务按 `LLM_OUTPUT_TRUNCATED` 失败，停止。台账 accounted 0.168222 元（上限估计），观测余额 94.31→94.31。结论：当前 deepseek-flash 在 high reasoning 下可能把输出预算烧在思考上，生成 CAD 时应使用 non-thinking。
+
+试验 B（`--non-thinking`，max-output 20000，max-cny 1.5）：4 次调用（2 任务 × 2 次生成），2 个任务都 FAIL、measured-core 0；观测余额 94.31→94.20（约 0.11 元），台账 accounted 0.122368 元（上限估计）。具体证据：
+- `hinge-retention-45` 两次生成都产出了有效内嵌声明，`distinct-exported-parts` 和 `measured-part-identity` PASS；但 `part-connectivity` FAIL（leaf 被空 slab 分成两段；base 有非流形边），装配重构 ERROR（重建边界一条边有 >2 个邻接三角形），轴承孔测量 ERROR（声明站 −4.8 mm 不在圆柱截面上），−45° 时 leaf 与 base 碰撞，插入/拆卸路径起始位姿即相交。
+- `hinge-retention-tight-30` 两次生成的声明都无效：`motions.0.sourceInput.poseSelectors` 缺少实例 selector，只能产生部分装配诊断；修复轮没有改好。
+这与 CADAM/HappyCAD 的公开效果形成对照：模型能写出可分辨零件和声明，但几何闭合、孔轴、重建边界与路径起始位姿仍是主要失败面，而不是完全不会生成。
+
+据试验观察完成两项修复（提交 `6a3dec6`）：
+1. `sanitizeGeneratedScadSource` 现在删除注释/字符串之外的 provider 协议标签（`<｜｜DSML｜｜...>`），避免上一轮那种解析错误；注释和字符串内的同形文本保留，并有单元测试。
+2. `validateAssemblySpec` 的 pose selector 错误现在点名缺失实例（`Missing: piston.`）和多余实例（`Unknown: ghost.`），使修复提示能指出具体实例，而不是只说“每个实例都需要 selector”。
+
+主机负载仍在 10–25，完整原生套件未重跑。验证：普通测试 1107 PASS / 3 SKIP / 0 FAIL（1110 项、165 文件、6175 断言、34.21 秒）；typecheck、lint 通过。所有试验产物、授权台账和密钥均在 gitignored 目录或临时文件中，密钥文件已删除。下一步：用 non-thinking 继续小额试验，重点改修复提示/几何闭合与孔轴声明，而不是继续加检查器；同时保留 measured-core 0 的诚实记录。
