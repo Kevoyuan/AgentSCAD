@@ -2060,3 +2060,18 @@ Ran 56 tests across 12 files. [990.39s]
 验证：普通测试 **1121 PASS / 3 SKIP / 0 FAIL**（1124 项、167 文件、6221 断言、29.04 秒）；typecheck、lint 通过；单元覆盖未设置/显式/非法值。完整原生套件上一轮已 55 PASS / 1 SKIP / 0 FAIL；本轮只改超时透传，未重跑完整原生（下一轮可补一次）。无模型调用，余额 92.42 元不变。
 
 下一步：用配置化预算跑一次**活塞夹具的产品证据/导出路径**（而非仅测试内 prepare），确认 A001/装配包在路由层与 README 中呈现；或继续把同一链用于模型生成候选。
+
+## 98. 活塞夹具进入装配包：四关节 A001 证据在导出路径通过（2026-11-17）
+
+上一轮验证了测试内 `prepare` 与路由的超时配置，本轮验证**真实装配包导出路径**。
+
+新增原生 bundle 测试（约 72 秒）：对 `piston_crank_declared.scad` 调用 `buildAssemblyBundle`，合同为模拟确认、显式 `reconstructionBudgetMs: 60000`、冻结采样种子。结果：
+- ZIP manifest 中 identity、topology、reconstruction、jointFrames、assembly、rigidMotion、sourceMotion、motion **八个关键层全部 PASS**；
+- `fits` 四条保持，`mechanismDimensions` MEASURED；
+- README 打印 `reconstruction: PASS`、`jointFrames: PASS`、`motion: PASS`，以及 `crank radius: 8.000 mm`、`rod length: 28.000 mm`。
+
+这证明同一套四关节 A001 证据不仅能出现在测试/内存 manifest，也能通过产品导出路径进入可下载证据包；路由的 `AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS` 透传为这条路径提供了配置化预算。
+
+边界不变：研究者原创夹具、模拟确认合同、显式 60 秒非默认预算；ZIP 是数字证据，不是实物/制造/用户验收；默认 15 秒在慢主机上仍会 NOT_RUN。
+
+验证：单元 1121 PASS / 3 SKIP / 0 FAIL（1124 项、167 文件）；typecheck、lint 通过；新原生用例 72 秒 PASS。完整原生套件上一轮 55 PASS / 1 SKIP / 0 FAIL，本轮新增用例尚未随整套件重跑。无模型调用，余额 92.42 元不变。下一步：重跑完整原生套件纳入新用例，或将同一链用于模型生成候选/物理方向。
