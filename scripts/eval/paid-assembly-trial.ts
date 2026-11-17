@@ -8,6 +8,7 @@ import type {ProviderConfig} from "../../src/lib/provider-settings";
 import {withLlmCallMeter,llmCallsThisRun,ModelRequestError} from "../../src/lib/model-runtime";
 import {loadSkill,skillInstructions} from "../../src/lib/skill-resolver";
 import {extractOpenScadCodeFromText} from "../../src/lib/harness/structured-output";
+import {extractDeclarationComment,spliceDeclarationComment} from "../../src/lib/harness/declaration-repair";
 import {sanitizeGeneratedScadSource} from "../../src/lib/tools/scad-sanitizer";
 import {extractEmbeddedAssemblySpec} from "../../src/lib/assembly/embedded-spec";
 import {assertRepairPreservesAssembly, ASSEMBLY_REPAIR_INVARIANTS} from "../../src/lib/assembly/repair-findings";
@@ -100,6 +101,14 @@ async function main() {
     "For this trial return one complete SCAD code block containing the declaration. Keep all unresolved conditions explicit.",
     "The repaired declaration is checked against the previous one. These invariants are mandatory:",
     ...ASSEMBLY_REPAIR_INVARIANTS.map(rule => `- ${rule}`)].join("\n\n") : system;
+  // A declaration-only stage keeps otherwise-useful geometry untouched. It is
+  // used only when the previous candidate had no valid embedded declaration, so
+  // a model formatting mistake cannot force a full geometry rewrite.
+  const declarationSystem=[skillInstructions(coding),
+    "This is a staged declaration call. You receive an existing OpenSCAD file that you must not modify and must describe.",
+    "Exception to the normal answer format: return exactly one block starting with /* AGENTSCAD_ASSEMBLY_V1, containing one valid JSON object, and ending with END_AGENTSCAD_ASSEMBLY */. Do not return any other SCAD code block or prose.",
+    "The declaration must match the existing geometry and the original request: every declared selector must exist in the file, every instance pose must match the geometry as drawn, frames must lie on the real mating axes, and required parts, connections, motions, operations and unknown conditions must be stated.",
+    "Do not invent dimensions or evidence. If a condition cannot be determined from the source, record it in unknowns or assumptions."].join("\n\n");
   await fs.mkdir(".agentscad/experiments",{recursive:true});
   const directory=await fs.mkdtemp(path.join(".agentscad/experiments","paid-deepseek-assembly-"));
   // Freeze direct evaluator sources before any paid call, preserving paths.
@@ -162,13 +171,17 @@ async function main() {
         const accounted=calls.reduce((sum,c)=>sum+c.accountedCny,0);
         if(calls.length>=maxCalls||priorAccountedCny+accounted+CALL_CAP_CNY>MAX_CNY)throw new TrialRefused("Authorized budget exhausted");
         const old=previous.get(task.id);
-        const content=attempt===0&&!seed?task.prompt:`Original request: ${task.prompt}\n\nRepair the complete previous SCAD. Preserve required parts, connections, range and clearance.\n\n${old??""}\n\nMeasured feedback:\n${focusRepairFeedback(repairPrompt??seed?.feedback??"No measurement available",2)}`;
-        const messages=[{role:"system" as const,content:old ? repairSystem : system},{role:"user" as const,content}];
+        const oldEmbedded=old?extractEmbeddedAssemblySpec(old):null;
+        const declarationMode=!!old&&oldEmbedded?.status!=="valid";
+        const content=declarationMode
+          ? `Original request: ${task.prompt}\n\nExisting SCAD (DO NOT modify the geometry):\n\`\`\`scad\n${old}\n\`\`\`\n\nThe embedded declaration is ${oldEmbedded?.status}: ${oldEmbedded?.status==="invalid"?oldEmbedded.reason:"absent"}. Return only the corrected AGENTSCAD_ASSEMBLY_V1 declaration comment describing this exact geometry and request.`
+          : attempt===0&&!seed?task.prompt:`Original request: ${task.prompt}\n\nRepair the complete previous SCAD. Preserve required parts, connections, range and clearance.\n\n${old??""}\n\nMeasured feedback:\n${focusRepairFeedback(repairPrompt??seed?.feedback??"No measurement available",2)}`;
+        const messages=[{role:"system" as const,content:declarationMode?declarationSystem:old ? repairSystem : system},{role:"user" as const,content}];
         const tokenBound=Buffer.byteLength(JSON.stringify(messages),"utf8")+1024;
         if(tokenBound>MAX_INPUT_BOUND)throw new TrialRefused("Prompt byte-derived token reservation exceeded");
         if(await balance()<CALL_CAP_CNY)throw new TrialRefused("Available CNY balance below next-call reservation");
         const prefix=path.join(directory,`${task.id}-${attempt}`);
-        await fs.writeFile(`${prefix}-request.json`,JSON.stringify({model:MODEL,messages,max_tokens:MAX_OUTPUT,reasoning_effort:plan.reasoningEffort,stream:true,tokenBound},null,2));
+        await fs.writeFile(`${prefix}-request.json`,JSON.stringify({model:MODEL,messages,max_tokens:MAX_OUTPUT,reasoning_effort:plan.reasoningEffort,stream:true,tokenBound,stage:declarationMode?"declaration":"scad"},null,2));
         const entry:CallEntry={taskId:task.id,attempt,state:"RESERVED",reservedCny:CALL_CAP_CNY,accountedCny:CALL_CAP_CNY,runDirectory:directory};
         calls.push(entry);await ledger();
         console.log(JSON.stringify({task:task.id,attempt,state:"MODEL_REQUEST",reservationCny:CALL_CAP_CNY}));
@@ -188,9 +201,16 @@ async function main() {
           }
           entry.accountedCny=(input*2+output*8)/1e6;
           entry.state="COMPLETED";await ledger();
-          const source=extractOpenScadCodeFromText(completion.content);
-          if(!source)throw new Error("Model response contains no complete SCAD artifact");
-          const scad=sanitizeGeneratedScadSource(source);
+          let scad:string;
+          if(declarationMode){
+            const comment=extractDeclarationComment(completion.content);
+            if(!comment)throw new Error("STAGED_DECLARATION_MISSING: the declaration stage returned no complete AGENTSCAD_ASSEMBLY_V1 comment.");
+            scad=sanitizeGeneratedScadSource(spliceDeclarationComment(old!,comment));
+          }else{
+            const source=extractOpenScadCodeFromText(completion.content);
+            if(!source)throw new Error("Model response contains no complete SCAD artifact");
+            scad=sanitizeGeneratedScadSource(source);
+          }
           await fs.writeFile(`${prefix}.scad`,scad);
           previous.set(task.id,scad);
           return {scad,calls:1,usd:entry.accountedCny/CNY_PER_BOOK_USD};

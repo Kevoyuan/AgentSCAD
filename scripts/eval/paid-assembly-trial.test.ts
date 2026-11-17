@@ -28,7 +28,9 @@ test("explicit frozen operation trial plans two calls without credentials or cha
 test("repair attempts route through retained repair guidance",async()=>{
   const source=await fs.readFile(runner,"utf8");
   expect(source).toContain('await loadSkill("scad-repair")');
-  expect(source).toContain('content:old ? repairSystem : system');
+  expect(source).toContain('content:declarationMode?declarationSystem:old ? repairSystem : system');
+  expect(source).toContain('extractDeclarationComment');
+  expect(source).toContain('spliceDeclarationComment');
   expect(source).toContain('"repair-system-prompt.txt"');
 });
 test("missing explicit task path fails before model admission",async()=>{
