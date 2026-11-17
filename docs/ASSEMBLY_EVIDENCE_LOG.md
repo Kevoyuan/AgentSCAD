@@ -1751,3 +1751,17 @@ A001 诊断（同一夹具、`validateAssemblyArtifact` 用模拟确认合同）
 下一步的 A001 收口顺序：先让需求抽取把显式曲柄半径、连杆长度与转动范围变成 requirement 并消除对应未知项；再为 `crank_pin`/`wrist` 增加实测配合、为 prismatic `slide` 设计可测轴证据；最后让间隙断言支持多关节中明确命名的连接，而不是要求整份声明只有一条 revolute。完成这些之前不宣称 M4 完成或 A001 通过。
 
 验证：普通测试 1094 PASS / 3 SKIP / 0 FAIL（1097 项、164 文件、6135 断言）；typecheck、lint 通过。本轮无模型调用，新 key 累计仍 0.623558 元。
+
+## 80. 显式曲柄尺寸与整圈范围进入合同，实测半径/连杆长度断言通过（2026-11-17）
+
+A001 在曲柄滑块上的前两个阻断点（合同未知项、缺少尺寸断言）本轮收掉了一部分。
+
+需求抽取：`曲柄滑块` 意图下，显式写出 `曲柄半径 8 mm`、`连杆长度 28 mm` 的请求现在生成 `crank-radius`、`rod-length` 两个 motion 层 requirement，使用 ±0.001 mm 的数字测量带（来源是名义值；assumptions 明确写“制造公差仍未给出”）。只有缺任一尺寸时才保留 `crank-geometry` 未知项。`能转 360 度` / `rotate 360°` 现在生成 `motion-range-deg` 等 requirement，不再落入 `motion-range` 未知项；带正负号的 `±45°` 仍按原有 signed endpoint 语义处理。
+
+实测尺寸：新增 `src/lib/assembly/slider-crank-dimensions.ts`，用声明连接 frame 作为截面种子，测量曲柄销轴（crank 上的 shaft）与连杆两端轴颈（rod 上的两个 bore）的中心；在若干显式轴向 station 组中取第一个可测组，计算曲柄半径与连杆长度，并写入 `manifest.mechanismDimensions`。这是网格中心距的数字测量，不冒充制造公差。
+
+断言：`crank-radius`/`rod-length` 进入 `hasAssemblyRequirementAssertion`，按合同范围 PASS/FAIL/NOT_RUN/ERROR；`diametral-clearance` 不再要求整份声明只有一条 revolute，而是允许“恰好一条已测ревolute”在多个关节中比较；`motion-range-*` 对曲柄滑块读取 `manifest.sliderRigidMotion.rangeDeg` 作为刚体段。产品原生测试现在同时断言：`mechanismDimensions` MEASURED、半径≈8 mm、连杆长度≈28 mm，`crank-radius`/`rod-length`/`diametral-clearance` 断言 PASS；源码曲柄半径改成 9 时 sourceMotion 仍 FAIL。三个产品原生用例本轮全部 PASS（64.0/22.0/64.3 秒）。
+
+A001 仍未通过：jointFrames 需要 `crank_pin`、`wrist` 的实测配合和 `slide` prismatic 的轴证据，当前只测了驱动 revolute；高负载下 reconstruction/sourceMotion 的 15/90 秒预算仍可能变成 NOT_RUN。测试已对 source 预算做分支：预算内 PASS 时必须 PASS，预算外只接受 NOT_RUN（原因含 aborted/budget），绝不接受 FAIL 或伪 PASS。
+
+验证：普通测试 1098 PASS / 3 SKIP / 0 FAIL（1101 项、164 文件、6153 断言、29.70 秒）；typecheck、lint 通过。本轮无模型调用，新 key 累计仍 0.623558 元。下一步：为 `crank_pin`、`wrist` 增加实测配合并为 prismatic `slide` 设计可测轴证据，之后再看 A001 与 bundle 的多关节总评。
