@@ -44,21 +44,31 @@ test("the piston-in-cylinder slider-crank measures all four joints and mechanism
   expect(result.manifest.evidence.reconstruction.status).toBe("PASS");
 }, 600000);
 
-test("the four-joint piston-crank reaches A001 under a simulated confirmed contract", async () => {
+test("the four-joint piston-crank reaches A001 through the env-configured reconstruction budget", async () => {
   const scadSource = await readFile(fixturePath, "utf8");
-  const prepare: typeof prepareContractAssembly = (input) => prepareContractAssembly({
-    ...input, reconstructionBudgetMs: 60000,
-    contractGate: { evidenceCurrent: true, reason: "Researcher test confirmation; not a user decision." },
-  });
-  const [row] = await validateAssemblyArtifact({ inputRequest: request, scadSource }, prepare);
-  expect(row.status, row.message).toBe("PASS");
-  expect(row.passed).toBe(true);
-  const evidence = row.assemblyEvidence?.manifest.evidence;
-  for (const id of ["identity", "topology", "reconstruction", "jointFrames", "assembly", "rigidMotion", "sourceMotion", "motion"])
-    expect(evidence?.[id as keyof typeof evidence]?.status, id).toBe("PASS");
-  const assertions = Object.fromEntries((row.assemblyEvidence?.requirements ?? []).map((item) => [item.id, item.status]));
-  for (const id of ["crank-radius", "rod-length", "diametral-clearance", "motion-range-deg"])
-    expect(assertions[id], id).toBe("PASS");
+  const previous = process.env.AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS;
+  process.env.AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS = "60000";
+  try {
+    // No explicit budget is passed: prepareContractAssembly must resolve the
+    // same operations setting used by the product evidence/bundle routes.
+    const prepare: typeof prepareContractAssembly = (input) => prepareContractAssembly({
+      ...input,
+      contractGate: { evidenceCurrent: true, reason: "Researcher test confirmation; not a user decision." },
+    });
+    const [row] = await validateAssemblyArtifact({ inputRequest: request, scadSource }, prepare);
+    expect(row.status, row.message).toBe("PASS");
+    expect(row.passed).toBe(true);
+    expect(row.message).toContain("Digital evidence only");
+    const evidence = row.assemblyEvidence?.manifest.evidence;
+    for (const id of ["identity", "topology", "reconstruction", "jointFrames", "assembly", "rigidMotion", "sourceMotion", "motion"])
+      expect(evidence?.[id as keyof typeof evidence]?.status, id).toBe("PASS");
+    const assertions = Object.fromEntries((row.assemblyEvidence?.requirements ?? []).map((item) => [item.id, item.status]));
+    for (const id of ["crank-radius", "rod-length", "diametral-clearance", "motion-range-deg"])
+      expect(assertions[id], id).toBe("PASS");
+  } finally {
+    if (previous === undefined) delete process.env.AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS;
+    else process.env.AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS = previous;
+  }
 }, 600000);
 
 
