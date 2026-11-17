@@ -84,7 +84,10 @@ export function checkRigidPosePath(input: {
       // Accumulated in place so every early return carries the real CPU cost.
       base.testedPairs+=collision.testedPairs;
       if(collision.status==='UNKNOWN')return {...base,status:"NOT_RUN" as const,reason:collision.reason,posesEvaluated:i+1};
-      if(collision.blocked)return {...base,status:"FAIL" as const,reason: i===0?"Initial pose intersects":"A sampled path pose intersects",posesEvaluated:i+1,blockedAt:{poseIndex:i,obstacleId:other.id,collision:collision.status}};
+      if(collision.blocked){
+        const poseLabel=i===0?`Initial pose intersects ${other.id}`:`Sampled path pose ${i}/${poses.length-1} intersects ${other.id}`;
+        return {...base,status:"FAIL" as const,reason:`${poseLabel} (${collision.status}): ${collision.reason}`,posesEvaluated:i+1,blockedAt:{poseIndex:i,obstacleId:other.id,collision:collision.status}};
+      }
       if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:i+1};
     }
     if(i===poses.length-1 && input.requireSeparatedEnd) {

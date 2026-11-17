@@ -510,3 +510,18 @@ test("source repair findings retain the failed input, instance, joint and comman
     expect(collectAssemblyFindings({ manifest: { ...manifest, evidence: { sourceMotion: { status, reason: "unavailable" } } }, kinematics: null })).toEqual([]);
   }
 });
+
+
+test("declared path findings name the obstacle, sampled pose and start condition", () => {
+  const identity = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+  const moved = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,6,1];
+  const manifest = { evidence: { disassembly: { status: "FAIL", reason: "blocked" } }, fits: [],
+    declaredDisassembly: { results: [{ operationId: "remove_leaf", instanceId: "leaf1", status: "FAIL",
+      reason: "Initial pose intersects base1 (INTERSECT): triangles overlap",
+      path: { blockedAt: { poseIndex: 0, obstacleId: "base1" }, poses: [identity, moved] } }] } };
+  const findings = collectAssemblyFindings({ manifest: manifest as never, kinematics: null });
+  const path = findings.find(item => item.kind === "path");
+  expect(path).toBeDefined();
+  expect(path!.message).toContain("starting pose already intersects base1");
+  expect(path!.instanceIds).toContain("base1");
+});

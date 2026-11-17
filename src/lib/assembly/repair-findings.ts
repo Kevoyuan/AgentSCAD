@@ -130,13 +130,18 @@ export function collectAssemblyFindings(input: {
     const failed = sequence?.results.find(result => result.status === "FAIL");
     const blocked = failed?.path?.blockedAt;
     const pose = blocked ? failed?.path?.poses[blocked.poseIndex] : undefined;
+    const where = blocked?.poseIndex === 0
+      ? ` The starting pose already intersects ${blocked.obstacleId}; repair the assembled geometry before changing waypoints.`
+      : blocked
+        ? ` The moving instance collides with ${blocked.obstacleId} at sampled pose ${blocked.poseIndex}; relieve the swept geometry or route so it clears without deleting the operation.`
+        : "";
     findings.push({
       kind: "path", layer: "assembly", connectionId: null,
       instanceIds: failed ? [failed.instanceId, ...(blocked ? [blocked.obstacleId] : [])] : [],
       measured: failed ? `operation ${failed.operationId}${blocked ? `, evaluated pose ${blocked.poseIndex}` : ""}${pose ? `, world origin [${[3,7,11].map(index => pose[index].toFixed(3)).join(", ")}] mm` : ""}` : null,
       required: "Every required instance must follow a complete clear declared operation sequence.",
       atMm: null, atDeg: null,
-      message: `Declared ${action} failed${failed ? ` for ${failed.instanceId} in ${failed.operationId}` : ""}: ${failed?.reason ?? input.manifest.evidence[layer].reason}${action === "insertion" ? " The reported poses were checked in reverse assembly order." : ""}`,
+      message: `Declared ${action} failed${failed ? ` for ${failed.instanceId} in ${failed.operationId}` : ""}: ${failed?.reason ?? input.manifest.evidence[layer].reason}${where}${action === "insertion" ? " The reported poses were checked in reverse assembly order." : ""}`,
     });
   }
   const reconstruction = input.manifest.evidence.reconstruction;
