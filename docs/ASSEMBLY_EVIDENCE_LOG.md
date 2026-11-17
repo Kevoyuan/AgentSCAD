@@ -1994,3 +1994,29 @@ pro 单次试点（`hinge-retention-45`，单任务、maxRepairs=0、non-thinkin
 实现修正：连杆长度改为“垂直于销轴平面内的距离”（不同 frame 原点可沿销轴错开）；测量第二轴颈时允许连杆外露销代替第二个孔；增加短销 station families；这些使四关节尺寸测量在活塞式布局上成立。旧块导轨曲柄滑块产品测试仍 PASS。
 
 验证：普通测试 1118 PASS / 3 SKIP / 0 FAIL（1121 项、166 文件、6212 断言、30.04 秒）；两个原生测试 PASS；typecheck、lint 通过。无模型调用，余额 92.42 元不变。下一步：(1) 消除 −45° 的 rod/slider 干涉（让杆槽/连杆端部几何），(2) 为复杂装配提供可配置重构预算或降低面数，(3) 四个连接全 PASS 后再复查 A001/bundle。
+
+## 95. 首个四关节曲柄滑块 A001 PASS（研究者夹具 + 模拟确认 + 60 秒重构预算，2026-11-17）
+
+本轮把上一轮的四关节活塞-缸筒曲柄滑块从“四连接可测”推进到 **A001 PASS**。这是本项目第一个多关节机构 A001 通过记录，但必须连同其边界一起读：
+
+**通过的证据链**（原生测试，约 72 秒）：
+- 四个连接（crank_axis / crank_pin / wrist 三个 revolute + slide 圆柱 prismatic）的 `fits` 与 `jointFrames` 全部 PASS；曲柄轴/曲柄销/腕销间隙约 0.38–0.42 mm，活塞-缸筒约 0.40–0.59 mm。
+- `mechanismDimensions` MEASURED：曲柄半径 8.000000 mm、连杆长度 28.000000 mm；`crank-radius`、`rod-length`、`diametral-clearance`、`motion-range-*` 断言 PASS。
+- identity、topology、reconstruction、jointFrames、assembly、**rigidMotion**、**sourceMotion**、**motion** 全部 PASS；`validateAssemblyArtifact` 返回 **A001 PASS / passed=true**，无 NOT_RUN/FAIL/ERROR 行。
+- wrench 端为外露销 + 活塞 Y 向孔；两段式叉槽（底部半径 7、上部半径 5.5）让连杆在 ±45° 两端扫掠时避开活塞，同时保持腕销孔可测。
+
+**本轮实现的关键修正**：
+1. 活塞两段式叉槽消除 −45° rod/slider 干涉，使 rigidMotion 由 FAIL 变 PASS。
+2. `prepareAssembly` 增加可选 `reconstructionBudgetMs`（默认仍 15 秒）；本测试显式用 60 秒，避免复杂装配在慢主机上因超时 NOT_RUN。
+3. `checkAssemblyReconstruction` 在进入 CGAL Boolean 前增加 **float32 存储精度** 的三角形多集比较：STL 坐标是 float32，实例变换在 double 下完成，直接字符串精确比较会因舍入差 466 个三角形并落入 CGAL 的 non-manifold 警告。float32 舍入比较让平移实例的装配重建精确 PASS（`exact-oriented-triangles-float32`）。
+4. 连杆长度改为垂直于销轴平面内的距离；第二轴颈可用外露销测量；增加短销 station families。
+
+**必须保留的边界**：
+- 夹具是研究者原创/声明的，不是模型自主生成；A001 是**数字证据**，不是实物、制造公差或用户验收。
+- 合同确认是测试中模拟的 `contractGate.evidenceCurrent: true`，不是用户的真实确认；A001 的 `requirements` 等证据仍带 trial/模拟确认语义。
+- 默认 15 秒重构预算在慢主机上仍会 NOT_RUN；60 秒是测试显式传入的配置，不改变产品默认。
+- A001 PASS 只覆盖该夹具、该合同和所列采样；连续轨迹、载荷、保持力、制造与实物仍未验证。
+
+验证：普通测试 1118 PASS / 3 SKIP / 0 FAIL（1121 项、166 文件、6212 断言、29.14 秒）；活塞 A001 与四关节测试 PASS（约 74/72 秒）；旧曲柄滑块产品测试（含 bundle）与 prismatic 测试仍 PASS；typecheck、lint 通过。无模型调用，余额 92.42 元不变。
+
+下一步：把同一 A001 证据链用于**模型生成的候选**（当前自主 measured-core 仍为 0），或先把 60 秒重构路径产品化（可配置预算）、补 bundle 与用户可见报告；同时在文档中明确 A001 PASS 的夹具/模拟确认/预算边界。
