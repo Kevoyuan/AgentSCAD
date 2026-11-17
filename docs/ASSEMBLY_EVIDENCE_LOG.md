@@ -1813,3 +1813,22 @@ A001 仍未通过：jointFrames 需要 `crank_pin`、`wrist` 的实测配合和 
 边界：真实试验仍 0 通过、0 measured-core；重构预算在主机高负载下仍会 NOT_RUN；没有把 preflight 当作通过证据，也没有在模型输出未重测的情况下声称改善。所有试验目录/授权台账在 gitignored 路径，临时密钥文件已删除。
 
 验证：普通测试 1107 PASS / 3 SKIP / 0 FAIL（1110 项、165 文件、6175 断言、46.59 秒）；typecheck、lint 通过。下一步：用新的 preflight 再跑同一任务集，重点看运动端点碰撞、路径起始位姿、selector 姿态视图与 3 边形轴是否改善；若 declaration 仍缺失，再考虑确定性的 selector 补全或分阶段生成。
+
+## 84. 试验 D 首次在真实生成上拿到 identity/连通/重构/关节帧/刚体运动全 PASS；修复保留守卫误拦 selector 修复（2026-11-17）
+
+本轮再次用 non-thinking 跑 `retention-tasks-v2.json`（4 次调用；余额 93.77→93.69，观测约 0.08 元；台账 upper estimate 0.138976 元；measured-core 仍 0）。
+
+试验 D 的实质进展：
+- `hinge-retention-tight-30` 第 1 次生成（未修复）已通过 `distinct-exported-parts`、`measured-part-identity`、`part-connectivity`、`diametral-clearance`、`assembly-reconstruction`、`measured-joint-frames`、`rigid-motion`；剩余失败只有 `source-motion`、`assembly-path`、`disassembly-path`。source 失败原因是 leaf 的 pose selector 仍指向局部视图（`knuckle_leaf`），姿态包围盒差 2.23205 mm；路径失败是采样中间位姿相交。
+- `hinge-retention-45` 第 2 次生成通过连通性、identity、间隙、关节帧；source selector 仍指局部视图（包围盒差 16.8416 mm），另有 translation probe 起始位姿相交、−45° 碰撞和重构 15 秒预算 NOT_RUN。
+- 这说明“模型能产出完整声明、零件和大部分装配证据，剩余问题集中在 selector 姿态视图与路径”已经进入可复现阶段。
+
+试验 D 同时暴露一个**修复保留守卫的误拦**：任务 2 的修复轮把 leaf 的 selector 从局部视图改成已有 `knuckle_leaf_pose`，这正是正确的几何修复；但守卫按整个 `sourceInput` 深比较，报“source binding changed”并直接拒绝，导致修复未被评审。本轮修复（提交 `6e048a6`）：
+- 保留不可变部分：motion 的输入连接、参数名、实例 selector key 集合；
+- 允许 selector **值**变更，因为 source 验证会对每个输入重新测量 selector 输出与独立期望姿态，错误 selector 不可能变成通过；
+- 若参数变化、绑定被删除或 selector 实例集合变化，仍拒绝；
+- 修复技能增加说明：遇到 source 姿态包围盒不一致时，应修正 selector 实现（使用 `agentscad_pose=true` 的 posed 视图），不要删除绑定或改参数。
+
+用离线 judge 复查被守卫拒绝的那份修复稿：identity/连通性/间隙/重构/关节帧/刚体运动仍 PASS，但声明路径仍在采样姿态相交，因此任务不会因此直接通过；guard 修复只是解除误拦，不改变测量结论。source 的 NOT_RUN 在主机高负载下仍可能来自 90 秒预算。
+
+验证：普通测试 1107 PASS / 3 SKIP / 0 FAIL（1110 项、165 文件、6178 断言、36.03 秒）；typecheck、lint 通过；完整原生套件未重跑（主机 load 10–13）。所有试验产物/台账在 gitignored 目录，临时密钥文件已删除。下一步：针对路径采样相交提供更具体的修复反馈（哪一段、哪个障碍、间隙方向），并继续用 non-thinking 小步试验观察 selector 修复是否让 source-motion 转为 PASS。
