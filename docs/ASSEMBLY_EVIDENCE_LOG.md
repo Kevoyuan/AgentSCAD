@@ -2075,3 +2075,17 @@ Ran 56 tests across 12 files. [990.39s]
 边界不变：研究者原创夹具、模拟确认合同、显式 60 秒非默认预算；ZIP 是数字证据，不是实物/制造/用户验收；默认 15 秒在慢主机上仍会 NOT_RUN。
 
 验证：单元 1121 PASS / 3 SKIP / 0 FAIL（1124 项、167 文件）；typecheck、lint 通过；新原生用例 72 秒 PASS。完整原生套件上一轮 55 PASS / 1 SKIP / 0 FAIL，本轮新增用例尚未随整套件重跑。无模型调用，余额 92.42 元不变。下一步：重跑完整原生套件纳入新用例，或将同一链用于模型生成候选/物理方向。
+
+## 99. 完整原生重跑受主机负载阻断；装配包补齐证据边界措辞（2026-11-17）
+
+本轮计划把上一轮新增的活塞 bundle 用例纳入完整原生套件重跑。开始时主机负载约 4，但运行中系统媒体分析进程把 load average 推到 34；套件在 56 分钟内只推进到部分文件，未完成且无可用新结果，因此主动终止任务。**不宣称新的完整套件通过**：当前权威的全绿记录仍是第 96 节的 55 PASS / 1 SKIP / 0 FAIL（12 文件、990.39 秒）；新增的活塞 bundle 用例已单独运行 PASS（约 72 秒），但尚未随完整套件一起通过。
+
+同时做了一个小的产品诚实性改进（提交 `eec4814`）：装配包 README 在原有“每个 PASS 只覆盖其记录方法与采样条件”之外，新增明确边界：
+- `Digital evidence only: a PASS does not establish user acceptance, physical operation, manufacturing tolerance or that the assembly was built.`
+- `The reconstruction timeout is an execution budget, not evidence; changing it does not change any PASS/FAIL conclusion.`
+
+这样下载到的 ZIP 不会让读者把 A001/层 PASS 或 60 秒超时配置误读为实物/用户验收。单元测试断言这两行存在。
+
+验证：普通测试 1121 PASS / 3 SKIP / 0 FAIL（1124 项、167 文件、6223 断言、30.32 秒）；typecheck、lint 通过；完整原生重跑因主机负载失败（未完成，不计为通过）。无模型调用，余额 92.42 元不变。
+
+下一步：等主机负载恢复后重跑完整原生套件，把活塞 bundle 用例纳入（预期 56 PASS / 1 SKIP / 0 FAIL）；或转向模型生成候选/物理方向。
