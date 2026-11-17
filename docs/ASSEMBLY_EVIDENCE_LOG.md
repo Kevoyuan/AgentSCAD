@@ -2164,3 +2164,22 @@ Ran 57 tests across 12 files. [1080.64s]
 边界不变：研究者夹具、模拟确认合同、60 秒非默认预算；数字证据，非实物/用户验收/自主生成；默认 15 秒慢主机仍可能 NOT_RUN；自主 measured-core 仍为 0。
 
 验证：普通测试 1121 PASS / 3 SKIP / 0 FAIL（1124 项、167 文件）；完整原生 56 PASS / 1 SKIP / 0 FAIL；typecheck、lint 通过。无模型调用，余额 92.42 元不变。下一步：转向模型生成候选的 A001/证据链，或物理/隐藏集方向。
+
+## 104. 模型候选 A001 诊断与一次聚焦修复：仍卡在路径与 source selector（2026-11-17）
+
+本轮把第 27/35 节的 A001 链直接套到**真实模型生成的近通过候选**（试验 G 的 7 层 flash 输出），并做一次种子化聚焦修复。
+
+**候选 A001 诊断**（研究者模拟确认合同 + env 60 秒预算，约 17 秒）：
+- PASS：identity、topology、**assembly**、**reconstruction**、**jointFrames**、**rigidMotion**、requirements；
+- FAIL：assemblyPath、disassembly（插入/拆卸采样位姿 12/160 与 base1 相交）、sourceMotion（selector 视图错误）、motion（由 source 与路径导致）、axial-retention NOT_RUN（无 translation probe）。
+- 结论：模型候选已经能跨过 identity/连通/重构/关节帧/刚体四类门槛，**剩余缺口集中在声明的装配/拆卸路径与 source selector 姿态视图**，与第 82–91 节观察一致。
+
+**一次种子化聚焦修复**（flash、non-thinking、1 次调用、只给路径/source/探针 4 条 findings；台账 upper estimate 0.036994 元）：
+- 结果仍 FAIL，evidence 与种子几乎相同：assembly-path/disassembly FAIL、source-motion FAIL，其余（distinct-parts、间隙、连通、identity、重构、关节帧、刚体）PASS。
+- 说明当前 flash 的单次聚焦修复无法修复这类“路径扫掠 + selector 实现”缺陷；与之前“全量修复会退化”的结论互补。
+
+**余额注意**：本轮开始时 DeepSeek 余额为 **86.92 元**，比上一轮记录的 92.42 元低约 5.5 元；本次调用仅约 0.037 元，差额应为会话外/延迟结算的消耗。后续只以调用时余额为准。
+
+验证：无源码改动；普通测试 1121 PASS / 3 SKIP / 0 FAIL（1124 项、167 文件）；完整原生套件上一基线 56 PASS / 1 SKIP / 0 FAIL（1080.64 秒）。临时密钥文件已删除，试验目录/台账在 gitignored 路径。
+
+结论：自主生成平台期进一步确认；当前模型+单轮修复不能把近通过候选推过 A001。下一步应转向其他里程碑（物理/隐藏集/V8）或在用户明确同意下尝试不同模型/多轮专门修复；不把研究者的活塞 A001 通过当作自主通过。
