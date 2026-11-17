@@ -99,6 +99,7 @@ async function main() {
   if (needsRepair && !repair) throw new Error("Missing repair skill");
   const repairSystem = repair ? [system, skillInstructions(repair),
     "For this trial return one complete SCAD code block containing the declaration. Keep all unresolved conditions explicit.",
+    "Prefer the smallest corrective edit that addresses the focused measured finding. Do not restructure parts, transforms, selectors or declarations that already passed; a broad rewrite tends to regress measured layers.",
     "The repaired declaration is checked against the previous one. These invariants are mandatory:",
     ...ASSEMBLY_REPAIR_INVARIANTS.map(rule => `- ${rule}`)].join("\n\n") : system;
   // A declaration-only stage keeps otherwise-useful geometry untouched. It is
