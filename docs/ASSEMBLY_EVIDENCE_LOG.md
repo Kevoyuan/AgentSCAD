@@ -2089,3 +2089,17 @@ Ran 56 tests across 12 files. [990.39s]
 验证：普通测试 1121 PASS / 3 SKIP / 0 FAIL（1124 项、167 文件、6223 断言、30.32 秒）；typecheck、lint 通过；完整原生重跑因主机负载失败（未完成，不计为通过）。无模型调用，余额 92.42 元不变。
 
 下一步：等主机负载恢复后重跑完整原生套件，把活塞 bundle 用例纳入（预期 56 PASS / 1 SKIP / 0 FAIL）；或转向模型生成候选/物理方向。
+
+## 100. 重构预算覆盖所有准备路径；A001 判定显式标注数字证据边界（2026-11-17）
+
+上一轮只在 evidence/bundle 路由透传重构预算；A001 的默认准备路径仍固定 15 秒。本轮把它统一：
+
+- `prepareContractAssembly` 在调用方未提供预算时解析 `AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS`（1000–120000，未设置仍为 15 秒），因此 **A001 验证、证据路由与装配包** 都遵循同一运维配置；
+- 该变量只改超时，不改测量或 PASS/FAIL 语义；
+- A001 消息新增明确边界：`Digital evidence only: this verdict does not establish physical function, manufacturing tolerance or user acceptance.` 单元测试断言该行存在。
+
+这样活塞-缸筒这类复杂装配在配置 60 秒后，可以通过产品 A001 路径得到与测试相同的证据（仍需用户确认合同），而不是只能在测试里用自定义 prepare；未配置时慢主机仍诚实 NOT_RUN。
+
+主机负载仍约 18（系统媒体分析），完整原生套件重跑继续受阻；当前权威全绿记录仍是 55 PASS / 1 SKIP / 0 FAIL（另有活塞 bundle 用例单独 PASS，未随整套件重跑）。本轮无源码行为变化超出预算默认与消息文本，单元/typecheck/lint 通过。
+
+验证：普通测试 1121 PASS / 3 SKIP / 0 FAIL（1124 项、167 文件、6224 断言、27.40 秒）；typecheck、lint 通过。无模型调用，余额 92.42 元不变。下一步：主机恢复后重跑完整原生套件；或用 env 预算跑一次产品 A001/导出路径，确认 60 秒预算在路由层生效。
