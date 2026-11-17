@@ -2045,3 +2045,18 @@ Ran 56 tests across 12 files. [990.39s]
 覆盖边界：这次全绿证明**当前源码版本**下这些 native 检查可执行且断言成立，不等同于实物、用户验收、隐藏集/自主生成通过。A001 的活塞夹具仍是研究者声明 + 模拟确认 + 60 秒非默认预算；默认 15 秒在慢主机上仍可能把 reconstruction 记为 NOT_RUN。自主 measured-core 仍为 0。
 
 验证状态：普通测试 1118 PASS / 3 SKIP / 0 FAIL（1121 项、166 文件）；完整原生 55 PASS / 1 SKIP / 0 FAIL（56 项、12 文件、990.39 秒）；typecheck、lint 通过。无模型调用，余额 92.42 元不变。
+
+## 97. 把重构预算产品化：有界环境变量、证据/导出路由透传（2026-11-17）
+
+上一轮的四关节 A001 通过依赖显式 60 秒重构预算，但产品证据/导出路由仍固定 15 秒。本轮把它做成可运维配置：
+
+- 新增 `AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS`：整数 1000–120000 ms；未设置时保持 15 秒默认。
+- `resolveAssemblyReconstructionBudgetMs` 被 assembly evidence POST 与 assembly bundle 路由使用，并透传到 `prepareContractAssembly` / `buildAssemblyBundle`；`buildAssemblyBundle` 新增同名字段。
+- 这是**超时配置，不是证据**：重构比较与 PASS/FAIL 语义不变，只是允许复杂装配在慢主机上完成测量；非法值 fail closed（抛错）而不是静默忽略。
+- `.env.example` 记录变量与默认/上限。
+
+这样，对于像活塞-缸筒曲柄滑块这类复杂装配，运维可以在显式配置下得到与测试相同的 reconstruction PASS 路径；不配置时仍按 15 秒默认，慢主机上会诚实记录 NOT_RUN。
+
+验证：普通测试 **1121 PASS / 3 SKIP / 0 FAIL**（1124 项、167 文件、6221 断言、29.04 秒）；typecheck、lint 通过；单元覆盖未设置/显式/非法值。完整原生套件上一轮已 55 PASS / 1 SKIP / 0 FAIL；本轮只改超时透传，未重跑完整原生（下一轮可补一次）。无模型调用，余额 92.42 元不变。
+
+下一步：用配置化预算跑一次**活塞夹具的产品证据/导出路径**（而非仅测试内 prepare），确认 A001/装配包在路由层与 README 中呈现；或继续把同一链用于模型生成候选。
