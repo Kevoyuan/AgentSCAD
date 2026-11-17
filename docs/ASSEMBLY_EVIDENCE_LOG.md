@@ -1885,3 +1885,21 @@ A001 仍未通过：jointFrames 需要 `crank_pin`、`wrist` 的实测配合和 
 边界：没有把声明通道的单元测试当作端到端通过；无实物/用户验收；余额与台账上限存在结算差异，以余额为准。完整原生套件仍未重跑（主机负载约 10–19）。所有试验目录/授权台账在 gitignored 路径，临时密钥已删除。
 
 验证：普通测试 1115 PASS / 3 SKIP / 0 FAIL（1118 项、166 文件、6202 断言、27.29 秒）；typecheck、lint 通过。下一步：用种子源强制声明通道做一次单调用验证，并设计 selector/geometry 专用 stage；若 staged 仍无改善，向用户说明当前模型下的自主上限并讨论目标条件。
+
+## 88. 种子协议强制验证声明专用通道：几何保持不变，声明被补全（2026-11-17）
+
+上一轮的声明专用 staged 修复在正常任务集里没有被触发（首轮声明都有效），本轮用种子协议强制验证它。
+
+做法（均在 gitignored 的 `.agentscad/experiments/round20-stage/` 与试验目录）：
+- 从留存的 `hinge-retention-tight-30` schema-invalid 源（缺 `pin1` pose selector）建立单任务、maxRepairs=0 的冻结任务集与 seed 协议（`assembly-schema` 模式，记录精确 schema 错误与源码/反馈哈希）。
+- 运行一次 non-thinking 调用：`stage` 为 `declaration`，模型只返回声明注释；脚本将其拼入原源码后交给完整 judge。
+
+结果：
+- 请求日志 `stage: declaration`，输出源码含有效 `AGENTSCAD_ASSEMBLY_V1` 声明，完整 judge 得以运行（而不是只做部分诊断）。
+- 把声明注释移除后，试验源码与种子源码**逐字节完全相同**，证明声明通道只改声明、未改几何。
+- 该候选几何本身仍不合格：distinct-parts FAIL、reconstruction NOT_RUN（15 秒预算）、fit/joint-frame ERROR、无声明装配/拆卸操作；这与它作为 schema-invalid 留存样本的来源一致。声明通道的目标是“不重写几何而修复声明”，本轮达成，不是让该候选通过。
+- 费用：1 次调用，余额 92.86→92.84（观测约 0.02 元；台账 upper estimate 0.018088 元；当前余额 92.84 元）。注意余额与台账上限存在结算差异，以余额为准。
+
+结论：分阶段声明通道已端到端验证；下一步应做同类的 **selector/几何专用 stage**（例如针对 source-motion 的 posed selector 缺失或路径中间碰撞），或者把声明通道只在失败原因为声明缺失/无效时挂到正常两任务试验里（已有代码分支，但本轮样本未自然触发）。
+
+验证：无新源码改动；上一轮 unit 1115 PASS / 3 SKIP / 0 FAIL（1118 项、166 文件）仍为当前代码状态；typecheck/lint 通过。所有临时密钥、种子文件、试验产物均在本地非提交路径；完整原生套件仍受主机负载限制未重跑。
