@@ -1932,3 +1932,16 @@ pro 单次试点（`hinge-retention-45`，单任务、maxRepairs=0、non-thinkin
 结论：单次样本说明 pro 也能写出较完整的参数化结构，但严格声明/几何门槛仍未跨过；3.4 倍输出价格下，需要更多样本或配修复轮次才能判断是否值得切换。按用户当前“允许用 key 测试”的范围只做了这一次单调用试点，未把 pro 设为默认。余额 92.55 元。
 
 验证：普通测试 1116 PASS / 3 SKIP / 0 FAIL（1119 项、166 文件、6208 断言、28.71 秒）；typecheck、lint 通过。完整原生套件仍未重跑（主机负载 10–19）。下一步：(1) 若用户同意，用 pro + 1 次修复轮次在同一任务上做小样本对照；(2) 同时继续确定性 M4/A001 的 crank_pin/wrist 配合与 prismatic 证据。
+
+## 91. deepseek-v4-pro 修复近通过种子仍失败；更强模型不构成切换理由（2026-11-17）
+
+在允许使用该 key 测试的范围内，本轮做了第二个 pro 小样本，但把输入换成了更有意义的场景：用试验 G 中 flash 生成的 7 层 PASS 候选（`hinge-retention-tight-30`）作为种子，把它当时的失败 findings 作为反馈，让 pro 只做一次修复（单任务、maxRepairs=0、seed 模式、non-thinking）。
+
+结果（1 次调用；余额 92.42→92.42，观测约 0；台账 upper estimate 0.136458 元）：
+- pro 的修复稿没有保住种子已有的证据：`part-connectivity` 变成 NOT_RUN、`diametral-clearance`/`measured-joint-frames` 变成 ERROR、`source-motion` NOT_RUN、`rigid-motion` FAIL；只有 distinct-parts、identity、reconstruction 仍 PASS。
+- 任务 FAIL、measured-core 0；没有达到种子原本的 7 层水平，更未通过。
+- 结合上轮 pro 单次从零生成同样声明 schema 无效：**没有证据表明 pro 在当前成本（约 3.4 倍输出价格）下优于 flash**，因此不切换模型，也不继续无边界消耗余额。
+
+结论：模型升级试验到此为止；当前 DeepSeek 模型池下的自主生成上限已用多次试验记录（B–H、两轮 pro 试点，0 次 measured-core 通过）。下一轮转回确定性 M4/A001 工程：为 `crank_pin`/`wrist` 增加实测配合、为 prismatic 轴设计可测证据，继续做不依赖模型能力的可验证进展。
+
+边界：种子来自研究者筛选的近通过候选，不是自主从零生成；即使修复成功也不能算自主通过。余额 92.42 元。完整原生套件仍未重跑（主机负载 10–19）。验证：无新源码改动；上一轮 unit 1116 PASS / 3 SKIP / 0 FAIL（1119 项、166 文件）仍为当前代码状态。
