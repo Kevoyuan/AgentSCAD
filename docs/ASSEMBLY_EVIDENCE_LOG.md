@@ -1945,3 +1945,17 @@ pro 单次试点（`hinge-retention-45`，单任务、maxRepairs=0、non-thinkin
 结论：模型升级试验到此为止；当前 DeepSeek 模型池下的自主生成上限已用多次试验记录（B–H、两轮 pro 试点，0 次 measured-core 通过）。下一轮转回确定性 M4/A001 工程：为 `crank_pin`/`wrist` 增加实测配合、为 prismatic 轴设计可测证据，继续做不依赖模型能力的可验证进展。
 
 边界：种子来自研究者筛选的近通过候选，不是自主从零生成；即使修复成功也不能算自主通过。余额 92.42 元。完整原生套件仍未重跑（主机负载 10–19）。验证：无新源码改动；上一轮 unit 1116 PASS / 3 SKIP / 0 FAIL（1119 项、166 文件）仍为当前代码状态。
+
+## 92. 曲柄滑块三个 revolute 全部实测配合；jointFrames 只剩 prismatic 未测（2026-11-17）
+
+模型自主试验停滞后，本轮转回确定性 M4/A001，收掉多关节配合的一半缺口。
+
+改动（提交 `f3cb2f0`）：
+1. 声明夹具 `slider_crank_declared.scad` 为 `crank_pin`、`wrist` 增加 `boreInstanceId: rod1` 与 `fitStationsMm: [1.5, 2.5, 3.5]`，与已测的 `crank_axis` 一致使用真实轴颈区间。
+2. `prepareContractAssembly` 在曲柄滑块 + 间隙合同下，不再只派生驱动 revolute 的配合，而是为声明中**所有带 `boreInstanceId` 的 revolute** 派生 fit requirement（单条失败保持该关节 NOT_RUN/ERROR，不伪造）。
+3. 抽取器增加假设：“间隙要求按声明中所有带 boreInstanceId 的可测 revolute 配合应用；未测连接仍需保持 NOT_RUN。”把单值间隙语义显式化。
+4. `diametral-clearance` 断言从“必须恰好一条已测 revolute”改为遍历所有已测 revolute：任一 FAIL 即 FAIL，任一跨带即 ERROR，全部在带内才 PASS；未测关节继续由 jointFrames 显示。
+
+原生产品测试结果（69.1 秒）：`fits` 为 3 条（crank_axis、crank_pin、wrist），全部 `status PASS / measuredStatus PASS`；`jointFrames` 仍 NOT_RUN，但原因现在只列 `slide`——即只剩 prismatic 块导轨没有可测轴证据。rigidMotion/sourceMotion/motion/topology/identity/重构等行为不变，仍按 gate 与预算真实记录。A001 仍未通过，缺口已缩到 prismatic 轴（以及高负载下的预算类 NOT_RUN）。
+
+验证：普通测试 1117 PASS / 3 SKIP / 0 FAIL（1120 项、166 文件、6210 断言、29.60 秒）；typecheck、lint 通过；无模型调用，余额 92.42 元不变。下一步：为 prismatic 轴设计实测证据——优先做“活塞-缸筒”式圆柱移动副夹具（可用同一 bore/shaft 测量方法），或为块导轨设计可测间隙/接触证据；然后再看 A001 与 bundle 的多关节总评。
