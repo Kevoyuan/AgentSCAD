@@ -97,7 +97,11 @@ export function measureRevoluteFit(input: {
   const spec = parsed.data;
   const connection = spec.connections.find((item) => item.id === input.connectionId);
   if (!connection) return { ...base, status: "ERROR", reason: "Unknown connection." };
-  if (connection.type !== "revolute") return { ...base, status: "NOT_RUN", reason: `Connection type "${connection.type}" is not measured by this check.` };
+  // A cylindrical prismatic pair (piston in a bore) is measured with the same
+  // bore/shaft section method; block guides have no boreInstanceId and are
+  // rejected by the caller before this point.
+  if (connection.type !== "revolute" && connection.type !== "prismatic")
+    return { ...base, status: "NOT_RUN", reason: `Connection type "${connection.type}" is not measured by this check.` };
   if (!connection.frameA || !connection.frameB) return { ...base, status: "ERROR", reason: "A revolute joint needs a frame on both instances." };
   if (input.boreInstanceId !== connection.a && input.boreInstanceId !== connection.b) {
     return { ...base, status: "ERROR", reason: "The bore instance must be one of the connection's two instances." };

@@ -41,8 +41,8 @@ export async function prepareContractAssembly(input:Parameters<typeof prepareAss
       const clearance=contract.requirements.find(requirement=>requirement.id==="diametral-clearance"&&requirement.required&&requirement.applicable);
       if(clearance){
         const derived:AssemblyFitRequirement[]=[];
-        for(const connection of checked.data.connections.filter(item=>item.type==="revolute"&&item.boreInstanceId)){
-          try{derived.push(...toFitRequirements(contract,checked.data,{connectionId:connection.id,boreInstanceId:connection.boreInstanceId}));}
+        for(const connection of checked.data.connections.filter(item=>(item.type==="revolute"||item.type==="prismatic")&&item.boreInstanceId)){
+          try{derived.push(...toFitRequirements(contract,checked.data,{connectionId:connection.id,boreInstanceId:connection.boreInstanceId,allowPrismatic:true}));}
           catch{/* absence stays visible as NOT_RUN for that joint */ }
         }
         if(derived.length)fitRequirements=derived;

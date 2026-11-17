@@ -46,7 +46,7 @@ export function checkMeasuredJointFrames(input:{
   const checked=validateAssemblySpec(input.spec);
   if(!checked.success)return finish("ERROR","Invalid assembly specification.");
   const connection=checked.data.connections.find(item=>item.id===input.measurement.connectionId);
-  if(!connection||connection.type!=="revolute")return finish("NOT_RUN","No supported revolute connection for the measured features.");
+  if(!connection||(connection.type!=="revolute"&&connection.type!=="prismatic"))return finish("NOT_RUN","No supported cylindrical joint connection for the measured features.");
   const measurement=input.measurement;
   if(measurement.status!=="MEASURED")return finish(measurement.status,`Mating features were not measured: ${measurement.reason}`);
   const sides=[measurement.bore,measurement.shaft];

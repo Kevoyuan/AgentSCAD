@@ -112,3 +112,17 @@ describe("request to measured evidence", () => {
     expect(contract.requirements.find((item) => item.id === "diametral-clearance")?.expected).toEqual({ kind: "range", min: 0.1, max: 0.3, unit: "mm" });
   });
 });
+
+
+test("a cylindrical prismatic fit is derived only when explicitly allowed", () => {
+  const contract = deriveRequirementContract({ request: "做一个曲柄滑块机构，曲柄半径 8 mm，连杆长度 28 mm，直径间隙 0.1 到 0.6 mm，能转 360 度" });
+  const prismatic = spec([{
+    id: "slide", type: "prismatic", a: "bore-instance", b: "shaft-instance",
+    frameA: axis, frameB: axis, range: null, pitchMm: null, ratio: null,
+    boreInstanceId: "bore-instance", allowedContact: [],
+  }]);
+  expect(() => toFitRequirements(contract, prismatic, { connectionId: "slide", boreInstanceId: "bore-instance" })).toThrow("exactly one revolute");
+  expect(toFitRequirements(contract, prismatic, {
+    connectionId: "slide", boreInstanceId: "bore-instance", allowPrismatic: true,
+  })[0].connectionId).toBe("slide");
+});
