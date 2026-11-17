@@ -2126,3 +2126,18 @@ Ran 57 tests across 12 files. [1068.11s]
 边界不变：研究者夹具、模拟确认合同、显式 60 秒非默认预算；非实物/用户验收/自主生成；默认 15 秒慢主机仍可能 NOT_RUN；自主 measured-core 仍为 0。
 
 验证：普通测试 1121 PASS / 3 SKIP / 0 FAIL（1124 项、167 文件）；完整原生 56 PASS / 1 SKIP / 0 FAIL；typecheck、lint 通过。无模型调用，余额 92.42 元不变。下一步：用 env 预算跑路由级产品 A001/导出，或转向模型生成候选/物理。
+
+## 102. 产品 A001 通过 env 重构预算验证（2026-11-17）
+
+上一轮把 `AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS` 接到所有准备路径，但 A001 测试仍显式传预算。本轮改为**只设置环境变量、不显式传预算**，验证产品默认路径：
+
+- 测试设置 `AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS=60000`；
+- `validateAssemblyArtifact` 使用自定义 prepare 仅模拟“合同已确认”，不再传 `reconstructionBudgetMs`；
+- `prepareContractAssembly` 从 env 解析预算，A001 八层（identity/topology/reconstruction/jointFrames/assembly/rigidMotion/sourceMotion/motion）全部 PASS、`row.status PASS / passed true`；
+- 同时断言 A001 消息含 `Digital evidence only`。
+
+这证明证据路由、bundle 路由与 A001 验证共享同一个有界运维配置，而不是只在测试里手工传参。目标用例约 **73 秒 PASS**。
+
+边界不变：研究者夹具、模拟确认合同、显式 60 秒非默认预算；数字证据，非实物/用户验收；默认 15 秒慢主机仍可能 NOT_RUN；自主 measured-core 仍为 0。
+
+验证：单元 1121 PASS / 3 SKIP / 0 FAIL（1124 项、167 文件）；typecheck、lint 通过；完整原生套件在改动前为 56 PASS / 1 SKIP / 0 FAIL，本轮仅改测试输入机制，未重跑整套件。无模型调用，余额 92.42 元不变。下一步：重跑完整原生套件重新基线，或转向模型生成候选/物理。
