@@ -226,6 +226,7 @@ export function collectAssemblyFindings(input: {
 export const ASSEMBLY_REPAIR_INVARIANTS: readonly string[] = [
   "Keep every part, instance and connection listed above. Do not merge two parts into one, do not drop a joint, do not rename an instance.",
   "Do not change the declared motion range to a smaller one.",
+  "Keep each motion's input connection, parameter and set of instance pose-selector keys. A selector's view implementation may be corrected (for example, use the posed view that honors agentscad_pose=true), because the source verifier re-measures every listed input; do not remove the binding or change its parameter.",
   "Do not change which instance carries the bore.",
   "Keep each connection's frameA, frameB and declared fitStationsMm unchanged. Changing the measurement scope is not a repair; if the geometry cannot accommodate them, state the limitation and leave the declaration unchanged.",
   "Keep the grounded instance and every declared operation's ID, action and instance. Paths and order may be corrected but must be measured again; deleting a failed operation is not a repair.",
@@ -308,9 +309,25 @@ export function assertRepairPreservesAssembly(input: {
 
   if (before.data.groundedInstanceId !== after.data.groundedInstanceId) violations.push({ code: "ground-changed", message: "The grounded instance changed." });
   for (const motion of before.data.motions) {
-    if (motion.sourceInput && canonicalJson(motion.sourceInput)
-      !== canonicalJson(after.data.motions.find(item => item.id === motion.id)?.sourceInput ?? null))
-      violations.push({ code: "requirement-relaxed", message: `Motion "${motion.id}" removed or changed its source input binding. Preserve the parameter and instance views during geometry repair.` });
+    if (!motion.sourceInput) continue;
+    const repairedMotion = after.data.motions.find(item => item.id === motion.id);
+    const repairedInput = repairedMotion?.sourceInput;
+    if (!repairedInput) {
+      violations.push({ code: "requirement-relaxed", message: `Motion "${motion.id}" removed its source input binding. Preserve the parameter and the set of instance views during geometry repair.` });
+      continue;
+    }
+    if (repairedInput.parameter !== motion.sourceInput.parameter) {
+      violations.push({ code: "requirement-relaxed", message: `Motion "${motion.id}" changed its source input parameter. Preserve the parameter and the set of instance views during geometry repair.` });
+      continue;
+    }
+    const beforeKeys = Object.keys(motion.sourceInput.poseSelectors).sort();
+    const afterKeys = Object.keys(repairedInput.poseSelectors).sort();
+    if (canonicalJson(beforeKeys) !== canonicalJson(afterKeys)) {
+      violations.push({ code: "requirement-relaxed", message: `Motion "${motion.id}" changed the set of instance pose selectors. Preserve the parameter and the set of instance views during geometry repair.` });
+    }
+    // Selector values may change: a wrong local/posed view is a real defect, and
+    // the source verifier re-measures every listed input against the expected
+    // poses, so a mistaken selector cannot become a passing claim.
   }
   const afterOperations = new Map(after.data.operations.map(operation => [operation.id, operation]));
   const afterProbes = new Map((after.data.translationProbes ?? []).map(probe => [probe.id,probe]));

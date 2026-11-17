@@ -458,6 +458,17 @@ test("repairs retain source bindings and receive actual source motion failures",
     { ...before, motions: [without] },
     { ...before, motions: [{ ...motion, sourceInput: { ...sourceInput, parameter: "idle" } }] },
   ]) expect(assertRepairPreservesAssembly({ before, after }).violations.some(item => item.code === "requirement-relaxed")).toBe(true);
+  // Dropping an instance selector also invalidates the declaration before the
+  // preservation comparison can run, so it is still rejected.
+  const missingSelector = assertRepairPreservesAssembly({ before, after: { ...before, motions: [{ ...motion,
+    sourceInput: { parameter: "angle", poseSelectors: { "bore-instance": "bore" } } }] } });
+  expect(missingSelector.ok).toBe(false);
+  expect(missingSelector.violations.length).toBeGreaterThan(0);
+  // A wrong local/posed view is a geometry defect the repair may fix; the source
+  // verifier re-measures the selector output, so this is not a relaxed claim.
+  const fixedView = { ...before, motions: [{ ...motion, sourceInput: { ...sourceInput,
+    poseSelectors: { "bore-instance": "bore", "shaft-instance": "shaft-posed" } } }] };
+  expect(assertRepairPreservesAssembly({ before, after: fixedView }).ok).toBe(true);
   expect(assertRepairPreservesAssembly({ before, after: before }).ok).toBe(true);
   const findings = collectAssemblyFindings({ manifest: { fits: [], evidence: {
     sourceMotion: { status: "FAIL", reason: "angle-0 shaft-instance has different bounds" }
