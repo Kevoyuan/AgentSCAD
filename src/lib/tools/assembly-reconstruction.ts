@@ -16,7 +16,7 @@ export interface ReconstructionEvidence {
   status: "PASS" | "FAIL" | "ERROR" | "NOT_RUN";
   reason: string;
   method: "placed-oriented-triangles-or-boolean/v1";
-  comparison: "exact-oriented-triangles" | "mesh-symmetric-difference" | null;
+  comparison: "exact-oriented-triangles" | "exact-oriented-triangles-float32" | "mesh-symmetric-difference" | null;
   coverage: string;
   specificationSha256: string | null;
   assemblySha256: string | null;
@@ -176,6 +176,32 @@ export async function checkAssemblyReconstruction(input: {
         result.comparison="exact-oriented-triangles";result.residualTriangles=0;
         // No Boolean volume was measured in this branch.
         return finish("PASS","Every placed exported triangle has an exactly equal, equally oriented delivered triangle, including multiplicity, at this pose.");
+      }
+      // STL coordinates are float32, while a placed part is transformed in
+      // double precision. Compare the transformed coordinates after rounding to
+      // the stored float32 mesh precision before paying for a CGAL Boolean.
+      const f32=(value:number)=>Math.fround(value);
+      const roundedCounts=new Map<string,number>();
+      for(let i=0;i<complete.coordinates.length;i+=9) {
+        const k=key([0,3,6].map(j=>Array.from(complete.coordinates.subarray(i+j,i+j+3))));
+        roundedCounts.set(k,(roundedCounts.get(k)??0)+1);
+      }
+      let roundedEqual=true;
+      outerRounded:for(const instance of spec.instances) {
+        const c=meshes.get(instance.partId)!.coordinates,m=instance.transform;
+        for(let i=0;i<c.length;i+=9) {
+          const k=key([0,3,6].map(j=>[
+            f32(m[0]*c[i+j]+m[1]*c[i+j+1]+m[2]*c[i+j+2]+m[3]),
+            f32(m[4]*c[i+j]+m[5]*c[i+j+1]+m[6]*c[i+j+2]+m[7]),
+            f32(m[8]*c[i+j]+m[9]*c[i+j+1]+m[10]*c[i+j+2]+m[11]),
+          ]));
+          const count=roundedCounts.get(k)??0;if(!count){roundedEqual=false;break outerRounded;}roundedCounts.set(k,count-1);
+        }
+      }
+      if(roundedEqual) {
+        if(Date.now()-started>=budgetMs)return finish("NOT_RUN","Reconstruction exhausted its time budget during float32 triangle comparison.");
+        result.comparison="exact-oriented-triangles-float32";result.residualTriangles=0;
+        return finish("PASS","Every placed exported triangle matches a delivered triangle at float32 mesh precision, including multiplicity and orientation, at this pose.");
       }
     }
     result.comparison="mesh-symmetric-difference";

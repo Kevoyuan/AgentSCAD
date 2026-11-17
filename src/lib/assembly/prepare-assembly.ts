@@ -153,6 +153,8 @@ export async function prepareAssembly(input: {
   contractSnapshot?: { contract: unknown; request: string };
   /** Replay a saved sampling protocol. HTTP adapters generate a fresh seed. */
   sourceSamplingSeed?: string;
+  /** Optional reconstruction time budget for complex assemblies; default 15 s. */
+  reconstructionBudgetMs?: number;
   onSourcePoseArtifact?: (artifact: SourcePoseArtifact) => void | Promise<void>;
   options?: ScadExecutionOptions;
   render?: Renderer;
@@ -211,7 +213,7 @@ export async function prepareAssembly(input: {
     : input.contractGate
     ? (input.contractGate.evidenceCurrent ? null : input.contractGate.reason?.trim() || "The requirement contract has not been confirmed against the current request, so its results cannot count.")
     : null;
-  const reconstruction = await checkAssemblyReconstruction({ spec, meshes, assemblyMesh: input.assemblyMesh?.stl, options: input.options });
+  const reconstruction = await checkAssemblyReconstruction({ spec, meshes, assemblyMesh: input.assemblyMesh?.stl, options: input.options, budgetMs: input.reconstructionBudgetMs });
   const reconstructionEvidence = applyContractGate(reconstruction.status, reconstruction.reason, gateReason);
   const fits = (input.fitRequirements ?? []).map((requirement) => {
     const measurement = measureRevoluteFit({

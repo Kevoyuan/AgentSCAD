@@ -60,9 +60,11 @@ module slider_part() {
   difference() {
     cylinder(h = piston_length, r = piston_radius, center = true);
     rotate([90, 0, 0]) cylinder(h = 20, r = 2.2, center = true);
-    // Fork slot admits the connecting rod on the crank side while the wrist
-    // pin hole stays a closed cylindrical bore.
-    translate([0, 2, -2]) cylinder(h = 12, r = 5.5, center = true);
+    // Fork slots admit the connecting rod on the crank side while the wrist
+    // pin hole stays a closed cylindrical bore. The bottom slot is wider so the
+    // rod's lower bearing edge sweeps clear at the range endpoints.
+    translate([0, 2, -6]) cylinder(h = 4, r = 7, center = true);
+    translate([0, 2, 0]) cylinder(h = 8, r = 5.5, center = true);
   }
 }
 
