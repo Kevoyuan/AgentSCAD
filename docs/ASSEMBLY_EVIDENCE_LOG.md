@@ -1976,3 +1976,21 @@ pro 单次试点（`hinge-retention-45`，单任务、maxRepairs=0、non-thinkin
 这为“活塞-缸筒”式曲柄滑块准备了可测 prismatic 轴；当前 `slider_crank_declared.scad` 的滑块仍是块导轨，所以它的 `jointFrames` 仍只列 `slide` 未测，A001 仍未通过。下一步可以基于该测量路径编写活塞-缸筒式曲柄滑块声明夹具，让四连接全部有实测轴后重新评估 A001/bundle。
 
 验证：普通测试 1118 PASS / 3 SKIP / 0 FAIL（1121 项、166 文件、6212 断言、28.18 秒）；两个原生 prismatic 测试 PASS（约 7.4 秒）；typecheck、lint 通过。无模型调用，余额 92.42 元不变。主机负载已降到约 4，下一轮可尝试完整原生套件。
+
+## 94. 活塞-缸筒式曲柄滑块：四个连接全部实测配合，A001 仍卡在运动/重构（2026-11-17）
+
+基于上一轮的圆柱 prismatic 测量路径，本轮编写了原创声明夹具 `benchmarks/assembly/piston_crank_declared.scad`：
+
+- 四零件：frame（缸筒 + 曲柄轴承板 + 入口扩孔）、crank（曲柄盘/轴/销）、rod（连杆，曲柄端为孔，活塞端为外露销）、piston（活塞，含 Y 向销孔与让杆槽）。
+- 四个连接：`crank_axis`/`crank_pin`/`wrist` 三个 revolute + `slide` 圆柱 prismatic；全部有 `boreInstanceId` 与 fit stations。
+- 声明零位与 canonical 协议对齐：曲柄轴 +Y 过原点，滑块轴 +Z，R=8、L=28。
+
+测量与证据（原生产品测试 95.6 秒）：
+- `fits` 四条全部 **PASS / measuredStatus PASS**，四条 `jointFrames measuredStatus PASS`；曲柄轴/曲柄销/腕销间隙约 0.38–0.42 mm，活塞-缸筒约 0.40–0.59 mm。
+- `manifest.mechanismDimensions` **MEASURED**：曲柄半径 8.000000 mm、连杆长度 28.000000 mm。
+- identity、topology、requirements **PASS**；`crank-radius`、`rod-length`、`diametral-clearance` 断言 PASS。
+- 仍存在、并写入测试锁定的缺口：`rigidMotion FAIL`（当前 −45° 采样仍有干涉，定位在 rod/slider 区域），`reconstruction NOT_RUN`（15 秒预算在主机负载下耗尽），`sourceMotion NOT_RUN`（受重构预算/杆面片影响），因此 **A001 仍未通过**。
+
+实现修正：连杆长度改为“垂直于销轴平面内的距离”（不同 frame 原点可沿销轴错开）；测量第二轴颈时允许连杆外露销代替第二个孔；增加短销 station families；这些使四关节尺寸测量在活塞式布局上成立。旧块导轨曲柄滑块产品测试仍 PASS。
+
+验证：普通测试 1118 PASS / 3 SKIP / 0 FAIL（1121 项、166 文件、6212 断言、30.04 秒）；两个原生测试 PASS；typecheck、lint 通过。无模型调用，余额 92.42 元不变。下一步：(1) 消除 −45° 的 rod/slider 干涉（让杆槽/连杆端部几何），(2) 为复杂装配提供可配置重构预算或降低面数，(3) 四个连接全 PASS 后再复查 A001/bundle。
