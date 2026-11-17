@@ -210,6 +210,12 @@ describe("requirement extraction for a crank-slider", () => {
     expect(contract.assumptions.join(" ")).toContain("0.001");
   });
 
+  test("a crank-slider clearance is stated to apply to every measurable revolute fit", () => {
+    const contract = derive("做一个曲柄滑块机构，曲柄半径 8 mm，连杆长度 28 mm，直径间隙 0.1 到 0.6 mm，能转 360 度");
+    expect(contract.requirements.some((item) => item.id === "diametral-clearance")).toBe(true);
+    expect(contract.assumptions.join(" ")).toContain("所有带 boreInstanceId 的可测 revolute");
+  });
+
   test("missing dimensions stay an explicit unknown", () => {
     const contract = derive("做一个曲柄滑块机构，能转 360 度");
     expect(contract.requirements.some((item) => item.id === "crank-radius")).toBe(false);

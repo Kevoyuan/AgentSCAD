@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { prepareAssembly } from "./prepare-assembly";
+import { prepareAssembly, type AssemblyFitRequirement } from "./prepare-assembly";
 import { validateAssemblySpec } from "./assembly-spec";
 import { renderAssemblyParts } from "../tools/assembly-part-renderer";
 import { RequirementContractSchema } from "../requirements/requirement-contract";
@@ -39,9 +39,13 @@ export async function prepareContractAssembly(input:Parameters<typeof prepareAss
     kinematics={connectionId:slider.crankAxisConnectionId,sliderCrank:true};
     if(!fitRequirements){
       const clearance=contract.requirements.find(requirement=>requirement.id==="diametral-clearance"&&requirement.required&&requirement.applicable);
-      const crankAxis=checked.data.connections.find(connection=>connection.id===slider.crankAxisConnectionId);
-      if(clearance&&crankAxis?.boreInstanceId&&crankAxis.type==="revolute"){
-        try{fitRequirements=toFitRequirements(contract,checked.data,{connectionId:crankAxis.id,boreInstanceId:crankAxis.boreInstanceId});}catch{/* absence stays visible as NOT_RUN */ }
+      if(clearance){
+        const derived:AssemblyFitRequirement[]=[];
+        for(const connection of checked.data.connections.filter(item=>item.type==="revolute"&&item.boreInstanceId)){
+          try{derived.push(...toFitRequirements(contract,checked.data,{connectionId:connection.id,boreInstanceId:connection.boreInstanceId}));}
+          catch{/* absence stays visible as NOT_RUN for that joint */ }
+        }
+        if(derived.length)fitRequirements=derived;
       }
     }
   }

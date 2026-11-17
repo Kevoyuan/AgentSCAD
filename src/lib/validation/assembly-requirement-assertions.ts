@@ -221,19 +221,25 @@ export function assessAssemblyRequirements(contract: RequirementContract, spec: 
       const revolutes = spec.connections.filter(connection => connection.type === "revolute");
       if (!revolutes.length) return result("NOT_RUN", "A declared revolute connection is required for this fit check.");
       const fits = prepared.fits.filter(fit => revolutes.some(connection => connection.id === fit.connectionId));
-      if (fits.length !== 1) return result("NOT_RUN", "Exactly one measured revolute fit is required for this clearance comparison; multiple fitted joints need an explicitly named connection.");
-      const fit = fits[0];
-      if (fit.status !== "PASS") return result(fit.status, fit.reason);
-      const measured = fit.diametralClearanceMm;
-      if (fit.measuredStatus !== "PASS" || !measured || !Number.isFinite(measured.min) || !Number.isFinite(measured.max)
-          || measured.min > measured.max || !fit.stationsMm.length || fit.stationsMm.some(station => !Number.isFinite(station)))
-        return result("ERROR", "The passing fit record has no valid measured interval and stations.");
+      if (!fits.length) return result("NOT_RUN", "No measured revolute fit is available for this clearance comparison.");
+      // A crank-slider request states one clearance band for the mechanism; the
+      // extraction records that it applies to every measurable revolute fit.
+      // Unmeasured joints stay visible through the jointFrames layer.
       const wanted = requirement.expected;
-      if (measured.max < wanted.min || measured.min > wanted.max)
-        return result("FAIL", `Measured diametral clearance ${measured.min}–${measured.max} mm is outside ${wanted.min}–${wanted.max} mm.`);
-      if (measured.min < wanted.min || measured.max > wanted.max)
-        return result("ERROR", `Measured clearance ${measured.min}–${measured.max} mm crosses the requested band ${wanted.min}–${wanted.max} mm.`);
-      return result("PASS", `Measured ${measured.min}–${measured.max} mm at ${fit.stationsMm.length} axial stations, within ${wanted.min}–${wanted.max} mm; unsampled geometry and manufacturing remain unverified.`);
+      let measuredCount = 0;
+      for (const fit of fits) {
+        if (fit.status !== "PASS") return result(fit.status, fit.reason);
+        const measured = fit.diametralClearanceMm;
+        if (fit.measuredStatus !== "PASS" || !measured || !Number.isFinite(measured.min) || !Number.isFinite(measured.max)
+            || measured.min > measured.max || !fit.stationsMm.length || fit.stationsMm.some(station => !Number.isFinite(station)))
+          return result("ERROR", "A passing fit record has no valid measured interval and stations.");
+        if (measured.max < wanted.min || measured.min > wanted.max)
+          return result("FAIL", `Measured diametral clearance ${measured.min}–${measured.max} mm at ${fit.connectionId} is outside ${wanted.min}–${wanted.max} mm.`);
+        if (measured.min < wanted.min || measured.max > wanted.max)
+          return result("ERROR", `Measured clearance ${measured.min}–${measured.max} mm at ${fit.connectionId} crosses the requested band ${wanted.min}–${wanted.max} mm.`);
+        measuredCount++;
+      }
+      return result("PASS", `Measured ${measuredCount} revolute fit(s) within ${wanted.min}–${wanted.max} mm; unsampled geometry and manufacturing remain unverified.`);
     }
     if (requirement.expected.kind !== "atLeast" || requirement.expected.unit !== "deg")
       return result("NOT_RUN", "The motion coverage checker supports degree lower bounds only.");

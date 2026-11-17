@@ -259,6 +259,9 @@ export function deriveRequirementContract(input: {
     }
     if (!clearanceRange && !toleranceMatch) addUnknown("hinge-fit", "孔与轴的直径及配合公差未给出。", ["assembly"]);
   }
+  if (intentKind === "crank-slider" && draft.requirements.some((item) => item.id === "diametral-clearance")) {
+    draft.assumptions.push("间隙要求按声明中所有带 boreInstanceId 的可测 revolute 配合应用；未测连接仍需保持 NOT_RUN。");
+  }
   if (intentKind === "threaded") addUnknown("thread-geometry", "螺距、旋向、公差等级未给出。", ["assembly"]);
   if (intentKind === "gear-train") addUnknown("gear-geometry", "模数、齿数、压力角与侧隙未给出。", ["assembly", "motion"]);
   if (intentKind === "crank-slider") {

@@ -49,12 +49,15 @@ test("product preparation derives slider-crank kinematics and carries rigid plus
   }
   expect(result.manifest.evidence.rigidMotion.status).toBe("PASS");
   expect(result.manifest.evidence.rigidMotion.reason).toContain("free of interference");
-  expect(result.fits[0].status).toBe("PASS");
-  expect(result.fits[0].measuredStatus).toBe("PASS");
-  // Only the driven revolute has a fit requirement here; the other three
-  // connections remain explicitly unmeasured rather than being assumed clear.
+  expect(result.fits).toHaveLength(3);
+  for (const fit of result.fits) {
+    expect(fit.status, `${fit.connectionId}: ${fit.reason}`).toBe("PASS");
+    expect(fit.measuredStatus).toBe("PASS");
+  }
+  // The three revolute joints now have measured axes; the block-guide
+  // prismatic joint remains explicitly unmeasured rather than assumed clear.
   expect(result.manifest.evidence.jointFrames.status).toBe("NOT_RUN");
-  expect(result.manifest.evidence.jointFrames.reason).toContain("No measured axes for");
+  expect(result.manifest.evidence.jointFrames.reason).toContain("No measured axes for: slide");
   expect(result.manifest.evidence.physical.status).toBe("NOT_RUN");
 }, 600000);
 
