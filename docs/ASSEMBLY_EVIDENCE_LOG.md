@@ -1683,3 +1683,17 @@ before/after分别保留9及11份原始制造/姿态/总装STL、全部参数与
 边界：这是工具级证据，尚未接入 `prepareContractAssembly`/A001、装配包或产品导出；只覆盖五个离散角度和一次 180° 不可观测记录，不证明连续轨迹；源码驱动的装拆路径、保持力、磨损、制造公差和实物功能都未验证；一维曲柄滑块不等于 V8 多缸。M4 仍未完成。本轮没有模型调用或费用增量；账户余额与上轮相同。
 
 验证：普通测试 1086 PASS / 3 SKIP / 0 FAIL（1089 项、164 文件、6101 断言、28.26 秒）；typecheck、lint 通过。原生套件 48 PASS / 1 SKIP / 0 FAIL（49 项、9 文件、710.28 秒；1 项环境跳过，不计为通过）。
+
+## 75. 四任务真实基线显示 measured-core 仍为 0，并新增闭合表面 topology 证据（2026-11-16）
+
+本轮先用强化后的试验提示在原始四任务冻结集 `tasks.json` 上跑真实基线（`.agentscad/experiments/paid-deepseek-assembly-KR33qu`）：6 次调用后因连续两个任务失败而停止，deepseek-v4-flash，保守记账 0.241378 元，`codeUnchangedDuringRun` 为 true，ledger 为 TERMINAL；两个任务未开始（NOT_RUN）。报告 `passRate 0`、`measuredCorePassed 0 / measuredCoreRate 0`。
+
+失败细节：第 1 题（±45° 间隙）前两次尝试有可解析声明，第二次零件数与身份 PASS、实测关节帧 PASS，但装配/拆卸路径、采样运动、直径间隙与声明的保持探针均 FAIL；第三次尝试编译失败。第 2 题（±90° 紧间隙）首次无有效声明，后续声明把两个横销探针写成 100 mm 世界位移，起始位姿即相交/被挡，零件数 FAIL、装配拆卸 FAIL、重建 ERROR、关节帧 ERROR。第 3、4 题因连续失败停止条件未启动。
+
+本轮同时确认一个指标结构问题：原始四题只要求“可拆”而未明确轴向保持方式，派生合同会带 `unresolved-axial-retention` 未知项，judge 证据中的 `unresolved-*` 会阻止 measured-core。因此 `tasks.json` 上的 measured-core 0 不能单独归因于几何，必须用明确写出保持/释放条件的冻结任务集（如 `retention-tasks-v2.json`）才能测模型的可测几何能力。后续试验集的每个条件都应显式写出，避免未知项淹没 core 指标。
+
+产品实现方面，本轮新增 `topology` 证据层（`src/lib/assembly/prepare-assembly.ts`、`src/lib/assembly/assembly-bundle.ts`）：全部生成零件都是单一闭合、朝向一致、边连通的表面时为 PASS；任一零件 FAIL 时为 FAIL，任一 ERROR 时为 ERROR，开放/无法认证时为 NOT_RUN。理由明确说明该检查不覆盖尺寸、自交、壁厚、材料、制造与物理功能；`geometry` 层语义不变（尺寸仍 NOT_RUN）。单元测试覆盖闭合盒子 PASS、分离碎片 FAIL、单三角开放面 NOT_RUN，并断言 topology PASS 不会把 geometry 提升为 PASS。装配包的 README 层列表加入 topology。
+
+边界：本轮没有新增模型自主通过、A001 通过或实物证据；四任务基线只说明当前模型在该提示下仍未产生可测核心通过，且原始任务集含未显式条件。topology 只是有限表面拓扑，不是完整几何或制造验收。新 key 累计费用 0.623558 元（第71-73节 0.382180 + 本轮 0.241378），账户显示余额约 98.6 元；所有付费 ledger TERMINAL，凭据未入库。未执行完整 WASM、浏览器端到端、实物或用户验收。
+
+验证：普通测试 1089 PASS / 3 SKIP / 0 FAIL（1092 项、164 文件、6107 断言、27.67 秒）；typecheck、lint 通过。原生套件未能完整重跑：主机在运行期间多次挂起/严重降速，多个原生用例的墙钟超时（单独的 assembly-reconstruction 用例在可运行窗口内 PASS 用时 18.1 秒，正常约 0.6 秒；pipeline 正常验证用例 PASS 用时 4.58 秒；assembly-hinge 选择器用例 PASS 用时 187.85 秒），因此不把这次受限运行当作完整原生套件通过。最近一次完整原生套件（48 PASS / 1 SKIP / 0 FAIL，49 项、9 文件）在提交 `783b8bf` 上执行；本轮 topology 变更是 manifest 字段与 bundle 层列表新增，单元测试和 bundle 单元覆盖，缺少同版本完整原生结果这一缺口保留、不宣称关闭。
