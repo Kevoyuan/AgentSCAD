@@ -135,7 +135,7 @@ describe("multi-joint kinematics mode", () => {
         triangleCount: box.readUInt32LE(80), diagnostics: "" })), purchasedPartIds: [] }),
     });
     expect(result.manifest.evidence.rigidMotion.status).toBe("NOT_RUN");
-    expect(result.manifest.evidence.rigidMotion.reason).toContain("Multi-joint rigid sampling");
+    expect(result.manifest.evidence.rigidMotion.reason).toContain("rigid sampling");
     expect(result.manifest.evidence.sourceMotion.status).toBe("NOT_RUN");
     expect(result.manifest.evidence.motion.status).toBe("NOT_RUN");
     expect(result.manifest.kinematics).toBeNull();

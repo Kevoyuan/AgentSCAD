@@ -15,6 +15,9 @@ import { RequirementContractSchema, requirementContractHash, unknownsInScope, wi
 import { deriveRequirementContract } from "../requirements/extract-requirements";
 import { checkDeclaredTranslationProbes } from "./declared-translation-probes";
 import { buildSourcePoseProtocol } from "./source-pose-protocol";
+import { buildSliderCrankSourcePoseProtocolFromSpec } from "../tools/slider-crank-source-pose";
+import { buildBvh, placeBvh, bvhIntersects } from "../geometry/mesh-collision";
+import { readBinaryStl } from "../geometry/stl-mesh";
 import { verifySourcePoses, type SourcePoseArtifact } from "../tools/source-pose-verification";
 
 const sha256 = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
@@ -50,6 +53,65 @@ function combine(statuses: EvidenceStatus[], reasons: string[], empty: string): 
 function applyContractGate(status: EvidenceStatus, reason: string, gateReason: string | null): { status: EvidenceStatus; reason: string } {
   if (gateReason === null || status !== "PASS") return { status, reason };
   return { status: "NOT_RUN", reason: `${gateReason} The measurement itself passed: ${reason}` };
+}
+
+/** Rigid collision sampling at the canonical analytic slider-crank poses.
+ * Expectations come from the declared frames; the meshes remain the measured
+ * objects. Only listed sampled angles are covered. */
+function checkSliderCrankRigidMotion(input: {
+  spec: AssemblySpec; meshes: Record<string, Buffer>; connectionId: string; steps: number;
+}) {
+  const unknowns = [
+    "Only the listed sampled crank angles are covered; a narrow obstruction between samples can be missed.",
+    "The poses are ideal rigid transforms derived from declared frames; no load, friction, play or compliance is modelled.",
+    "No clearance to a hand, tool or printer is modelled.",
+  ];
+  const base = { status: "NOT_RUN" as EvidenceStatus, reason: "", connectionId: input.connectionId,
+    rangeDeg: null as { min: number; max: number } | null, steps: 0, stepDeg: 0, posesEvaluated: 0,
+    collisionTests: 0, toleratedContacts: 0, blockedAt: null as null | { angleDeg: number; worst: string; blocking: unknown[] },
+    coverage: "", unknowns };
+  const motion = input.spec.motions.find((item) => item.inputConnectionId === input.connectionId);
+  const range = motion?.range;
+  if (!range || range.unit !== "deg" || !Number.isFinite(range.min) || !Number.isFinite(range.max) || range.max <= range.min)
+    return { ...base, reason: "The driven motion has no usable angular range for rigid sampling." };
+  const steps = Math.max(2, Math.min(65, Number.isInteger(input.steps) ? input.steps : 9));
+  const angles = Array.from({ length: steps }, (_, index) => range.min + (range.max - range.min) * index / (steps - 1));
+  const built = buildSliderCrankSourcePoseProtocolFromSpec({ spec: input.spec, anglesDeg: angles, budgetMs: 120000 });
+  if (built.status !== "READY")
+    return { ...base, rangeDeg: { min: range.min, max: range.max }, reason: `Multi-joint rigid sampling could not prepare canonical poses: ${built.reason}` };
+  const meshes = new Map<string, ReturnType<typeof buildBvh>>();
+  for (const instance of input.spec.instances) {
+    const part = input.spec.parts.find((item) => item.id === instance.partId);
+    if (!part || part.source !== "generated" || !input.meshes[part.id])
+      return { ...base, rangeDeg: { min: range.min, max: range.max }, reason: `Multi-joint rigid sampling needs a generated mesh for ${instance.id}.` };
+    if (!meshes.has(part.id)) meshes.set(part.id, buildBvh(readBinaryStl(input.meshes[part.id])));
+  }
+  let collisionTests = 0, posesEvaluated = 0;
+  for (const item of built.protocol.cases) {
+    const angleDeg = angles[posesEvaluated];
+    const placed = input.spec.instances.map((instance) => {
+      const part = input.spec.parts.find((entry) => entry.id === instance.partId)!;
+      return { id: instance.id, partId: part.id, placed: placeBvh(meshes.get(part.id)!, item.transforms[instance.id]) };
+    });
+    for (let a = 0; a < placed.length; a++) for (let b = a + 1; b < placed.length; b++) {
+      if (placed[a].partId === placed[b].partId) continue;
+      const collision = bvhIntersects(placed[a].placed, placed[b].placed);
+      collisionTests += collision.testedPairs;
+      if (collision.status === "UNKNOWN")
+        return { ...base, rangeDeg: { min: range.min, max: range.max }, steps, stepDeg: (range.max - range.min) / (steps - 1),
+          posesEvaluated: posesEvaluated + 1, collisionTests, reason: `A sampled pose could not be decided: ${collision.reason}` };
+      if (collision.blocked)
+        return { ...base, status: "FAIL", rangeDeg: { min: range.min, max: range.max }, steps,
+          stepDeg: (range.max - range.min) / (steps - 1), posesEvaluated: posesEvaluated + 1, collisionTests,
+          blockedAt: { angleDeg, worst: "BLOCKED", blocking: [{ a: placed[a].id, b: placed[b].id, status: collision.status, reason: collision.reason }] },
+          reason: `Rigid slider-crank sampling is blocked at ${angleDeg.toFixed(2)}°: ${placed[a].id} interferes with ${placed[b].id} (${collision.status}).` };
+    }
+    posesEvaluated++;
+  }
+  return { ...base, status: "PASS" as EvidenceStatus, rangeDeg: { min: range.min, max: range.max },
+    steps, stepDeg: (range.max - range.min) / (steps - 1), posesEvaluated, collisionTests,
+    coverage: `${posesEvaluated} sampled crank angles covering ${range.min}° to ${range.max}° at ${((range.max - range.min) / (steps - 1)).toFixed(3)}° steps; all placed generated parts checked pairwise.`,
+    reason: `Every one of ${posesEvaluated} sampled crank angles was free of interference.` };
 }
 
 /**
@@ -207,16 +269,23 @@ export async function prepareAssembly(input: {
     measuredStatus: declaredDisassembly.status,
     measuredReason: declaredDisassembly.reason,
   };
+  const sliderRigid = input.kinematics?.sliderCrank
+    ? checkSliderCrankRigidMotion({ spec, meshes, connectionId: input.kinematics.connectionId, steps: input.kinematics.motionSteps ?? 9 })
+    : null;
+  const sliderRigidEvidence = sliderRigid
+    ? applyContractGate(sliderRigid.status as EvidenceStatus, sliderRigid.reason, gateReason) : null;
   let motionEvidence = kinematics
     ? applyContractGate(kinematics.motion.status as EvidenceStatus, kinematics.motion.reason, gateReason)
-    : input.kinematics?.sliderCrank
-      ? { status: "NOT_RUN" as const, reason: "Multi-joint rigid sampling is not implemented; only source-driven evidence is available for this mechanism." }
-      : { status: "NOT_RUN" as EvidenceStatus, reason: "Motion was not checked." };
+    : sliderRigidEvidence
+      ? sliderRigidEvidence
+      : input.kinematics?.sliderCrank
+        ? { status: "NOT_RUN" as const, reason: "Multi-joint rigid sampling was not prepared." }
+        : { status: "NOT_RUN" as EvidenceStatus, reason: "Motion was not checked." };
   const motionFrames=fits.find(fit=>fit.connectionId===input.kinematics?.connectionId)?.jointFrames;
   if(kinematics?.motion.status==="PASS"&&motionEvidence.status==="PASS"&&motionFrames?.status!=="PASS") {
     motionEvidence={status:motionFrames?.status??"NOT_RUN",reason:`Rigid-pose collision samples passed, but the actual mating feature axes were not verified against the declared motion frame: ${motionFrames?.reason??"No measured mating feature axes."}`};
   }
-  const rigidMotionEvidence = motionEvidence;
+  const rigidMotionEvidence = sliderRigidEvidence ?? motionEvidence;
   const sourceProtocol = buildSourcePoseProtocol(spec, input.sourceSamplingSeed ?? randomBytes(16).toString("hex"));
   const canVerifySource = sourceProtocol.status === "READY" && input.contractGate?.evidenceCurrent === true
     && contractBinding?.requestMatches === true && gateReason === null

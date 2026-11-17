@@ -5,6 +5,7 @@ import { renderAssemblyParts } from "../tools/assembly-part-renderer";
 import { RequirementContractSchema } from "../requirements/requirement-contract";
 import { toFitRequirements } from "../requirements/contract-bridge";
 import { automaticHingeKinematics } from "./automatic-hinge-kinematics";
+import { automaticSliderCrankKinematics } from "./automatic-slider-crank";
 
 /** Shared by explicit verification and export; never invokes a model. */
 export async function prepareContractAssembly(input:Parameters<typeof prepareAssembly>[0]) {
@@ -23,9 +24,31 @@ export async function prepareContractAssembly(input:Parameters<typeof prepareAss
   const autoBound=input.contractGate?.evidenceCurrent===true&&contract?.intent.kind==="revolute-hinge"
     &&contract.requestSha256===createHash("sha256").update(input.contractSnapshot!.request.trim()).digest("hex")
     &&checked.data.connections.length===1&&revolute.length===1&&!!revolute[0].boreInstanceId&&!!clearance;
-  const fitRequirements=input.fitRequirements??(autoBound?toFitRequirements(contract!,checked.data):undefined);
+  let fitRequirements=input.fitRequirements??(autoBound?toFitRequirements(contract!,checked.data):undefined);
   const wantsMotion=contract?.requirements.some(requirement=>requirement.id==="sampled-motion"&&requirement.required&&requirement.applicable);
   const wantsRemoval=contract?.requirements.some(requirement=>requirement.id==="disassembly-path"&&requirement.required&&requirement.applicable);
-  const kinematics=input.kinematics??(autoBound&&(wantsMotion||wantsRemoval)?automaticHingeKinematics(checked.data):undefined);
+  let kinematics=input.kinematics??(autoBound&&(wantsMotion||wantsRemoval)?automaticHingeKinematics(checked.data):undefined);
+  // A confirmed, request-matching crank-slider contract can drive the canonical
+  // multi-joint source protocol. The driven revolute still needs a measured fit
+  // for the source gate, so derive one only when the contract names a clearance
+  // and the declaration names which instance carries the bore.
+  const slider=automaticSliderCrankKinematics(checked.data);
+  const requestMatches=!!contract&&!!input.contractSnapshot
+    &&contract.requestSha256===createHash("sha256").update(input.contractSnapshot.request.trim()).digest("hex");
+  if(!kinematics&&slider&&input.contractGate?.evidenceCurrent===true&&requestMatches&&contract&&wantMotion(contract)){
+    kinematics={connectionId:slider.crankAxisConnectionId,sliderCrank:true};
+    if(!fitRequirements){
+      const clearance=contract.requirements.find(requirement=>requirement.id==="diametral-clearance"&&requirement.required&&requirement.applicable);
+      const crankAxis=checked.data.connections.find(connection=>connection.id===slider.crankAxisConnectionId);
+      if(clearance&&crankAxis?.boreInstanceId&&crankAxis.type==="revolute"){
+        try{fitRequirements=toFitRequirements(contract,checked.data,{connectionId:crankAxis.id,boreInstanceId:crankAxis.boreInstanceId});}catch{/* absence stays visible as NOT_RUN */ }
+      }
+    }
+  }
   return prepareAssembly({...input,assemblyMesh,fitRequirements,kinematics});
+}
+
+function wantMotion(contract: import("../requirements/requirement-contract").RequirementContract) {
+  return contract.requirements.some((requirement) => requirement.id === "sampled-motion"
+    && requirement.required && requirement.applicable);
 }
