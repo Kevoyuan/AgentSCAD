@@ -2141,3 +2141,26 @@ Ran 57 tests across 12 files. [1068.11s]
 边界不变：研究者夹具、模拟确认合同、显式 60 秒非默认预算；数字证据，非实物/用户验收；默认 15 秒慢主机仍可能 NOT_RUN；自主 measured-core 仍为 0。
 
 验证：单元 1121 PASS / 3 SKIP / 0 FAIL（1124 项、167 文件）；typecheck、lint 通过；完整原生套件在改动前为 56 PASS / 1 SKIP / 0 FAIL，本轮仅改测试输入机制，未重跑整套件。无模型调用，余额 92.42 元不变。下一步：重跑完整原生套件重新基线，或转向模型生成候选/物理。
+
+## 103. 完整原生套件重新基线：56 PASS / 1 SKIP / 0 FAIL（含 env 预算 A001，2026-11-17）
+
+在环境预算版 A001 测试合入后，重新运行完整原生套件（`bun run test:openscad`，12 文件）：
+
+```
+56 pass
+1 skip
+0 fail
+747 expect() calls
+Ran 57 tests across 12 files. [1080.64s]
+```
+
+关键通过项：
+- `piston-crank-product` 三用例全部 PASS，其中 A001 用例改为**只设置 `AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS=60000`、不显式传预算**，仍达到 A001 PASS（约 74 秒），证明产品默认准备路径共享该运维配置；
+- 活塞 bundle、slider-crank 产品/bundle、prismatic、源码协议、pipeline A001、source-pose、retention-release、assembly-hinge、reconstruction 等全部通过；
+- 唯一 skip 为 Python mesh 依赖缺失的 CGAL 圆孔用例（SKIP 不计通过）。
+
+权威全绿记录更新为 **56 PASS / 1 SKIP / 0 FAIL（57 项、12 文件、1080.64 秒、747 expect）**。这确认了本轮新增的 env 预算代码在 A001/证据/导出路径上的实际行为，而不仅是 helper 单测。
+
+边界不变：研究者夹具、模拟确认合同、60 秒非默认预算；数字证据，非实物/用户验收/自主生成；默认 15 秒慢主机仍可能 NOT_RUN；自主 measured-core 仍为 0。
+
+验证：普通测试 1121 PASS / 3 SKIP / 0 FAIL（1124 项、167 文件）；完整原生 56 PASS / 1 SKIP / 0 FAIL；typecheck、lint 通过。无模型调用，余额 92.42 元不变。下一步：转向模型生成候选的 A001/证据链，或物理/隐藏集方向。
