@@ -1832,3 +1832,17 @@ A001 仍未通过：jointFrames 需要 `crank_pin`、`wrist` 的实测配合和 
 用离线 judge 复查被守卫拒绝的那份修复稿：identity/连通性/间隙/重构/关节帧/刚体运动仍 PASS，但声明路径仍在采样姿态相交，因此任务不会因此直接通过；guard 修复只是解除误拦，不改变测量结论。source 的 NOT_RUN 在主机高负载下仍可能来自 90 秒预算。
 
 验证：普通测试 1107 PASS / 3 SKIP / 0 FAIL（1110 项、165 文件、6178 断言、36.03 秒）；typecheck、lint 通过；完整原生套件未重跑（主机 load 10–13）。所有试验产物/台账在 gitignored 目录，临时密钥文件已删除。下一步：针对路径采样相交提供更具体的修复反馈（哪一段、哪个障碍、间隙方向），并继续用 non-thinking 小步试验观察 selector 修复是否让 source-motion 转为 PASS。
+
+## 85. 路径反馈细化；试验 E 显示单次提示/守卫修复不足以稳定改善（2026-11-17）
+
+本轮先把声明的刚性路径失败反馈细化：`checkRigidPosePath` 的失败原因现在包含障碍实例、失败采样位序（或“起始位姿已相交”）与碰撞状态；修复提示相应增加“起始位姿相交时先修装配几何，再改 waypoints；中间碰撞时让扫掠体绕开命名障碍，不得删除操作”。单元覆盖了中间碰撞和起始碰撞两种原因，以及修复 finding 的起始位姿提示。
+
+随后用 non-thinking 跑试验 E（4 次调用；余额 93.32→93.29，观测约 0.03 元；台账 upper estimate 0.115374 元）。结果比试验 D 差：
+- `hinge-retention-45` 第一次生成通过 distinct-parts、identity、diametral-clearance、joint-frames，但 part-connectivity FAIL、assembly/disassembly-path FAIL、sampled-motion FAIL、rigid-motion FAIL；修复后 connectivity/fit 反而退化。
+- `hinge-retention-tight-30` 两次都没有通过 connectivity+rigid 组合，路径仍相交，fit/joint frames 在修复后 ERROR。
+- 2 任务都 FAIL、measured-core 0；上一轮的 selector 守卫修复没有被这次试验触发到通过路径。
+这与试验 D 的单候选 7 层 PASS 形成波动，说明当前 deepseek-flash + 单轮修复提示的产出不稳定；提示词和反馈的局部改进能提高信息质量，但还不足以稳定跨过几何/运动/路径组合门槛。
+
+边界：全部为数字证据，0 实测/用户验收；余额与台账 upper estimate 存在结算差异，观测花费以余额为准。所有试验目录、授权台账在 gitignored 路径，临时密钥已删除。完整原生套件仍未重跑（主机 load 10–19）。
+
+验证：普通测试 1109 PASS / 3 SKIP / 0 FAIL（1112 项、165 文件、6186 断言、31.04 秒）；typecheck、lint 通过。下一步建议从“继续堆提示”转为结构性方案：把修复输入缩成单一最高优先级 finding、或分阶段生成（几何→声明→姿态视图），并在下一轮用同样的两任务集做对照；若仍无改善，考虑向用户说明当前模型/预算下的自主上限。
