@@ -1959,3 +1959,20 @@ pro 单次试点（`hinge-retention-45`，单任务、maxRepairs=0、non-thinkin
 原生产品测试结果（69.1 秒）：`fits` 为 3 条（crank_axis、crank_pin、wrist），全部 `status PASS / measuredStatus PASS`；`jointFrames` 仍 NOT_RUN，但原因现在只列 `slide`——即只剩 prismatic 块导轨没有可测轴证据。rigidMotion/sourceMotion/motion/topology/identity/重构等行为不变，仍按 gate 与预算真实记录。A001 仍未通过，缺口已缩到 prismatic 轴（以及高负载下的预算类 NOT_RUN）。
 
 验证：普通测试 1117 PASS / 3 SKIP / 0 FAIL（1120 项、166 文件、6210 断言、29.60 秒）；typecheck、lint 通过；无模型调用，余额 92.42 元不变。下一步：为 prismatic 轴设计实测证据——优先做“活塞-缸筒”式圆柱移动副夹具（可用同一 bore/shaft 测量方法），或为块导轨设计可测间隙/接触证据；然后再看 A001 与 bundle 的多关节总评。
+
+## 93. 圆柱移动副进入测量路径：prismatic bore/shaft 配合与关节帧 PASS（2026-11-17）
+
+上一轮收掉三个 revolute 后，A001 只剩 prismatic 块导轨没有可测轴。本轮先把**可测的圆柱移动副**（活塞-缸筒式）纳入同一测量体系。
+
+改动（提交 `da00d76`）：
+1. `measureRevoluteFit` 接受 `prismatic` 连接（仅当声明了 `boreInstanceId` 的圆柱副；块导轨仍不支持），继续用 bore/shaft 截面测量与轴向 station 扫描。
+2. `measured-joint-frame` 允许 prismatic 的实测轴与声明 frame 比较；非圆柱关节仍 NOT_RUN。
+3. `toFitRequirements` 新增 `allowPrismatic` 选项（默认关闭，保持既有语义）；曲柄滑块自动派生时对带 `boreInstanceId` 的 prismatic 开启。
+4. 新增原创夹具 `benchmarks/assembly/prismatic_guide_declared.scad`：缸筒（内径 10、外径 14）内放活塞（直径 9.6、长 20），声明为 prismatic + `boreInstanceId: guide1` + fit stations [−5,0,5]。
+5. 原生测试：
+   - 正例：配合实测 diametral clearance 约 0.388–0.412 mm，`fits[0].status PASS`、`measuredStatus PASS`、jointFrames `measuredStatus PASS`；
+   - 反例：活塞半径 4.95（间隙不足）→ fit FAIL。
+
+这为“活塞-缸筒”式曲柄滑块准备了可测 prismatic 轴；当前 `slider_crank_declared.scad` 的滑块仍是块导轨，所以它的 `jointFrames` 仍只列 `slide` 未测，A001 仍未通过。下一步可以基于该测量路径编写活塞-缸筒式曲柄滑块声明夹具，让四连接全部有实测轴后重新评估 A001/bundle。
+
+验证：普通测试 1118 PASS / 3 SKIP / 0 FAIL（1121 项、166 文件、6212 断言、28.18 秒）；两个原生 prismatic 测试 PASS（约 7.4 秒）；typecheck、lint 通过。无模型调用，余额 92.42 元不变。主机负载已降到约 4，下一轮可尝试完整原生套件。
