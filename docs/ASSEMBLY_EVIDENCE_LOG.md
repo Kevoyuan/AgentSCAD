@@ -2020,3 +2020,28 @@ pro 单次试点（`hinge-retention-45`，单任务、maxRepairs=0、non-thinkin
 验证：普通测试 1118 PASS / 3 SKIP / 0 FAIL（1121 项、166 文件、6212 断言、29.14 秒）；活塞 A001 与四关节测试 PASS（约 74/72 秒）；旧曲柄滑块产品测试（含 bundle）与 prismatic 测试仍 PASS；typecheck、lint 通过。无模型调用，余额 92.42 元不变。
 
 下一步：把同一 A001 证据链用于**模型生成的候选**（当前自主 measured-core 仍为 0），或先把 60 秒重构路径产品化（可配置预算）、补 bundle 与用户可见报告；同时在文档中明确 A001 PASS 的夹具/模拟确认/预算边界。
+
+## 96. 完整原生套件首次全绿：55 PASS / 1 SKIP / 0 FAIL（2026-11-17）
+
+主机负载降到约 5 后，重新运行完整原生套件（`bun run test:openscad`，12 个文件）：
+
+```
+55 pass
+1 skip
+0 fail
+731 expect() calls
+Ran 56 tests across 12 files. [990.39s]
+```
+
+这是本项目第一次把 topology、曲柄滑块源码协议、滑块产品/bundle、圆柱 prismatic、四关节活塞-缸筒 A001 等全部新证据放在同一版本上通过完整原生验证。关键通过项包括：
+- `piston-crank-product.openscad.test.ts`：四关节夹具全部配合/关节帧、机制尺寸、**A001 PASS**（模拟确认合同 + 60 秒重构预算）——两项各约 72 秒；
+- `slider-crank-product-source.openscad.test.ts`：产品准备与装配包（含 README 尺寸行）通过；
+- `prismatic-guide.openscad.test.ts`：圆柱 prismatic 正/反例通过；
+- `slider-crank-source-pose.openscad.test.ts`：源码驱动曲柄滑块解析对照通过；
+- `pipeline-assembly.openscad.test.ts`：完整明确合同 A001 PASS 与离线试验归因通过；
+- `source-pose-verification`、`retention-release`、`assembly-hinge`、`assembly-reconstruction` 等原有用例全部通过。
+唯一 skip 为 "measures round-hole clearance and valid coplanar CGAL booleans"（Python mesh 依赖未安装，SKIP 不计通过）。
+
+覆盖边界：这次全绿证明**当前源码版本**下这些 native 检查可执行且断言成立，不等同于实物、用户验收、隐藏集/自主生成通过。A001 的活塞夹具仍是研究者声明 + 模拟确认 + 60 秒非默认预算；默认 15 秒在慢主机上仍可能把 reconstruction 记为 NOT_RUN。自主 measured-core 仍为 0。
+
+验证状态：普通测试 1118 PASS / 3 SKIP / 0 FAIL（1121 项、166 文件）；完整原生 55 PASS / 1 SKIP / 0 FAIL（56 项、12 文件、990.39 秒）；typecheck、lint 通过。无模型调用，余额 92.42 元不变。
