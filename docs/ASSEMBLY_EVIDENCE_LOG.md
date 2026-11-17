@@ -2183,3 +2183,21 @@ Ran 57 tests across 12 files. [1080.64s]
 验证：无源码改动；普通测试 1121 PASS / 3 SKIP / 0 FAIL（1124 项、167 文件）；完整原生套件上一基线 56 PASS / 1 SKIP / 0 FAIL（1080.64 秒）。临时密钥文件已删除，试验目录/台账在 gitignored 路径。
 
 结论：自主生成平台期进一步确认；当前模型+单轮修复不能把近通过候选推过 A001。下一步应转向其他里程碑（物理/隐藏集/V8）或在用户明确同意下尝试不同模型/多轮专门修复；不把研究者的活塞 A001 通过当作自主通过。
+
+## 105. 螺纹副完全旋出：49 个真实渲染位姿的 exit PASS（M5 数字证据，2026-11-17）
+
+M5 螺纹第一步此前缺少“完全旋出”证据。本轮直接运行已有的本地原生实验脚本 `bun scripts/eval/check-thread-exit.ts`（49 个独立渲染位姿，无模型调用）：
+
+- 运行目录：`.agentscad/experiments/thread-exit-Ho4Gxn`（gitignored），保存源码、setup、每个位姿的 STL、report 与 provenance；
+- 环境：OpenSCAD 2021.01、Bun 1.3.13、backend auto；六个 verifier 文件哈希已记录；
+- 源/夹具哈希：source `8b039197…50b5a`，setup `8765ba9d…60b61`。
+
+结果：
+- external thread **PASS**：1.5000 mm 右旋、major/minor 10.000/8.200 mm；internal **PASS**：1.5001 mm 右旋、10.297/8.500 mm；
+- engagement **PASS**；motion **PASS**：每转推进 1.5000 mm、右旋、残差 0、朝向散布 0、螺栓漂移 0，覆盖 12 转；
+- **exit PASS**：采样 exit 为 11.75 转（采样区间 11.5–11.75），覆盖 12 转、最大步长 90°，螺母底面越过实测螺栓顶面 + 0.1 mm clearance；
+- 总报告仍为 **NOT_RUN**，因为 `coaxiality` 仍显示“Thread axis alignment and coaxiality were not independently measured”，且 physical NOT_RUN。这是刻意的：完全旋出只证明所列采样位姿的轴向分离，不证明同轴度、连续螺纹运动、扭矩/预紧/承载/磨损。
+
+M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴度仍 NOT_RUN（需要独立的轴对齐测量）；齿轮/行星传动尚未开始；M5 不能标完成。
+
+边界：12 转、90° 步长、单向命令运动；螺母从 seat 处开始；不排除采样间更早越界或回退；无制造/实物证据。无源码改动；普通测试 1121 PASS / 3 SKIP / 0 FAIL；完整原生套件基线 56 PASS / 1 SKIP / 0 FAIL（1080.64 秒）。无模型调用，余额仍为 86.92 元（调用时口径）。
