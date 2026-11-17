@@ -5,6 +5,7 @@ import { readAssemblySpecification } from "@/lib/pipeline/assembly-spec-record";
 import { lockAssemblyExport,AssemblyExportRejection,JobExecutionConflict,JobExecutionStopped } from "@/lib/pipeline/assembly-export-guard";
 import { readAssemblyVerification,AssemblyVerificationConflict } from "@/lib/pipeline/assembly-verification-record";
 import { prepareContractAssembly } from "@/lib/assembly/prepare-contract-assembly";
+import { resolveAssemblyReconstructionBudgetMs } from "@/lib/assembly/reconstruction-budget";
 
 export const maxDuration=300;
 type Context={params:Promise<{id:string}>};
@@ -36,7 +37,7 @@ export async function POST(request:NextRequest,{params}:Context) {
     let manifest:unknown;
     let errorMessage:string|undefined;
     try {
-      const prepared=await prepareContractAssembly({scadSource:lease.job.scadSource!,spec:lease.spec,options:{signal:lease.signal},contractSnapshot:{contract:lease.requirements.contract,request:lease.job.inputRequest},contractGate:{evidenceCurrent:lease.requirements.evidenceCurrent,reason:lease.requirements.reason}});
+      const prepared=await prepareContractAssembly({scadSource:lease.job.scadSource!,spec:lease.spec,options:{signal:lease.signal},contractSnapshot:{contract:lease.requirements.contract,request:lease.job.inputRequest},contractGate:{evidenceCurrent:lease.requirements.evidenceCurrent,reason:lease.requirements.reason},reconstructionBudgetMs:resolveAssemblyReconstructionBudgetMs()});
       manifest=prepared.manifest;
     } catch(error) {
       lease.signal.throwIfAborted();
