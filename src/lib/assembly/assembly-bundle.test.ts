@@ -84,6 +84,8 @@ describe("assembly part bundle", () => {
     expect(readme).toContain("- assembly: NOT_RUN");
     expect(readme).toContain("Each PASS covers its recorded method and sampled conditions");
     expect(readme).toContain("physical operation");
+    expect(readme).toContain("Digital evidence only");
+    expect(readme).toContain("reconstruction timeout is an execution budget");
     expect(readme).toContain("- sourceMotion: NOT_RUN");
     expect(readme).toContain("- rigidMotion: NOT_RUN");
     // No contract was supplied, so the archive says so rather than implying approval.
