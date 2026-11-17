@@ -223,3 +223,21 @@ describe("requirement extraction for a crank-slider", () => {
     expect(byId["motion-range-negative-end"].expected).toEqual({ kind: "atLeast", min: 45, unit: "deg" });
   });
 });
+
+
+test("stated crank and rod tolerances become the dimension bands", () => {
+  const contract = derive("做一个曲柄滑块机构，曲柄半径 8 ± 0.02 mm，连杆长度 28±0.05 mm，能转 360 度");
+  const byId = Object.fromEntries(contract.requirements.map((item) => [item.id, item]));
+  expect(byId["crank-radius"].expected).toEqual({ kind: "range", min: 7.98, max: 8.02, unit: "mm" });
+  expect(byId["rod-length"].expected).toEqual({ kind: "range", min: 27.95, max: 28.05, unit: "mm" });
+  expect(contract.assumptions.join(" ")).toContain("制造过程");
+});
+
+test("English crank and rod dimensions are recognized", () => {
+  const contract = derive("Design a crank slider with crank radius 8 mm and rod length 28 mm, full rotation.");
+  const ids = contract.requirements.map((item) => item.id);
+  expect(contract.intent.kind).toBe("crank-slider");
+  expect(ids).toContain("crank-radius");
+  expect(ids).toContain("rod-length");
+  expect(ids).toContain("motion-range-deg");
+});

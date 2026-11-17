@@ -56,6 +56,16 @@ function stableSourceMotionRecord(record: Awaited<ReturnType<typeof prepareAssem
   })) };
 }
 
+/** Lines a reader can use without opening manifest.json. */
+export function mechanismDimensionLines(dimensions?: { status: string; crankRadiusMm: number | null; rodLengthMm: number | null } | null): string[] {
+  if (!dimensions || dimensions.status !== "MEASURED" || dimensions.crankRadiusMm === null || dimensions.rodLengthMm === null) return [];
+  return [
+    "Measured mechanism dimensions (digital mesh sections; not a manufacturing tolerance):",
+    `- crank radius: ${dimensions.crankRadiusMm.toFixed(3)} mm`,
+    `- rod length: ${dimensions.rodLengthMm.toFixed(3)} mm`,
+  ];
+}
+
 /**
  * The README is derived from the evidence actually recorded for this build.
  * Fixed claims would go stale as soon as a layer starts being measured.
@@ -68,6 +78,7 @@ function readme(
     contract?: { evidenceCurrent: boolean | null; reason: string; binding?: { sha256: string; revision: number; requestSha256: string } | null };
     evidence: Record<string, { status: string; reason?: string }>;
     sourcePoseArchive?: { status: string; reason: string; files?: Array<{ path: string }> };
+    mechanismDimensions?: { status: string; crankRadiusMm: number | null; rodLengthMm: number | null };
   },
   parts: RenderedAssemblyPart[],
 ): string {
@@ -87,6 +98,7 @@ function readme(
     ...manifest.parts.map(part => `- ${part.id}: ${part.quantity} (${part.source})`),
     "One STL represents one part design; manufacture the stated quantity.",
     "Root-level part STLs are the manufacturing files. Evidence meshes retain validation poses.",
+    ...mechanismDimensionLines(manifest.mechanismDimensions),
     "",
     "Requirement contract:",
     `- ${standing}`,

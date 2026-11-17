@@ -262,27 +262,42 @@ export function deriveRequirementContract(input: {
   if (intentKind === "threaded") addUnknown("thread-geometry", "螺距、旋向、公差等级未给出。", ["assembly"]);
   if (intentKind === "gear-train") addUnknown("gear-geometry", "模数、齿数、压力角与侧隙未给出。", ["assembly", "motion"]);
   if (intentKind === "crank-slider") {
-    const crankRadius = firstMatch(normalized, [
+    // "8 ± 0.02 mm" states a design tolerance; a bare "8 mm" only states a
+    // nominal and gets a documented 0.001 mm digital mesh band instead.
+    const crankWithTolerance = firstMatch(normalized, [
+      /曲柄半径\s*(?:为|是|:|：)?\s*(\d+(?:\.\d+)?)\s*(?:mm|毫米)?\s*±\s*(\d+(?:\.\d+)?)\s*(?:mm|毫米)?/i,
+      /crank\s+radius\s*(?:of\s*)?(\d+(?:\.\d+)?)\s*(?:mm)?\s*±\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+    ]);
+    const crankRadius = crankWithTolerance ?? firstMatch(normalized, [
       /曲柄半径\s*(?:为|是|:|：)?\s*(\d+(?:\.\d+)?)\s*(?:mm|毫米)?/i,
       /crank\s+radius\s*(?:of\s*)?(\d+(?:\.\d+)?)\s*(?:mm)?/i,
     ]);
-    const rodLength = firstMatch(normalized, [
+    const rodWithTolerance = firstMatch(normalized, [
+      /连杆(?:长度|长)\s*(?:为|是|:|：)?\s*(\d+(?:\.\d+)?)\s*(?:mm|毫米)?\s*±\s*(\d+(?:\.\d+)?)\s*(?:mm|毫米)?/i,
+      /(?:connecting\s+)?rod\s+length\s*(?:of\s*)?(\d+(?:\.\d+)?)\s*(?:mm)?\s*±\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+    ]);
+    const rodLength = rodWithTolerance ?? firstMatch(normalized, [
       /连杆(?:长度|长)\s*(?:为|是|:|：)?\s*(\d+(?:\.\d+)?)\s*(?:mm|毫米)?/i,
       /(?:connecting\s+)?rod\s+length\s*(?:of\s*)?(\d+(?:\.\d+)?)\s*(?:mm)?/i,
     ]);
-    const digitalBand = 0.001;
+    const toleranceFor = (match: RegExpMatchArray | null, explicit: boolean) =>
+      explicit ? normalizeNumber(match![2]) : 0.001;
+    const crankBand = toleranceFor(crankWithTolerance, crankWithTolerance !== null);
+    const rodBand = toleranceFor(rodWithTolerance, rodWithTolerance !== null);
     if (crankRadius) {
       const value = normalizeNumber(crankRadius[1]);
       draft.requirements.push(requirement("crank-radius", "motion",
-        { kind: "range", min: value - digitalBand, max: value + digitalBand, unit: "mm" }, "request", crankRadius[0].trim()));
+        { kind: "range", min: value - crankBand, max: value + crankBand, unit: "mm" }, "request", crankRadius[0].trim()));
     }
     if (rodLength) {
       const value = normalizeNumber(rodLength[1]);
       draft.requirements.push(requirement("rod-length", "motion",
-        { kind: "range", min: value - digitalBand, max: value + digitalBand, unit: "mm" }, "request", rodLength[0].trim()));
+        { kind: "range", min: value - rodBand, max: value + rodBand, unit: "mm" }, "request", rodLength[0].trim()));
     }
     if (!crankRadius || !rodLength) {
       addUnknown("crank-geometry", "曲柄半径或连杆长度未给出：需要明确数值才能验收机构尺寸。", ["motion"]);
+    } else if (crankWithTolerance || rodWithTolerance) {
+      draft.assumptions.push("用户给出的曲柄/连杆尺寸公差带用于数字尺寸比较；网格测量不能证明制造过程符合该公差。");
     } else {
       draft.assumptions.push("曲柄半径与连杆长度按请求的名义值建立 ±0.001 mm 数字测量带；制造公差仍未给出。");
     }

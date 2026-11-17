@@ -1,7 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { createHash } from "crypto";
 import { strFromU8, unzipSync } from "fflate";
-import { AssemblyIdentityError, buildAssemblyBundle } from "./assembly-bundle";
+import { AssemblyIdentityError, buildAssemblyBundle, mechanismDimensionLines } from "./assembly-bundle";
 import { prismStl } from "../geometry/__tests__/prism";
 import { boxStl as solidBox, mergeStl, tubeStl } from "../geometry/__tests__/solids";
 import { deriveRequirementContract } from "../requirements/extract-requirements";
@@ -288,5 +288,17 @@ describe("declared disassembly in the archive", () => {
     const manifest = JSON.parse(strFromU8(entries["manifest.json"]));
     expect(manifest.evidence.disassembly.status).toBe("FAIL");
     expect(strFromU8(entries["README.txt"])).toContain("- disassembly: FAIL");
+  });
+});
+
+
+describe("bundle README mechanism dimensions", () => {
+  test("prints only measured dimensions and labels the digital basis", () => {
+    expect(mechanismDimensionLines(undefined)).toEqual([]);
+    expect(mechanismDimensionLines({ status: "NOT_RUN", crankRadiusMm: null, rodLengthMm: null })).toEqual([]);
+    const lines = mechanismDimensionLines({ status: "MEASURED", crankRadiusMm: 8, rodLengthMm: 28 });
+    expect(lines[0]).toContain("digital mesh sections");
+    expect(lines[1]).toBe("- crank radius: 8.000 mm");
+    expect(lines[2]).toBe("- rod length: 28.000 mm");
   });
 });

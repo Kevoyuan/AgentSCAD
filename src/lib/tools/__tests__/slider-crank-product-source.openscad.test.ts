@@ -93,6 +93,8 @@ test("the assembly bundle records rigid, source and composite motion for the dec
   expect(bundle.manifest.mechanismDimensions.status).toBe("MEASURED");
   const files = unzipSync(new Uint8Array(bundle.zip));
   const readme = strFromU8(files["README.txt"]);
+  expect(readme).toContain("- crank radius: 8.000 mm");
+  expect(readme).toContain("- rod length: 28.000 mm");
   expect(readme).toContain("- rigidMotion: PASS");
   expect(readme).toContain("- topology: PASS");
   if (bundle.manifest.evidence.sourceMotion.status === "PASS") {
