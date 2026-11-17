@@ -1697,3 +1697,18 @@ before/after分别保留9及11份原始制造/姿态/总装STL、全部参数与
 边界：本轮没有新增模型自主通过、A001 通过或实物证据；四任务基线只说明当前模型在该提示下仍未产生可测核心通过，且原始任务集含未显式条件。topology 只是有限表面拓扑，不是完整几何或制造验收。新 key 累计费用 0.623558 元（第71-73节 0.382180 + 本轮 0.241378），账户显示余额约 98.6 元；所有付费 ledger TERMINAL，凭据未入库。未执行完整 WASM、浏览器端到端、实物或用户验收。
 
 验证：普通测试 1089 PASS / 3 SKIP / 0 FAIL（1092 项、164 文件、6107 断言、27.67 秒）；typecheck、lint 通过。原生套件未能完整重跑：主机在运行期间多次挂起/严重降速，多个原生用例的墙钟超时（单独的 assembly-reconstruction 用例在可运行窗口内 PASS 用时 18.1 秒，正常约 0.6 秒；pipeline 正常验证用例 PASS 用时 4.58 秒；assembly-hinge 选择器用例 PASS 用时 187.85 秒），因此不把这次受限运行当作完整原生套件通过。最近一次完整原生套件（48 PASS / 1 SKIP / 0 FAIL，49 项、9 文件）在提交 `783b8bf` 上执行；本轮 topology 变更是 manifest 字段与 bundle 层列表新增，单元测试和 bundle 单元覆盖，缺少同版本完整原生结果这一缺口保留、不宣称关闭。
+
+## 76. 滑块曲柄源码协议进入产品准备路径（工具/单元级，2026-11-17）
+
+本轮继续 M4 的产品化接缝：上一节的源码驱动曲柄滑块验证只存在于独立工具测试中，准备函数仍只认识单铰链。现在新增：
+
+1. `src/lib/assembly/automatic-slider-crank.ts`：从装配声明识别四实例接地曲柄滑块——frame–crank revolute、crank–rod revolute、rod–slider revolute、slider–frame prismatic，且恰好一个 motion 驱动接地 revolute 并带 source binding。任何多余实例、错误连接类型、缺少双端 frame 或缺少绑定都返回 null。
+2. `buildSliderCrankSourcePoseProtocolFromSpec`（`src/lib/tools/slider-crank-source-pose.ts`）：只接受 canonical +Y 曲柄轴、+Z 滑轨且装配位姿等于零角度构造的声明；曲柄半径与连杆长度从声明自身的连接 frame 原点读取，再复用独立解析期望生成姿态协议。非 canonical 轴、原点偏移、错误零位姿、缺 binding、重复角度都在渲染前 NOT_RUN。
+3. `src/lib/assembly/source-pose-protocol.ts`：源码协议分派器先尝试既有单铰链协议，失败后再识别曲柄滑块并用声明范围内的五个五分位输入构造协议；分派器只转换声明，不产生几何证据。
+4. `prepareAssembly` 新增 `kinematics.sliderCrank` 显式模式：不再把多关节错误地做单轴刚体旋转采样，`rigidMotion` 保持 NOT_RUN 并写出原因，`sourceMotion` 仍受确认合同、实测关节帧和 source binding 门禁约束；综合 `motion` 仍 NOT_RUN。合同自动接线、A001 和装配包使用尚未实现，因此这不是 M4 通过。
+
+测试（单元，无 OpenSCAD）：新增自动识别正负例（缺绑定、五实例、错误连接类型）、dispatcher 选择（单铰链优先、曲柄滑块 READY 五输入）、canonical 声明协议（半径 8/连杆 28、90° 位姿与解析函数一致）、非 canonical/错误零位姿/重复角度的拒绝，以及 prepareAssembly 的 sliderCrank 模式不伪造刚体运动（rigidMotion NOT_RUN、sourceMotion NOT_RUN、kinematics null）。单元套件 1094 PASS / 3 SKIP / 0 FAIL（1097 项、164 文件）；首次运行曾因主机降速出现 4 个数据库/WebGL 相关偶发失败，重跑为 0 失败；typecheck、lint 通过。
+
+原生验证受主机限制未完成：本轮主机多次长时间挂起，完整原生套件在墙钟超时下失败（多个用例超时，不能归因于代码）；在可运行窗口内单独完成的检查为：assembly-reconstruction 单用例 PASS（18.1 秒）、pipeline 正常验证用例 PASS（4.58 秒）、assembly-hinge 选择器用例 PASS（187.85 秒）。最近一次完整原生套件仍是提交 `783b8bf` 的 48 PASS / 1 SKIP / 0 FAIL（49 项、9 文件）；topology 层与本轮的 source protocol/准备函数改动尚缺同版本完整原生结果，该缺口保留、不宣称关闭。
+
+边界：只支持 canonical 轴对齐的四实例曲柄滑块；协议验证的是“源码输出是否与声明 frame 推导的期望一致”，仍需要实测配合/轴测量和用户合同才能成为产品证据；没有 A001/bundle 通过、连续运动、装拆、载荷或实物证据。本轮没有模型调用，新 key 费用仍为 0.623558 元，账户余额约 98.6 元。
