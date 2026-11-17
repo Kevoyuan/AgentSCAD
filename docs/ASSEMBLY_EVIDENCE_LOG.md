@@ -1918,3 +1918,17 @@ A001 仍未通过：jointFrames 需要 `crank_pin`、`wrist` 的实测配合和 
 边界：没有把 v3 的“更多机会”当作通过；所有证据是数字/声明级；无实物与用户验收。余额 92.75 元，与台账 upper estimate 存在结算差异，以余额为准。完整原生套件仍未重跑（主机负载 10–19）。
 
 验证：普通测试 1115 PASS / 3 SKIP / 0 FAIL（1118 项、166 文件、6202 断言、32.73 秒）；typecheck、lint 通过。下一步建议：(1) 评估更换更强模型/更高输出预算的授权与价格（需要用户确认，因为会改变成本假设）；(2) 同时转回确定性目标，继续 M4/A001 的 crank_pin/wrist 配合与 prismatic 证据，确保项目在自主生成停滞时仍有可验证的工程进展。
+
+## 90. 模型可选：deepseek-v4-pro 单次试点仍未通过（2026-11-17）
+
+在用户允许使用该 DeepSeek key 测试的前提下，本轮先确认了该 key 可用的模型与官方价格：
+
+- `GET /models` 返回 `deepseek-flash`（DeepSeek-V4.1-Flash，1M 上下文、最大 384K 输出）和 `deepseek-v4-pro`（DeepSeek-V4-Pro）。
+- 官方价格（每百万 token）：flash 输入 1–2 元、输出 4–8 元；pro 输入 4.5–9 元、输出 13.5–27 元（空闲/高峰不同）。pro 输出约为 flash 的 3.4 倍。
+- 付费试验脚本新增 `--model`/`--input-price`/`--output-price`：预留、记账、plan 都使用所选价格；默认仍是 `deepseek-v4-flash` 与 2/8 元上限，支持 `deepseek-v4-pro`。dry-run 测试覆盖 model/价格进入 plan 与单次预留。
+
+pro 单次试点（`hinge-retention-45`，单任务、maxRepairs=0、non-thinking；1 次调用；余额 92.56→92.55，观测约 0.01 元；台账 upper estimate 0.120483 元）：模型返回了结构完整的 SCAD 与声明，但声明 schema 无效（`connections.0.fitStationsMm` 少于 2 个；`operations.0.rigidTrajectory.traversal` 的拆卸/插入方向用法冲突），且源码在第 257 行有 OpenSCAD 解析错误；judge evidence 为空，任务 FAIL、measured-core 0。
+
+结论：单次样本说明 pro 也能写出较完整的参数化结构，但严格声明/几何门槛仍未跨过；3.4 倍输出价格下，需要更多样本或配修复轮次才能判断是否值得切换。按用户当前“允许用 key 测试”的范围只做了这一次单调用试点，未把 pro 设为默认。余额 92.55 元。
+
+验证：普通测试 1116 PASS / 3 SKIP / 0 FAIL（1119 项、166 文件、6208 断言、28.71 秒）；typecheck、lint 通过。完整原生套件仍未重跑（主机负载 10–19）。下一步：(1) 若用户同意，用 pro + 1 次修复轮次在同一任务上做小样本对照；(2) 同时继续确定性 M4/A001 的 crank_pin/wrist 配合与 prismatic 证据。
