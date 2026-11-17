@@ -1797,3 +1797,19 @@ A001 仍未通过：jointFrames 需要 `crank_pin`、`wrist` 的实测配合和 
 2. `validateAssemblySpec` 的 pose selector 错误现在点名缺失实例（`Missing: piston.`）和多余实例（`Unknown: ghost.`），使修复提示能指出具体实例，而不是只说“每个实例都需要 selector”。
 
 主机负载仍在 10–25，完整原生套件未重跑。验证：普通测试 1107 PASS / 3 SKIP / 0 FAIL（1110 项、165 文件、6175 断言、34.21 秒）；typecheck、lint 通过。所有试验产物、授权台账和密钥均在 gitignored 目录或临时文件中，密钥文件已删除。下一步：用 non-thinking 继续小额试验，重点改修复提示/几何闭合与孔轴声明，而不是继续加检查器；同时保留 measured-core 0 的诚实记录。
+
+## 83. 生成前几何自检进入编码技能；真实试验首次出现声明有效 + 连通性/配合 PASS（2026-11-17）
+
+本轮继续用新 key 的 non-thinking 模式跑 `retention-tasks-v2.json`（2 任务 × maxRepairs 1），并在编码技能中加入针对上一轮失败模式的几何 preflight。
+
+试验 C（4 次调用，余额 94.00→93.83，观测花费约 0.17 元；台账 upper estimate 0.12382 元）：2 任务仍 FAIL、measured-core 0，但相比试验 B 有实质改善：
+- 两个任务现在都产出**有效内嵌声明**（装配/拆卸/采样运动证据都存在，不再只是部分诊断）。
+- `hinge-retention-45` 第 2 次生成：`distinct-exported-parts`、`part-connectivity`、`measured-part-identity`、`diametral-clearance`、`measured-joint-frames` 均 PASS；剩余失败为 `assembly-path`、`disassembly-path`、`sampled-motion`、`rigid-motion`、`source-motion`，以及重构在 15 秒预算下 NOT_RUN。
+- 具体失败：−45° 端点 leaf1 与 base1 碰撞；插入/拆卸路径起始位姿相交；source 姿态下 leaf1 的 selector 包围盒与渲染姿态不一致（28.285 mm）；任务 2 的 selector 返回整个装配导致 identity FAIL，且声明的轴被做成 3 边形（不是圆柱）。
+这些正是“模型能写声明和零件，但几何/运动/姿态视图不正确”的证据。
+
+新增 `skills/scad-coding/SKILL.md` 的 “Assembly geometry preflight (before returning)”：要求逐 selector 自检单个闭合水密实体、桥接正体积重叠、无 >2 邻接三角形、孔轴 frame/fit stations 在真实圆柱内、至少 24 段圆周、source pose selector 必须返回该实例在驱动姿态下的视图（不能是整个装配或未变换局部件）、检查范围两端及中间姿态的干涉、路径起始位姿不得相交。该技能同时用于产品生成和修复提示。
+
+边界：真实试验仍 0 通过、0 measured-core；重构预算在主机高负载下仍会 NOT_RUN；没有把 preflight 当作通过证据，也没有在模型输出未重测的情况下声称改善。所有试验目录/授权台账在 gitignored 路径，临时密钥文件已删除。
+
+验证：普通测试 1107 PASS / 3 SKIP / 0 FAIL（1110 项、165 文件、6175 断言、46.59 秒）；typecheck、lint 通过。下一步：用新的 preflight 再跑同一任务集，重点看运动端点碰撞、路径起始位姿、selector 姿态视图与 3 边形轴是否改善；若 declaration 仍缺失，再考虑确定性的 selector 补全或分阶段生成。
