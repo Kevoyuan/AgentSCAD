@@ -1724,3 +1724,16 @@ before/after分别保留9及11份原始制造/姿态/总装STL、全部参数与
 边界：这是产品 manifest 级证据，尚未接入 `prepareContractAssembly` 的自动识别、A001 或装配包；A001 的 motion 断言同时要求刚性运动与源码运动，因此仍不会通过；连续轨迹、装拆、载荷、制造与实物未验证；canonical 轴对齐与零位姿限制仍在；声明-源码一致性不等于用户意图或设计正确。本轮没有模型调用，新 key 累计费用仍 0.623558 元。
 
 主机状态与验证：本轮主机负载均值一度达到 9–21，系统维护进程占用大量 CPU。完整原生套件重跑得到 37 PASS / 1 SKIP / 11 FAIL（49 项、9 文件、2265.79 秒），11 个失败全部是 120–180 秒墙钟超时或源码运动预算耗尽，不是断言回归；同一环境下单独运行本轮产品测试 2 PASS。普通测试 1094 PASS / 3 SKIP / 0 FAIL（1097 项、164 文件、6135 断言、48.41 秒）；typecheck、lint 通过。完整原生全套在正常负载下仍需补验，不能把本次受限运行当作通过。
+
+## 78. 多关节刚体采样与合同自动接线，产品准备输出首次出现 motion PASS（2026-11-17）
+
+上一节产品准备函数能输出源码驱动曲柄滑块证据，但 `rigidMotion` 恒为 NOT_RUN、`motion` 无法通过，且合同路径不会自动选择多关节模式。本轮补齐这两块：
+
+1. `prepareAssembly` 在 `kinematics.sliderCrank` 模式下，用 canonical 声明推导的 9 个范围角度位姿放置实际零件网格，对所有跨零件对做 BVH 碰撞查询，输出 PASS/FAIL/NOT_RUN 的 `rigidMotion`（覆盖角度、步长、碰撞数、首个阻挡角度与零件对、未知项）。综合 `motion` 由既有 combine 合并刚体与源码两层，只有两层都 PASS 才 PASS。
+2. `prepareContractAssembly` 识别已确认、请求哈希匹配且包含 sampled-motion 的曲柄滑块合同，自动选择 `{connectionId: crank_axis, sliderCrank: true}`；若调用方未给配合要求，则在合同有直径间隙且声明含 `boreInstanceId` 时自动派生曲柄轴配合要求，否则保持缺失可见。
+
+原生产品测试改为直接调用 `prepareContractAssembly`（不再手工传入 kinematics/fitRequirements）：在原创声明夹具上自动得到曲柄轴配合 PASS、`rigidMotion` PASS、`sourceMotion` PASS、综合 `motion` PASS；把源码曲柄半径 8 改成 9 后同一路径 `sourceMotion` FAIL。两次运行 74.7 秒与 24.8 秒（主机高负载下）。这是产品准备/清单级证据，不是 A001 通过：A001 仍要求 `assembly` 与 `jointFrames` 层覆盖全部连接；当前只测了驱动 revolute，其余两个 revolute 与 prismatic 仍显示未测，所以 A001 保持 NOT_RUN。装配包复用同一准备函数，但尚未用本夹具做原生 bundle 测试，也未把多关节层列入 A001 资格。
+
+边界：九点为有限采样，不证明点间无碰撞或连续轨迹；位姿期望来自声明 frame，不是独立设计意图；prismatic 轴、其余关节配合、装拆、载荷、制造与实物均未验证；canonical 轴对齐与零位姿限制仍在。本轮无模型调用，新 key 累计仍 0.623558 元。
+
+验证：普通测试 1094 PASS / 3 SKIP / 0 FAIL（1097 项、164 文件、6135 断言、27.11 秒）；typecheck、lint 通过；两个产品原生测试 PASS。主机负载仍高，完整原生套件未重跑；上一轮完整尝试的墙钟超时状态继续按未验证记录。
