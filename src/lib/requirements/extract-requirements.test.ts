@@ -194,3 +194,32 @@ describe("contract freezing", () => {
     expect(requirementsInScope(contract)).toEqual(contract.requirements);
   });
 });
+
+
+describe("requirement extraction for a crank-slider", () => {
+  test("explicit crank radius, rod length and full turn become requirements", () => {
+    const contract = derive("做一个曲柄滑块机构，曲柄半径 8 mm，连杆长度 28 mm，能转 360 度");
+    const byId = Object.fromEntries(contract.requirements.map((item) => [item.id, item]));
+    expect(contract.intent.kind).toBe("crank-slider");
+    expect(byId["crank-radius"].expected).toEqual({ kind: "range", min: 7.999, max: 8.001, unit: "mm" });
+    expect(byId["rod-length"].expected).toEqual({ kind: "range", min: 27.999, max: 28.001, unit: "mm" });
+    expect(byId["motion-range-deg"].expected).toEqual({ kind: "atLeast", min: 360, unit: "deg" });
+    expect(byId["crank-radius"].statement).toContain("曲柄半径");
+    expect(contract.unknowns.map((unknown) => unknown.id)).not.toContain("crank-geometry");
+    expect(contract.unknowns.map((unknown) => unknown.id)).not.toContain("motion-range");
+    expect(contract.assumptions.join(" ")).toContain("0.001");
+  });
+
+  test("missing dimensions stay an explicit unknown", () => {
+    const contract = derive("做一个曲柄滑块机构，能转 360 度");
+    expect(contract.requirements.some((item) => item.id === "crank-radius")).toBe(false);
+    expect(contract.unknowns.map((unknown) => unknown.id)).toContain("crank-geometry");
+  });
+
+  test("a signed hinge-style range still produces signed endpoints", () => {
+    const contract = derive("做一个曲柄滑块机构，曲柄半径 8 mm，连杆长度 28 mm，能转 ±45 度");
+    const byId = Object.fromEntries(contract.requirements.map((item) => [item.id, item]));
+    expect(byId["motion-range-deg"].expected).toEqual({ kind: "atLeast", min: 45, unit: "deg" });
+    expect(byId["motion-range-negative-end"].expected).toEqual({ kind: "atLeast", min: 45, unit: "deg" });
+  });
+});

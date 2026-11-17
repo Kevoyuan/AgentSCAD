@@ -16,6 +16,7 @@ import { deriveRequirementContract } from "../requirements/extract-requirements"
 import { checkDeclaredTranslationProbes } from "./declared-translation-probes";
 import { buildSourcePoseProtocol } from "./source-pose-protocol";
 import { buildSliderCrankSourcePoseProtocolFromSpec } from "../tools/slider-crank-source-pose";
+import { measureSliderCrankDimensions } from "./slider-crank-dimensions";
 import { buildBvh, placeBvh, bvhIntersects } from "../geometry/mesh-collision";
 import { readBinaryStl } from "../geometry/stl-mesh";
 import { verifySourcePoses, type SourcePoseArtifact } from "../tools/source-pose-verification";
@@ -309,6 +310,7 @@ export async function prepareAssembly(input: {
     [`reconstruction: ${reconstructionEvidence.reason}`,...fits.map((fit) => `${fit.connectionId}: ${fit.reason}`),...(spec.connections.length?[`joint frames: ${jointFrameEvidence.reason}`]:[]),...(uncheckedConnections.length?[`Connection features were not measured: ${uncheckedConnections.map(connection=>connection.id).join(", ")}.`]:[]),...(spec.translationProbes?.length?[`translation probes: ${translationProbes.reason}`]:[])],
     "Declared poses and connections were not checked against geometry.",
   );
+  const mechanismDimensions = measureSliderCrankDimensions({ spec, meshes });
   const identityEvidence = applyContractGate(identity.status as EvidenceStatus, identity.reason, gateReason);
   const missingRequirements = contract ? unknownsInScope(withDerivedUnknowns(contract,
     deriveRequirementContract({ request: input.contractSnapshot!.request, targetLevel: contract.targetLevel }))) : [];
@@ -333,6 +335,8 @@ export async function prepareAssembly(input: {
     fits,
     kinematics,
     sourceMotion,
+    mechanismDimensions,
+    sliderRigidMotion: sliderRigid,
     reconstruction: { ...reconstruction, ...reconstructionEvidence, measuredStatus: reconstruction.status, measuredReason: reconstruction.reason },
     partConnectivity,
     translationProbes: { ...translationProbes, ...applyContractGate(translationProbes.status, translationProbes.reason, gateReason), measuredStatus: translationProbes.status, measuredReason: translationProbes.reason,

@@ -154,8 +154,15 @@ export function deriveRequirementContract(input: {
     /(-?\d+(?:\.\d+)?)\s*(?:°|度|deg(?:rees)?)?\s*(?:到|至|~|～|to|through)\s*([+-]?\d+(?:\.\d+)?)\s*(?:°|度|deg(?:rees)?)/i,
     /(?:±|\+\/-)\s*(\d+(?:\.\d+)?)\s*(?:°|度|deg(?:rees)?)?/,
   ]);
+  // A crank-slider that can make a full turn states a reach rather than a
+  // signed hinge interval; "360°" is not a two-endpoint hinge range.
+  const fullTurnMatch = intentKind === "crank-slider" && !rangeMatch
+    ? firstMatch(normalized, [/能?转\s*(?:满|一整圈|一圈|360\s*(?:°|度|deg(?:rees)?))|(?:full|complete)\s+(?:turn|rotation)|360\s*(?:°|度|deg(?:rees)?)/i])
+    : null;
   let motionRange: { min: number; max: number } | null = null;
-  if (rangeMatch) {
+  if (fullTurnMatch) {
+    motionRange = { min: 0, max: 360 };
+  } else if (rangeMatch) {
     if (rangeMatch.length === 3) {
       const a = normalizeNumber(rangeMatch[1]);
       const b = normalizeNumber(rangeMatch[2]);
@@ -174,11 +181,12 @@ export function deriveRequirementContract(input: {
     // turns further fail for turning further, which is the opposite of what the
     // request asks for. The magnitude of the largest reach is the assertion.
     const reach = Math.max(Math.abs(motionRange.min), Math.abs(motionRange.max));
-    draft.requirements.push(requirement("motion-range-deg", "motion", { kind: "atLeast", min: reach, unit: "deg" }, "request", rangeMatch![0].trim()));
+    const rangeStatement = (rangeMatch ?? fullTurnMatch)![0].trim();
+    draft.requirements.push(requirement("motion-range-deg", "motion", { kind: "atLeast", min: reach, unit: "deg" }, "request", rangeStatement));
     // Encode both signed endpoints using the existing lower-bound comparator.
     // Negating the minimum expresses actual.min <= requested.min.
-    draft.requirements.push(requirement("motion-range-negative-end", "motion", { kind: "atLeast", min: -motionRange.min, unit: "deg" }, "request", rangeMatch![0].trim()));
-    draft.requirements.push(requirement("motion-range-positive-end", "motion", { kind: "atLeast", min: motionRange.max, unit: "deg" }, "request", rangeMatch![0].trim()));
+    draft.requirements.push(requirement("motion-range-negative-end", "motion", { kind: "atLeast", min: -motionRange.min, unit: "deg" }, "request", rangeStatement));
+    draft.requirements.push(requirement("motion-range-positive-end", "motion", { kind: "atLeast", min: motionRange.max, unit: "deg" }, "request", rangeStatement));
   } else if (motionWord) {
     addUnknown("motion-range", "转动范围未给出：需要明确角度上下限才能验收运动。", ["motion"]);
   }
@@ -253,7 +261,32 @@ export function deriveRequirementContract(input: {
   }
   if (intentKind === "threaded") addUnknown("thread-geometry", "螺距、旋向、公差等级未给出。", ["assembly"]);
   if (intentKind === "gear-train") addUnknown("gear-geometry", "模数、齿数、压力角与侧隙未给出。", ["assembly", "motion"]);
-  if (intentKind === "crank-slider") addUnknown("crank-geometry", "曲柄半径、连杆长度与行程未给出。", ["motion"]);
+  if (intentKind === "crank-slider") {
+    const crankRadius = firstMatch(normalized, [
+      /曲柄半径\s*(?:为|是|:|：)?\s*(\d+(?:\.\d+)?)\s*(?:mm|毫米)?/i,
+      /crank\s+radius\s*(?:of\s*)?(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+    ]);
+    const rodLength = firstMatch(normalized, [
+      /连杆(?:长度|长)\s*(?:为|是|:|：)?\s*(\d+(?:\.\d+)?)\s*(?:mm|毫米)?/i,
+      /(?:connecting\s+)?rod\s+length\s*(?:of\s*)?(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+    ]);
+    const digitalBand = 0.001;
+    if (crankRadius) {
+      const value = normalizeNumber(crankRadius[1]);
+      draft.requirements.push(requirement("crank-radius", "motion",
+        { kind: "range", min: value - digitalBand, max: value + digitalBand, unit: "mm" }, "request", crankRadius[0].trim()));
+    }
+    if (rodLength) {
+      const value = normalizeNumber(rodLength[1]);
+      draft.requirements.push(requirement("rod-length", "motion",
+        { kind: "range", min: value - digitalBand, max: value + digitalBand, unit: "mm" }, "request", rodLength[0].trim()));
+    }
+    if (!crankRadius || !rodLength) {
+      addUnknown("crank-geometry", "曲柄半径或连杆长度未给出：需要明确数值才能验收机构尺寸。", ["motion"]);
+    } else {
+      draft.assumptions.push("曲柄半径与连杆长度按请求的名义值建立 ±0.001 mm 数字测量带；制造公差仍未给出。");
+    }
+  }
   if (intentKind === "multi-cylinder") {
     addUnknown("cylinder-layout", "缸数、V 角、缸心距与曲柄相位未定义；点火顺序不等于机械相位。", ["motion", "assembly"]);
     addUnknown("cylinder-parts", "每个气缸的活塞、连杆、销轴数量与布置未给出。", ["parts", "motion"]);

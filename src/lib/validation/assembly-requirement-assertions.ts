@@ -11,7 +11,7 @@ export interface AssemblyRequirementAssertion {
   reason: string;
 }
 
-const handled = new Set(["distinct-exported-parts", "motion-range-deg", "motion-range-negative-end", "motion-range-positive-end", "diametral-clearance", "axial-retention"]);
+const handled = new Set(["distinct-exported-parts", "motion-range-deg", "motion-range-negative-end", "motion-range-positive-end", "diametral-clearance", "axial-retention", "crank-radius", "rod-length"]);
 export const hasAssemblyRequirementAssertion = (id: string) => handled.has(id);
 
 const AXIAL_PARALLEL = 1 - 1e-6;
@@ -190,6 +190,20 @@ export function assessAssemblyRequirements(contract: RequirementContract, spec: 
   const compare = (requirement: ContractRequirement): AssemblyRequirementAssertion => {
     const result = (status: AssemblyRequirementAssertion["status"], reason: string) => ({ id: requirement.id, status, reason });
     if (requirement.id === "axial-retention") return assessAxialRetention(requirement, spec, prepared, contract);
+    if (requirement.id === "crank-radius" || requirement.id === "rod-length") {
+      if (requirement.expected.kind !== "range" || requirement.expected.unit !== "mm")
+        return result("NOT_RUN", "Mechanism dimensions are compared as a bounded millimetre range only.");
+      const dimensions = (prepared.manifest as { mechanismDimensions?: import("../assembly/slider-crank-dimensions").SliderCrankDimensions }).mechanismDimensions;
+      if (!dimensions) return result("NOT_RUN", "No slider-crank dimension measurement was captured for this candidate.");
+      if (dimensions.status === "ERROR") return result("ERROR", dimensions.reason);
+      if (dimensions.status !== "MEASURED") return result("NOT_RUN", dimensions.reason);
+      const value = requirement.id === "crank-radius" ? dimensions.crankRadiusMm : dimensions.rodLengthMm;
+      if (value === null || !Number.isFinite(value)) return result("ERROR", "The measured mechanism dimension is missing or not finite.");
+      const { min, max } = requirement.expected;
+      if (value < min || value > max)
+        return result("FAIL", `Measured ${requirement.id} ${value.toFixed(6)} mm is outside the requested digital band ${min}–${max} mm. ${dimensions.coverage}`);
+      return result("PASS", `Measured ${requirement.id} ${value.toFixed(6)} mm within the requested digital band ${min}–${max} mm. The band is a mesh-resolution band from the request; manufacturing tolerance remains unverified. ${dimensions.coverage}`);
+    }
     if (requirement.id === "distinct-exported-parts") {
       if (requirement.expected.kind !== "equals" || typeof requirement.expected.value !== "number"
           || !Number.isInteger(requirement.expected.value) || requirement.expected.value < 1)
@@ -204,10 +218,10 @@ export function assessAssemblyRequirements(contract: RequirementContract, spec: 
     if (requirement.id === "diametral-clearance") {
       if (requirement.expected.kind !== "range" || requirement.expected.unit !== "mm")
         return result("NOT_RUN", "The fit checker supports a bounded diametral clearance in millimetres only.");
-      if (spec.connections.length !== 1 || spec.connections[0].type !== "revolute")
-        return result("NOT_RUN", "A single declared revolute connection is required for this fit check.");
-      const fits = prepared.fits.filter(fit => fit.connectionId === spec.connections[0].id);
-      if (fits.length !== 1) return result("NOT_RUN", "No unique fit measurement was produced for the requested joint.");
+      const revolutes = spec.connections.filter(connection => connection.type === "revolute");
+      if (!revolutes.length) return result("NOT_RUN", "A declared revolute connection is required for this fit check.");
+      const fits = prepared.fits.filter(fit => revolutes.some(connection => connection.id === fit.connectionId));
+      if (fits.length !== 1) return result("NOT_RUN", "Exactly one measured revolute fit is required for this clearance comparison; multiple fitted joints need an explicitly named connection.");
       const fit = fits[0];
       if (fit.status !== "PASS") return result(fit.status, fit.reason);
       const measured = fit.diametralClearanceMm;
@@ -224,9 +238,12 @@ export function assessAssemblyRequirements(contract: RequirementContract, spec: 
     if (requirement.expected.kind !== "atLeast" || requirement.expected.unit !== "deg")
       return result("NOT_RUN", "The motion coverage checker supports degree lower bounds only.");
     const motion = prepared.kinematics?.motion;
-    if (evidence.motion.status !== "PASS" || evidence.sourceMotion?.status !== "PASS" || motion?.status !== "PASS" || !motion.rangeDeg)
+    const sliderRigid = (prepared.manifest as { sliderRigidMotion?: { status: string; rangeDeg?: { min: number; max: number } | null } }).sliderRigidMotion;
+    const rangeDeg = motion?.rangeDeg ?? sliderRigid?.rangeDeg ?? null;
+    const rigidPassed = motion?.status === "PASS" || sliderRigid?.status === "PASS";
+    if (evidence.motion.status !== "PASS" || evidence.sourceMotion?.status !== "PASS" || !rigidPassed || !rangeDeg)
       return result("NOT_RUN", `Requested range needs both source-driven pose and ideal rigid-pose evidence: ${evidence.motion.reason}`);
-    const { min, max } = motion.rangeDeg;
+    const { min, max } = rangeDeg;
     if (!Number.isFinite(min) || !Number.isFinite(max) || min > max)
       return result("ERROR", "The measured motion interval is invalid.");
     const value = requirement.id === "motion-range-negative-end" ? -min

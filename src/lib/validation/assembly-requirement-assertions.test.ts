@@ -192,3 +192,37 @@ test("axial retention rejects probes that do not move one joint instance along t
   };
   expect(retentionAssertion(retentionPrepared(), retentionSpec, notRequiredTrue)!.status).toBe("NOT_RUN");
 });
+
+
+test("measured slider-crank dimensions satisfy explicit crank radius and rod length", () => {
+  const derived = deriveRequirementContract({ request: "做一个曲柄滑块机构，曲柄半径 8 mm，连杆长度 28 mm，能转 360 度" });
+  const contract = { ...derived, requirements: derived.requirements.filter((item) => item.id === "crank-radius" || item.id === "rod-length") };
+  const base = retentionPrepared();
+  const withDimensions = (crankRadiusMm: number, rodLengthMm: number): Prepared => ({
+    ...base,
+    manifest: {
+      ...base.manifest,
+      mechanismDimensions: {
+        status: "MEASURED", crankRadiusMm, rodLengthMm,
+        crankPinRadiusMm: { min: 1.999, max: 2.001 }, rodBoreRadiusMm: { min: 2.199, max: 2.201 },
+        reason: "Measured from mesh sections", coverage: "three station families", assumptions: [],
+      },
+    },
+  } as unknown as Prepared);
+  const assertions = (prepared: Prepared) => Object.fromEntries(
+    assessAssemblyRequirements(contract, retentionSpec, prepared).map((item) => [item.id, item]));
+  const passing = assertions(withDimensions(8.0000001, 27.9999998));
+  expect(passing["crank-radius"].status).toBe("PASS");
+  expect(passing["rod-length"].status).toBe("PASS");
+  const outside = assertions(withDimensions(8.5, 29.5));
+  expect(outside["crank-radius"].status).toBe("FAIL");
+  expect(outside["rod-length"].status).toBe("FAIL");
+  const missing = assertions(base);
+  expect(missing["crank-radius"].status).toBe("NOT_RUN");
+  const failedMeasurement: Prepared = {
+    ...base,
+    manifest: { ...base.manifest, mechanismDimensions: { status: "ERROR", crankRadiusMm: null, rodLengthMm: null,
+      crankPinRadiusMm: null, rodBoreRadiusMm: null, reason: "pin not measurable", coverage: "", assumptions: [] } },
+  } as unknown as Prepared;
+  expect(assertions(failedMeasurement)["crank-radius"].status).toBe("ERROR");
+});
