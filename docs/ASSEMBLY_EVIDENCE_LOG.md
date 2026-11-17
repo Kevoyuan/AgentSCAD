@@ -2103,3 +2103,26 @@ Ran 56 tests across 12 files. [990.39s]
 主机负载仍约 18（系统媒体分析），完整原生套件重跑继续受阻；当前权威全绿记录仍是 55 PASS / 1 SKIP / 0 FAIL（另有活塞 bundle 用例单独 PASS，未随整套件重跑）。本轮无源码行为变化超出预算默认与消息文本，单元/typecheck/lint 通过。
 
 验证：普通测试 1121 PASS / 3 SKIP / 0 FAIL（1124 项、167 文件、6224 断言、27.40 秒）；typecheck、lint 通过。无模型调用，余额 92.42 元不变。下一步：主机恢复后重跑完整原生套件；或用 env 预算跑一次产品 A001/导出路径，确认 60 秒预算在路由层生效。
+
+## 101. 完整原生套件含活塞 bundle 用例再次全绿：56 PASS / 1 SKIP / 0 FAIL（2026-11-17）
+
+主机负载回落到约 4–7 后，完整原生套件（`bun run test:openscad`，12 文件）再次通过，并首次把活塞 bundle 用例纳入：
+
+```
+56 pass
+1 skip
+0 fail
+746 expect() calls
+Ran 57 tests across 12 files. [1068.11s]
+```
+
+本轮通过项包含第 96 节全部内容，加上：
+- `piston-crank-product` 三用例：四关节配合/关节帧/机制尺寸、A001 PASS（模拟确认合同 + 60 秒预算）、**真实 buildAssemblyBundle 导出路径**（ZIP 八层 PASS、README 含重构/关节帧/运动与实测尺寸），分别约 71/75/73 秒；
+- 其余 slider-crank 产品/bundle、prismatic、源码协议、pipeline A001、source-pose、retention-release、assembly-hinge、reconstruction 等原有用例全部通过。
+唯一 skip 仍是 Python mesh 依赖缺失的 CGAL 圆孔用例（SKIP 不计通过）。
+
+这次全绿覆盖了本轮新增的全局重构预算代码（`prepareContractAssembly` 默认解析 env）在现有测试路径中的行为，但没有专门针对 env 变量做路由级端到端测试；该变量的 helper 已有单元覆盖。权威全绿记录更新为 **56 PASS / 1 SKIP / 0 FAIL（57 项、12 文件、1068.11 秒）**。
+
+边界不变：研究者夹具、模拟确认合同、显式 60 秒非默认预算；非实物/用户验收/自主生成；默认 15 秒慢主机仍可能 NOT_RUN；自主 measured-core 仍为 0。
+
+验证：普通测试 1121 PASS / 3 SKIP / 0 FAIL（1124 项、167 文件）；完整原生 56 PASS / 1 SKIP / 0 FAIL；typecheck、lint 通过。无模型调用，余额 92.42 元不变。下一步：用 env 预算跑路由级产品 A001/导出，或转向模型生成候选/物理。
