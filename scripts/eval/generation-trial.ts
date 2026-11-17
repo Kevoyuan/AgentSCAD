@@ -550,3 +550,34 @@ if (import.meta.main) {
       process.exitCode = 2;
     });
 }
+
+/**
+ * A repair prompt with several different measured failures tends to produce a
+ * broad rewrite that fixes none of them. Keep the most concrete prerequisite
+ * defects first; the rest stay available in the full judgement for the next
+ * bounded attempt.
+ */
+const REPAIR_PRIORITY: ReadonlyArray<[RegExp, string]> = [
+  [/contains separated pieces|connectivity/i, "connectivity"],
+  [/not independently selectable|measured-part-identity|parts are not independently/i, "identity"],
+  [/does not implement the declared joint frame|mating features|measured diametral clearance|fit measurement/i, "joint-fit"],
+  [/reconstruct the delivered assembly|assembly reconstruction/i, "reconstruction"],
+  [/Declared insertion failed|Declared removal failed|path pose .*intersects|initial pose intersects|starting pose already intersects/i, "path"],
+  [/Rotating through the declared range is blocked/i, "motion"],
+  [/translation probe/i, "probe"],
+  [/Unresolved|Measurement attribution/i, "deferred"],
+];
+export function focusRepairFeedback(feedback: string, maxFindings = 2): string {
+  const lines = feedback.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) return feedback;
+  const ranked = lines.map((line, index) => ({
+    line, index,
+    rank: (() => { const found = REPAIR_PRIORITY.findIndex(([pattern]) => pattern.test(line)); return found < 0 ? REPAIR_PRIORITY.length : found; })(),
+  })).sort((a, b) => a.rank - b.rank || a.index - b.index);
+  const selected = ranked.slice(0, Math.max(1, Math.min(lines.length, Math.trunc(maxFindings))));
+  const deferred = lines.length - selected.length;
+  return [
+    ...selected.map(({ line }) => line),
+    deferred > 0 ? `Address the highest-priority measured defect above first. ${deferred} other finding(s) are deferred until that is fixed.` : "",
+  ].filter(Boolean).join("\n");
+}

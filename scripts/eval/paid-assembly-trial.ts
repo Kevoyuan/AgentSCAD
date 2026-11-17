@@ -12,7 +12,7 @@ import {sanitizeGeneratedScadSource} from "../../src/lib/tools/scad-sanitizer";
 import {extractEmbeddedAssemblySpec} from "../../src/lib/assembly/embedded-spec";
 import {assertRepairPreservesAssembly, ASSEMBLY_REPAIR_INVARIANTS} from "../../src/lib/assembly/repair-findings";
 import {deriveRequirementContract} from "../../src/lib/requirements/extract-requirements";
-import {loadTaskSet,planTrial,runTrial,TrialRefused,worstCaseCalls} from "./generation-trial";
+import {focusRepairFeedback,loadTaskSet,planTrial,runTrial,TrialRefused,worstCaseCalls} from "./generation-trial";
 import {judgeAssemblyCandidate} from "./judge-assembly";
 
 import {ASSEMBLY_VERIFIER_SOURCES} from "../../src/lib/assembly/verification-types";
@@ -162,7 +162,7 @@ async function main() {
         const accounted=calls.reduce((sum,c)=>sum+c.accountedCny,0);
         if(calls.length>=maxCalls||priorAccountedCny+accounted+CALL_CAP_CNY>MAX_CNY)throw new TrialRefused("Authorized budget exhausted");
         const old=previous.get(task.id);
-        const content=attempt===0&&!seed?task.prompt:`Original request: ${task.prompt}\n\nRepair the complete previous SCAD. Preserve required parts, connections, range and clearance.\n\n${old??""}\n\nMeasured feedback:\n${repairPrompt??seed?.feedback??"No measurement available"}`;
+        const content=attempt===0&&!seed?task.prompt:`Original request: ${task.prompt}\n\nRepair the complete previous SCAD. Preserve required parts, connections, range and clearance.\n\n${old??""}\n\nMeasured feedback:\n${focusRepairFeedback(repairPrompt??seed?.feedback??"No measurement available",2)}`;
         const messages=[{role:"system" as const,content:old ? repairSystem : system},{role:"user" as const,content}];
         const tokenBound=Buffer.byteLength(JSON.stringify(messages),"utf8")+1024;
         if(tokenBound>MAX_INPUT_BOUND)throw new TrialRefused("Prompt byte-derived token reservation exceeded");

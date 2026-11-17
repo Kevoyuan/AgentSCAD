@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { focusRepairFeedback } from "./generation-trial";
 import fs from "node:fs/promises";
 import {
   TrialRefused,
@@ -265,5 +266,25 @@ describe("measured-core reporting", () => {
     expect(report.summary.measuredCorePassed).toBe(1);
     expect(report.summary.measuredCoreRate).toBe(1);
     expect(formatTrial(report)).toContain("measured-core rate");
+  });
+});
+
+
+describe("repair focus", () => {
+  test("keeps the prerequisite connectivity defect ahead of motion and paths", () => {
+    const feedback = [
+      "Rotating through the declared range is blocked at -45.00°: leaf interferes with base.",
+      "Declared insertion failed for leaf in assemble_leaf: A sampled path pose intersects.",
+      "Part leaf contains separated pieces: Part-local X empty slab 5.6 to 9.0 mm.",
+      "Measurement attribution: trial only.",
+    ].join("\n");
+    const focused = focusRepairFeedback(feedback, 2);
+    expect(focused).toContain("contains separated pieces");
+    expect(focused).not.toContain("blocked at -45");
+    expect(focused).toContain("deferred");
+  });
+
+  test("falls back to the original feedback when nothing ranks", () => {
+    expect(focusRepairFeedback("No measurement available", 1)).toContain("No measurement available");
   });
 });
