@@ -1765,3 +1765,18 @@ A001 在曲柄滑块上的前两个阻断点（合同未知项、缺少尺寸断
 A001 仍未通过：jointFrames 需要 `crank_pin`、`wrist` 的实测配合和 `slide` prismatic 的轴证据，当前只测了驱动 revolute；高负载下 reconstruction/sourceMotion 的 15/90 秒预算仍可能变成 NOT_RUN。测试已对 source 预算做分支：预算内 PASS 时必须 PASS，预算外只接受 NOT_RUN（原因含 aborted/budget），绝不接受 FAIL 或伪 PASS。
 
 验证：普通测试 1098 PASS / 3 SKIP / 0 FAIL（1101 项、164 文件、6153 断言、29.70 秒）；typecheck、lint 通过。本轮无模型调用，新 key 累计仍 0.623558 元。下一步：为 `crank_pin`、`wrist` 增加实测配合并为 prismatic `slide` 设计可测轴证据，之后再看 A001 与 bundle 的多关节总评。
+
+## 81. 公差化尺寸抽取与装配包实测尺寸行（2026-11-17）
+
+本轮把上一节的曲柄尺寸合同再做实两步：
+
+1. 需求抽取支持显式公差：`曲柄半径 8 ± 0.02 mm`、`连杆长度 28±0.05 mm` 会分别生成 `[7.98, 8.02]`、`[27.95, 28.05]` 的 range requirement，并记录“公差来自请求；网格测量不能证明制造过程符合该公差”。只有裸名义值时才使用 ±0.001 mm 数字测量带。英文 `crank radius 8 mm` / `rod length 28 mm` 以及 `full rotation` 也能识别为曲柄滑块尺寸与整圈范围。
+2. 装配包 README 在满足条件时打印实测机构尺寸：
+   `Measured mechanism dimensions (digital mesh sections; not a manufacturing tolerance):`
+   `- crank radius: 8.000 mm`
+   `- rod length: 28.000 mm`
+   文本来自 manifest 的 `mechanismDimensions`；未测量或非 MEASURED 时不打印，避免把 NOT_RUN 写成尺寸通过。新增纯函数 `mechanismDimensionLines` 并有单元覆盖。
+
+原生产品测试更新：bundle 原生测试断言 README 含 `crank radius: 8.000 mm`、`rod length: 28.000 mm`，连同 rigidMotion/topology 等层一起检查；该用例 71.5 秒 PASS。A001 仍未通过：`crank_pin`、`wrist` 没有实测配合，prismatic `slide` 没有可测轴证据；主机负载仍高（load 10–25），完整原生套件未重跑。
+
+验证：普通测试 1101 PASS / 3 SKIP / 0 FAIL（1104 项、164 文件、6165 断言、30.36 秒）；typecheck、lint 通过。本轮无模型调用，新 key 累计仍 0.623558 元。下一步仍是多关节配合/滑轨证据，或转向分阶段生成把自主成功率从 0 抬起来。
