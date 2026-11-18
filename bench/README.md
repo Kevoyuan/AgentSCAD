@@ -81,7 +81,7 @@ Each layer is `PASS | FAIL | SKIP | ERROR | NOT_RUN`. Within a layer the **worst
 | `source-motion` | `source-motion` | SCAD parameterisation, pose selectors |
 | `reconstruction` | `assembly-reconstruction` | export, re-assembly, budget |
 
-**Layers are not a mirror of the storage taxonomy.** The product keeps twelve storage layers in `verification-types.ts`; a layer exists here only if it has a **repair target no other layer shares**. Three evidence ids are deliberately unmapped: `intent-preserved` (the product states it has no independent audit), `declared-connection-type` and `declared-translation-probes` (declaration preconditions — when they fail, everything downstream is `NOT_RUN` anyway), and `repair-preservation` (it belongs to the repair axis, not to the geometry being scored). Unmapped ids are reported, never dropped.
+**Layers are not a mirror of the storage taxonomy.** The product keeps twelve storage layers; a layer exists here only if it has a **repair target no other layer shares**. Three evidence ids are deliberately unmapped: `intent-preserved` (the product states it has no independent audit), `declared-connection-type` and `declared-translation-probes` (declaration preconditions — when they fail, everything downstream is `NOT_RUN` anyway), and `repair-preservation` (it belongs to the repair axis, not to the geometry being scored). Unmapped ids are reported, never dropped.
 
 ### 2.4 Gap kind: "cannot measure" is not "cannot build"
 
@@ -148,7 +148,7 @@ retention         0     3     0     23      4      0.0%       missing check   Re
 assembly-path     3     19    1     3       4      11.5%      capability      Insertion path and clearance
 disassembly-path  3     22    3     1       1      10.3%      capability      Removal order
 rigid-motion      1     23    1     5       0      3.3%       capability      Kinematics and collision
-source-motion     0     3     0     16      11     0.0%       missing check   SCAD parameterisation and pose selectors
+source-motion     0     3     0     16      11     0.0%      missing check   SCAD parameterisation and pose selectors
 reconstruction    8     2     5     13      2      28.6%      missing check   Export, re-assembly and budget
 ```
 
@@ -167,7 +167,7 @@ Best real candidate: `guided-gated-hinge-v1`, **8/9 layers**, gate not passed (t
 
 `bun run bench:baseline` generates, extracts, writes and scores directly against an OpenAI-compatible endpoint — **not through the product's `model-router`**, because a model comparison should not inherit the product's routing or prompt.
 
-6 tasks × 1 attempt, **0.564 CNY total**:
+6 tasks × 1 attempt, **0.391 CNY total** (run 3 in the table below; the two earlier runs cost 0.564 and 0.399 CNY):
 
 | Task | Status | Coverage | Measured clearance |
 |---|---|---|---|
@@ -192,61 +192,11 @@ Three runs were needed to get here, and the earlier two are kept rather than ove
 | 2 | Chinese | English | 5/6 | 0.399 CNY |
 | 3 | English | English | **6/6** | 0.391 CNY |
 
+Run 2's single failure was `piston-bore-45`: the fit landed in band (0.248–0.252 mm) but the piston interfered during its stroke and on withdrawal — a geometry defect, not a measurement artifact. It is the row that shows the checks can tell "a piston was drawn" from "the requested piston was drawn".
+
 One sample per row at temperature 0: **this is not a language comparison** and must not be quoted as evidence that English prompts work better. The reason run 3 is the recorded one is that it matches the task text and the prompt template that ship in this repository. The other two rows exist so the difference stays visible instead of being quietly replaced.
 
 One earlier failure was a harness limit rather than a model failure: the first pass used `--max-tokens 8192`, three tasks were cut off at **exactly 8192** output tokens, and that surfaced as "no code block found". Raising the cap to 32768 produced real geometry. Counting truncation as a capability failure would have put a tool problem on the model's record.
-
-### The layer table over recorded history
-
-```
-layer             pass  fail  error not_run absent pass rate  gap kind        repair target
-compile           0     1     0     0       29     0.0%       capability      SCAD compilation
-parts-identity    26    3     0     1       0      86.7%      healthy         Selectors and parting strategy
-topology          16    5     0     6       3      59.3%      capability      Boolean ops, wall thickness, connectivity
-joint-frames      8     0     20    0       2      28.6%      inspect ERROR   Declared axes and coordinate transforms
-fit               8     0     20    2       0      26.7%      inspect ERROR   Bore/shaft dimensions and tolerance
-retention         0     3     0     23      4      0.0%       missing check   Retention features and latches
-assembly-path     3     19    1     3       4      11.5%      capability      Insertion path and clearance
-disassembly-path  3     22    3     1       1      10.3%      capability      Removal order
-rigid-motion      1     23    1     5       0      3.3%       capability      Kinematics and collision
-source-motion     0     3     0     16      11     0.0%       missing check   SCAD parameterisation and pose selectors
-reconstruction    8     2     5     13      2      28.6%      missing check   Export, re-assembly and budget
-```
-
-What this says is not "the model is bad":
-
-- **`parts-identity` at 86.7% is essentially solved.** More work there is wasted.
-- **`rigid-motion` 3.3%, `assembly-path` 11.5%, `disassembly-path` 10.3% are real capability gaps**, and they sit late in the ladder — that is where the current effort belongs.
-- **`retention` and `source-motion` are 0% but overwhelmingly `NOT_RUN`.** The model is not failing them; nothing measures them. Talking about model capability on those layers is a category error.
-- **`joint-frames` / `fit` show 20 `ERROR` each and need the finding text** before they can be classified, so they are marked "inspect" rather than guessed.
-
-Best real candidate: `guided-gated-hinge-v1`, **8/9 layers**, gate not passed (the only gap is `retention: NOT_RUN`). That is the progress the "measured-core = 0" line hid.
-
-> This table is built from **product trial records**, which is a different chain from `bench/assembly`. The benchmark can now measure `retention` and `source-motion`, but until the product's judge emits those evidence ids the historical `NOT_RUN` will not disappear. **What moves a metric is wiring, not documentation.**
-
-### The first real baseline
-
-`bun run bench:baseline` generates, extracts, writes and scores directly against an OpenAI-compatible endpoint — **not through the product's `model-router`**, because a model comparison should not inherit the product's routing or prompt.
-
-6 tasks × 1 attempt, **0.564 CNY total**:
-
-| Task | Status | Coverage | Measured clearance | Note |
-|---|---|---|---|---|
-| `hinge-45-loose` | PASS | 6/6 | 0.392–0.407 | inside the declared band |
-| `hinge-60-wide` | PASS | 6/6 | 0.448–0.452 | inside the declared band |
-| `hinge-90-tight` | PASS | 6/6 | 0.242–0.257 | inside the declared band |
-| `hinge-captured-45` | PASS | 6/6 | 0.397–0.403 | inside the declared band, and the 2 mm pull is blocked |
-| `piston-bore-30` | PASS | 6/6 | 0.387–0.412 | inside the declared band |
-| `piston-bore-45` | FAIL | 4/6 | 0.248–0.252 | correct fit, but the piston interferes during the stroke and on withdrawal |
-
-**5/6 pass, and every one of them lands inside its declared clearance band.** The single failure is a real geometry defect: the fit is right, but the part collides over its own stroke.
-
-Two things had to be checked before this row could be believed:
-
-- The **first** run used `--max-tokens 8192`. Three tasks were cut off at **exactly 8192** output tokens and surfaced as "no code block found". That is a harness limit, not a model failure; raising the cap to 32768 produced real geometry. Recording truncation as a capability failure would have put a tool problem on the model's record.
-- The row above is a **re-run** after the output contract was translated to English to match the rest of the repository. The Chinese-contract run scored 4/6 with the same task set and the same model. That is one sample per condition at temperature 0, so it is **not** a language comparison and must not be read as one; what it does mean is that this row belongs to the code that is actually published here, which is what a baseline has to be.
-
-Boundary: **this is a baseline row, not a comparison.** One model, one sample, no hidden set. Its value is that the table now has numbers, not that it lets anyone conclude whether "the model can do this".
 
 ## 5. Order of work
 
@@ -258,6 +208,8 @@ Boundary: **this is a baseline row, not a comparison.** One model, one sample, n
 - [ ] **L3 slider-crank** (1–2 weeks): multi-joint kinematics and a closed loop — the real threshold
 - [ ] **hidden split + external model baselines** (1 week): without these it is a self-test tool
 - [ ] **L5 two-cylinder cross-section** (2–3 weeks): proves the ladder extends to V8 without rewriting the checks
+
+The self-check is **not a CI gate**, by decision. It needs a real OpenSCAD renderer and renders every submission, so it is run on demand: `bun run bench:assembly:check`.
 
 ## 6. Anti-degradation
 

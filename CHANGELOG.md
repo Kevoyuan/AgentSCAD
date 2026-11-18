@@ -3,6 +3,16 @@
 All notable changes to AgentSCAD are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added
+- Public functional-assembly benchmark under `bench/`: six frozen tasks across revolute and prismatic joints, eleven evidence layers, eight adversarial submissions, and a self-check that fails when a reference stops passing or a cheat starts passing
+- Cross-batch ladder report (`bun run bench:ladder`) that scores recorded trial reports on layer coverage and gap kind instead of the all-or-nothing delivery gate
+
+### Fixed
+- State six benchmark tasks in the front page and evaluation docs, matching the task set and the recorded matrix, which had said seven
+- Remove a duplicated baseline section from `bench/README.md`; the two copies disagreed (5/6 versus 6/6), and the surviving copy now labels run 3 and its 0.391 CNY spend instead of run 1's 0.564 CNY
+
 ## [0.6.0.0] - 2026-10-12
 
 ### Added

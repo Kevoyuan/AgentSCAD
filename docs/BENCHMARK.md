@@ -91,10 +91,10 @@ The commands above answer "did the pipeline produce something". `bench/` answers
 See [`bench/README.md`](../bench/README.md) for the layer model and the cross-batch scoring, and [`bench/assembly/README.md`](../bench/assembly/README.md) for the task and submission formats.
 
 ```bash
-bun run bench:assembly        # seven tasks, references, cheats and recorded model output
+bun run bench:assembly        # six tasks, references, cheats and recorded model output
 bun run bench:assembly:check  # self-check: references pass AND cheats are caught
 bun run bench:ladder          # score recorded trial reports; no model, no render, no spend
 bun run bench:baseline        # generate submissions from a model and score them
 ```
 
-The self-check is the part that makes it usable: it fails if a reference stops passing **or if a cheat starts passing**, so a weakened check breaks the benchmark instead of silently inflating a score. It is not wired into CI yet, so it only runs when invoked.
+The self-check is the part that makes it usable: it fails if a reference stops passing **or if a cheat starts passing**, so a weakened check breaks the benchmark instead of silently inflating a score. It is not wired into CI, by decision; run it on demand with `bun run bench:assembly:check`.

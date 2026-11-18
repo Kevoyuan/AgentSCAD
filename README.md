@@ -29,6 +29,14 @@ AgentSCAD is a local-first, open-source AI CAD workspace. A natural-language req
 - **Stops when the request is ambiguous.** Two plausible readings means it asks, rather than silently picking one.
 - **Keeps facts apart from opinions.** `DELIVERED` means the artifacts exist. Whether you accepted the part is a separate, append-only record.
 
+| Parameter tuning | Focus view |
+| :---: | :---: |
+| ![Parameter tuning](./docs/images/tune_parameters.png) | ![Focus view](./docs/images/focus_model.png) |
+
+When a request has two plausible readings it stops and asks, instead of picking one:
+
+![An ambiguous request waiting for a decision](./docs/images/human_review.png)
+
 ## Quick start
 
 ```bash
@@ -41,6 +49,8 @@ bun run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000), then **Settings ⚙️ → Providers**: pick a preset, paste a key, **Test**, **Save**. Keys stay on your machine.
+
+![Provider settings](./docs/images/providers.png)
 
 No Bun? `cp .env.example .env && docker compose up --build`.
 
@@ -57,7 +67,7 @@ You can then nudge the extracted dimensions with the parameter steppers and rebu
 Most text-to-CAD demos stop at "the shape looks right". The interesting part of CAD is what can be measured afterwards, so that is where the effort went:
 
 - A **deterministic verifier** measures the rendered mesh: the clearance between a bore and a shaft, collision across a sampled motion sweep, whether a part can actually be withdrawn.
-- A **public benchmark** for functional assemblies — seven tasks, eleven evidence layers, and eight adversarial submissions that each try to game one check. It fails if a cheat starts passing.
+- A **public benchmark** for functional assemblies — six tasks, eleven evidence layers, and eight adversarial submissions that each try to game one check. It fails if a cheat starts passing.
   → [`bench/`](./bench/README.md)
 
 ## Documentation
