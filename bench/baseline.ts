@@ -36,7 +36,7 @@ function argument(name: string): string | null {
   const index = process.argv.indexOf(name);
   if (index < 0) return null;
   const value = process.argv[index + 1];
-  if (!value || value.startsWith("--")) throw new Error(`${name} 需要一个值`);
+  if (!value || value.startsWith("--")) throw new Error(`${name} requires a value`);
   return value;
 }
 
@@ -54,12 +54,12 @@ async function loadProvider(): Promise<ProviderEntry> {
   const raw = await fs.readFile(file, "utf8").catch(() => null);
   if (!raw) {
     if (flag("--dry-run")) return {};
-    throw new Error(`读不到 provider 配置：${file}（真跑需要，或用 --base-url/--api-key-env 显式给出）`);
+    throw new Error(`Cannot read provider config: ${file} (needed for a real run; or pass --base-url/--api-key-env)`);
   }
   const parsed = JSON.parse(raw) as { providers?: ProviderEntry[] };
   const providers = (parsed.providers ?? []).filter((entry) => entry.enabled !== false);
   const chosen = providers.find((entry) => entry.apiKey && entry.baseUrl && entry.defaultModel) ?? providers[0];
-  if (!chosen) throw new Error("provider 配置里没有可用条目");
+  if (!chosen) throw new Error("No usable entry in the provider config");
   return chosen;
 }
 
@@ -67,25 +67,25 @@ async function loadProvider(): Promise<ProviderEntry> {
 function buildPrompt(task: BenchTask): string {
   const parts = task.parts.map((part) => `  - id "${part.id}" → agentscad_part == "${part.selector}"`).join("\n");
   const poseLine = task.pose
-    ? `6. 声明 ${task.pose.parameter} = 0; 并让活动件随它变化。评测器会用 -D ${task.pose.parameter}=<值>（${task.pose.unit}）重新渲染活动件，检查它是否真的按这个参数作刚体运动。`
-    : "6. （本任务没有位姿参数要求）";
+    ? `6. Declare ${task.pose.parameter} = 0; and make the moving part follow it. The harness re-renders at -D ${task.pose.parameter}=<value> (${task.pose.unit}) and checks the moving part really moves as a rigid body under that parameter.`
+    : "6. (This task declares no pose parameter.)";
   return [
-    "你正在参加一个 CAD 生成评测。请只输出一个 OpenSCAD 代码块。",
+    "You are taking part in a CAD generation benchmark. Output exactly one OpenSCAD code block.",
     "",
-    "任务：",
+    "Task:",
     task.prompt,
     "",
-    "输出契约（必须全部满足，否则会按格式失败计分）：",
-    '1. 只输出一个 ```scad 代码块，代码块之外不要有任何文字。',
-    "2. 文件必须完整可编译，单位 mm，不要 include/use 任何外部库。",
-    '3. 声明 agentscad_part = "all"; 并用它选择要导出的零件，例如：',
-    '   if (agentscad_part == "all" || agentscad_part == "<选择器>") <part>();',
-    "   评测器会分别以 -D agentscad_part=<选择器> 渲染每个零件，两次结果必须在同一个装配坐标系里。",
-    "4. 零件选择器：",
+    "Output contract (all of it, or the attempt fails on format):",
+    '1. Output one ```scad block and no text outside it.',
+    "2. The file must compile on its own, units are mm, and do not include/use any external library.",
+    '3. Declare agentscad_part = "all"; and use it to select the exported part, for example:',
+    '   if (agentscad_part == "all" || agentscad_part == "<selector>") <part>();',
+    "   The harness renders each part separately with -D agentscad_part=<selector>; both results must be in the same assembly coordinate system.",
+    "4. Part selectors:",
     parts,
-    `5. 关节轴：过点 (${task.joint.axisOrigin.join(", ")})，方向 (${task.joint.axisDirection.join(", ")})。`,
+    `5. Joint axis: through (${task.joint.axisOrigin.join(", ")}) with direction (${task.joint.axisDirection.join(", ")}).`,
     poseLine,
-    "7. 不要输出装配声明注释，不要输出解释。",
+    "7. Do not output an assembly declaration comment, and do not add explanations.",
   ].join("\n");
 }
 
@@ -122,7 +122,7 @@ async function callModel(input: {
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     // The body can echo the key back in an error header; only the status is kept.
-    throw new Error(`provider 返回 ${response.status}：${text.slice(0, 200)}`);
+    throw new Error(`provider returned ${response.status}: ${text.slice(0, 200)}`);
   }
   const body = (await response.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
@@ -145,24 +145,24 @@ async function main(): Promise<void> {
   const tasks = await loadTasks();
   const taskFilter = argument("--tasks");
   const selected = taskFilter ? tasks.filter((task) => taskFilter.split(",").includes(task.id)) : tasks;
-  if (selected.length === 0) throw new Error(`没有匹配的任务：${taskFilter}`);
+  if (selected.length === 0) throw new Error(`No task matches: ${taskFilter}`);
 
   const provider = await loadProvider();
   const model = argument("--model") ?? provider.defaultModel ?? "dry-run";
-  if (!model) throw new Error("需要 --model 或 provider 的 defaultModel");
+  if (!model) throw new Error("--model or the provider defaultModel is required");
   const baseUrl = argument("--base-url") ?? provider.baseUrl ?? "";
-  if (!dryRun && !baseUrl) throw new Error("需要 --base-url 或 provider 的 baseUrl");
+  if (!dryRun && !baseUrl) throw new Error("--base-url or the provider baseUrl is required");
   const apiKey = argument("--api-key-env") ? process.env[argument("--api-key-env")!] ?? "" : provider.apiKey ?? "";
-  if (!dryRun && !apiKey) throw new Error("真跑需要 API key（provider 文件或 --api-key-env）");
+  if (!dryRun && !apiKey) throw new Error("A real run needs an API key (provider file or --api-key-env)");
 
   const maxTokens = Number(argument("--max-tokens") ?? 8192);
   const temperature = Number(argument("--temperature") ?? 0);
   const inputPriceCny = Number(argument("--input-price") ?? 2);
   const outputPriceCny = Number(argument("--output-price") ?? 8);
-  if (![inputPriceCny, outputPriceCny, maxTokens, temperature].every(Number.isFinite)) throw new Error("数值参数必须是有限数");
+  if (![inputPriceCny, outputPriceCny, maxTokens, temperature].every(Number.isFinite)) throw new Error("Numeric arguments must be finite");
 
   const capCny = Number(argument("--authorize-cny") ?? 0);
-  if (!dryRun && !(capCny > 0)) throw new Error("真跑必须给 --authorize-cny <人民币上限>");
+  if (!dryRun && !(capCny > 0)) throw new Error("A real run requires --authorize-cny <CNY cap>");
 
   const slug = `model-${slugify(model)}`;
   const runDirectory = path.join(import.meta.dir, "baseline", slug);
@@ -170,7 +170,7 @@ async function main(): Promise<void> {
 
   let spentCny = 0;
   const records: Array<Record<string, unknown>> = [];
-  console.log(`${dryRun ? "DRY RUN" : `模型 ${model}（上限 ${capCny} CNY）`} — 任务 ${selected.length} 个\n`);
+  console.log(`${dryRun ? "DRY RUN" : `model ${model} (cap ${capCny} CNY)`} — ${selected.length} tasks\n`);
 
   for (const task of selected) {
     const prompt = buildPrompt(task);
@@ -187,7 +187,7 @@ async function main(): Promise<void> {
       scad = (await fs.readFile(path.join(import.meta.dir, "assembly", "submissions", task.id, "reference.scad"), "utf8")).trim();
     } else {
       if (spentCny + worstCase > capCny) {
-        console.log(`stop: 剩余预算 ${(capCny - spentCny).toFixed(4)} CNY 不足以覆盖下一次预留 ${worstCase.toFixed(4)}`);
+        console.log(`stop: remaining ${(capCny - spentCny).toFixed(4)} CNY cannot cover the next reservation of ${worstCase.toFixed(4)}`);
         break;
       }
       try {
@@ -195,7 +195,7 @@ async function main(): Promise<void> {
         usage = result.usage;
         spentCny += (usage.promptTokens * inputPriceCny + usage.completionTokens * outputPriceCny) / 1e6;
         const extracted = extractOpenScadCodeFromText(result.content);
-        if (!extracted) throw new Error("回复里没有找到 OpenSCAD 代码块");
+        if (!extracted) throw new Error("No OpenSCAD code block found in the reply");
         scad = extracted.trim();
       } catch (callError) {
         error = callError instanceof Error ? callError.message : String(callError);
@@ -204,8 +204,8 @@ async function main(): Promise<void> {
     }
 
     const contract: string[] = [];
-    if (scad && !scad.includes("agentscad_part")) contract.push("缺少 agentscad_part");
-    if (scad && task.pose && !scad.includes(task.pose.parameter)) contract.push(`缺少位姿参数 ${task.pose.parameter}`);
+    if (scad && !scad.includes("agentscad_part")) contract.push("missing agentscad_part");
+    if (scad && task.pose && !scad.includes(task.pose.parameter)) contract.push(`missing pose parameter ${task.pose.parameter}`);
     const contractOk = error === null && contract.length === 0;
 
     if (scad) {
@@ -230,7 +230,7 @@ async function main(): Promise<void> {
     if (error) {
       console.log(`  ${task.id.padEnd(20)} ERROR  ${error.slice(0, 70)}`);
     } else {
-      console.log(`  ${task.id.padEnd(20)} 已生成  ${usage.completionTokens} 输出 token${contractOk ? "" : `  契约问题：${contract.join("、")}`}`);
+      console.log(`  ${task.id.padEnd(20)} generated  ${usage.completionTokens} output tokens${contractOk ? "" : `  contract: ${contract.join(", ")}`}`);
     }
   }
 
@@ -241,7 +241,7 @@ async function main(): Promise<void> {
   );
 
   // Score what was written, through the same scorer the self-check uses.
-  console.log("\n评分");
+  console.log("\nScoring");
   const rows: Array<{ task: string; status: string; cover: string; clearance: string }> = [];
   for (const task of selected) {
     const submissionPath = path.join(import.meta.dir, "assembly", "submissions", task.id, `${slug}.scad`);
@@ -269,8 +269,8 @@ async function main(): Promise<void> {
   console.log("-".repeat(56));
   for (const row of rows) console.log(`${row.task.padEnd(20)}${row.status.padEnd(10)}${row.cover.padEnd(8)}${row.clearance}`);
 
-  console.log(`\n花费：${spentCny.toFixed(4)} CNY${dryRun ? "（dry run）" : ` / 上限 ${capCny}`}`);
-  console.log(`记录：${path.relative(process.cwd(), path.join(runDirectory, "run.json"))}`);
+  console.log(`\nSpend: ${spentCny.toFixed(4)} CNY${dryRun ? " (dry run)" : ` / cap ${capCny}`}`);
+  console.log(`record: ${path.relative(process.cwd(), path.join(runDirectory, "run.json"))}`);
 }
 
 if (import.meta.main) {

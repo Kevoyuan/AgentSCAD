@@ -1,211 +1,212 @@
-# 装配阶梯：AgentSCAD 的目标 benchmark
+# The assembly ladder
 
-这份文档定义的不是"再做一个评测脚本"，而是一个**产品可以对着它进化的目标**。
+This document is not another eval script. It defines a **target a product can evolve against**.
 
-区别在于：评分型 benchmark 告诉你现在几分；目标型 benchmark 必须让**每一次分数变化都直接指向该修哪个子系统**。前者可以是一个数，后者必须是一个向量。
+The difference is what happens when the number moves. A scoring benchmark tells you where you are. A target benchmark has to make every score change point at the subsystem that needs work. The first is a number; the second has to be a vector.
 
 ---
 
-## 1. 现状诊断：指标是布尔的，所以它没有梯度
+## 1. Why the current metric cannot drive anything
 
-历史试验记录里的 `measuredCore` 语义是：
+The trial records used a gate with this semantics:
 
 ```ts
 const measured = evidence.filter((item) => item.id !== "intent-preserved");
 if (measured.some((item) => item.status !== "PASS")) return { passed: false };
 ```
 
-这套代码后来在远端被重构掉了（`generation-trial.ts` 已无此导出），所以本 benchmark 把它就地实现为 `deliveryGate()`，**不再 import 被测系统**——一个 import 被测方的 benchmark 会随被测方重构而失效，也就无法给历史打分。
+The code was later refactored away upstream, so this benchmark implements the semantic locally as `deliveryGate()` rather than importing the system it measures. A benchmark that imports the measured side stops working when that side refactors, and then it cannot score its own history.
 
-**所有非 intent 证据全 PASS 才算通过。** 这在语义上是对的——交付就要全过。但把它当作唯一进度指标，会产生一个致命后果：
+**All non-intent evidence must PASS.** That is correct for delivery. As the only progress metric it has a fatal consequence:
 
-| 候选 | 非 intent 证据 | measuredCore |
+| Candidate | Non-intent evidence | Gate |
 |---|---|---|
-| 14/15 PASS，1 项 NOT_RUN | 差一项 | **0** |
-| 0/15 PASS，渲染就失败 | 全失败 | **0** |
+| 14/15 PASS, 1 NOT_RUN | one short | **0** |
+| 0/15 PASS, render fails | all short | **0** |
 
-两者得分相同。于是连续多轮试验的摘要是"measured-core 仍为 0"，而真实进展不可见。
+Same score. The summary read "measured-core still 0" for several rounds while real progress was invisible.
 
-**实测数据**（`.agentscad/experiments/paid-deepseek-assembly-*/report.json`，35 个批次 / 35 个有证据的任务尝试）：
+**Measured** over the recorded batches (`.agentscad/experiments/paid-deepseek-assembly-*/report.json`, 35 batches / 35 task attempts with evidence):
 
-- `measuredCorePassed === true` 的尝试数：**0**
-- 最接近的候选：`aVlhoH / guided-gated-hinge-v1`，非 intent 证据 **14 PASS / 1 NOT_RUN（`unresolved-axial-retention`）**
-- 按层归并后的层覆盖率分布：1.0、0.875、0.625、0.625、0.556、0.5、0.444 …
+- attempts with `measuredCorePassed === true`: **0**
+- closest candidate: `aVlhoH / guided-gated-hinge-v1`, **14 non-intent evidence PASS / 1 NOT_RUN** (`unresolved-axial-retention`)
+- coverage after folding into layers: 1.000, 0.875, 0.625, 0.625, 0.556, 0.500, 0.444 …
 
-> 边界：这 35 次尝试跨越多套任务集，提示、解析器和判据在期间改过版本，**不能当作同条件可比序列**。这里只用来说明"二值指标丢失了排序信息"，不构成任何成功率结论。
+> Boundary: these 35 attempts span multiple task sets, and prompts, parsers and checks changed between them. They are **not a comparable series**. They are used here only to show that a binary metric discards ordering information, and support no conclusion about success rates.
 
-关键结论：**产品已经能产出 14/15 的候选，但指标告诉你还是 0。** 一个恒为 0 的指标不是严格，是没有信息量。
+**The product has produced a 14/15 candidate and the metric said 0.** A metric reading 0 forever is not strict; it carries no information.
 
 ---
 
-## 2. 设计
+## 2. Design
 
-### 2.1 两个量，不是一个
+### 2.1 Two numbers, not one
 
-| 量 | 定义 | 用途 |
+| Number | Definition | What it guards |
 |---|---|---|
-| **gate** | 所有 required 层 PASS（= 现在的 measuredCore） | 交付判定。不过就是不能交给用户 |
-| **coverage** | 通过层数 / 已测层数 | 进度指标。这才是驱动进化的那个数 |
+| **gate** | every required layer PASS | correctness. Failing it means the artifact cannot ship |
+| **coverage** | passed layers / observed layers | progress. This is the number that moves |
 
-gate 保留不动，它守的是正确性。coverage 是新增的，它守的是"有没有在进步"。
+The gate keeps its meaning. `NOT_RUN` never enters the numerator: the denominator counts observed layers, and unobserved layers are listed separately.
 
-**`NOT_RUN` 永远不计入 PASS。** 没测就是没测，覆盖率不因未测而膨胀——分母是已测层数，未测层单独列出。
+### 2.2 The task ladder
 
-### 2.2 任务阶梯
+Aligned with the milestones in [`FUNCTIONAL_ASSEMBLY_PLAN.md`](../docs/FUNCTIONAL_ASSEMBLY_PLAN.md), not a parallel taxonomy:
 
-对齐 [FUNCTIONAL_ASSEMBLY_PLAN.md](../docs/FUNCTIONAL_ASSEMBLY_PLAN.md) 的里程碑，不另起一套：
-
-| 级 | 任务 | 机制复杂度 | 对应里程碑 | 现状 |
+| Rung | Task | Mechanism | Milestone | Status |
 |---|---|---|---|---|
-| L1 | 两件转动副（铰链，松/紧） | 1 关节、2 零件 | M3 | `bench/assembly` 已有 |
-| L2 | 两件移动副（活塞-缸筒） | 1 关节、2 零件 | M3 | `bench/assembly` 已有 |
-| L3 | 单缸曲柄滑块 | 4 关节闭环、6 零件 | M4 | 工具级已验证，未接入评测 |
-| L4 | 带保持件的多关节 | 4 关节、7 零件 / 9 实例 | M4 | 有原创夹具，A001 已 PASS（研究者辅助） |
-| L5 | V8 横截面（两缸）→ 完整 V8 | 8 组运动链 | M6 | 未开始 |
+| L1 | two-part revolute (hinge, loose/tight) | 1 joint, 2 parts | M3 | in `bench/assembly` |
+| L2 | two-part prismatic (piston in a barrel) | 1 joint, 2 parts | M3 | in `bench/assembly` |
+| L3 | single-cylinder slider-crank | 4-joint loop, 6 parts | M4 | tool-level verified, not wired into the benchmark |
+| L4 | multi-joint with retention | 4 joints, 7 parts / 9 instances | M4 | original fixture exists, A001 PASS (researcher-assisted) |
+| L5 | V8 cross-section (two cylinders) → full V8 | 8 kinematic chains | M6 | not started |
 
-**阶梯的意义**：L5 过不去不代表 L3 不存在。有了分级，即使整体停在 L3，分数也能告诉你卡在哪一层。
+**Why a ladder:** failing L5 does not mean L3 does not exist. With rungs, a score can say which layer is stuck even when the top fails.
 
-### 2.3 层判据
+### 2.3 The layers
 
-每层是 `PASS | FAIL | ERROR | SKIP | NOT_RUN` 之一。层内取**最坏**状态：一个 PASS 旁边放一个 FAIL 不会变成 PASS。
+Each layer is `PASS | FAIL | SKIP | ERROR | NOT_RUN`. Within a layer the **worst** status wins: a PASS next to a FAIL does not become a PASS.
 
-| 层 | 证据 id | 掉分时该修什么 |
+| Layer | Evidence ids | What to repair when it drops |
 |---|---|---|
-| `compile` | `compile` | SCAD 编译 |
-| `parts-identity` | `distinct-exported-parts`、`measured-part-identity` | 选择器、分件策略 |
-| `topology` | `part-connectivity` | 布尔运算、壁厚、连通性 |
-| `joint-frames` | `measured-joint-frames` | 轴线声明、坐标变换 |
-| `fit` | `diametral-clearance` | 孔轴尺寸、公差 |
-| `retention` | `axial-retention`、`unresolved-axial-retention` | 保持件与锁舌 |
-| `assembly-path` | `assembly-path` | 插入路径、避让 |
-| `disassembly-path` | `disassembly-path` | 拆卸顺序 |
-| `rigid-motion` | `rigid-motion`、`sampled-motion`、`motion-range-deg`、`motion-range-negative-end`、`motion-range-positive-end` | 运动学、碰撞 |
-| `source-motion` | `source-motion` | SCAD 参数化、位姿选择器 |
-| `reconstruction` | `assembly-reconstruction` | 导出与重装、预算 |
+| `compile` | `compile` | SCAD compilation |
+| `parts-identity` | `distinct-exported-parts`, `measured-part-identity` | selectors, parting strategy |
+| `topology` | `part-connectivity` | booleans, wall thickness, connectivity |
+| `joint-frames` | `measured-joint-frames` | declared axes, coordinate transforms |
+| `fit` | `diametral-clearance` | bore/shaft dimensions, tolerance |
+| `retention` | `axial-retention`, `unresolved-axial-retention` | retention features, latches |
+| `assembly-path` | `assembly-path` | insertion path, clearance |
+| `disassembly-path` | `disassembly-path` | removal order |
+| `rigid-motion` | `rigid-motion`, `sampled-motion`, `motion-range-deg`, `motion-range-negative-end`, `motion-range-positive-end` | kinematics, collision |
+| `source-motion` | `source-motion` | SCAD parameterisation, pose selectors |
+| `reconstruction` | `assembly-reconstruction` | export, re-assembly, budget |
 
-**层不是存储分类法的镜像。** 产品在 `verification-types.ts` 里另有 12 个存储层；这里每层存在的唯一理由是**它有一个别人没有的修复目标**。所以三个证据 id 故意不归层：`intent-preserved`（产品自述无独立审计）、`declared-connection-type` 与 `declared-translation-probes`（声明前置条件，失败时下游全是 `NOT_RUN`，已经反映过了）、`repair-preservation`（属于修复轴，不属于被评的几何）。未归层的 id 会在报告里列出来，不会静默丢弃。
+**Layers are not a mirror of the storage taxonomy.** The product keeps twelve storage layers in `verification-types.ts`; a layer exists here only if it has a **repair target no other layer shares**. Three evidence ids are deliberately unmapped: `intent-preserved` (the product states it has no independent audit), `declared-connection-type` and `declared-translation-probes` (declaration preconditions — when they fail, everything downstream is `NOT_RUN` anyway), and `repair-preservation` (it belongs to the repair axis, not to the geometry being scored). Unmapped ids are reported, never dropped.
 
-### 2.4 缺口类型：测不出来 ≠ 做不出来
+### 2.4 Gap kind: "cannot measure" is not "cannot build"
 
-这张表比覆盖率重要。同一层连续掉分，原因可能是模型做不出来，也可能是**根本没有检查**——把两者混为一谈，路线图就会去修错的东西。
+This table matters more than the coverage number. A layer can drop for two completely different reasons, and conflating them sends a roadmap after the wrong thing.
 
-| 诊断 | 判据 | 该做什么 |
+| Diagnosis | Test | What to do |
 |---|---|---|
-| `healthy` | 通过率 ≥ 75% | 不动 |
-| `capability-gap` | FAIL 占多数 | 修生成 |
-| `measurement-gap` | `NOT_RUN` 压过 PASS+FAIL | 补检查 |
-| `undetermined` | `ERROR` 压过 PASS+FAIL | **去读 finding 原文** |
-| `unobserved` | 完全没有证据 | 接检查 |
+| `healthy` | pass rate ≥ 75% | leave it |
+| `capability-gap` | FAIL dominates | work on generation |
+| `measurement-gap` | `NOT_RUN` outweighs PASS+FAIL | add the check |
+| `undetermined` | `ERROR` outweighs PASS+FAIL | **read the finding text** |
+| `unobserved` | no evidence at all | wire the check |
 
-`ERROR` 故意不并入任何一边。实测中同一个 `diametral-clearance: ERROR` 既可能是「the bore could not be measured: 1015 rays missed the solid」（模型没做出孔，属能力缺口），也可能是「reconstruction budget 15000 ms 耗尽」（属工具缺口），状态本身分不出来。硬猜会误导。
+`ERROR` is deliberately not folded into either side. The same `diametral-clearance: ERROR` can mean "the bore could not be measured: 1015 rays missed the solid" (a capability gap) or "the reconstruction budget ran out" (a tool gap), and the status alone does not say which. Guessing puts the wrong item on the roadmap.
 
-### 2.5 双轴
+### 2.5 Two axes
 
-产品不是一个单次生成器，是一个 `生成 → 验证 → 修复` 的循环。只测一次生成，奖励的是基础模型；测修复，奖励的才是 harness。
+The product is not a one-shot generator; it is a `generate → verify → repair` loop. Measuring only one-shot generation rewards the base model. Measuring repair rewards the harness.
 
-| 轴 | 测什么 | 数据来源 |
+| Axis | What it measures | Source |
 |---|---|---|
-| **A：一次生成** | `coverage` 是多少 | 首次尝试的层覆盖率 |
-| **B：证据驱动修复** | 给失败层和实测数字，修几轮、花多少、涨几层 | `attempts`、`calls`、每轮的 coverage 增量 |
+| **A: one-shot** | the coverage of the first attempt | first-attempt layers |
+| **B: evidence-driven repair** | given the failing layers and measured numbers, how many rounds, what cost, how many layers gained | `attempts`, `calls`, coverage delta per round |
 
-B 轴的关键指标不是"最后过没过"，而是**每元人民币买到的层覆盖率增量**。你的试验记录里已经有 `calls` 和费用，这一栏现在就能算。
+The key number on axis B is not "did it eventually pass" but **coverage gained per unit of spend**. The trial records already carry `calls` and cost, so this column can be computed today.
 
-一个 harness 变好，应该在 A 轴上持平、在 B 轴上变陡。
+A better harness should hold axis A and steepen axis B.
 
 ---
 
-## 3. 为什么不能拿"V8 全过"当唯一目标
+## 3. Why "V8 all PASS" cannot be the only target
 
-三条理由，都来自实测：
+Three reasons, all measured:
 
-1. **它是 0 或 1，而现在是长期的 0。** 35 次尝试 0 通过。一个永远读 0 的指标无法区分任何两次改动的优劣。
-2. **它把已经发生的进展藏起来了。** 最好的候选是 14/15，指标报 0。
-3. **它不告诉你去哪。** "V8 失败"不指向任何子系统；"joint-frames 42%、assembly-path 8%"指向得很清楚。
+1. **It is 0 or 1, and it is currently a long 0.** 35 attempts, 0 passes. A metric that always reads 0 cannot distinguish two changes.
+2. **It hides progress that already happened.** The best candidate is 14/15; the metric reports 0.
+3. **It does not say where to go.** "V8 failed" points nowhere; "joint-frames 28.6%, assembly-path 11.5%" points clearly.
 
-V8 仍然是**终点**，只是不能是**刻度**。
+V8 is still the **destination**. It cannot be the **scale**.
 
 ---
 
-## 4. 现在能跑什么
+## 4. What runs today
 
 ```bash
-bun run bench:ladder          # 给历史试验报告打分（不调模型、不渲染、零花费）
+bun run bench:ladder          # score recorded trial reports (no model, no render, no spend)
 bun run bench:ladder --json out.json
-bun run bench:assembly:check  # 几何评测自检：参考解全过、作弊解全被拦
-bun test bench/               # 层模型与任务格式的单测
+bun run bench:assembly        # the geometry benchmark over all submissions
+bun run bench:assembly:check  # self-check: references pass, cheats are caught
+bun run bench:baseline        # generate submissions from a model and score them
+bun test bench/               # layer model and task-format tests
 ```
 
-### 实测：35 个真实批次 / 55 个候选
+### The layer table over recorded history
 
 ```
-层                 通过    失败    错误    未跑    缺证    通过率   缺口类型    修什么
-compile           0     1     0     0     29    0.0%    做不出来    SCAD 编译
-parts-identity    26    3     0     1     0     86.7%   正常        选择器与分件策略
-topology          16    5     0     6     3     59.3%   做不出来    布尔运算、壁厚、连通性
-joint-frames      8     0     20    0     2     28.6%   待查 ERROR  轴线声明与坐标变换
-fit               8     0     20    2     0     26.7%   待查 ERROR  孔轴尺寸与公差
-retention         0     3     0     23    4     0.0%    缺检查      保持件与锁舌
-assembly-path     3     19    1     3     4     11.5%   做不出来    插入路径与避让
-disassembly-path  3     22    3     1     1     10.3%   做不出来    拆卸顺序
-rigid-motion      1     23    1     5     0     3.3%    做不出来    运动学与碰撞
-source-motion     0     3     0     16    11    0.0%    缺检查      SCAD 参数化与位姿选择器
-reconstruction    8     2     5     13    2     28.6%   缺检查      导出重装与预算
+layer             pass  fail  error not_run absent pass rate  gap kind        repair target
+compile           0     1     0     0       29     0.0%       capability      SCAD compilation
+parts-identity    26    3     0     1       0      86.7%      healthy         Selectors and parting strategy
+topology          16    5     0     6       3      59.3%      capability      Boolean ops, wall thickness, connectivity
+joint-frames      8     0     20    0       2      28.6%      inspect ERROR   Declared axes and coordinate transforms
+fit               8     0     20    2       0      26.7%      inspect ERROR   Bore/shaft dimensions and tolerance
+retention         0     3     0     23      4      0.0%       missing check   Retention features and latches
+assembly-path     3     19    1     3       4      11.5%      capability      Insertion path and clearance
+disassembly-path  3     22    3     1       1      10.3%      capability      Removal order
+rigid-motion      1     23    1     5       0      3.3%       capability      Kinematics and collision
+source-motion     0     3     0     16      11     0.0%       missing check   SCAD parameterisation and pose selectors
+reconstruction    8     2     5     13      2      28.6%      missing check   Export, re-assembly and budget
 ```
 
-这张表读出来的结论，和"模型不行"完全不是一回事：
+What this says is not "the model is bad":
 
-- **`parts-identity` 86.7% 已经基本解决**，继续往这里投入是浪费。
-- **`rigid-motion` 3.3%、`assembly-path` 11.5%、`disassembly-path` 10.3% 是真能力缺口**，且它们在阶梯上的位置靠后——这正是当前该攻的地方。
-- **`retention` 和 `source-motion` 是 0% 但 `NOT_RUN` 占绝对多数**：不是模型做不到，是**没有测量**。在这两层上谈模型能力是伪命题。
-- **`joint-frames` / `fit` 的 20 次 ERROR 需要逐条读 finding** 才能归类，所以标为「待查」，不猜。
+- **`parts-identity` at 86.7% is essentially solved.** More work there is wasted.
+- **`rigid-motion` 3.3%, `assembly-path` 11.5%, `disassembly-path` 10.3% are real capability gaps**, and they sit late in the ladder — that is where the current effort belongs.
+- **`retention` and `source-motion` are 0% but overwhelmingly `NOT_RUN`.** The model is not failing them; nothing measures them. Talking about model capability on those layers is a category error.
+- **`joint-frames` / `fit` show 20 `ERROR` each and need the finding text** before they can be classified, so they are marked "inspect" rather than guessed.
 
-最好的真实候选：`guided-gated-hinge-v1`，**8/9 层通过**，gate 未过（唯一缺口是 `retention: NOT_RUN`）。这就是那个被 "measured-core = 0" 藏起来的进展。
+Best real candidate: `guided-gated-hinge-v1`, **8/9 layers**, gate not passed (the only gap is `retention: NOT_RUN`). That is the progress the "measured-core = 0" line hid.
 
-注意这张表用的是**产品试验记录**，而 `bench/assembly` 是另一条链。benchmark 现在能测 `retention` 和 `source-motion` 了，但只要产品的 `judge-assembly` 不产出这两个证据，历史表里的 `NOT_RUN` 就不会消失。**让指标变好的是接线，不是文档。**
+> This table is built from **product trial records**, which is a different chain from `bench/assembly`. The benchmark can now measure `retention` and `source-motion`, but until the product's judge emits those evidence ids the historical `NOT_RUN` will not disappear. **What moves a metric is wiring, not documentation.**
 
-> 这 35 个批次横跨 12 个任务集版本，提示与判据期间都改过，**只能看形状，不能比高低**。报告里会自动带这条警告。
+### The first real baseline
 
-### 第一个真实 baseline
+`bun run bench:baseline` generates, extracts, writes and scores directly against an OpenAI-compatible endpoint — **not through the product's `model-router`**, because a model comparison should not inherit the product's routing or prompt.
 
-`bun run bench:baseline` 用 OpenAI 兼容接口直接生成、抽取、落盘、评分，**不经过产品的 model-router**——一个模型对照不该继承产品的路由和提示。
+6 tasks × 1 attempt, **0.564 CNY total**:
 
-6 个任务 × 1 次尝试，总额 **0.564 CNY**：
-
-| 任务 | 状态 | 覆盖 | 实测间隙 | 说明 |
+| Task | Status | Coverage | Measured clearance | Note |
 |---|---|---|---|---|
-| `hinge-45-loose` | PASS | 6/6 | 0.397–0.403 | 落在声明带宽内 |
-| `hinge-60-wide` | PASS | 6/6 | 0.442–0.457 | 落在声明带宽内 |
-| `hinge-90-tight` | ERROR | 5/6 | — | 孔截面不是规则圆柱（反解出 73.47 边形），测量拒绝下结论 |
-| `hinge-captured-45` | ERROR | 3/6 | — | 组装位姿本身就相交，运动也失败 |
-| `piston-bore-30` | PASS | 6/6 | 0.397–0.403 | 落在声明带宽内 |
-| `piston-bore-45` | PASS | 6/6 | 0.247–0.253 | 落在声明带宽内 |
+| `hinge-45-loose` | PASS | 6/6 | 0.392–0.407 | inside the declared band |
+| `hinge-60-wide` | PASS | 6/6 | 0.448–0.452 | inside the declared band |
+| `hinge-90-tight` | PASS | 6/6 | 0.242–0.257 | inside the declared band |
+| `hinge-captured-45` | PASS | 6/6 | 0.397–0.403 | inside the declared band, and the 2 mm pull is blocked |
+| `piston-bore-30` | PASS | 6/6 | 0.387–0.412 | inside the declared band |
+| `piston-bore-45` | FAIL | 4/6 | 0.248–0.252 | correct fit, but the piston interferes during the stroke and on withdrawal |
 
-**4/6 一次通过，且四个成功全部命中任务声明的间隙带宽。** 两个失败是真的几何缺陷，不是格式问题——这个区分必须写在这里：
+**5/6 pass, and every one of them lands inside its declared clearance band.** The single failure is a real geometry defect: the fit is right, but the part collides over its own stroke.
 
-- 第一次跑时 `--max-tokens 8192`，三个任务的输出正好卡在 8192 被截断，报"没有找到代码块"。**那是 harness 的上限，不是模型失败。** 提到 32768 重跑后它们才给出真实几何。把截断算成能力失败，就是把工具问题记在模型头上。
-- 剩下两个是真失败：一个孔不是圆柱，一个装起来就穿模。
+Two things had to be checked before this row could be believed:
 
-边界：**这不是对照表，是一行基线。** 一个模型、一次采样、没有隐藏集。它的价值是让这张表开始有数字，不是让人下"模型行不行"的结论。
+- The **first** run used `--max-tokens 8192`. Three tasks were cut off at **exactly 8192** output tokens and surfaced as "no code block found". That is a harness limit, not a model failure; raising the cap to 32768 produced real geometry. Recording truncation as a capability failure would have put a tool problem on the model's record.
+- The row above is a **re-run** after the output contract was translated to English to match the rest of the repository. The Chinese-contract run scored 4/6 with the same task set and the same model. That is one sample per condition at temperature 0, so it is **not** a language comparison and must not be read as one; what it does mean is that this row belongs to the code that is actually published here, which is what a baseline has to be.
 
-## 5. 落地顺序
+Boundary: **this is a baseline row, not a comparison.** One model, one sample, no hidden set. Its value is that the table now has numbers, not that it lets anyone conclude whether "the model can do this".
 
-- [x] **layer scorer**：`bench/layers.ts` + `bench/ladder-report.ts`，跑在已有批次上
-- [x] **`bench/assembly` 接层计数**：每个 case 报告 `cover 4/4`，与 trial 共用同一个 `scoreEvidence`
-- [ ] **L3 曲柄滑块任务**（1–2 周）：多关节运动学 + 闭环约束，真正的门槛
-- [x] **补 `retention` 与 `source-motion` 的检查**：`bench/assembly` 里已落地（`hinge-captured-45` 的轴向拉拔、5 个任务的位姿重渲染）
-- [ ] **把这两个检查接进产品判分器**：`bench/assembly` 能测不等于 trial 会产出这两个证据。在 `judge-assembly` 接上之前，上面那张历史层表里的 `retention` / `source-motion` 仍然是 `NOT_RUN`——历史数字不会因为 benchmark 变强而变好
-- [ ] **隐藏集 + 外部模型 baseline**（1 周）
-- [ ] **L5 两缸横截面**（2–3 周）：验证阶梯能延伸到 V8 而不重写判据
+## 5. Order of work
 
-## 6. 防退化
+- [x] **layer scorer**: `bench/layers.ts` + `bench/ladder-report.ts`, over recorded batches
+- [x] **layer counting in `bench/assembly`**: every case reports `cover 6/6`, sharing one `scoreEvidence`
+- [x] **`retention` and `source-motion` observers**: the capture pull in `hinge-captured-45`, and pose re-rendering across all tasks
+- [x] **first model baseline**: DeepSeek v4 flash, 6 tasks, 5/6
+- [ ] **wire both checks into the product's judge**: the benchmark being able to measure is not the same as the trial emitting those ids. Until `judge-assembly` is wired, the historical layer table keeps its `NOT_RUN`s
+- [ ] **L3 slider-crank** (1–2 weeks): multi-joint kinematics and a closed loop — the real threshold
+- [ ] **hidden split + external model baselines** (1 week): without these it is a self-test tool
+- [ ] **L5 two-cylinder cross-section** (2–3 weeks): proves the ladder extends to V8 without rewriting the checks
 
-- **隐藏集**：公开任务集用于开发，隐藏集用于报告。只公开后者不及格的样本，防止针对性修补。
-- **对抗集**：每个家族至少 1 条"形状对、数值错"和 1 条"全对但不形成关节"。`bench/assembly` 里已有 4 条，这是最便宜也最有效的防线。
-- **判据不改追溯**：阈值在测量后不得回调；需要新阈值时新增版本并保留旧版回归（这条你已经在 [ASSEMBLY_EVIDENCE_LOG.md](../docs/ASSEMBLY_EVIDENCE_LOG.md) 里立了规矩）。
-- **coverage 不能靠删层涨**：分母冻结在任务定义里，任务版本变更必须留档。
+## 6. Anti-degradation
 
-## 7. 这份设计不承诺什么
+- **Hidden split**: the public task set is for development, the hidden one for reporting. Publish only failures from the latter, so targeted patching is not possible.
+- **Adversarial set**: at least one "right shape, wrong number" and one "everything right but no joint" per family. `bench/assembly` has eight, and that is the cheapest and most effective line of defence.
+- **Thresholds never move backwards**: after a measurement, a threshold cannot be relaxed; a new value means a new contract version plus the old regression. This rule is already established in [`ASSEMBLY_EVIDENCE_LOG.md`](../docs/ASSEMBLY_EVIDENCE_LOG.md).
+- **Coverage cannot rise by deleting layers**: the denominator is frozen in the task definition, and a task-version change must be recorded.
 
-- 不承诺 V8 能自主生成。当前自主 gate 通过数是 0。
-- 不承诺覆盖率等于产品质量。coverage 只覆盖**已实现的判据**，未实现的层不是"通过"，是"不在分母里"。
-- 不承诺跨批次可比。任务集、提示和判据都在演进，历史数字只能看形状，不能看高低。
+## 7. What this design does not promise
+
+- It does not promise that V8 can be generated autonomously. The current autonomous gate pass count is 0.
+- It does not promise coverage equals product quality. Coverage covers **implemented checks** only; an unimplemented layer is not "passing", it is "not in the denominator".
+- It does not promise cross-batch comparability. Task sets, prompts and checks all evolve, so historical numbers can be read for shape, never for level.

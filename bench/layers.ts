@@ -57,17 +57,17 @@ export interface LayerSpec {
  * not to the geometry being scored).
  */
 export const LAYERS: readonly LayerSpec[] = [
-  { id: "compile", evidence: ["compile"], subsystem: "SCAD 编译" },
-  { id: "parts-identity", evidence: ["distinct-exported-parts", "measured-part-identity"], subsystem: "选择器与分件策略" },
-  { id: "topology", evidence: ["part-connectivity"], subsystem: "布尔运算、壁厚、连通性" },
-  { id: "joint-frames", evidence: ["measured-joint-frames"], subsystem: "轴线声明与坐标变换" },
-  { id: "fit", evidence: ["diametral-clearance"], subsystem: "孔轴尺寸与公差" },
-  { id: "retention", evidence: ["axial-retention", "unresolved-axial-retention"], subsystem: "保持件与锁舌" },
-  { id: "assembly-path", evidence: ["assembly-path"], subsystem: "插入路径与避让" },
-  { id: "disassembly-path", evidence: ["disassembly-path"], subsystem: "拆卸顺序" },
-  { id: "rigid-motion", evidence: ["rigid-motion", "sampled-motion", "motion-range-deg", "motion-range-negative-end", "motion-range-positive-end"], subsystem: "运动学与碰撞" },
-  { id: "source-motion", evidence: ["source-motion"], subsystem: "SCAD 参数化与位姿选择器" },
-  { id: "reconstruction", evidence: ["assembly-reconstruction"], subsystem: "导出重装与预算" },
+  { id: "compile", evidence: ["compile"], subsystem: "SCAD compilation" },
+  { id: "parts-identity", evidence: ["distinct-exported-parts", "measured-part-identity"], subsystem: "Selectors and parting strategy" },
+  { id: "topology", evidence: ["part-connectivity"], subsystem: "Boolean ops, wall thickness, connectivity" },
+  { id: "joint-frames", evidence: ["measured-joint-frames"], subsystem: "Declared axes and coordinate transforms" },
+  { id: "fit", evidence: ["diametral-clearance"], subsystem: "Bore/shaft dimensions and tolerance" },
+  { id: "retention", evidence: ["axial-retention", "unresolved-axial-retention"], subsystem: "Retention features and latches" },
+  { id: "assembly-path", evidence: ["assembly-path"], subsystem: "Insertion path and clearance" },
+  { id: "disassembly-path", evidence: ["disassembly-path"], subsystem: "Removal order" },
+  { id: "rigid-motion", evidence: ["rigid-motion", "sampled-motion", "motion-range-deg", "motion-range-negative-end", "motion-range-positive-end"], subsystem: "Kinematics and collision" },
+  { id: "source-motion", evidence: ["source-motion"], subsystem: "SCAD parameterisation and pose selectors" },
+  { id: "reconstruction", evidence: ["assembly-reconstruction"], subsystem: "Export, re-assembly and budget" },
 ];
 
 const LAYER_BY_ID = new Map(LAYERS.map((layer) => [layer.id, layer]));
@@ -143,12 +143,12 @@ export function isEvidenceStatus(value: unknown): value is EvidenceStatus {
  */
 export function deliveryGate(evidence: Array<{ id: string; status: string }>): { passed: boolean | null; reason: string } {
   const measured = evidence.filter((item) => item.id !== "intent-preserved");
-  if (measured.length === 0) return { passed: null, reason: "没有产生任何非 intent 证据。" };
+  if (measured.length === 0) return { passed: null, reason: "No non-intent evidence was produced." };
   const failing = measured.filter((item) => item.status !== "PASS");
   if (failing.length > 0) {
-    return { passed: false, reason: `非 intent 证据未全部 PASS：${failing.map((item) => `${item.id}:${item.status}`).join(", ")}` };
+    return { passed: false, reason: `Non-intent evidence not all PASS: ${failing.map((item) => `${item.id}:${item.status}`).join(", ")}` };
   }
-  return { passed: true, reason: "所有非 intent 证据均为 PASS；intent 与用户验收仍未解决。" };
+  return { passed: true, reason: "Every non-intent evidence item is PASS; intent and user acceptance remain unresolved." };
 }
 
 /**
@@ -179,7 +179,7 @@ export function scoreEvidence(evidence: Array<{ id: string; status: string }>): 
   const layers: LayerResult[] = LAYERS.map((spec) => {
     const feeding = normalized.filter((item) => spec.evidence.includes(item.id));
     if (feeding.length === 0) {
-      return { layer: spec.id, status: null, evidence: [], blockers: ["没有产生这一层的证据。"] };
+      return { layer: spec.id, status: null, evidence: [], blockers: ["No evidence was produced for this layer."] };
     }
     const status = worstStatus(feeding.map((item) => item.status));
     return {
