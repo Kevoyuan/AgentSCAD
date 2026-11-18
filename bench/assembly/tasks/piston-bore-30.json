@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "id": "piston-bore-30",
+  "prompt": "做一个活塞-缸筒两件式直线机构：缸筒为盲底杯形件，活塞在孔内沿轴线走 30 mm 行程。两件必须能以独立实体分别导出，活塞能沿轴方向完全抽出，整个行程中不得与缸筒干涉。轴为 Z 轴、过原点；活塞直径 10 mm；孔与活塞的直径间隙必须落在 0.35 到 0.45 mm 之间。单位 mm，可直接 3D 打印。",
+  "parts": [
+    {
+      "id": "barrel",
+      "selector": "barrel"
+    },
+    {
+      "id": "piston",
+      "selector": "piston"
+    }
+  ],
+  "joint": {
+    "type": "prismatic",
+    "axisOrigin": [
+      0,
+      0,
+      0
+    ],
+    "axisDirection": [
+      0,
+      0,
+      1
+    ],
+    "borePartId": "barrel",
+    "movingPartId": "piston"
+  },
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 2
+      }
+    },
+    {
+      "id": "diametral-clearance",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "range",
+        "min": 0.35,
+        "max": 0.45,
+        "unit": "mm"
+      }
+    },
+    {
+      "id": "sampled-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "disassembly-path",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "source-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "motion": {
+    "strokeMm": [
+      0,
+      30
+    ],
+    "steps": 16
+  },
+  "disassembly": {
+    "travelMm": 45,
+    "steps": 10
+  },
+  "notes": [
+    "Here the bore part is stationary and the shaft part moves, which is why joint.movingPartId is separate from joint.borePartId.",
+    "For a prismatic joint the stroke and the withdrawal share a direction; the withdrawal is still a longer, separate sampling, not an independent axis.",
+    "提交源码必须接受 pose.parameter 并以它为位姿：评测会按该参数重渲染，比较活动件质心与刚体变换，并确认固定件不随参数变化。"
+  ],
+  "pose": {
+    "parameter": "piston_stroke",
+    "unit": "mm",
+    "values": [
+      0,
+      15,
+      30
+    ],
+    "toleranceMm": 0.5
+  }
+}
