@@ -42,7 +42,8 @@
     "cad:assembly:reconstruct": "bun scripts/eval/reconstruct-assembly-bundle.ts",
     "bench:assembly": "bun bench/assembly/run.ts",
     "bench:assembly:check": "bun bench/assembly/run.ts --self-check",
-    "bench:ladder": "bun bench/ladder-report.ts"
+    "bench:ladder": "bun bench/ladder-report.ts",
+    "bench:baseline": "bun bench/baseline.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

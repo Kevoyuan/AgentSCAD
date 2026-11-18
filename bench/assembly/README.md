@@ -101,21 +101,29 @@ generated_part();
 task              submission                    status  cover   parts  clearance      motion  disasm
 hinge-45-loose    adversarial-floating          ERROR   4/6     PASS   —              PASS    PASS
 hinge-45-loose    adversarial-fused-bore        ERROR   2/6     PASS   —              FAIL    FAIL
-hinge-45-loose    adversarial-solid-blob        ERROR   1/6     FAIL   —              FAIL    FAIL
+hinge-45-loose    adversarial-solid-blob        ERROR   1/6     FAIL   -8.284-8.284   FAIL    FAIL
 hinge-45-loose    adversarial-static-pose       FAIL    5/6     PASS   0.400-0.415    PASS    PASS
 hinge-45-loose    adversarial-tight-bore        FAIL    5/6     PASS   0.050-0.065    PASS    PASS
 hinge-45-loose    adversarial-whole-rotation    FAIL    5/6     PASS   0.400-0.415    PASS    PASS
+hinge-45-loose    model-deepseek-v4-flash       PASS    6/6     PASS   0.397-0.403    PASS    PASS
 hinge-45-loose    reference                     PASS    6/6     PASS   0.400-0.415    PASS    PASS
+hinge-60-wide     model-deepseek-v4-flash       PASS    6/6     PASS   0.442-0.457    PASS    PASS
 hinge-60-wide     reference                     PASS    6/6     PASS   0.450-0.465    PASS    PASS
+hinge-90-tight    model-deepseek-v4-flash       ERROR   5/6     PASS   —              PASS    PASS
 hinge-90-tight    reference                     PASS    6/6     PASS   0.250-0.265    PASS    PASS
 hinge-captured-45 adversarial-no-cap            FAIL    5/6     PASS   0.400-0.415    PASS    —
+hinge-captured-45 model-deepseek-v4-flash       ERROR   3/6     PASS   —              FAIL    —
 hinge-captured-45 reference                     PASS    6/6     PASS   0.400-0.415    PASS    —
 piston-bore-30    adversarial-tight-bore        FAIL    5/6     PASS   0.100-0.124    PASS    PASS
+piston-bore-30    model-deepseek-v4-flash       PASS    6/6     PASS   0.397-0.403    PASS    PASS
 piston-bore-30    reference                     PASS    6/6     PASS   0.400-0.425    PASS    PASS
+piston-bore-45    model-deepseek-v4-flash       PASS    6/6     PASS   0.247-0.253    PASS    PASS
 piston-bore-45    reference                     PASS    6/6     PASS   0.250-0.274    PASS    PASS
 ```
 
 实测间隙与解析值一致（6.40 mm 内切孔 − 6.00 mm 外接销 = 0.400 mm；10.40 − 10.00 = 0.400 mm），说明测量链没有系统性偏差。
+
+`model-*` 开头的提交是**被评的模型产物**：自检既不奖励也不惩罚它（`expectedOutcome` 返回 `unscored`）。用 `bun run bench:baseline` 生成，见 [bench/README.md](../README.md#第一个真实-baseline)。
 
 ### 这组作弊样例证明了什么
 

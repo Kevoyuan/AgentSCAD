@@ -1,0 +1,99 @@
+{
+  "model": "deepseek-v4-flash",
+  "dryRun": false,
+  "authorizeCny": 3,
+  "spentCny": 0.563806,
+  "note": "Retried hinge-45-loose, hinge-90-tight and hinge-captured-45 with --max-tokens 32768: the first pass hit the 8192 cap mid-code-block, which is a harness limit and not a model failure.",
+  "records": [
+    {
+      "task": "hinge-45-loose",
+      "model": "deepseek-v4-flash",
+      "dryRun": false,
+      "error": null,
+      "contractViolations": [],
+      "promptSha256": "794e81dcb5ec3479a1f360641f1ab06c65eed7eefdf87d7b5c99f82928398cdd",
+      "sourceSha256": "bfb60f24e6f3b92ce651aa0497ab76c4ed1994d25bb97f532c8693d4f31618d7",
+      "usage": {
+        "promptTokens": 404,
+        "completionTokens": 7640
+      },
+      "costCny": 0.061928,
+      "createdAt": "2026-11-18T13:17:58.163Z"
+    },
+    {
+      "task": "hinge-60-wide",
+      "model": "deepseek-v4-flash",
+      "dryRun": false,
+      "error": null,
+      "contractViolations": [],
+      "promptSha256": "2c44a8502db5b954b29aed11f71ba52b99013eaf12f7566811ab4f49b6a01306",
+      "sourceSha256": "b553c8ceef1d518e40e44fbab7a92cd2610fb4dc73c54ae1f3bf8f25e05d024c",
+      "usage": {
+        "promptTokens": 406,
+        "completionTokens": 6827
+      },
+      "costCny": 0.055428,
+      "createdAt": "2026-11-18T13:12:11.090Z"
+    },
+    {
+      "task": "hinge-90-tight",
+      "model": "deepseek-v4-flash",
+      "dryRun": false,
+      "error": null,
+      "contractViolations": [],
+      "promptSha256": "73b5e5857c1d98df13098a63bc39dcc4ce43cd753685b440cf925e5878df086a",
+      "sourceSha256": "08696ca3a8930dd8d6ce2508ec7cd2007d5e7c7a71a898d94b4b10b17281584c",
+      "usage": {
+        "promptTokens": 405,
+        "completionTokens": 7323
+      },
+      "costCny": 0.059394,
+      "createdAt": "2026-11-18T13:18:46.897Z"
+    },
+    {
+      "task": "hinge-captured-45",
+      "model": "deepseek-v4-flash",
+      "dryRun": false,
+      "error": null,
+      "contractViolations": [],
+      "promptSha256": "73025a000226e9d0cda4ba11f6612ecca7dc12a3d46b5acb85b15471f51b6a56",
+      "sourceSha256": "0c3b270c21ce65c8e4530a8eeb87dd6dfa37223cbad5e30803f0ea3bcf30dcbc",
+      "usage": {
+        "promptTokens": 453,
+        "completionTokens": 11337
+      },
+      "costCny": 0.091602,
+      "createdAt": "2026-11-18T13:19:52.581Z"
+    },
+    {
+      "task": "piston-bore-30",
+      "model": "deepseek-v4-flash",
+      "dryRun": false,
+      "error": null,
+      "contractViolations": [],
+      "promptSha256": "a86fb19e040c10ca088c609eb214ba4c1dd0bd1b4b9a54e48fbbc48cc98579b1",
+      "sourceSha256": "0bc9f7cb1dec03154b296132d49126eb5e26ae0640467b6e3878753b253bd1b6",
+      "usage": {
+        "promptTokens": 418,
+        "completionTokens": 6375
+      },
+      "costCny": 0.051836,
+      "createdAt": "2026-11-18T13:14:31.782Z"
+    },
+    {
+      "task": "piston-bore-45",
+      "model": "deepseek-v4-flash",
+      "dryRun": false,
+      "error": null,
+      "contractViolations": [],
+      "promptSha256": "329ed211e037b2a67e759e72fe9ba1675b2fa5af1063f6913fe81ce1d004b24e",
+      "sourceSha256": "8d510be482a628d3162f75cdf214c78cf473e991263f48c060e0ad27d0f00b94",
+      "usage": {
+        "promptTokens": 411,
+        "completionTokens": 5458
+      },
+      "costCny": 0.044486,
+      "createdAt": "2026-11-18T13:15:07.971Z"
+    }
+  ]
+}
