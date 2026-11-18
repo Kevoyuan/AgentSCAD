@@ -2,7 +2,7 @@
   "model": "deepseek-v4-flash",
   "dryRun": false,
   "authorizeCny": 2,
-  "spentCny": 0.39853,
+  "spentCny": 0.390922,
   "records": [
     {
       "task": "hinge-45-loose",
@@ -10,14 +10,14 @@
       "dryRun": false,
       "error": null,
       "contractViolations": [],
-      "promptSha256": "dbbc7485745b8938175eafa18b1ab6d6a37c7b5938020c6ddd599c0b4b8f5d54",
-      "sourceSha256": "4c807735f9fc43c39c20c222aea34c5476bf9b9ec1c4011abb0531fa82f226b0",
+      "promptSha256": "d5834c0876adff8a2244fa34692f409ad71961eaace7a8b74e2af22589e1b1f3",
+      "sourceSha256": "a9ec250441869b1caad083bbac4802215bd322878d71b24bb9def3bee848241c",
       "usage": {
-        "promptTokens": 400,
-        "completionTokens": 18787
+        "promptTokens": 406,
+        "completionTokens": 9309
       },
-      "costCny": 0.151096,
-      "createdAt": "2026-11-18T13:38:48.283Z"
+      "costCny": 0.075284,
+      "createdAt": "2026-11-18T14:00:31.643Z"
     },
     {
       "task": "hinge-60-wide",
@@ -25,14 +25,14 @@
       "dryRun": false,
       "error": null,
       "contractViolations": [],
-      "promptSha256": "06c6ff85c7ef979d87612b35dc7312c1c245541ae32c15736334b00dbe767839",
-      "sourceSha256": "8d750cf08478ce8bf0fd96cbba7b276e3b490583586eacc370b9341b3486aed9",
+      "promptSha256": "dcfee62bb670b64d1fdaa8a394c9a455b3f83daeba4b46b576f6cece7d8e91aa",
+      "sourceSha256": "4d71ecc2107f5bdbdc0e82df3c002ec2ba14de89a4e34e70fd99ef62b8a1c0c9",
       "usage": {
-        "promptTokens": 402,
-        "completionTokens": 7771
+        "promptTokens": 409,
+        "completionTokens": 7018
       },
-      "costCny": 0.062972,
-      "createdAt": "2026-11-18T13:39:36.760Z"
+      "costCny": 0.056962,
+      "createdAt": "2026-11-18T14:01:12.126Z"
     },
     {
       "task": "hinge-90-tight",
@@ -40,14 +40,14 @@
       "dryRun": false,
       "error": null,
       "contractViolations": [],
-      "promptSha256": "c71156fec5e28889a42e01a68bdbe1f4c34299f0919b73de41f3dfb7bae66853",
-      "sourceSha256": "b8a84cdb77824a48060423d971c9a904c68e0c56ae36ac44c7f455ef61af7331",
+      "promptSha256": "1b2c0bbfb18a667263bce0af9062e04f87b59bd3f684f34a228e07e6f1414f86",
+      "sourceSha256": "3c84093349b646d4131d7b6d30ea87f71df7613b5438147e4df904dc2affa7ea",
       "usage": {
-        "promptTokens": 401,
-        "completionTokens": 7009
+        "promptTokens": 406,
+        "completionTokens": 7238
       },
-      "costCny": 0.056874,
-      "createdAt": "2026-11-18T13:40:17.442Z"
+      "costCny": 0.058716,
+      "createdAt": "2026-11-18T14:01:59.129Z"
     },
     {
       "task": "hinge-captured-45",
@@ -55,14 +55,14 @@
       "dryRun": false,
       "error": null,
       "contractViolations": [],
-      "promptSha256": "008a45ad4233abcb3ee0b499302094ff7cdcc4640a3cef498ff69e032a5d86fc",
-      "sourceSha256": "a0b9910e0a52013ac9594c26749738862462641b937d9bade3bff10df76c7c49",
+      "promptSha256": "c37f5bb58c8c27941aa4d381ac53f005ab28c1b56eff5abeac6241436fb49597",
+      "sourceSha256": "6c2620b8037e82e26d952494bf3e6cb649f11504b0bd0b5df7c284fedb52fea9",
       "usage": {
-        "promptTokens": 449,
-        "completionTokens": 5616
+        "promptTokens": 466,
+        "completionTokens": 10530
       },
-      "costCny": 0.045826,
-      "createdAt": "2026-11-18T13:40:52.728Z"
+      "costCny": 0.085172,
+      "createdAt": "2026-11-18T14:03:03.299Z"
     },
     {
       "task": "piston-bore-30",
@@ -70,14 +70,14 @@
       "dryRun": false,
       "error": null,
       "contractViolations": [],
-      "promptSha256": "f106ade278fe3d5438ec70404f08c83f1a34a112e50b7eee5b64208c2400698b",
-      "sourceSha256": "775f0291c6bbb65750db6ca4c91a33e9e92dbc853d39f60d93fa64b1e12eaa55",
+      "promptSha256": "aa1a7990200bc2cb4378748df4483d714cb2619a3a6b6db168c52dbf76848d69",
+      "sourceSha256": "5aa15259f250d080afbc0c193622c09d2e44d45164b8afc4cc7d95f7574e9d10",
       "usage": {
-        "promptTokens": 414,
-        "completionTokens": 5118
+        "promptTokens": 420,
+        "completionTokens": 5994
       },
-      "costCny": 0.041772,
-      "createdAt": "2026-11-18T13:41:22.767Z"
+      "costCny": 0.048792,
+      "createdAt": "2026-11-18T14:03:40.139Z"
     },
     {
       "task": "piston-bore-45",
@@ -85,21 +85,31 @@
       "dryRun": false,
       "error": null,
       "contractViolations": [],
-      "promptSha256": "eefb64036adbb41a31378282b4426baad6238daa1e1fe4ed968f593dd3251375",
-      "sourceSha256": "1732ff9f69b8f206bf1e614372f511913020a816f86ae26c0678798a171fa8ea",
+      "promptSha256": "81a1e015dcf2d5d0622ab337ced4999253326b1910cf8b7216af2bb514f5e4ab",
+      "sourceSha256": "28c1eab02b90c860f832d3e5c3d13bc717c72b8356078a33188c9db47a1bcae0",
       "usage": {
-        "promptTokens": 407,
-        "completionTokens": 4897
+        "promptTokens": 414,
+        "completionTokens": 8146
       },
-      "costCny": 0.03999,
-      "createdAt": "2026-11-18T13:41:52.521Z"
+      "costCny": 0.065996,
+      "createdAt": "2026-11-18T14:04:25.579Z"
     }
   ],
-  "note": "Re-run after the output contract was translated to English. The earlier run with the Chinese contract scored 4/6 on the same task set and model (0.564 CNY). One sample per condition at temperature 0, so this is not a language comparison; the recorded row is this re-run because it matches the published prompt template.",
-  "priorRun": {
-    "contractLanguage": "zh",
-    "passed": 4,
-    "tasks": 6,
-    "spentCny": 0.563806
-  }
+  "note": "Recorded baseline for the current task set: task prompts and the output contract are both English. Two earlier runs used Chinese text and are superseded: 4/6 with Chinese prompt + Chinese contract, 5/6 with Chinese prompt + English contract. One sample per condition at temperature 0, so none of these is a language comparison.",
+  "priorRuns": [
+    {
+      "promptLanguage": "zh",
+      "contractLanguage": "zh",
+      "passed": 4,
+      "tasks": 6,
+      "spentCny": 0.563806
+    },
+    {
+      "promptLanguage": "zh",
+      "contractLanguage": "en",
+      "passed": 5,
+      "tasks": 6,
+      "spentCny": 0.39853
+    }
+  ]
 }

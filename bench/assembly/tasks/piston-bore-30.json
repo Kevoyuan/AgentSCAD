@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "piston-bore-30",
-  "prompt": "做一个活塞-缸筒两件式直线机构：缸筒为盲底杯形件，活塞在孔内沿轴线走 30 mm 行程。两件必须能以独立实体分别导出，活塞能沿轴方向完全抽出，整个行程中不得与缸筒干涉。轴为 Z 轴、过原点；活塞直径 10 mm；孔与活塞的直径间隙必须落在 0.35 到 0.45 mm 之间。单位 mm，可直接 3D 打印。",
+  "prompt": "Build a two-piece piston-and-barrel linear mechanism: the barrel is a blind-bottom cup, and the piston travels a 30 mm stroke inside the bore. The two parts must export as separate solids, the piston must be withdrawable along the axis, and it must not interfere with the barrel anywhere over the stroke. The axis is Z through the origin; piston diameter 10 mm; the diametral clearance between the bore and the piston must be between 0.35 and 0.45 mm. Units mm; directly 3D printable.",
   "parts": [
     {
       "id": "barrel",
@@ -95,7 +95,7 @@
   "notes": [
     "Here the bore part is stationary and the shaft part moves, which is why joint.movingPartId is separate from joint.borePartId.",
     "For a prismatic joint the stroke and the withdrawal share a direction; the withdrawal is still a longer, separate sampling, not an independent axis.",
-    "提交源码必须接受 pose.parameter 并以它为位姿：评测会按该参数重渲染，比较活动件质心与刚体变换，并确认固定件不随参数变化。"
+    "The submission source must accept pose.parameter and use it as its pose: the harness re-renders at that parameter, compares the moving part against a rigid transform, and checks the grounded part does not change."
   ],
   "pose": {
     "parameter": "piston_stroke",

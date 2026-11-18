@@ -1,42 +1,28 @@
-$fn = 64;
-
 agentscad_part = "all";
 hinge_angle = 0;
 
-pin_d = 6;
-pin_r = pin_d / 2;
-clearance = 0.4;
-hole_r = (pin_d + clearance) / 2;
-pin_h = 24;
-pin_z0 = -12;
-bushing_outer_r = 6;
-bushing_h = 6;
-bushing_z0 = -3;
-moving_leaf_thickness = 3;
-moving_leaf_z0 = -1.5;
-fixed_leaf_thickness = 4;
-fixed_leaf_z0 = -12;
+$fn = 64;
 
 module fixed_part() {
     union() {
-        translate([0, 0, pin_z0])
-            cylinder(h = pin_h, r = pin_r, center = false);
-        translate([-3, -10, fixed_leaf_z0])
-            cube([33, 20, fixed_leaf_thickness]);
+        // Pin, diameter 6 mm, axis Z through origin
+        cylinder(h = 20, r = 3, center = false);
+        // Fixed leaf
+        translate([-30, -6, 0]) cube([35, 12, 3]);
     }
 }
 
 module moving_part() {
-    rotate([0, 0, hinge_angle])
-    union() {
-        translate([0, 0, bushing_z0])
-            difference() {
-                cylinder(h = bushing_h, r = bushing_outer_r, center = false);
-                translate([0, 0, -0.01])
-                    cylinder(h = bushing_h + 0.02, r = hole_r, center = false);
+    rotate([0, 0, hinge_angle]) {
+        union() {
+            // Hinge boss with bore diameter 6.4 mm (0.4 mm diametral clearance)
+            translate([0, 0, 6]) difference() {
+                cylinder(h = 6, r = 6, center = false);
+                translate([0, 0, -0.1]) cylinder(h = 6.2, r = 3.2, center = false);
             }
-        translate([-30, -10, moving_leaf_z0])
-            cube([26, 20, moving_leaf_thickness]);
+            // Moving leaf
+            translate([5, -6, 6]) cube([25, 12, 3]);
+        }
     }
 }
 

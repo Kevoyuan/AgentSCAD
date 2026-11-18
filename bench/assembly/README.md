@@ -111,9 +111,9 @@ hinge-45-loose    adversarial-tight-bore        FAIL    5/6     PASS   0.050-0.0
 hinge-45-loose    adversarial-whole-rotation    FAIL    5/6     PASS   0.400-0.415    PASS    PASS
 hinge-45-loose    model-deepseek-v4-flash       PASS    6/6     PASS   0.392-0.407    PASS    PASS
 hinge-45-loose    reference                     PASS    6/6     PASS   0.400-0.415    PASS    PASS
-hinge-60-wide     model-deepseek-v4-flash       PASS    6/6     PASS   0.448-0.452    PASS    PASS
+hinge-60-wide     model-deepseek-v4-flash       PASS    6/6     PASS   0.492-0.507    PASS    PASS
 hinge-60-wide     reference                     PASS    6/6     PASS   0.450-0.465    PASS    PASS
-hinge-90-tight    model-deepseek-v4-flash       PASS    6/6     PASS   0.242-0.257    PASS    PASS
+hinge-90-tight    model-deepseek-v4-flash       PASS    6/6     PASS   0.247-0.253    PASS    PASS
 hinge-90-tight    reference                     PASS    6/6     PASS   0.250-0.265    PASS    PASS
 hinge-captured-45 adversarial-no-cap            FAIL    5/6     PASS   0.400-0.415    PASS    —
 hinge-captured-45 model-deepseek-v4-flash       PASS    6/6     PASS   0.397-0.403    PASS    —
@@ -121,7 +121,7 @@ hinge-captured-45 reference                     PASS    6/6     PASS   0.400-0.4
 piston-bore-30    adversarial-tight-bore        FAIL    5/6     PASS   0.100-0.124    PASS    PASS
 piston-bore-30    model-deepseek-v4-flash       PASS    6/6     PASS   0.387-0.412    PASS    PASS
 piston-bore-30    reference                     PASS    6/6     PASS   0.400-0.425    PASS    PASS
-piston-bore-45    model-deepseek-v4-flash       FAIL    4/6     PASS   0.248-0.252    FAIL    FAIL
+piston-bore-45    model-deepseek-v4-flash       PASS    6/6     PASS   0.247-0.253    PASS    PASS
 piston-bore-45    reference                     PASS    6/6     PASS   0.250-0.274    PASS    PASS
 ```
 

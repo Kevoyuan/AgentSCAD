@@ -169,6 +169,67 @@ Best real candidate: `guided-gated-hinge-v1`, **8/9 layers**, gate not passed (t
 
 6 tasks × 1 attempt, **0.564 CNY total**:
 
+| Task | Status | Coverage | Measured clearance |
+|---|---|---|---|
+| `hinge-45-loose` | PASS | 6/6 | 0.392–0.407 |
+| `hinge-60-wide` | PASS | 6/6 | 0.492–0.507 |
+| `hinge-90-tight` | PASS | 6/6 | 0.247–0.253 |
+| `hinge-captured-45` | PASS | 6/6 | 0.397–0.403 |
+| `piston-bore-30` | PASS | 6/6 | 0.387–0.412 |
+| `piston-bore-45` | PASS | 6/6 | 0.247–0.253 |
+
+**6/6, every one inside its declared clearance band, and the 2 mm retention pull blocked.** That is a *saturated* result and it should be read as one.
+
+Saturation is not the same as "the tasks are easy". One sample at temperature 0 says nothing about the distribution, and the two earlier runs of the same model on the same tasks scored 4/6 and 5/6. What 6/6 does say is narrower and more useful: **this task set no longer produces a gradient for this model.** A benchmark whose best row is a clean sweep has stopped telling you where to work.
+
+The consequence is not "add more hinge cases". It is that the next increment has to be a harder rung — L3, the slider-crank with a closed loop — because more variants of a solved rung only add rows.
+
+Three runs were needed to get here, and the earlier two are kept rather than overwritten, because each one invalidated the last for a different reason:
+
+| Run | Task prompts | Output contract | Passed | Spend |
+|---|---|---|---|---|
+| 1 | Chinese | Chinese | 4/6 | 0.564 CNY |
+| 2 | Chinese | English | 5/6 | 0.399 CNY |
+| 3 | English | English | **6/6** | 0.391 CNY |
+
+One sample per row at temperature 0: **this is not a language comparison** and must not be quoted as evidence that English prompts work better. The reason run 3 is the recorded one is that it matches the task text and the prompt template that ship in this repository. The other two rows exist so the difference stays visible instead of being quietly replaced.
+
+One earlier failure was a harness limit rather than a model failure: the first pass used `--max-tokens 8192`, three tasks were cut off at **exactly 8192** output tokens, and that surfaced as "no code block found". Raising the cap to 32768 produced real geometry. Counting truncation as a capability failure would have put a tool problem on the model's record.
+
+### The layer table over recorded history
+
+```
+layer             pass  fail  error not_run absent pass rate  gap kind        repair target
+compile           0     1     0     0       29     0.0%       capability      SCAD compilation
+parts-identity    26    3     0     1       0      86.7%      healthy         Selectors and parting strategy
+topology          16    5     0     6       3      59.3%      capability      Boolean ops, wall thickness, connectivity
+joint-frames      8     0     20    0       2      28.6%      inspect ERROR   Declared axes and coordinate transforms
+fit               8     0     20    2       0      26.7%      inspect ERROR   Bore/shaft dimensions and tolerance
+retention         0     3     0     23      4      0.0%       missing check   Retention features and latches
+assembly-path     3     19    1     3       4      11.5%      capability      Insertion path and clearance
+disassembly-path  3     22    3     1       1      10.3%      capability      Removal order
+rigid-motion      1     23    1     5       0      3.3%       capability      Kinematics and collision
+source-motion     0     3     0     16      11     0.0%       missing check   SCAD parameterisation and pose selectors
+reconstruction    8     2     5     13      2      28.6%      missing check   Export, re-assembly and budget
+```
+
+What this says is not "the model is bad":
+
+- **`parts-identity` at 86.7% is essentially solved.** More work there is wasted.
+- **`rigid-motion` 3.3%, `assembly-path` 11.5%, `disassembly-path` 10.3% are real capability gaps**, and they sit late in the ladder — that is where the current effort belongs.
+- **`retention` and `source-motion` are 0% but overwhelmingly `NOT_RUN`.** The model is not failing them; nothing measures them. Talking about model capability on those layers is a category error.
+- **`joint-frames` / `fit` show 20 `ERROR` each and need the finding text** before they can be classified, so they are marked "inspect" rather than guessed.
+
+Best real candidate: `guided-gated-hinge-v1`, **8/9 layers**, gate not passed (the only gap is `retention: NOT_RUN`). That is the progress the "measured-core = 0" line hid.
+
+> This table is built from **product trial records**, which is a different chain from `bench/assembly`. The benchmark can now measure `retention` and `source-motion`, but until the product's judge emits those evidence ids the historical `NOT_RUN` will not disappear. **What moves a metric is wiring, not documentation.**
+
+### The first real baseline
+
+`bun run bench:baseline` generates, extracts, writes and scores directly against an OpenAI-compatible endpoint — **not through the product's `model-router`**, because a model comparison should not inherit the product's routing or prompt.
+
+6 tasks × 1 attempt, **0.564 CNY total**:
+
 | Task | Status | Coverage | Measured clearance | Note |
 |---|---|---|---|---|
 | `hinge-45-loose` | PASS | 6/6 | 0.392–0.407 | inside the declared band |
@@ -192,7 +253,7 @@ Boundary: **this is a baseline row, not a comparison.** One model, one sample, n
 - [x] **layer scorer**: `bench/layers.ts` + `bench/ladder-report.ts`, over recorded batches
 - [x] **layer counting in `bench/assembly`**: every case reports `cover 6/6`, sharing one `scoreEvidence`
 - [x] **`retention` and `source-motion` observers**: the capture pull in `hinge-captured-45`, and pose re-rendering across all tasks
-- [x] **first model baseline**: DeepSeek v4 flash, 6 tasks, 5/6
+- [x] **first model baseline**: DeepSeek v4 flash, 6 tasks, 6/6 — saturated, so the next rung is L3
 - [ ] **wire both checks into the product's judge**: the benchmark being able to measure is not the same as the trial emitting those ids. Until `judge-assembly` is wired, the historical layer table keeps its `NOT_RUN`s
 - [ ] **L3 slider-crank** (1–2 weeks): multi-joint kinematics and a closed loop — the real threshold
 - [ ] **hidden split + external model baselines** (1 week): without these it is a self-test tool
