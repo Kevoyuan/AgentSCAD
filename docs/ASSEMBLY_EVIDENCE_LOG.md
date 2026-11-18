@@ -2201,3 +2201,105 @@ M5 螺纹第一步此前缺少“完全旋出”证据。本轮直接运行已�
 M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴度仍 NOT_RUN（需要独立的轴对齐测量）；齿轮/行星传动尚未开始；M5 不能标完成。
 
 边界：12 转、90° 步长、单向命令运动；螺母从 seat 处开始；不排除采样间更早越界或回退；无制造/实物证据。无源码改动；普通测试 1121 PASS / 3 SKIP / 0 FAIL；完整原生套件基线 56 PASS / 1 SKIP / 0 FAIL（1080.64 秒）。无模型调用，余额仍为 86.92 元（调用时口径）。
+
+## 2026-11-18 · A10 齿轮级：从实际重渲染网格测量齿数、节圆与行星反转
+
+### 输入与入口
+
+| 项目 | 值 |
+|---|---|
+| 外啮合样例 | `benchmarks/assembly/gear_pair.scad`，SHA256 `9e52218a627203f2e18b1bf076e4bc517bd9fc35c418b6ea01dfbec96744a463` |
+| 行星样例 | `benchmarks/assembly/planetary_gear.scad`，SHA256 `a36f6349652913ad5dd6035a9ea67974b0f408e41bd86aea8208bf3c46b8633c` |
+| 测量模块 | `src/lib/assembly/gear-marker.ts`（原文快照 SHA256 `e1118445a8521366329cdd1ec4ec44c34659fb9cd3acc14bda32616304803844`，仅本批次） |
+| 渲染器 | 本机原生 OpenSCAD `2021.01`，逐选择器重渲染；未使用 WASM |
+| 证据命令 | `bun run cad:eval:gear`（无模型调用） |
+| 原始报告 | `.agentscad/experiments/a10-gear-stage-2026-11-18/report.json`（含每次渲染的 STL SHA-256） |
+| 定向测试 | `bun test src/lib/tools/__tests__/gear-coupling.openscad.test.ts src/lib/tools/__tests__/planetary-gear.openscad.test.ts` |
+
+### 方法
+
+1. 对每个位姿重新渲染 `pinion_pose` / `wheel_pose`，以及行星的 `sun_pose` / `planet_pose` / `carrier_pose` / `ring`；不把元件网格当作源行为的替代。
+2. 外齿轮用中心通孔测量轴与中心：三个轴向截面、1440 条射线，一次谐波迭代修正种子中心；实际轴方向来自截面中心连线。内齿圈没有中心孔，轴仍来自声明，只测其内边界。**外形、轴与节圆在零位姿测量；其他位姿只重渲染同一零件并测标记朝向**。旋转后的 32 面通孔在 1440 射线下可能因顶点相位把面数估成约 32.3，故不把每个位姿的孔轴都当作独立轴测量；这是方法的覆盖边界。
+3. 在轴法向截面上向 1440 个方向投射射线：外齿取最远交点，内齿取最近交点；以“有足够角度支撑的最外/最内半径”定齿顶，避免把较宽的齿根误当齿顶，也避免把稀疏标记当齿。
+4. 连续齿顶区间计数得到齿数；以等角栅格拟合齿相位并报告最大残差；用标准全齿高估计 `module=(tip−root)/2.25`、`pitch=root±1.25·module`。这是估计量，不是节圆计量。
+5. 标记为齿顶之外的径向凸台顶点；其圆周均值给出该零件的刚体朝向。外啮合以测量齿数比 `−Zpinion/Zwheel` 为目标，另测中心距；行星以固定齿圈、太阳输入、行星架输出为模型，分别拟合太阳、行星架、行星的斜率，并要求正负输入都存在。
+6. 对同方向、错误齿数比、忽略位姿、无标记、错误行星/行星架、齿圈不闭合、单一输入方向分别做反例；`NOT_RUN` 不写成通过。
+
+### 外啮合实测
+
+输入角 0°、60°、120°、180°、240°、300°，每次重渲染两件：
+
+| 项目 | 销轮 | 大轮 |
+|---|---:|---:|
+| 实测齿数 | 12 | 24 |
+| 实测节圆半径（标准全齿高估计） | 11.977778 mm | 23.988885 mm |
+| 轴向截面数 / 射线数 | 3 / 1440 | 3 / 1440 |
+| 轴来源 | 中心通孔 | 中心通孔 |
+| 齿相位最大残差 | < 1° | < 1° |
+
+- 实测中心距 **36.000000 mm**；两轮实测节圆半径之和 35.966662 mm，差 0.033338 mm，在 0.2 mm 中心距容差内。
+- 实测传动比 **−0.499999999**；测量齿数比 **−0.500000**；销轮相位残差 1.08e−7°，大轮残差 2.22e−6°，方向为相反；零位姿标记角为销轮 14.999998°、大轮 7.500000°（各齿间隙中的标记特征）。
+- 总判定 **PASS**，但只覆盖标记朝向、实测齿数/节圆估计和中心距；**没有齿面接触、侧隙、承载、效率、磨损或制造证据**。
+
+反例（同一条检查器）：`ratio_sign=+1` 得到同向，**FAIL**；声明比 −0.4 与实测齿数比 −0.5 不符，**FAIL**；销轮忽略 `input_deg`，**FAIL**；删去标记凸台后没有标记，**NOT_RUN**。
+
+### 行星级实测
+
+固定 36 齿内齿圈、12 齿太阳、12 齿行星、行星架输出；输入角 0°、120°、240°、−120°、−240°，每次重渲染三个运动件：
+
+| 项目 | 太阳 | 行星 | 内齿圈 |
+|---|---:|---:|---:|
+| 实测齿数 | 12 | 12 | 36 |
+| 实测节圆半径估计 | 11.994493 mm | 11.994493 mm | 35.999999 mm |
+| 轴来源 | 中心通孔 | 中心通孔 | 声明（无中心孔） |
+
+- 齿数闭合：36 = 12 + 2×12；实测节圆关系残差 **0.016520 mm**（容差 0.25 mm）。
+- 实测斜率：太阳 **1.0000000001**、行星架 **0.2500000006**、行星 **−0.4999999988**；理论值 1、0.25、−0.5。
+- 最大相位残差：太阳 2.52e−7°、行星架 7.13e−7°、行星 9.06e−7°；行星中心距最大残差 **0.011014 mm**（目标 24 mm）。
+- 正输入 2 个、负输入 2 个；反转覆盖存在，总判定 **PASS**。
+- 反例：行星只随行星架转（斜率 0.25）**FAIL**；行星架按 0.3 倍输入转 **FAIL**；齿圈改成 35 齿后不满足 36=12+2×12 **FAIL**；只有正输入 **NOT_RUN**；删去标记后 **NOT_RUN**。
+
+### 边界与未完成
+
+- 两个样例都是手工原创的**直边全齿高**演示件，不是渐开线齿轮；齿面接触、侧隙、重合度、承载、效率、噪声、磨损和制造公差均为 **NOT_RUN**。
+- 节圆半径是“齿顶/齿根 + 标准全齿高”的估计；射线分辨率 0.25°，根/顶弦高与采样会造成约 0.01–0.03 mm 量级的估计偏差，不能当作计量级节圆。
+- 中心通孔的轴是实测的；内齿圈没有通孔，其轴仍来自声明。标记凸台是测量特征，不能证明任意生成零件中它就是用户意图的特征；也没有独立校准。
+- 只测量 5–6 个输入角，角与角之间、连续运动与真实啮合没有证据；没有内嵌装配声明、ZIP、逐件重建、拆卸顺序或产品端到端。外形/轴只在零位姿测量，旋转后的孔轴不作为独立证据。
+- 未执行：付费模型、WASM、浏览器、隐藏集、全套原生 OpenSCAD 测试、实物制造与加载。
+
+本轮软件验证：上述两条定向原生测试 **11 PASS / 0 FAIL**（外啮合 5、行星 6）；全量单元测试 **1148 PASS / 3 SKIP / 0 FAIL**（170 文件）；`bun run typecheck` 与针对改动文件的 ESLint 通过。另跑了 `pipeline-assembly.openscad.test.ts` **5 PASS** 与 `judge-evidence.test.ts` **7 PASS**；未重跑完整原生 OpenSCAD 套件、WASM 套件、浏览器 E2E、付费模型或实物试验。
+
+## 2026-11-18 · 判分器接线核验、本地分支恢复与 A10 齿轮
+
+### 分支事实（先记录，避免后续误读）
+
+- `main` 在 2026-11-18 16:02 左右被重置到 `origin/main`；此前本地 `main` 上另有 **119 个未合并提交**，保存在 `archive/local-main-2026-11-18`，包括 `7ea90e9 feat(eval): measure source motion and axial retention in the offline judge`、retention release、slider-crank source pose、四关节 A001 等。
+- 本批次从该 archive 创建 `continue/local-assembly-2026-11-18`，**main 保持不动**；A10 齿轮文件（`gear-marker.ts`、两个夹具、两条原生测试、`check-gear-stage.ts`）从 `main` 的 `2addffd` 移植到该分支后重新运行。
+- 该事实解释了为什么 `main` 的 `judge-assembly.ts` 只有 6 个 observation，而 2026-11-17 试验报告有 17 个 evidence id：报告来自 archive 线，main 是重置后的上游 PR 线。
+
+### 判分器接线核验（bench §5 的最后一项）
+
+`scripts/eval/judge-assembly.ts` 现在把派生合同作为 **trial attribution gate** 传入 `prepareAssembly`，并在 `Judgement` 中携带 `trialAttribution`；它产出 `sampled-motion`、`rigid-motion`、`source-motion`、`motion-range-deg`/`motion-range-negative-end`/`motion-range-positive-end`、`axial-retention`、`assembly-path`、`disassembly-path` 等证据。前提是候选声明本身提供：
+
+- `motions[].sourceInput`：参数名 + 每个实例的 pose selector；
+- `translationProbes`：轴向探针，含起点、方向、采样数、期望 blocked/clear；
+- 缺声明、不可测或声明不完整时，对应证据保持 `NOT_RUN`，不把“没测”写成“通过”。
+
+验证（本机原生 OpenSCAD 2021.01，无模型调用）：
+
+- `bun test scripts/eval/judge-evidence.test.ts` → **7 PASS / 0 FAIL**；
+- `bun test src/lib/tools/__tests__/pipeline-assembly.openscad.test.ts` → **5 PASS / 0 FAIL**，其中研究者辅助控制件在 `sampled-motion`/`rigid-motion`/`source-motion`/`axial-retention`/`assembly-path`/`disassembly-path`/`diametral-clearance` 上 PASS；
+- 同一控制件的定向判分脚本输出上述 measured assertions PASS，`intent-preserved` 保持 **NOT_RUN**，`passed` 仍为 false；
+- 一次同文件运行出现过 `source-motion` 瞬时 `NOT_RUN`（在 300 s 测试上限内、其余测试通过），单独重跑和随后整文件重跑均 PASS；该次失败未被写成产品能力结论，也未放宽容差。**判分器接线的证据是 PASS，但该测试在重负载下有波动，后续需纳入稳定性观察。**
+
+边界：`TRIAL_GATE_REASON` 明确写的是 **measurement attribution only**，不是用户确认、验收或产品合同；`source-motion` 只覆盖列出的 pose selector 输入，`axial-retention` 只覆盖声明的刚体轴向探针；两者都不证明连续运动、齿面/螺纹啮合、载荷、摩擦、磨损或实物功能。
+
+`bench/README.md` §5 的该项已从 `[ ]` 改为 `[x]`；历史层表仍是接线前的记录，不回溯改成 PASS。
+
+### 合并验证
+
+- 全量单元测试：**1148 PASS / 3 SKIP / 0 FAIL**（170 文件）；
+- `bun run typecheck`、针对改动文件的 ESLint：通过；
+- A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
+- 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
+- 未执行：完整 56 条原生套件、WASM、浏览器 E2E、付费模型、隐藏集、实物制造/加载。

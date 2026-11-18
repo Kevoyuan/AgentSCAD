@@ -3,6 +3,11 @@
 All notable changes to AgentSCAD are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added
+- Measure an original 12/24 external gear pair and a 12/12/36 fixed-ring planetary stage from regenerated meshes: tooth count, tip/root/pitch estimates, bore axis and centre, marker ratio, centre distance and both input directions, with same-direction, wrong-ratio, static-pose, missing-marker and non-closing-ring negative cases (`bun run cad:eval:gear`)
+
 ## [0.6.0.0] - 2026-10-12
 
 ### Added

@@ -161,7 +161,7 @@ reconstruction    8     2     5     13    2     28.6%   缺检查      导出重
 
 最好的真实候选：`guided-gated-hinge-v1`，**8/9 层通过**，gate 未过（唯一缺口是 `retention: NOT_RUN`）。这就是那个被 "measured-core = 0" 藏起来的进展。
 
-注意这张表用的是**产品试验记录**，而 `bench/assembly` 是另一条链。benchmark 现在能测 `retention` 和 `source-motion` 了，但只要产品的 `judge-assembly` 不产出这两个证据，历史表里的 `NOT_RUN` 就不会消失。**让指标变好的是接线，不是文档。**
+注意这张表用的是**产品试验记录**，而 `bench/assembly` 是另一条链。benchmark 能测 `retention` 和 `source-motion`，而且判分器现在已经产出这两类证据（见 §5）；但这张表是接线前的记录，不会回溯变成 PASS。要观察变化，必须用同一任务集重新跑 trial，并保留新记录。**让指标变好的是接线，不是文档。**
 
 > 这 35 个批次横跨 12 个任务集版本，提示与判据期间都改过，**只能看形状，不能比高低**。报告里会自动带这条警告。
 
@@ -171,7 +171,7 @@ reconstruction    8     2     5     13    2     28.6%   缺检查      导出重
 - [x] **`bench/assembly` 接层计数**：每个 case 报告 `cover 4/4`，与 trial 共用同一个 `scoreEvidence`
 - [ ] **L3 曲柄滑块任务**（1–2 周）：多关节运动学 + 闭环约束，真正的门槛
 - [x] **补 `retention` 与 `source-motion` 的检查**：`bench/assembly` 里已落地（`hinge-captured-45` 的轴向拉拔、5 个任务的位姿重渲染）
-- [ ] **把这两个检查接进产品判分器**：`bench/assembly` 能测不等于 trial 会产出这两个证据。在 `judge-assembly` 接上之前，上面那张历史层表里的 `retention` / `source-motion` 仍然是 `NOT_RUN`——历史数字不会因为 benchmark 变强而变好
+- [x] **把这两个检查接进产品判分器**：`judge-assembly` 现在把派生合同作为 trial attribution gate 传给 `prepareAssembly`，并产出 `rigid-motion`、`source-motion`、`motion-range-*`、`axial-retention`、`assembly-path`、`disassembly-path`。前提是候选声明包含 `motions[].sourceInput`（参数 + 每个实例的 pose selector）和 `translationProbes`；缺声明仍为 `NOT_RUN`。`intent-preserved` 仍为 `NOT_RUN`，`passed` 不是用户确认或验收。证据：`bun test scripts/eval/judge-evidence.test.ts` 7 PASS；`bun test src/lib/tools/__tests__/pipeline-assembly.openscad.test.ts` 5 PASS（原生 OpenSCAD，研究者辅助控制件在 measured assertions 上 PASS，intent 保持 NOT_RUN）；定向判分脚本对同一控制件输出 `sampled-motion`/`rigid-motion`/`source-motion`/`axial-retention`/`assembly-path`/`disassembly-path` PASS。历史层表不因接线回溯。
 - [ ] **隐藏集 + 外部模型 baseline**（1 周）
 - [ ] **L5 两缸横截面**（2–3 周）：验证阶梯能延伸到 V8 而不重写判据
 

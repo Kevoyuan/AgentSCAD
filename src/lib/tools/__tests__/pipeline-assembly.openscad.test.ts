@@ -82,7 +82,7 @@ test("offline trial measures source motion and axial retention under a derived-c
  expect(result.passed).toBe(false);
  const evidence=Object.fromEntries(result.evidence.map(item=>[item.id,item.status]));
  for(const id of ["sampled-motion","rigid-motion","source-motion","axial-retention","assembly-path","disassembly-path","diametral-clearance"])
-  expect(evidence[id]).toBe("PASS");
+  expect(evidence[id], JSON.stringify({id,evidence,findings:result.findings},null,2)).toBe("PASS");
  expect(evidence["intent-preserved"]).toBe("NOT_RUN");
  expect(result.trialAttribution).toContain("not user confirmation");
  expect(result.findings.join("\n")).toContain("Measurement attribution");
