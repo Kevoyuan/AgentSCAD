@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "hinge-90-tight",
-  "prompt": "做一个两件式铰链：固定叶片带销，活动叶片带轴套，活动件能绕销转至少 ±90°。两件必须能以独立实体分别导出，并且能沿销轴方向抽开分离。销轴为 Z 轴、过原点；销直径 6 mm；轴孔与销的直径间隙必须落在 0.20 到 0.30 mm 之间。单位 mm，可直接 3D 打印。",
+  "prompt": "Build a two-piece hinge: the fixed leaf carries the pin and the moving leaf carries the bore, and the moving part must turn at least ±90° about the pin. The two parts must export as separate solids and must separate by sliding along the pin axis. The pin axis is Z through the origin; pin diameter 6 mm; the diametral clearance between the bore and the pin must be between 0.20 and 0.30 mm. Units mm; directly 3D printable.",
   "parts": [
     {
       "id": "fixed",
@@ -93,9 +93,9 @@
     "steps": 9
   },
   "notes": [
-    "A tighter band means the tessellation interface between bore and shaft is narrower; a coarse $fn will move the measured interval.",
+    "A tighter band narrows the tessellation interface between bore and shaft; a coarse $fn moves the measured interval.",
     "The sweep passes through ±90°, where the moving leaf points along the opposite axis.",
-    "提交源码必须接受 pose.parameter 并以它为位姿：评测会按该参数重渲染，比较活动件质心与刚体变换，并确认固定件不随参数变化。"
+    "The submission source must accept pose.parameter and use it as its pose: the harness re-renders at that parameter, compares the moving part against a rigid transform, and checks the grounded part does not change."
   ],
   "pose": {
     "parameter": "hinge_angle",
