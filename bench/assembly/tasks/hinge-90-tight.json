@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "id": "hinge-90-tight",
+  "prompt": "做一个两件式铰链：固定叶片带销，活动叶片带轴套，活动件能绕销转至少 ±90°。两件必须能以独立实体分别导出，并且能沿销轴方向抽开分离。销轴为 Z 轴、过原点；销直径 6 mm；轴孔与销的直径间隙必须落在 0.20 到 0.30 mm 之间。单位 mm，可直接 3D 打印。",
+  "parts": [
+    {
+      "id": "fixed",
+      "selector": "fixed"
+    },
+    {
+      "id": "moving",
+      "selector": "moving"
+    }
+  ],
+  "joint": {
+    "type": "revolute",
+    "axisOrigin": [
+      0,
+      0,
+      0
+    ],
+    "axisDirection": [
+      0,
+      0,
+      1
+    ],
+    "borePartId": "moving",
+    "movingPartId": "moving"
+  },
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 2
+      }
+    },
+    {
+      "id": "diametral-clearance",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "range",
+        "min": 0.2,
+        "max": 0.3,
+        "unit": "mm"
+      }
+    },
+    {
+      "id": "sampled-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "disassembly-path",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "source-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "motion": {
+    "rangeDeg": [
+      -90,
+      90
+    ],
+    "steps": 25
+  },
+  "disassembly": {
+    "travelMm": 20,
+    "steps": 9
+  },
+  "notes": [
+    "A tighter band means the tessellation interface between bore and shaft is narrower; a coarse $fn will move the measured interval.",
+    "The sweep passes through ±90°, where the moving leaf points along the opposite axis.",
+    "提交源码必须接受 pose.parameter 并以它为位姿：评测会按该参数重渲染，比较活动件质心与刚体变换，并确认固定件不随参数变化。"
+  ],
+  "pose": {
+    "parameter": "hinge_angle",
+    "unit": "deg",
+    "values": [
+      -90,
+      0,
+      90
+    ],
+    "toleranceMm": 0.5
+  }
+}

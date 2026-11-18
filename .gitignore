@@ -57,6 +57,8 @@ skills/scad-generation/learned-patterns.json
 benchmark-results.txt
 generation-trial-report.json
 benchmark-render-results.json
+bench/assembly/report.json
+bench/ladder-report.json
 
 # agent/IDE context directories
 .codex/
