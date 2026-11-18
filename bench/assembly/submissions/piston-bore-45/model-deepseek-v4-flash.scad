@@ -1,30 +1,30 @@
-agentscad_part = "all";
 piston_stroke = 0;
+agentscad_part = "all";
 
 piston_d = 10;
-diam_clearance = 0.25;
-bore_d = piston_d + diam_clearance;
+diametral_clearance = 0.25;
+piston_r = piston_d / 2;
+bore_r = (piston_d + diametral_clearance) / 2;
 
-barrel_wall = 3;
-barrel_bottom_t = 4;
-barrel_inner_height = 60;
-barrel_outer_d = bore_d + 2 * barrel_wall;
-barrel_outer_h = barrel_bottom_t + barrel_inner_height;
+barrel_outer_r = 8;
+barrel_height = 80;
+bottom_thickness = 4;
+piston_length = 40;
+piston_z0 = 6;
 
-piston_length = 24;
-piston_base_z = barrel_bottom_t + 1;
+$fn = 180;
 
 module barrel() {
     difference() {
-        cylinder(h = barrel_outer_h, d = barrel_outer_d, center = false, $fn = 128);
-        translate([0, 0, barrel_bottom_t])
-            cylinder(h = barrel_inner_height + 1, d = bore_d, center = false, $fn = 128);
+        cylinder(h = barrel_height, r = barrel_outer_r, center = false);
+        translate([0, 0, bottom_thickness])
+            cylinder(h = barrel_height - bottom_thickness + 1, r = bore_r, center = false);
     }
 }
 
 module piston() {
-    translate([0, 0, piston_base_z + piston_stroke])
-        cylinder(h = piston_length, d = piston_d, center = false, $fn = 128);
+    translate([0, 0, piston_z0 + piston_stroke])
+        cylinder(h = piston_length, r = piston_r, center = false);
 }
 
 if (agentscad_part == "all" || agentscad_part == "barrel") barrel();

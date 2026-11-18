@@ -1,9 +1,8 @@
 {
   "model": "deepseek-v4-flash",
   "dryRun": false,
-  "authorizeCny": 3,
-  "spentCny": 0.563806,
-  "note": "Retried hinge-45-loose, hinge-90-tight and hinge-captured-45 with --max-tokens 32768: the first pass hit the 8192 cap mid-code-block, which is a harness limit and not a model failure.",
+  "authorizeCny": 2,
+  "spentCny": 0.39853,
   "records": [
     {
       "task": "hinge-45-loose",
@@ -11,14 +10,14 @@
       "dryRun": false,
       "error": null,
       "contractViolations": [],
-      "promptSha256": "794e81dcb5ec3479a1f360641f1ab06c65eed7eefdf87d7b5c99f82928398cdd",
-      "sourceSha256": "bfb60f24e6f3b92ce651aa0497ab76c4ed1994d25bb97f532c8693d4f31618d7",
+      "promptSha256": "dbbc7485745b8938175eafa18b1ab6d6a37c7b5938020c6ddd599c0b4b8f5d54",
+      "sourceSha256": "4c807735f9fc43c39c20c222aea34c5476bf9b9ec1c4011abb0531fa82f226b0",
       "usage": {
-        "promptTokens": 404,
-        "completionTokens": 7640
+        "promptTokens": 400,
+        "completionTokens": 18787
       },
-      "costCny": 0.061928,
-      "createdAt": "2026-11-18T13:17:58.163Z"
+      "costCny": 0.151096,
+      "createdAt": "2026-11-18T13:38:48.283Z"
     },
     {
       "task": "hinge-60-wide",
@@ -26,14 +25,14 @@
       "dryRun": false,
       "error": null,
       "contractViolations": [],
-      "promptSha256": "2c44a8502db5b954b29aed11f71ba52b99013eaf12f7566811ab4f49b6a01306",
-      "sourceSha256": "b553c8ceef1d518e40e44fbab7a92cd2610fb4dc73c54ae1f3bf8f25e05d024c",
+      "promptSha256": "06c6ff85c7ef979d87612b35dc7312c1c245541ae32c15736334b00dbe767839",
+      "sourceSha256": "8d750cf08478ce8bf0fd96cbba7b276e3b490583586eacc370b9341b3486aed9",
       "usage": {
-        "promptTokens": 406,
-        "completionTokens": 6827
+        "promptTokens": 402,
+        "completionTokens": 7771
       },
-      "costCny": 0.055428,
-      "createdAt": "2026-11-18T13:12:11.090Z"
+      "costCny": 0.062972,
+      "createdAt": "2026-11-18T13:39:36.760Z"
     },
     {
       "task": "hinge-90-tight",
@@ -41,14 +40,14 @@
       "dryRun": false,
       "error": null,
       "contractViolations": [],
-      "promptSha256": "73b5e5857c1d98df13098a63bc39dcc4ce43cd753685b440cf925e5878df086a",
-      "sourceSha256": "08696ca3a8930dd8d6ce2508ec7cd2007d5e7c7a71a898d94b4b10b17281584c",
+      "promptSha256": "c71156fec5e28889a42e01a68bdbe1f4c34299f0919b73de41f3dfb7bae66853",
+      "sourceSha256": "b8a84cdb77824a48060423d971c9a904c68e0c56ae36ac44c7f455ef61af7331",
       "usage": {
-        "promptTokens": 405,
-        "completionTokens": 7323
+        "promptTokens": 401,
+        "completionTokens": 7009
       },
-      "costCny": 0.059394,
-      "createdAt": "2026-11-18T13:18:46.897Z"
+      "costCny": 0.056874,
+      "createdAt": "2026-11-18T13:40:17.442Z"
     },
     {
       "task": "hinge-captured-45",
@@ -56,14 +55,14 @@
       "dryRun": false,
       "error": null,
       "contractViolations": [],
-      "promptSha256": "73025a000226e9d0cda4ba11f6612ecca7dc12a3d46b5acb85b15471f51b6a56",
-      "sourceSha256": "0c3b270c21ce65c8e4530a8eeb87dd6dfa37223cbad5e30803f0ea3bcf30dcbc",
+      "promptSha256": "008a45ad4233abcb3ee0b499302094ff7cdcc4640a3cef498ff69e032a5d86fc",
+      "sourceSha256": "a0b9910e0a52013ac9594c26749738862462641b937d9bade3bff10df76c7c49",
       "usage": {
-        "promptTokens": 453,
-        "completionTokens": 11337
+        "promptTokens": 449,
+        "completionTokens": 5616
       },
-      "costCny": 0.091602,
-      "createdAt": "2026-11-18T13:19:52.581Z"
+      "costCny": 0.045826,
+      "createdAt": "2026-11-18T13:40:52.728Z"
     },
     {
       "task": "piston-bore-30",
@@ -71,14 +70,14 @@
       "dryRun": false,
       "error": null,
       "contractViolations": [],
-      "promptSha256": "a86fb19e040c10ca088c609eb214ba4c1dd0bd1b4b9a54e48fbbc48cc98579b1",
-      "sourceSha256": "0bc9f7cb1dec03154b296132d49126eb5e26ae0640467b6e3878753b253bd1b6",
+      "promptSha256": "f106ade278fe3d5438ec70404f08c83f1a34a112e50b7eee5b64208c2400698b",
+      "sourceSha256": "775f0291c6bbb65750db6ca4c91a33e9e92dbc853d39f60d93fa64b1e12eaa55",
       "usage": {
-        "promptTokens": 418,
-        "completionTokens": 6375
+        "promptTokens": 414,
+        "completionTokens": 5118
       },
-      "costCny": 0.051836,
-      "createdAt": "2026-11-18T13:14:31.782Z"
+      "costCny": 0.041772,
+      "createdAt": "2026-11-18T13:41:22.767Z"
     },
     {
       "task": "piston-bore-45",
@@ -86,14 +85,21 @@
       "dryRun": false,
       "error": null,
       "contractViolations": [],
-      "promptSha256": "329ed211e037b2a67e759e72fe9ba1675b2fa5af1063f6913fe81ce1d004b24e",
-      "sourceSha256": "8d510be482a628d3162f75cdf214c78cf473e991263f48c060e0ad27d0f00b94",
+      "promptSha256": "eefb64036adbb41a31378282b4426baad6238daa1e1fe4ed968f593dd3251375",
+      "sourceSha256": "1732ff9f69b8f206bf1e614372f511913020a816f86ae26c0678798a171fa8ea",
       "usage": {
-        "promptTokens": 411,
-        "completionTokens": 5458
+        "promptTokens": 407,
+        "completionTokens": 4897
       },
-      "costCny": 0.044486,
-      "createdAt": "2026-11-18T13:15:07.971Z"
+      "costCny": 0.03999,
+      "createdAt": "2026-11-18T13:41:52.521Z"
     }
-  ]
+  ],
+  "note": "Re-run after the output contract was translated to English. The earlier run with the Chinese contract scored 4/6 on the same task set and model (0.564 CNY). One sample per condition at temperature 0, so this is not a language comparison; the recorded row is this re-run because it matches the published prompt template.",
+  "priorRun": {
+    "contractLanguage": "zh",
+    "passed": 4,
+    "tasks": 6,
+    "spentCny": 0.563806
+  }
 }

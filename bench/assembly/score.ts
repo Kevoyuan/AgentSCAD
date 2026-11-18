@@ -345,7 +345,7 @@ export async function scoreSubmission(task: BenchTask, submission: Submission): 
   const shaftPartMesh = rendered.find((part) => part.partId === shaftPartId);
   let clearance: { min: number; max: number } | null = null;
   let fitStatus: CaseReport["measurements"]["fitStatus"] = "NOT_RUN";
-  let fitReason = "没有可测量的孔轴。";
+  let fitReason = "No measurable bore/shaft pair.";
   try {
     if (borePartMesh && shaftPartMesh) {
       const boreExtent = extentAlongAxis(readBinaryStl(borePartMesh.stl), axis.origin, axis.direction);
@@ -354,7 +354,7 @@ export async function scoreSubmission(task: BenchTask, submission: Submission): 
       const overlapMax = Math.min(boreExtent.max, shaftExtent.max);
       if (!(overlapMax > overlapMin)) {
         fitStatus = "ERROR";
-        fitReason = "两件沿声明轴不重叠，无法形成配合。";
+        fitReason = "The two parts do not overlap along the declared axis, so they cannot form a joint.";
       } else {
         const stations = [0.2, 0.5, 0.8].map((fraction) => overlapMin + (overlapMax - overlapMin) * fraction);
         measurements.stationsMm = stations;
@@ -362,17 +362,17 @@ export async function scoreSubmission(task: BenchTask, submission: Submission): 
         const shaft = measureCylindricalFeature({ stl: shaftPartMesh.stl, axis, role: "shaft", stationsMm: stations, rays: 360 });
         if (bore.status !== "MEASURED" || !bore.diameterMm) {
           fitStatus = "ERROR";
-          fitReason = `轴孔无法测量：${bore.reason}`;
+          fitReason = `The bore could not be measured: ${bore.reason}`;
         } else if (shaft.status !== "MEASURED" || !shaft.diameterMm) {
           fitStatus = "ERROR";
-          fitReason = `轴无法测量：${shaft.reason}`;
+          fitReason = `The shaft could not be measured: ${shaft.reason}`;
         } else {
           clearance = {
             min: bore.diameterMm.min - shaft.diameterMm.max,
             max: bore.diameterMm.max - shaft.diameterMm.min,
           };
           fitStatus = "MEASURED";
-          fitReason = `在 ${stations.length} 个轴向站位上分别测量孔与轴的直径区间，取两者极值差。`;
+          fitReason = `Measured the bore and shaft diameter intervals at ${stations.length} axial stations and took the difference of their extremes.`;
         }
       }
     }
@@ -391,9 +391,9 @@ export async function scoreSubmission(task: BenchTask, submission: Submission): 
         uncertainty: (clearance.max - clearance.min) / 2,
         unit: "mm",
         artifactSha256: stlArtifact,
-        method: "在采样轴向站位上取平面截面，径向射线求交并做正多边形拟合；间隙为孔与轴多边形极值之差。",
+        method: "Planar sections at the sampled axial stations, radial ray casting and a regular-polygon fit; the clearance is the difference between the bore and shaft polygon extremes.",
         toolVersion,
-        coverage: `站位 ${measurements.stationsMm.map((value) => value.toFixed(2)).join(", ")} mm，沿声明轴。`,
+        coverage: `Stations ${measurements.stationsMm.map((value) => value.toFixed(2)).join(", ")} mm along the declared axis.`,
       })
     : { id: "diametral-clearance", status: fitStatus === "ERROR" ? "ERROR" : "NOT_RUN", reason: fitReason, toolVersion };
 
@@ -466,23 +466,23 @@ export async function scoreSubmission(task: BenchTask, submission: Submission): 
     if (assembled.status !== "SEPARATED") {
       // A part that already interpenetrates cannot demonstrate retention: the
       // pull would "block" for a reason that has nothing to do with a feature.
-      retentionDetail = `组装位姿下两件已经相交（${assembled.status}），拉拔结果不能归因于保持件。`;
+      retentionDetail = `The two parts already intersect at the assembled pose (${assembled.status}), so the pull cannot be attributed to a retention feature.`;
     } else {
       const pulled = meshesIntersect(movingMesh, translationAlong(task.joint.axisDirection, task.retention.pullMm), fixedMesh, IDENTITY);
       retentionBlocked = pulled.status !== "SEPARATED";
       retentionDetail = retentionBlocked
-        ? `沿轴拉拔 ${task.retention.pullMm} mm 时与另一件相交（${pulled.status}），保持件生效。`
-        : `沿轴拉拔 ${task.retention.pullMm} mm 后两件仍然分离，没有特征挡住抽出。`;
+        ? `Pulling ${task.retention.pullMm} mm along the axis intersects the other part (${pulled.status}), so a retention feature is doing the blocking.`
+        : `Pulling ${task.retention.pullMm} mm along the axis leaves the parts separated: nothing blocks withdrawal.`;
     }
   }
   timings.retention = Date.now() - retentionStart;
   const retentionObservation: Observation = retentionBlocked === null
-    ? { id: "axial-retention", status: task.retention ? "ERROR" : "NOT_RUN", reason: task.retention ? retentionDetail : "任务没有声明保持条件。", toolVersion }
+    ? { id: "axial-retention", status: task.retention ? "ERROR" : "NOT_RUN", reason: task.retention ? retentionDetail : "The task declares no retention condition.", toolVersion }
     : observation("axial-retention", retentionBlocked, {
         artifactSha256: stlArtifact,
-        method: "组装位姿检查后沿关节轴平移声明的拉拔距离，用精确三角相交判定抽出是否被挡住。",
+        method: "After checking the assembled pose, translate along the joint axis by the declared pull distance and use exact triangle intersection to decide whether withdrawal is blocked.",
         toolVersion,
-        coverage: `组装位姿 + 一次 ${task.retention?.pullMm} mm 拉拔。`,
+        coverage: `Assembled pose plus one ${task.retention?.pullMm} mm pull.`,
         reason: retentionDetail,
       });
 
@@ -522,7 +522,7 @@ export async function scoreSubmission(task: BenchTask, submission: Submission): 
         return {
           passed: false,
           decided: false,
-          reason: `声明的位姿不会让活动件移动超过 ${pose.toleranceMm} mm（最大 ${expectedShiftMm.toFixed(3)} mm），这个检查分不出会动的源码和不会动的源码。`,
+          reason: `The declared poses move the moving part by at most ${expectedShiftMm.toFixed(3)} mm (tolerance ${pose.toleranceMm} mm), so this check cannot tell a moving source from a static one.`,
           residualsMm,
           expectedShiftMm,
         };
@@ -538,21 +538,21 @@ export async function scoreSubmission(task: BenchTask, submission: Submission): 
         fixedHashes.push(canonicalMeshHash(readBinaryStl(renderedPose.stl)));
       }
       if (fixedHashes[0] !== fixedHashes[1]) {
-        return { passed: false, decided: true, reason: "固定件也随位姿参数变化，说明位姿作用在整机而不是单个活动件。", residualsMm, expectedShiftMm };
+        return { passed: false, decided: true, reason: "The grounded part also changes with the pose parameter, so the pose acts on the whole assembly rather than on one moving part.", residualsMm, expectedShiftMm };
       }
       const worst = Math.max(...residualsMm);
       return worst <= pose.toleranceMm
         ? {
             passed: true,
             decided: true,
-            reason: `活动件在 ${pose.values.length} 个位姿上与「参考位姿经刚体变换」的最大点偏差 ${worst.toFixed(3)} mm，未超过 ${pose.toleranceMm} mm。`,
+            reason: `Across ${pose.values.length} poses the moving part deviates from the rigidly transformed reference pose by at most ${worst.toFixed(3)} mm, inside the ${pose.toleranceMm} mm tolerance.`,
             residualsMm,
             expectedShiftMm,
           }
         : {
             passed: false,
             decided: true,
-            reason: `活动件与「参考位姿经刚体变换」的最大点偏差 ${worst.toFixed(3)} mm 超过容差 ${pose.toleranceMm} mm：源码没有按声明的位姿运动。`,
+            reason: `The moving part deviates from the rigidly transformed reference pose by ${worst.toFixed(3)} mm, over the ${pose.toleranceMm} mm tolerance: the source does not follow the declared poses.`,
             residualsMm,
             expectedShiftMm,
           };
@@ -560,7 +560,7 @@ export async function scoreSubmission(task: BenchTask, submission: Submission): 
       return {
         passed: false,
         decided: false,
-        reason: `按位姿参数重渲染失败：${error instanceof Error ? error.message : String(error)}`,
+        reason: `Re-rendering through the pose parameter failed: ${error instanceof Error ? error.message : String(error)}`,
         residualsMm: [],
         expectedShiftMm: 0,
       };
@@ -571,13 +571,13 @@ export async function scoreSubmission(task: BenchTask, submission: Submission): 
   const sourceMotion = task.pose ? await measureSourceMotion() : null;
   timings.sourceMotion = Date.now() - sourceMotionStart;
   const sourceMotionObservation: Observation = !sourceMotion
-    ? { id: "source-motion", status: "NOT_RUN", reason: "任务没有声明源码位姿参数。", toolVersion }
+    ? { id: "source-motion", status: "NOT_RUN", reason: "The task declares no source pose parameter.", toolVersion }
     : sourceMotion.decided
       ? observation("source-motion", sourceMotion.passed, {
           artifactSha256: stlArtifact,
-          method: "按任务声明的位姿参数重渲染提交源码，把参考位姿的点集按刚体变换过去，双向比较最近邻最大偏差，并确认固定件的 STL 不随位姿变化。",
+          method: "Re-render the submission through the declared pose parameter, transform the reference point set by the expected rigid motion, compare nearest-neighbour deviation in both directions, and confirm the grounded part does not change with the pose.",
           toolVersion,
-          coverage: `${task.pose!.values.length} 个位姿（${task.pose!.values.join(", ")} ${task.pose!.unit}），点偏差容差 ${task.pose!.toleranceMm} mm。`,
+          coverage: `${task.pose!.values.length} poses (${task.pose!.values.join(", ")} ${task.pose!.unit}), point deviation tolerance ${task.pose!.toleranceMm} mm.`,
           reason: sourceMotion.reason,
         })
       : { id: "source-motion", status: "NOT_RUN", reason: sourceMotion.reason, toolVersion };

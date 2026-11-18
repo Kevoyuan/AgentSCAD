@@ -71,7 +71,7 @@ function printReasons(reports: CaseReport[]): void {
     }
     const unobserved = report.layers.coverage.unobserved;
     console.log(
-      `  层覆盖 ${report.layers.coverage.passed}/${report.layers.coverage.observed}（本 case 未观测 ${unobserved.length} 层：${unobserved.join(", ")}）`,
+      `  layer coverage ${report.layers.coverage.passed}/${report.layers.coverage.observed} (${unobserved.length} layers unobserved in this case: ${unobserved.join(", ")})`,
     );
   }
 }
