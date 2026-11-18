@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - Public functional-assembly benchmark under `bench/`: six frozen tasks across revolute and prismatic joints, eleven evidence layers, eight adversarial submissions, and a self-check that fails when a reference stops passing or a cheat starts passing
 - Cross-batch ladder report (`bun run bench:ladder`) that scores recorded trial reports on layer coverage and gap kind instead of the all-or-nothing delivery gate
+- Measure an original 12/24 external gear pair and a 12/12/36 fixed-ring planetary stage from regenerated meshes: tooth count, tip/root/pitch estimates, bore axis and centre, marker ratio, centre distance and both input directions, with same-direction, wrong-ratio, static-pose, missing-marker and non-closing-ring negative cases (`bun run cad:eval:gear`)
 
 ### Fixed
 - State six benchmark tasks in the front page and evaluation docs, matching the task set and the recorded matrix, which had said seven
