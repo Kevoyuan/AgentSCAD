@@ -37,7 +37,10 @@
     "ux:baseline": "bun scripts/ux-baseline.ts",
     "cad:eval:fit": "bun scripts/eval/measure-fit.ts",
     "cad:eval:slider-crank": "bun scripts/eval/measure-slider-crank.ts",
-    "cad:eval:thread": "bun scripts/eval/check-threaded-fastener.ts"
+    "cad:eval:thread": "bun scripts/eval/check-threaded-fastener.ts",
+    "bench:assembly": "bun bench/assembly/run.ts",
+    "bench:assembly:check": "bun bench/assembly/run.ts --self-check",
+    "bench:ladder": "bun bench/ladder-report.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

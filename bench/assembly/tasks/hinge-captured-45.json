@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "hinge-captured-45",
+  "prompt": "做一个带轴向保持的两件式铰链：固定件带销与销头，活动叶片带轴套，活动件能绕销转 ±45°。销头必须挡住轴套，使活动件沿轴方向拉拔 2 mm 时被阻止、无法抽出（这是可拆性与保持性的取舍：本件只要求保持，不要求轴向抽出）。两件必须能以独立实体分别导出。源码必须接受位姿参数 hinge_angle 并按它摆放活动件。销轴为 Z 轴、过原点；销直径 6 mm；轴孔与销的直径间隙必须在 0.35 到 0.45 mm 之间。单位 mm。",
+  "parts": [
+    { "id": "fixed", "selector": "fixed" },
+    { "id": "moving", "selector": "moving" }
+  ],
+  "joint": {
+    "type": "revolute",
+    "axisOrigin": [0, 0, 0],
+    "axisDirection": [0, 0, 1],
+    "borePartId": "moving",
+    "movingPartId": "moving"
+  },
+  "requirements": [
+    { "id": "distinct-exported-parts", "layer": "parts", "required": true, "applicable": true, "expected": { "kind": "equals", "value": 2 } },
+    { "id": "diametral-clearance", "layer": "assembly", "required": true, "applicable": true, "expected": { "kind": "range", "min": 0.35, "max": 0.45, "unit": "mm" } },
+    { "id": "axial-retention", "layer": "physical", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
+    { "id": "sampled-motion", "layer": "motion", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
+    { "id": "source-motion", "layer": "motion", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } }
+  ],
+  "motion": { "rangeDeg": [-45, 45], "steps": 19 },
+  "disassembly": { "travelMm": 20, "steps": 9 },
+  "pose": { "parameter": "hinge_angle", "unit": "deg", "values": [-45, 0, 45], "toleranceMm": 0.5 },
+  "retention": { "pullMm": 2 },
+  "notes": [
+    "This task deliberately has no disassembly-path requirement: a captured part cannot also slide off, and requiring both would make the task unsatisfiable by construction.",
+    "axial-retention means the pull is BLOCKED. A hinge that comes apart passes disassembly-path and fails this."
+  ]
+}
