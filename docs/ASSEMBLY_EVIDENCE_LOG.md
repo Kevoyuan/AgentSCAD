@@ -2650,3 +2650,17 @@ thread       OK         4     1    3   0        1    2    1       7/12
 Public bench task prompts and notes were translated to English on 2026-11-19; the gate matrix is unchanged because prompt text is metadata, not a measured value. New logs, prompts and commit messages use English.
 
 A001 regression added on 2026-11-19: a stored, confirmed contract for the product six-part source remains NOT_RUN because A001 selects `assembly` and `jointFrames` layers that its multi-joint path did not measure. The test checks declared assembly and disassembly are PASS, `contract.evidenceCurrent` is true, and the A001 row is still NOT_RUN; it does not promote unmeasured layers.
+
+## 2026-11-19 · Native suite serialization and A001 regression (English log)
+
+The parallel native suite was not a stable gate: different A001 tests failed on different runs because their default reconstruction/path budgets expired under concurrent render load. The same tests passed in isolation. To keep the suite honest rather than retrying until green, `test:openscad` now runs with `--max-concurrency=1` and includes `assembly-a001-contract.openscad.test.ts`.
+
+Authoritative serial run:
+
+- **68 PASS / 1 SKIP / 0 FAIL**
+- 69 tests across 15 files, 807 expect
+- **1379.43 seconds**
+- Includes the A001 confirmed-contract regression and the existing A001 PASS tests
+- No model calls
+
+The earlier parallel run's failures are load-sensitive timing, not product regressions. The serial result is the current native baseline; the twelve-family gate remains the separate 87-case public snapshot, which predates the sixth product adversarial.

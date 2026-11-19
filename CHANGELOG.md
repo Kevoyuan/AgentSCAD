@@ -37,6 +37,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add a product joint-offset adversarial where fit still passes but measured joint frames fail
 - Lock the A001 confirmed-contract boundary with a native regression test for a multi-joint source
 - Translate the product-path and threaded-fastener family documentation to English
+- Serialize the native OpenSCAD suite and include the A001 contract regression test
 - Add a square-profile threaded-fastener family under `bench/thread`: two parts, measured pitch/hand/diameters and lead/advance over nine turns
 - Add the threaded-fastener family to external hidden sets (family `thread`) and the unified twelve-family gate
 - Make the external hidden-split harness family-aware (`assembly`/`gear`/`slider`/`l4`), with family-specific freezing, hashing, scoring and external L4 spec loading; dev copies verify all four dispatches without claiming independence

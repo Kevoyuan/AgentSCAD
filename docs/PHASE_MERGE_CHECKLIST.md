@@ -18,7 +18,7 @@ Status as of 2026-11-19, after the twelve-family gate refresh.
 | Check | Result |
 |---|---|
 | Unit suite | 1193 PASS / 3 SKIP / 0 FAIL (184 files) |
-| Native OpenSCAD suite | 67 PASS / 1 SKIP / 0 FAIL (1204.26 s, 68 tests, 14 files) |
+| Native OpenSCAD suite | **68 PASS / 1 SKIP / 0 FAIL** (1379.43 s, 69 tests, 15 files, serial) |
 | Twelve-family gate | 87 cases, `overall: PASS`, about 69.4 minutes; product row predates the joint-offset adversarial |
 | Product family | reference 7/7; 1 reference / 5 adversarial |
 | Hidden product dev | 1/1 PASS, 7/7 layers; `independentHiddenEvaluation=NOT_RUN` |
