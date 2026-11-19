@@ -2732,3 +2732,15 @@ Attempted to close the threaded-fastener coaxiality gap with the existing `measu
 The generic cylindrical-feature probe is not applicable to threaded or hex sections. A real coaxiality measurement needs a dedicated thread-axis estimator; until then the tool's coaxiality stays **NOT_RUN**, and the thread family claims only geometry, engagement/lead and exit. No PASS was fabricated. The overall tool status remains NOT_RUN for the geometry task; the exit task's measured exit layer is independent and remains PASS.
 
 Production build on the phase branch: `bun run build` completed with **PASS** (Next.js production output, no build errors). This verifies the app compiles and bundles; it does not change the bench gate or the merge blockers.
+
+## 2026-11-19 · Eccentric cam and flat follower (English log)
+
+Added `bench/cam`: an eccentric disk cam rotating about +Y and a flat follower translating along X. The measured follower face is compared with `R + e*cos(theta) + gap`, and cam/follower, cam/frame and follower/frame collisions are checked.
+
+- `bun run bench:cam:check` -> **SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected**
+- Reference: **PASS 2/2**, 3 parts, max lift error **0.0000 mm**, all pairs separated at 0/90/180/270/360°
+- `adversarial-static`: FAIL, max error 8.0000 mm
+- `adversarial-eccentricity`: FAIL, max error 4.0000 mm
+- `adversarial-collision`: FAIL, negative gap causes interference and 0.5000 mm error
+
+Five sampled angles only; this is a source-driven pose check, not dynamic contact, spring, load, friction or physical function. The cam family is not yet in the 90-case gate.

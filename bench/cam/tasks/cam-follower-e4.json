@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "cam-follower-e4",
+  "prompt": "Build an eccentric disk cam with a flat translating follower. The cam rotates about +Y with eccentricity 4 mm and radius 10 mm; the follower face is perpendicular to +X and moves along X. Measure the follower lift at 0/90/180/270/360 degrees and confirm the three parts are separate and collision-free.",
+  "selectors": { "frame": "frame", "cam": "cam", "follower": "follower" },
+  "eccentricityMm": 4,
+  "camRadiusMm": 10,
+  "followerGapMm": 0.2,
+  "angles": [0, 90, 180, 270, 360],
+  "positionToleranceMm": 0.15,
+  "requirements": [
+    { "id": "distinct-exported-parts", "layer": "parts", "required": true, "applicable": true, "expected": { "kind": "equals", "value": 3 } },
+    { "id": "rigid-motion", "layer": "motion", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } }
+  ],
+  "notes": [
+    "A flat-face follower on an eccentric circular cam has lift x = R + e*cos(theta) + gap; this is a sampled profile, not continuous contact.",
+    "Collision is checked at the five sampled angles only; no spring, friction, load, wear or physical function.",
+    "The follower is positioned by the source at each commanded angle; a static source must fail."
+  ]
+}

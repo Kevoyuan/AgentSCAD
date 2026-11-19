@@ -66,7 +66,9 @@
     "bench:product": "bun bench/product/run.ts",
     "bench:product:check": "bun bench/product/run.ts --self-check",
     "bench:thread": "bun bench/thread/run.ts",
-    "bench:thread:check": "bun bench/thread/run.ts --self-check"
+    "bench:thread:check": "bun bench/thread/run.ts --self-check",
+    "bench:cam": "bun bench/cam/run.ts",
+    "bench:cam:check": "bun bench/cam/run.ts --self-check"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -60,6 +60,7 @@ gate 保留不动，它守的是正确性。coverage 是新增的，它守的是
 | L1 | 两件转动副（铰链，松/紧） | 1 关节、2 零件 | M3 | `bench/assembly` 已有 |
 | L2 | 两件移动副（活塞-缸筒） | 1 关节、2 零件 | M3 | `bench/assembly` 已有 |
 | L2.5 | 外啮合齿轮对（12/24 齿） | 1 传动副、2 零件 | M5 / A10 | `bench/gear` 已有 |
+| L2.6 | 偏心盘凸轮-平动从动件 | R+e cosθ 升程 | L2.6 | `bench/cam` 已有；五个角、三对碰撞 |
 | L2.75 | 行星齿轮系（12/12/36） | 固定内齿圈、太阳输入、行星架输出 | A10 | `bench/planetary` 已有；只测一个行星轮 |
 | L2.8 | 三行星齿轮系（12/12/36 × 3） | 三个行星轮相隔 120° | A10 | `bench/planetary3` 已有；单 carrier/单 ring，不测均载 |
 | M5 | 方形螺纹副（M10×1.5） | 螺栓/螺母、几何+导程 | M5 | `bench/thread` 已有；方形牙型，不是 ISO 计量 |
@@ -75,7 +76,7 @@ gate 保留不动，它守的是正确性。coverage 是新增的，它守的是
 
 **阶梯的意义**：L5 过不去不代表 L3 不存在。有了分级，即使整体停在 L3，分数也能告诉你卡在哪一层。
 
-齿轮对是阶梯上的独立家族：它不测孔轴配合或插拔，而测实际重渲染的齿数、节圆估计、中心距与转向比值；命令和边界见 [`gear/README.md`](gear/README.md)。单缸曲柄滑块也独立成 [`slider/README.md`](slider/README.md)：五个输入角、真实重渲染的四件、圆周/杆长/轴漂移/全件碰撞。L4 的 7 件/9 实例声明夹具见 [`l4/README.md`](l4/README.md)：冻结声明、正确/错误拆卸顺序、9 实例运动与全件碰撞。L4.5 的直列双缸见 [`twin/README.md`](twin/README.md)：六个实例、180° 相位、五个输入角和 75 次离散碰撞；它是直列双缸，不是 V8 V 角。L5a 的 90° V-twin 见 [`vtwin/README.md`](vtwin/README.md)：共享曲柄销、±45° 双缸、九个输入角和 135 次离散碰撞；它是 V 角，但仍不是完整 V8。L4.1 的合同约束声明见 [`declaration/README.md`](declaration/README.md)：reference 用 renamed IDs 仍通过，缺件/错序在渲染前被拒绝。行星齿轮系见 [`planetary/README.md`](planetary/README.md)：12/12/36、正负输入、carrier/planet 斜率与 ring 闭合；只测一个行星轮。三行星版本见 [`planetary3/README.md`](planetary3/README.md)：三个行星轮相隔 120°，每个独立测量；仍不测均载/齿面接触。产品准备路径见 [`product/README.md`](product/README.md)：真实 `prepareContractAssembly` 的六件分件/连通/重构/拆卸四层加偏心 fit；不是 A001。方形螺纹副见 [`thread/README.md`](thread/README.md)：几何/导程，方形牙型，不是 ISO。L5b 的 V8 共享销/封装载体见 [`v8/README.md`](v8/README.md)：八缸、四相位组、四个共享销、每销两连杆；无主轴，仍不是完整曲轴 V8。
+齿轮对是阶梯上的独立家族：它不测孔轴配合或插拔，而测实际重渲染的齿数、节圆估计、中心距与转向比值；命令和边界见 [`gear/README.md`](gear/README.md)。单缸曲柄滑块也独立成 [`slider/README.md`](slider/README.md)：五个输入角、真实重渲染的四件、圆周/杆长/轴漂移/全件碰撞。L4 的 7 件/9 实例声明夹具见 [`l4/README.md`](l4/README.md)：冻结声明、正确/错误拆卸顺序、9 实例运动与全件碰撞。L4.5 的直列双缸见 [`twin/README.md`](twin/README.md)：六个实例、180° 相位、五个输入角和 75 次离散碰撞；它是直列双缸，不是 V8 V 角。L5a 的 90° V-twin 见 [`vtwin/README.md`](vtwin/README.md)：共享曲柄销、±45° 双缸、九个输入角和 135 次离散碰撞；它是 V 角，但仍不是完整 V8。L4.1 的合同约束声明见 [`declaration/README.md`](declaration/README.md)：reference 用 renamed IDs 仍通过，缺件/错序在渲染前被拒绝。凸轮-从动件见 [`cam/README.md`](cam/README.md)：偏心盘升程与三对碰撞；五个角，不是动态仿真。行星齿轮系见 [`planetary/README.md`](planetary/README.md)：12/12/36、正负输入、carrier/planet 斜率与 ring 闭合；只测一个行星轮。三行星版本见 [`planetary3/README.md`](planetary3/README.md)：三个行星轮相隔 120°，每个独立测量；仍不测均载/齿面接触。产品准备路径见 [`product/README.md`](product/README.md)：真实 `prepareContractAssembly` 的六件分件/连通/重构/拆卸四层加偏心 fit；不是 A001。方形螺纹副见 [`thread/README.md`](thread/README.md)：几何/导程，方形牙型，不是 ISO。L5b 的 V8 共享销/封装载体见 [`v8/README.md`](v8/README.md)：八缸、四相位组、四个共享销、每销两连杆；无主轴，仍不是完整曲轴 V8。
 
 ### 2.3 层判据
 
@@ -149,7 +150,7 @@ bun test bench/               # 层模型与任务格式的单测
 
 2026-11-18 在 `continue/local-assembly-2026-11-18` 复跑：`SELF-CHECK OK: 6 reference(s) pass, 8 adversarial submission(s) rejected.` 这只证明公开自检未退化，不证明隐藏集、模型能力或物理功能。
 
-家族命令：`bun run bench:gear:check`、`bun run bench:slider:check`、`bun run bench:l4:check`、`bun run bench:declaration:check`、`bun run bench:twin:check`、`bun run bench:vtwin:check`、`bun run bench:v8:check`、`bun run bench:planetary:check`、`bun run bench:planetary3:check`、`bun run bench:product:check`、`bun run bench:thread:check`；各自只证明对应家族的自检边界。
+家族命令：`bun run bench:gear:check`、`bun run bench:slider:check`、`bun run bench:l4:check`、`bun run bench:declaration:check`、`bun run bench:twin:check`、`bun run bench:vtwin:check`、`bun run bench:v8:check`、`bun run bench:planetary:check`、`bun run bench:planetary3:check`、`bun run bench:product:check`、`bun run bench:thread:check`、`bun run bench:cam:check`；各自只证明对应家族的自检边界。
 
 ### 4.3 All-family gate
 
@@ -281,6 +282,7 @@ reconstruction    8     2     5     13    2     28.6%   缺检查      导出重
 - [x] **L4.1 合同约束声明**：`bench/declaration` 的 reference 使用 renamed part/instance IDs 仍 PASS 5/5；缺失 guide 或错误拆卸顺序在渲染前被合同拒绝；几何曲柄半径篡改 FAIL 2/5。`bun run bench:declaration:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。它接受不同 ID/顺序，但仍不测自主 authorship
 - [x] **三行星齿轮系（12/12/36 × 3）**：`bench/planetary3` 三个行星轮相隔 120°、六件、正负输入；`bun run bench:planetary3:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。reference 2/2，三个行星独立 PASS，残差 ≤3.1e−6°；单 carrier/单 ring，不测均载/齿面接触；已并入十家族 `bench:all` 与 hidden (family `planetary3`)
 - [x] **行星齿轮系（12/12/36）**：`bench/planetary` 固定内齿圈、太阳输入、行星架输出；`bun run bench:planetary:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。reference 2/2、carrier/planet residual 0.000°；只测一个行星轮，不是多行星均载或齿面接触；已并入十家族 `bench:all` 与 hidden (family `planetary3`)
+- [x] **L2.6 偏心盘凸轮-平动从动件**：`bench/cam` 三轮辐偏心盘、平底从动件、五个角；`bun run bench:cam:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。reference 2/2、升程误差 0.0000 mm、三对碰撞全分离；static/eccentricity/collision 三类反例被拒。尚未并入 `bench:all`/hidden
 - [x] **M5 方形螺纹副**：`bench/thread` 两件螺栓/螺母、9 个转角；`bun run bench:thread:check` → `SELF-CHECK OK: 2 reference(s) pass, 4 adversarial submission(s) rejected`。geometry reference 3/3、导程 1.5000 mm/转；exit reference 4/4；plain bore NOT_RUN、spin-only/wrong-pitch/short-thread FAIL；方形牙型不是 ISO 计量，coaxiality 总状态可 NOT_RUN。已并入十二家族 `bench:all` 与 hidden (family `thread`)；exit task 在 88-case 门禁快照之后加入
 - [x] **P-A08 产品准备路径**：`bench/product` 调用真实 `prepareContractAssembly`，六件 guided 声明的分件/连通/重构/插入/拆卸五层加偏心 revolute 配合与 joint frames；`bun run bench:product:check` → `SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected`。reference 7/7；`adversarial-slider-before-guide` 只有 disassembly FAIL；`adversarial-fit-pin` 的 eccentric clearance 为负；fit 只覆盖偏心 revolute，joint/motion 仍 NOT_RUN。已并入十一家族 `bench:all` 与 hidden (family `product`)；product self-check 现为 1 reference / 4 adversarial
 - [x] **全家族门禁**：`bun run bench:all` 顺序运行十二家族 self-check，重写各自 report 后聚合矩阵到 `bench/matrix.json`；任一失败退出 1。2026-11-19 十二家族全部 OK，`overall: PASS`（87 case：19 refs / 62 adversarial / 6 unscored；约 75.6 分钟，无模型调用）。它证明十二家族门禁一起可运行，不证明隐藏集、模型能力或物理功能

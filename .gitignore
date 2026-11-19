@@ -70,6 +70,7 @@ bench/planetary/report.json
 bench/planetary3/report.json
 bench/product/report.json
 bench/thread/report.json
+bench/cam/report.json
 bench/ladder-report.json
 
 # agent/IDE context directories
