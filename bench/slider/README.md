@@ -1,9 +1,10 @@
 # 单缸曲柄滑块基准（slider-crank）
 
-这是公开装配基准的 **L3/L3.5 家族**，目前有两类任务：
+这是公开装配基准的 **L3/L3.5/A08 家族**，目前有三类任务：
 
 - `slider-crank-8-28`：四件式（机架、曲柄、连杆、滑块）、闭环四关节、输入角 0–360°；
-- `slider-crank-keyed-8-28`：在四件基础上加一个偏心保持键，共五件；它同时冻结**正确拆卸顺序**和**错误顺序**，要求错误顺序被键挡住。
+- `slider-crank-keyed-8-28`：在四件基础上加一个偏心保持键，共五件；它同时冻结**正确拆卸顺序**和**错误顺序**，要求错误顺序被键挡住；
+- `slider-crank-guided-8-28`：六件导向/保持候选，增加前导向件和偏心键；正确顺序必须先取导向件，错误顺序必须被导向件挡住。
 
 它问的不是「画出四个像曲柄滑块的形状」，而是：
 
@@ -29,9 +30,10 @@ bun run bench:slider            # 跑所有滑块任务和提交
 bun run bench:slider:check      # reference 必须 PASS，adversarial 不能 PASS
 bun run bench:slider --task slider-crank-8-28 --submission reference --verbose
 bun run bench:slider --task slider-crank-keyed-8-28 --submission reference --verbose
+bun run bench:slider --task slider-crank-guided-8-28 --submission reference --verbose
 ```
 
-需要本机 `openscad`；无模型调用。输出 `bench/slider/report.json`（gitignored）。全部任务一起跑：`bun run bench:slider:check` → `SELF-CHECK OK: 2 reference(s) pass, 11 adversarial submission(s) rejected`。
+需要本机 `openscad`；无模型调用。输出 `bench/slider/report.json`（gitignored）。全部任务一起跑：`bun run bench:slider:check` → `SELF-CHECK OK: 3 reference(s) pass, 14 adversarial submission(s) rejected`。
 
 ## 任务格式
 
@@ -85,9 +87,26 @@ SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected.
 
 reference 同样实测曲柄半径 8.000000 mm、杆长散布约 6e−8 mm、轴漂移 0；正确拆卸计划 PASS，错误计划 FAIL。`key-out-of-way` 是这一层最重要的反例：它不改变运动或轮廓，只让“键”不再挡住错误顺序，评分器仍然拒绝。
 
+## 六件导向/保持（A08）
+
+`slider-crank-guided-8-28` 增加 `guide_front`，共六件；九个输入角，15 对实例网格的 BVH 碰撞；正确拆卸顺序为 **导向件 → 偏心键 → 滑块 → 连杆 → 曲柄**，错误顺序先取键和滑块，必须被导向件挡住。
+
+| 提交 | 破坏的事实 | 结果 |
+|---|---|---|
+| `adversarial-crank-radius` | 曲柄半径 8 → 9 | FAIL 3/5；实测 9.000 |
+| `adversarial-static` | 运动参数不起作用 | FAIL 3/5；source-motion NOT_RUN |
+| `adversarial-guide-away` | 把导向件沿 +Z 移出 **40 mm**，不再挡错误顺序 | FAIL 4/5；**只有 disassembly-path 失败** |
+| `reference` | 无 | **PASS 5/5**；六件分别导出 |
+
+```
+SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected.
+```
+
+`guide-away` 是导向层的关键反例：运动、轮廓、碰撞和 source 全 PASS；评分器单独拒绝“错误顺序不再被挡”。六个 part 网格分别约 1072/780/268/424/508/28 三角形。
+
 ## 边界
 
 - 只覆盖列出的五个输入角；角与角之间、连续运动、隐藏障碍、间隙/过盈、摩擦、间隙和载荷都没有证据。
 - 轮廓身份仍依赖选择器和半径窗口；它不是独立特征语义识别。
 - 没有工具可达、连续拆卸、制造公差、逐件 ZIP、产品端到端、隐藏集或实物。
-- 五件带键版本仍只有零位姿的离散拆卸计划；不证明连续拆卸、力、意外释放、工具可达或保持力。6 件带导向/保持件的单缸版本属于 A08 的产品工作，不由这个基准家族替代。
+- 五件带键和六件导向版本仍只有零位姿的离散拆卸计划；不证明连续拆卸、力、意外释放、工具可达或保持力。六件 guided 基准已加入，但 A08 的产品端到端/逐件 ZIP/实物仍不属于这个家族。

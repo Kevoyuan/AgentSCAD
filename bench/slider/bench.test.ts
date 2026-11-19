@@ -62,6 +62,17 @@ describe("slider-crank benchmark task", () => {
     expect(task.disassembly?.plan.steps.map((step) => step.instanceId)).not.toEqual(task.disassembly?.wrongOrder.steps.map((step) => step.instanceId));
   });
 
+  test("loads the guided six-part task with both frozen removal plans", async () => {
+    const raw = JSON.parse(await readFile("bench/slider/tasks/slider-crank-guided-8-28.json", "utf8"));
+    const task = validateSliderTask(raw);
+    expect(task.attachments?.guide_front).toBe("guide_front");
+    expect(task.attachments?.eccentric_key).toBe("eccentric_key");
+    const distinct = task.requirements.find((requirement) => requirement.id === "distinct-exported-parts");
+    expect(distinct?.expected.kind === "equals" ? distinct.expected.value : null).toBe(6);
+    expect(task.disassembly?.plan.steps).toHaveLength(5);
+    expect(task.disassembly?.plan.steps.map((step) => step.instanceId)).not.toEqual(task.disassembly?.wrongOrder.steps.map((step) => step.instanceId));
+  });
+
   test("keeps the reference/adversarial/model expectation rule", () => {
     expect(expectedOutcome("reference")).toBe("pass");
     expect(expectedOutcome("adversarial-crank-radius")).toBe("fail");

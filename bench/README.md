@@ -60,8 +60,8 @@ gate 保留不动，它守的是正确性。coverage 是新增的，它守的是
 | L1 | 两件转动副（铰链，松/紧） | 1 关节、2 零件 | M3 | `bench/assembly` 已有 |
 | L2 | 两件移动副（活塞-缸筒） | 1 关节、2 零件 | M3 | `bench/assembly` 已有 |
 | L2.5 | 外啮合齿轮对（12/24 齿） | 1 传动副、2 零件 | M5 / A10 | `bench/gear` 已有 |
-| L3 | 单缸曲柄滑块（4 件基础夹具） | 4 关节闭环、4 零件 | M4 | `bench/slider` 已有；6 件保持版本属 A08 |
-| L3.5 | 带偏心保持键的滑块（5 件） | 4 关节 + 保持键、5 零件 | M4 | `bench/slider` keyed 已有；6 件导向版本属 A08 |
+| L3 | 单缸曲柄滑块（4 件基础夹具） | 4 关节闭环、4 零件 | M4 | `bench/slider` 已有；6 件 guided 已有 |
+| L3.5 | 带偏心保持键的滑块（5 件） | 4 关节 + 保持键、5 零件 | M4 | `bench/slider` keyed 已有；guided 6 件已有 |
 | L4 | 带保持件的多关节（7 件 / 9 实例） | 4 关节 + 双键/双锁 | M4 | `bench/l4` 已有（declaration-bound）；自主声明生成未接入 |
 | L4.5 | 直列双缸（单曲轴、180° 相位） | 6 实例、5 角 | M4→L5 | `bench/twin` 已有；**不是 V8 V 角**，L5 仍未开始 |
 | L5 | V8 横截面（两缸）→ 完整 V8 | 8 组运动链 | M6 | 未开始 |
@@ -234,8 +234,9 @@ reconstruction    8     2     5     13    2     28.6%   缺检查      导出重
 - [x] **layer scorer**：`bench/layers.ts` + `bench/ladder-report.ts`，跑在已有批次上
 - [x] **`bench/assembly` 接层计数**：每个 case 报告 `cover 4/4`，与 trial 共用同一个 `scoreEvidence`
 - [x] **齿轮对家族**：`bench/gear` 已有 12/24 外啮合任务、reference 与 5 条反例；`bun run bench:gear:check` → `SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected`。它只测有限输入角的齿数/节圆/中心距/转向比值，不测齿面接触、侧隙或承载
-- [x] **L3 基础曲柄滑块家族**：`bench/slider` 已有 4 件夹具（曲柄半径 8 mm、杆长 28 mm、5 个输入角）；`bun run bench:slider --task slider-crank-8-28 --self-check` → `SELF-CHECK OK: 1 reference(s) pass, 7 adversarial submission(s) rejected`。只覆盖列出的角度和 4 件基础夹具；6 件保持/导向版本（A08）仍属产品工作
-- [x] **L3.5 五件保持键滑块**：`bench/slider` 的 `slider-crank-keyed-8-28` 增加偏心键、正确/错误拆卸计划和 `disassembly-path` 断言；`bun run bench:slider --task slider-crank-keyed-8-28 --self-check` → `SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`。`adversarial-key-out-of-way` 只让错误顺序不再被挡住，运动/轮廓仍 PASS，评分器单独拒绝该层；6 件导向/保持版本（A08）仍属产品工作；`bun run bench:slider:check` 同时跑基础与 keyed 任务 → `SELF-CHECK OK: 2 reference(s) pass, 11 adversarial submission(s) rejected`
+- [x] **L3 基础曲柄滑块家族**：`bench/slider` 已有 4 件夹具（曲柄半径 8 mm、杆长 28 mm、5 个输入角）；`bun run bench:slider --task slider-crank-8-28 --self-check` → `SELF-CHECK OK: 1 reference(s) pass, 7 adversarial submission(s) rejected`。只覆盖列出的角度和 4 件基础夹具；6 件 guided 基准见下，A08 产品端到端仍未
+- [x] **L3.5 五件保持键滑块**：`bench/slider` 的 `slider-crank-keyed-8-28` 增加偏心键、正确/错误拆卸计划和 `disassembly-path` 断言；`bun run bench:slider --task slider-crank-keyed-8-28 --self-check` → `SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`。`adversarial-key-out-of-way` 只让错误顺序不再被挡住，运动/轮廓仍 PASS，评分器单独拒绝该层；6 件 guided 基准见下；`bun run bench:slider:check` 同时跑基础、keyed 与 guided 任务 → `SELF-CHECK OK: 3 reference(s) pass, 14 adversarial submission(s) rejected`
+- [x] **A08 六件导向/保持滑块**：`bench/slider` 的 `slider-crank-guided-8-28` 六件、九个输入角、正确顺序 guide→key→slider→rod→crank；`bun run bench:slider --task slider-crank-guided-8-28 --self-check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。`adversarial-guide-away` 运动/轮廓/碰撞/source 全 PASS，仅 `disassembly-path` FAIL；这只证明离散计划层的导向阻挡，不等于 A08 产品端到端或实物
 - [x] **L4 declaration-bound 7 件/9 实例**：`bench/l4` 冻结 7 part/9 instance、8 个拆卸操作和错误顺序；`bun run bench:l4:check` → `SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`。`adversarial-guide-locks-away` 运动/轮廓/碰撞/source 全 PASS，仅 `disassembly-path` FAIL；`adversarial-declaration-motion-range` 改内嵌声明后在渲染前被 spec SHA 拒绝（`changed: motions`）；这不是自主声明生成，也不是 V8
 - [x] **L4.5 直列双缸（不是 V8）**：`bench/twin` 六个实例、单曲轴 180° 相位、五个输入角、75 次离散碰撞；`bun run bench:twin:check` → `SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected`。reference 滑块位置误差 0.0000 mm；`adversarial-rod-length` 碰撞全分离但位置/相位失败。L5 仍未开始
 - [x] **补 `retention` 与 `source-motion` 的检查**：`bench/assembly` 里已落地（`hinge-captured-45` 的轴向拉拔、5 个任务的位姿重渲染）

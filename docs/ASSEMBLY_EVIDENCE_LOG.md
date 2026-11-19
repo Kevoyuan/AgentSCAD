@@ -2298,7 +2298,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1173 PASS / 3 SKIP / 0 FAIL**（176 文件）；
+- 全量单元测试：**1174 PASS / 3 SKIP / 0 FAIL**（176 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
@@ -2428,4 +2428,19 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 隐藏集 family 也增加 `twin`；外部 dev 副本 `hidden-twin-dev [twin]` 为 `1 task / 1 case`、reference PASS、`layers 4/4`、`independentHiddenEvaluation=NOT_RUN`。这仍只是开发副本，不是独立隐藏评估。
 
 单元测试 **1173 PASS / 3 SKIP / 0 FAIL**（176 文件）；typecheck、lint 通过。边界：直列双缸不是 V8 V 角；只测五个离散角、网格包围盒位置和 75 次离散碰撞；不测负载、润滑、摩擦、磨损、连续运动或实物功能。
+
+## 2026-11-19 · 公开 bench：A08 六件导向/保持滑块
+
+`bench/slider` 新增第三类任务 `slider-crank-guided-8-28`：六件（frame、crank、rod、slider、eccentric_key、guide_front）、九个输入角（0–360° 每 45°）、15 对实例网格的 BVH 碰撞。正确拆卸顺序为 **导向件 → 偏心键 → 滑块 → 连杆 → 曲柄**；冻结错误顺序先取键和滑块，必须被导向件挡住。
+
+结果（原生 OpenSCAD 2021.01，无模型调用）：
+
+- `bun run bench:slider --task slider-crank-guided-8-28 --self-check` → **`SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`**；
+- reference **5/5 层 PASS**，六件分别导出，曲柄 8.000000 mm、杆长散布 0；正确计划 PASS、错误计划被 `guide_front` 挡住；
+- `adversarial-guide-away`：把导向件沿 +Z 移出 40 mm；运动/轮廓/碰撞/source 全 PASS，**仅 `disassembly-path` FAIL（4/5）**；
+- `adversarial-crank-radius`：曲柄 9 mm，3/5，landmark/source FAIL；
+- `adversarial-static`：3/5，source-motion NOT_RUN；
+- 全 slider 自检 `bun run bench:slider:check` → **`SELF-CHECK OK: 3 reference(s) pass, 14 adversarial submission(s) rejected`**。
+
+单元测试 **1174 PASS / 3 SKIP / 0 FAIL**（176 文件）；typecheck、lint 通过。边界：只有零位姿的离散拆卸计划、九个离散角和 BVH 碰撞；不证明连续拆卸、力、意外释放、工具可达、保持力、逐件 ZIP、A08 产品端到端或实物。
 
