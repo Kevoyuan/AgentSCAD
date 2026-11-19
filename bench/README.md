@@ -63,11 +63,12 @@ gate 保留不动，它守的是正确性。coverage 是新增的，它守的是
 | L3 | 单缸曲柄滑块（4 件基础夹具） | 4 关节闭环、4 零件 | M4 | `bench/slider` 已有；6 件保持版本属 A08 |
 | L3.5 | 带偏心保持键的滑块（5 件） | 4 关节 + 保持键、5 零件 | M4 | `bench/slider` keyed 已有；6 件导向版本属 A08 |
 | L4 | 带保持件的多关节（7 件 / 9 实例） | 4 关节 + 双键/双锁 | M4 | `bench/l4` 已有（declaration-bound）；自主声明生成未接入 |
+| L4.5 | 直列双缸（单曲轴、180° 相位） | 6 实例、5 角 | M4→L5 | `bench/twin` 已有；**不是 V8 V 角**，L5 仍未开始 |
 | L5 | V8 横截面（两缸）→ 完整 V8 | 8 组运动链 | M6 | 未开始 |
 
 **阶梯的意义**：L5 过不去不代表 L3 不存在。有了分级，即使整体停在 L3，分数也能告诉你卡在哪一层。
 
-齿轮对是阶梯上的独立家族：它不测孔轴配合或插拔，而测实际重渲染的齿数、节圆估计、中心距与转向比值；命令和边界见 [`gear/README.md`](gear/README.md)。单缸曲柄滑块也独立成 [`slider/README.md`](slider/README.md)：五个输入角、真实重渲染的四件、圆周/杆长/轴漂移/全件碰撞。L4 的 7 件/9 实例声明夹具见 [`l4/README.md`](l4/README.md)：冻结声明、正确/错误拆卸顺序、9 实例运动与全件碰撞。
+齿轮对是阶梯上的独立家族：它不测孔轴配合或插拔，而测实际重渲染的齿数、节圆估计、中心距与转向比值；命令和边界见 [`gear/README.md`](gear/README.md)。单缸曲柄滑块也独立成 [`slider/README.md`](slider/README.md)：五个输入角、真实重渲染的四件、圆周/杆长/轴漂移/全件碰撞。L4 的 7 件/9 实例声明夹具见 [`l4/README.md`](l4/README.md)：冻结声明、正确/错误拆卸顺序、9 实例运动与全件碰撞。L4.5 的直列双缸见 [`twin/README.md`](twin/README.md)：六个实例、180° 相位、五个输入角和 75 次离散碰撞；它是直列双缸，不是 V8 V 角。
 
 ### 2.3 层判据
 
@@ -141,7 +142,7 @@ bun test bench/               # 层模型与任务格式的单测
 
 2026-11-18 在 `continue/local-assembly-2026-11-18` 复跑：`SELF-CHECK OK: 6 reference(s) pass, 8 adversarial submission(s) rejected.` 这只证明公开自检未退化，不证明隐藏集、模型能力或物理功能。
 
-家族命令：`bun run bench:gear:check`、`bun run bench:slider:check`、`bun run bench:l4:check`；各自只证明对应家族的自检边界。
+家族命令：`bun run bench:gear:check`、`bun run bench:slider:check`、`bun run bench:l4:check`、`bun run bench:twin:check`；各自只证明对应家族的自检边界。
 
 ### 4.1 已记录模型 baseline（replay）
 
@@ -168,7 +169,7 @@ bun test bench/               # 层模型与任务格式的单测
 <outside-repo>/submissions/<task-id>/*.scad
 ```
 
-`hidden.json` 声明 `id`、`frozenAt`、`family`（`assembly` / `gear` / `slider` / `l4`）、`maintainer`、`independent` 和 `taskSetSha256`；旧 manifest 省略 `family` 时按 `assembly` 读取。运行器按 family 分派到对应 scorer，并会：
+`hidden.json` 声明 `id`、`frozenAt`、`family`（`assembly` / `gear` / `slider` / `l4` / `twin`）、`maintainer`、`independent` 和 `taskSetSha256`；旧 manifest 省略 `family` 时按 `assembly` 读取。运行器按 family 分派到对应 scorer，并会：
 
 - 拒绝仓库内路径（即使是 gitignored 的目录）；
 - 从 validated task 定义重算 SHA-256，与 manifest 不符就拒绝；
@@ -193,6 +194,7 @@ bun run bench:hidden -- --hidden /outside/repo/hidden --json /outside/repo/repor
 - gear 副本（`gear-12-24` reference）：`1 task / 1 case`，reference PASS，报告 `family=gear`、`layers 2/2`；
 - slider 副本（`slider-crank-8-28` reference）：`1 task / 1 case`，reference PASS，`layers 4/4`；
 - L4 副本（`slider-shaft-keyed-7x9` reference，specs 放在 external 目录）：`1 task / 1 case`，reference PASS，`layers 5/5`；
+- twin 副本（`twin-inline-8-28` reference）：`1 task / 1 case`，reference PASS，`layers 4/4`；
 - 以上 `independentHiddenEvaluation=NOT_RUN`；加 `--require-independent` 退出 2。
 
 这些运行只证明路径、family 分派、哈希、聚合和 fail-closed，不证明独立隐藏评估。
@@ -235,6 +237,7 @@ reconstruction    8     2     5     13    2     28.6%   缺检查      导出重
 - [x] **L3 基础曲柄滑块家族**：`bench/slider` 已有 4 件夹具（曲柄半径 8 mm、杆长 28 mm、5 个输入角）；`bun run bench:slider --task slider-crank-8-28 --self-check` → `SELF-CHECK OK: 1 reference(s) pass, 7 adversarial submission(s) rejected`。只覆盖列出的角度和 4 件基础夹具；6 件保持/导向版本（A08）仍属产品工作
 - [x] **L3.5 五件保持键滑块**：`bench/slider` 的 `slider-crank-keyed-8-28` 增加偏心键、正确/错误拆卸计划和 `disassembly-path` 断言；`bun run bench:slider --task slider-crank-keyed-8-28 --self-check` → `SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`。`adversarial-key-out-of-way` 只让错误顺序不再被挡住，运动/轮廓仍 PASS，评分器单独拒绝该层；6 件导向/保持版本（A08）仍属产品工作；`bun run bench:slider:check` 同时跑基础与 keyed 任务 → `SELF-CHECK OK: 2 reference(s) pass, 11 adversarial submission(s) rejected`
 - [x] **L4 declaration-bound 7 件/9 实例**：`bench/l4` 冻结 7 part/9 instance、8 个拆卸操作和错误顺序；`bun run bench:l4:check` → `SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`。`adversarial-guide-locks-away` 运动/轮廓/碰撞/source 全 PASS，仅 `disassembly-path` FAIL；`adversarial-declaration-motion-range` 改内嵌声明后在渲染前被 spec SHA 拒绝（`changed: motions`）；这不是自主声明生成，也不是 V8
+- [x] **L4.5 直列双缸（不是 V8）**：`bench/twin` 六个实例、单曲轴 180° 相位、五个输入角、75 次离散碰撞；`bun run bench:twin:check` → `SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected`。reference 滑块位置误差 0.0000 mm；`adversarial-rod-length` 碰撞全分离但位置/相位失败。L5 仍未开始
 - [x] **补 `retention` 与 `source-motion` 的检查**：`bench/assembly` 里已落地（`hinge-captured-45` 的轴向拉拔、5 个任务的位姿重渲染）
 - [x] **把这两个检查接进产品判分器**：`judge-assembly` 现在把派生合同作为 trial attribution gate 传给 `prepareAssembly`，并产出 `rigid-motion`、`source-motion`、`motion-range-*`、`axial-retention`、`assembly-path`、`disassembly-path`。前提是候选声明包含 `motions[].sourceInput`（参数 + 每个实例的 pose selector）和 `translationProbes`；缺声明仍为 `NOT_RUN`。`intent-preserved` 仍为 `NOT_RUN`，`passed` 不是用户确认或验收。证据：`bun test scripts/eval/judge-evidence.test.ts` 7 PASS；`bun test src/lib/tools/__tests__/pipeline-assembly.openscad.test.ts` 5 PASS（原生 OpenSCAD，研究者辅助控制件在 measured assertions 上 PASS，intent 保持 NOT_RUN）；定向判分脚本对同一控制件输出 `sampled-motion`/`rigid-motion`/`source-motion`/`axial-retention`/`assembly-path`/`disassembly-path` PASS。历史层表不因接线回溯。
 - [x] **已记录模型 baseline replay**：6 条 DeepSeek v4 flash 产物原样导入并重评分，6/6 PASS；见 §4.1。这是 replay，不是新调用

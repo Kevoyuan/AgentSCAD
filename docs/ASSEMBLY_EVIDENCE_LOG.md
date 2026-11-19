@@ -2298,7 +2298,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1171 PASS / 3 SKIP / 0 FAIL**（175 文件）；
+- 全量单元测试：**1173 PASS / 3 SKIP / 0 FAIL**（176 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
@@ -2391,7 +2391,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ## 2026-11-19 · 隐藏集 harness 扩展为四家族
 
-`hidden.json` 现在声明 `family`（`assembly`/`gear`/`slider`/`l4`）；旧 manifest 省略时按 assembly 读取。`bench:hidden:freeze` 按 family 校验任务/提交并冻结对应 task-set hash，`bench:hidden` 按 family 分派到 `scoreSubmission`、`scoreGearSubmission`、`scoreSliderSubmission` 或 `scoreL4Submission`，报告增加 `family` 字段；外部路径、聚合-only、`independent:false → NOT_RUN` 和 `--require-independent` 退出 2 的规则不变。
+`hidden.json` 现在声明 `family`（`assembly`/`gear`/`slider`/`l4`/`twin`）；旧 manifest 省略时按 assembly 读取。`bench:hidden:freeze` 按 family 校验任务/提交并冻结对应 task-set hash，`bench:hidden` 按 family 分派到 `scoreSubmission`、`scoreGearSubmission`、`scoreSliderSubmission` 或 `scoreL4Submission`，报告增加 `family` 字段；外部路径、聚合-only、`independent:false → NOT_RUN` 和 `--require-independent` 退出 2 的规则不变。
 
 本机验证：
 
@@ -2399,7 +2399,33 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 - gear dev 副本：`hidden-gear-dev [gear]`，`1 task / 1 case`，reference PASS，`layers 2/2`；
 - slider dev 副本：`hidden-slider-dev [slider]`，`1 task / 1 case`，reference PASS，`layers 4/4`；
 - L4 dev 副本：`hidden-l4-dev [l4]`，`1 task / 1 case`，reference PASS，`layers 5/5`；L4 的 `specFile` 现在从 hidden 集的 external `specs/` 目录读取，不依赖仓库；
+- twin dev 副本：`hidden-twin-dev [twin]`，`1 task / 1 case`，reference PASS，`layers 4/4`；
 - 单元测试新增 gear/L4 family 冻结用例；全量单元测试 **1171 PASS / 3 SKIP / 0 FAIL**（175 文件），typecheck、lint 通过。
 
 边界：仍然没有任何独立隐藏任务或新鲜外部模型采样；这些 dev 副本只证明路径、family 分派、哈希、聚合和 fail-closed，`independentHiddenEvaluation` 仍为 NOT_RUN。
+
+## 2026-11-19 · 公开 bench：L4.5 直列双缸（不是 V8）
+
+`benchmarks/assembly/twin_piston.scad` + `bench/twin` 新增第一个多缸阶梯：一根 Y 轴曲柄、两缸沿曲柄轴分开 50 mm、右缸相位 180°。它是**直列双缸**，不是 V8 的 V 角横截面，L5 仍未开始。
+
+参考件为 4 种制造设计 / 6 个实例（frame、crank、rod_left/right、slider_left/right）。评分器在每个输入角真实重渲染六件：
+
+- 从滑块网格包围盒测 z/y 中心，与 `r·cosθ + sqrt(L²−(r·sinθ)²)` 闭合公式比较，容差 0.1 mm；
+- 五个角、15 对实例网格、共 **75 次**离散碰撞；
+- 用规范三角形哈希确认六实例分别可导出；
+- 源码在每个角重新执行，静态或同相位不能通过。
+
+结果（原生 OpenSCAD 2021.01，无模型调用）：
+
+- `bun run bench:twin:check` → **`SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected`**；
+- reference **4/4 层 PASS**，6 实例，75 次碰撞全分离，滑块 z 误差 **0.0000 mm**；0° 为 36/20 mm，90° 为 26.833/26.833 mm；
+- `adversarial-same-phase`：1/4，z 误差 16.0000 mm；
+- `adversarial-crank-radius`：1/4，曲柄 9 mm，z 误差 1.0000 mm，且出现碰撞；
+- `adversarial-rod-length`：2/4，杆长 30 mm，z 误差 2.0808 mm，碰撞仍分离，只靠位置/相位层拒绝；
+- `adversarial-static`：2/4，z 误差 16.0000 mm；
+- `adversarial-collision`：1/4，右滑块移到左缸 y，90° 重叠，位置和碰撞同时失败。
+
+隐藏集 family 也增加 `twin`；外部 dev 副本 `hidden-twin-dev [twin]` 为 `1 task / 1 case`、reference PASS、`layers 4/4`、`independentHiddenEvaluation=NOT_RUN`。这仍只是开发副本，不是独立隐藏评估。
+
+单元测试 **1173 PASS / 3 SKIP / 0 FAIL**（176 文件）；typecheck、lint 通过。边界：直列双缸不是 V8 V 角；只测五个离散角、网格包围盒位置和 75 次离散碰撞；不测负载、润滑、摩擦、磨损、连续运动或实物功能。
 

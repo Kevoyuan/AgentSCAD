@@ -15,6 +15,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add `bench:hidden:freeze` to validate an external hidden set, freeze its task-set hash into `hidden.json`, and refuse accidental re-freezes without `--force`
 - Add a declaration-bound L4 benchmark family under `bench/l4`: seven parts, nine instances, eight quarter-turn removal operations, nine-instance motion/collision and a frozen wrong-order check that the guide locks must block
 - Block a tampered L4 declaration before rendering and report the changed frozen sections (`motions` in the adversarial case) instead of measuring a different mechanism
+- Add an L4.5 inline twin-piston family under `bench/twin`: six instances, one shared Y-axis crank, 180° phase, five-angle slider-position checks and 75 pairwise collision checks; it is explicitly not the V8 V-angle cross-section
 - Make the external hidden-split harness family-aware (`assembly`/`gear`/`slider`/`l4`), with family-specific freezing, hashing, scoring and external L4 spec loading; dev copies verify all four dispatches without claiming independence
 
 ## [0.6.0.0] - 2026-10-12

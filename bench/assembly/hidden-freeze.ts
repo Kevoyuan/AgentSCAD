@@ -12,6 +12,7 @@ import { loadSubmissions, loadTasks } from "./bench";
 import { loadGearSubmissions, loadGearTasks } from "../gear/bench";
 import { loadSliderSubmissions, loadSliderTasks } from "../slider/bench";
 import { loadL4Submissions, loadL4Tasks } from "../l4/bench";
+import { loadTwinSubmissions, loadTwinTasks } from "../twin/bench";
 import {
   assertExternalHiddenDirectory,
   hiddenTaskSetSha256,
@@ -33,14 +34,16 @@ export async function freezeHiddenSet(input: {
 }): Promise<HiddenManifest> {
   const root = assertExternalHiddenDirectory(input.directory);
   const family = input.family ?? "assembly";
-  if (!["assembly", "gear", "slider", "l4"].includes(family)) throw new Error(`Unknown hidden family "${family}"`);
+  if (!["assembly", "gear", "slider", "l4", "twin"].includes(family)) throw new Error(`Unknown hidden family "${family}"`);
   const tasks: HiddenTask[] = family === "assembly"
     ? await loadTasks(path.join(root, "tasks"))
     : family === "gear"
       ? await loadGearTasks(path.join(root, "tasks"))
       : family === "slider"
         ? await loadSliderTasks(path.join(root, "tasks"))
-        : await loadL4Tasks(path.join(root, "tasks"), path.join(root, "specs"));
+        : family === "l4"
+          ? await loadL4Tasks(path.join(root, "tasks"), path.join(root, "specs"))
+          : await loadTwinTasks(path.join(root, "tasks"));
   for (const task of tasks) {
     const submissions = family === "assembly"
       ? await loadSubmissions(task.id, path.join(root, "submissions"))
@@ -48,7 +51,9 @@ export async function freezeHiddenSet(input: {
         ? await loadGearSubmissions(task.id, path.join(root, "submissions"))
         : family === "slider"
           ? await loadSliderSubmissions(task.id, path.join(root, "submissions"))
-          : await loadL4Submissions(task.id, path.join(root, "submissions"));
+          : family === "l4"
+            ? await loadL4Submissions(task.id, path.join(root, "submissions"))
+            : await loadTwinSubmissions(task.id, path.join(root, "submissions"));
     if (submissions.length === 0) throw new Error(`Hidden task ${task.id} has no submissions.`);
   }
   const manifestPath = path.join(root, "hidden.json");
@@ -87,7 +92,7 @@ async function main(): Promise<void> {
   const id = argument("--id");
   const maintainer = argument("--maintainer");
   if (!directory || !id || !maintainer) {
-    throw new Error("Usage: bun run bench:hidden:freeze -- --hidden <external-dir> --id <id> --maintainer <name> [--family assembly|gear|slider|l4] [--independent] [--force] [--frozen-at <ISO>]");
+    throw new Error("Usage: bun run bench:hidden:freeze -- --hidden <external-dir> --id <id> --maintainer <name> [--family assembly|gear|slider|l4|twin] [--independent] [--force] [--frozen-at <ISO>]");
   }
   const family = (argument("--family") ?? "assembly") as HiddenFamily;
   const manifest = await freezeHiddenSet({
