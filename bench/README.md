@@ -155,7 +155,7 @@ bun test bench/               # 层模型与任务格式的单测
 
 `bun run bench:all` runs the self-checks for all twelve families in order: **assembly / gear / slider / l4 / twin / vtwin / declaration / v8 / planetary / planetary3 / product / thread**. Each family rewrites its own `report.json` from real renders, then the runner aggregates `cases`/`reports` into the terminal matrix and `bench/matrix.json` (gitignored). A non-zero self-check, or output without `SELF-CHECK OK`, exits 1. It does not read cached reports or stitch old conclusions: `bench/matrix.json` is only this run's aggregate.
 
-Full native OpenSCAD run on 2026-11-19 (about **69.9 minutes**, no model calls):
+Full native OpenSCAD run on 2026-11-19 (about **118.6 minutes**, no model calls):
 
 ```
 family       self-check cases refs adv unscored pass fail not-run layers
@@ -170,10 +170,10 @@ v8           OK         7     1    6   0        1    6    0       17/28
 planetary    OK         4     1    3   0        1    3    0       4/8
 planetary3   OK         4     1    3   0        1    3    0       4/8
 product      OK         6     1    5   0        1    5    0       25/42
-thread       OK         4     1    3   0        1    2    1       7/12
+thread       OK         6     2    4   0        2    3    1       13/20
 ```
 
-`overall: PASS`; **88 cases**: 19 reference, 63 adversarial, 6 unscored; 25 PASS / 61 FAIL-or-ERROR / 2 NOT_RUN. The six product cases include the joint-offset adversarial. The six assembly `unscored` rows are recorded model replays, not new model samples. The gear and thread NOT_RUN rows are adversarial cases rejected by their self-checks; they are not promoted. `layers` is the sum of observed layers across cases, not a pass rate. A connected-crankshaft V8 is still not started; the v8 family is the shared-pin/carrier subset with no main shaft.
+`overall: PASS`; **90 cases**: 20 reference, 64 adversarial, 6 unscored; 26 PASS / 62 FAIL-or-ERROR / 2 NOT_RUN. The six product cases include the joint-offset adversarial; the six thread cases include the full-withdrawal exit task. The six assembly `unscored` rows are recorded model replays, not new model samples. The gear and thread NOT_RUN rows are adversarial cases rejected by their self-checks; they are not promoted. `layers` is the sum of observed layers across cases, not a pass rate. A connected-crankshaft V8 is still not started; the v8 family is the shared-pin/carrier subset with no main shaft.
 
 ### 4.1 已记录模型 baseline（replay）
 

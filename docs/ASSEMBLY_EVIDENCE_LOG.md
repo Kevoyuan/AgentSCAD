@@ -2697,3 +2697,25 @@ Added `bench/thread/tasks/threaded-fastener-exit-1.5.json`, which uses the froze
 - The tool's overall status can still be NOT_RUN for coaxiality; only the measured exit layer is claimed.
 
 The thread family now has 2 tasks / 6 cases, 2 references and 4 adversarial submissions. The 88-case twelve-family gate snapshot predates this task; the gate was not rerun for this addition. Unit tests remain green.
+
+## 2026-11-19 · Gate including threaded exit (English log)
+
+Final twelve-family gate with the threaded full-withdrawal task included. Native OpenSCAD, no model calls, about **118.6 minutes**.
+
+```
+family       self-check cases refs adv unscored pass fail not-run layers
+assembly     OK         20    6    8   6        12   8    0       104/120
+gear         OK         6     1    5   0        1    4    1       7/12
+slider       OK         17    3    14  0        3    14   0       51/77
+l4           OK         5     1    4   0        1    4    0       14/25
+twin         OK         6     1    5   0        1    5    0       11/24
+vtwin        OK         5     1    4   0        1    4    0       11/20
+declaration  OK         4     1    3   0        1    3    0       7/20
+v8           OK         7     1    6   0        1    6    0       17/28
+planetary    OK         4     1    3   0        1    3    0       4/8
+planetary3   OK         4     1    3   0        1    3    0       4/8
+product      OK         6     1    5   0        1    5    0       25/42
+thread       OK         6     2    4   0        2    3    1       13/20
+```
+
+`overall: PASS`; **90 cases**, 20 reference, 64 adversarial, 6 unscored; 26 PASS / 62 FAIL-or-ERROR / 2 NOT_RUN; **268/404** observed layer entries. This is the current public gate snapshot; it is not hidden evaluation, model ability, physical function, or user acceptance. Connected-crankshaft V8 and full A001 pass remain open.

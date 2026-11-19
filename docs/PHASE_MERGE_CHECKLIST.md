@@ -19,7 +19,7 @@ Status as of 2026-11-19, after the twelve-family gate refresh.
 |---|---|
 | Unit suite | 1193 PASS / 3 SKIP / 0 FAIL (184 files) |
 | Native OpenSCAD suite | **68 PASS / 1 SKIP / 0 FAIL** (1379.43 s, 69 tests, 15 files, serial) |
-| Twelve-family gate | **88 cases**, `overall: PASS`, about 69.9 minutes; product row 25/42. Thread exit task was added after this snapshot |
+| Twelve-family gate | **90 cases**, `overall: PASS`, about 118.6 minutes; product 25/42; thread 13/20 |
 | Product family | reference 7/7; 1 reference / 5 adversarial; gate product row 25/42 |
 | Thread family | 2 tasks / 6 cases; 2 references / 4 adversarial; exit reference 4/4 |
 | Hidden product dev | 1/1 PASS, 7/7 layers; `independentHiddenEvaluation=NOT_RUN` |
