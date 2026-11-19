@@ -10,6 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add a separate gear-pair benchmark family under `bench/gear`: a 12/24 external pair, measured tooth count/pitch/centre distance/marker ratio, one reference and five adversarial submissions, and a self-check that rejects every tampered source (`bun run bench:gear:check`)
 - Add a separate slider-crank L3 benchmark family under `bench/slider`: four measured parts, crank-circle/rod-length/pin-axis checks from re-rendered meshes, full-mesh collision at five input angles, one reference and seven adversarial submissions (`bun run bench:slider:check`)
 - Add a keyed five-part slider-crank task with a frozen correct and wrong removal order: the eccentric retention key must block the wrong order, and the `adversarial-key-out-of-way` case fails only that layer while motion and collision still pass
+- Import the six recorded DeepSeek v4 flash model submissions from the public bench history and score them on the local six-task set as a clearly labelled replay (all 6 PASS); no new model calls or spend
 
 ## [0.6.0.0] - 2026-10-12
 

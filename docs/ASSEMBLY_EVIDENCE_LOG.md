@@ -2348,3 +2348,14 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 边界：两条拆卸计划都是零位姿的直线平移采样；不证明连续拆卸、力、意外释放、工具可达、保持力或装配顺序搜索。五件带键版本不是 6 件导向/保持的 A08 产品。
 
+## 2026-11-19 · 公开 bench：已记录模型 baseline 的 replay
+
+`main` 的公开 bench 记录里有 6 条 DeepSeek v4 flash 的 SCAD 产物（PR #64，`bench/assembly/submissions/*/model-deepseek-v4-flash.scad`）。本分支原样导入这 6 个文件，在本地六个任务上重评分，不调用模型、不产生新费用：
+
+- 6/6 任务 **PASS**，每案 6/6 层；实测间隙：hinge 0.392–0.407 / 0.492–0.507 / 0.247–0.253 / 0.397–0.403 mm，piston 0.387–0.412 / 0.247–0.253 mm；
+- `bun run bench:assembly:check` 仍为 **6 reference(s) pass, 8 adversarial submission(s) rejected**；20 个 case 的矩阵（含 6 条 model）见 `bench/assembly/report.json`（gitignored）；
+- 这是**已记录产物的 replay**，不是新的外部模型 baseline；原 run 的 0.391 CNY 和英文提示/输出契约属于 `main` 的记录，不能当作本分支的新测量；
+- 6/6 说明该公开任务集对该模型已经饱和，不能区分模型能力；独立隐藏集与新鲜外部模型采样仍未执行。
+
+结论：本地 bench 有了可回归的已记录模型产物，但“外部模型 baseline”只完成了 replay 的一半；隐藏任务维护者、unpublished split 和至少一次新模型采样仍是 NOT_RUN。
+

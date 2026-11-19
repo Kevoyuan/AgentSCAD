@@ -113,7 +113,15 @@ hinge-captured-45 reference                     PASS    6/6     PASS   0.400-0.4
 piston-bore-30    adversarial-tight-bore        FAIL    5/6     PASS   0.100-0.124    PASS    PASS
 piston-bore-30    reference                     PASS    6/6     PASS   0.400-0.425    PASS    PASS
 piston-bore-45    reference                     PASS    6/6     PASS   0.250-0.274    PASS    PASS
+hinge-45-loose    model-deepseek-v4-flash       PASS    6/6     PASS   0.392-0.407    PASS    PASS
+hinge-60-wide     model-deepseek-v4-flash       PASS    6/6     PASS   0.492-0.507    PASS    PASS
+hinge-90-tight    model-deepseek-v4-flash       PASS    6/6     PASS   0.247-0.253    PASS    PASS
+hinge-captured-45 model-deepseek-v4-flash       PASS    6/6     PASS   0.397-0.403    PASS    —
+piston-bore-30    model-deepseek-v4-flash       PASS    6/6     PASS   0.387-0.412    PASS    PASS
+piston-bore-45    model-deepseek-v4-flash       PASS    6/6     PASS   0.247-0.253    PASS    PASS
 ```
+
+`model-*` 行来自 `main` 分支的**已记录模型产物**（`bench/assembly/submissions/*/model-deepseek-v4-flash.scad`，PR #64 的 6 次 DeepSeek v4 flash 输出），在本分支原样复制并重评分；这是**replay**，不是新一轮模型调用。
 
 实测间隙与解析值一致（6.40 mm 内切孔 − 6.00 mm 外接销 = 0.400 mm；10.40 − 10.00 = 0.400 mm），说明测量链没有系统性偏差。
 

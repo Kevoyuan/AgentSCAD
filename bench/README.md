@@ -141,6 +141,21 @@ bun test bench/               # 层模型与任务格式的单测
 
 2026-11-18 在 `continue/local-assembly-2026-11-18` 复跑：`SELF-CHECK OK: 6 reference(s) pass, 8 adversarial submission(s) rejected.` 这只证明公开自检未退化，不证明隐藏集、模型能力或物理功能。
 
+### 4.1 已记录模型 baseline（replay）
+
+`bench/assembly` 现在有 6 条 `model-deepseek-v4-flash` 提交，原样取自 `main` 的 PR #64 记录；在本分支重评分：
+
+| task | status | cover | measured clearance |
+|---|---|---|---|
+| `hinge-45-loose` | PASS | 6/6 | 0.392–0.407 |
+| `hinge-60-wide` | PASS | 6/6 | 0.492–0.507 |
+| `hinge-90-tight` | PASS | 6/6 | 0.247–0.253 |
+| `hinge-captured-45` | PASS | 6/6 | 0.397–0.403 |
+| `piston-bore-30` | PASS | 6/6 | 0.387–0.412 |
+| `piston-bore-45` | PASS | 6/6 | 0.247–0.253 |
+
+这 6 条全部通过公开任务，和原记录的 6/6 一致。**边界**：它是已记录产物的 **replay**，不是新的外部模型调用；没有新花费，也没有独立隐藏集。原 run 的 0.391 CNY 与英文提示/输出契约属于 `main` 的记录，不能当作本分支的新测量。6/6 也说明这组公开任务对该模型已经饱和，不能用来区分模型能力。
+
 ### 实测：35 个真实批次 / 55 个候选
 
 ```
@@ -180,7 +195,8 @@ reconstruction    8     2     5     13    2     28.6%   缺检查      导出重
 - [x] **L3.5 五件保持键滑块**：`bench/slider` 的 `slider-crank-keyed-8-28` 增加偏心键、正确/错误拆卸计划和 `disassembly-path` 断言；`bun run bench:slider --task slider-crank-keyed-8-28 --self-check` → `SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`。`adversarial-key-out-of-way` 只让错误顺序不再被挡住，运动/轮廓仍 PASS，评分器单独拒绝该层；6 件导向/保持版本（A08）仍属产品工作；`bun run bench:slider:check` 同时跑基础与 keyed 任务 → `SELF-CHECK OK: 2 reference(s) pass, 11 adversarial submission(s) rejected`
 - [x] **补 `retention` 与 `source-motion` 的检查**：`bench/assembly` 里已落地（`hinge-captured-45` 的轴向拉拔、5 个任务的位姿重渲染）
 - [x] **把这两个检查接进产品判分器**：`judge-assembly` 现在把派生合同作为 trial attribution gate 传给 `prepareAssembly`，并产出 `rigid-motion`、`source-motion`、`motion-range-*`、`axial-retention`、`assembly-path`、`disassembly-path`。前提是候选声明包含 `motions[].sourceInput`（参数 + 每个实例的 pose selector）和 `translationProbes`；缺声明仍为 `NOT_RUN`。`intent-preserved` 仍为 `NOT_RUN`，`passed` 不是用户确认或验收。证据：`bun test scripts/eval/judge-evidence.test.ts` 7 PASS；`bun test src/lib/tools/__tests__/pipeline-assembly.openscad.test.ts` 5 PASS（原生 OpenSCAD，研究者辅助控制件在 measured assertions 上 PASS，intent 保持 NOT_RUN）；定向判分脚本对同一控制件输出 `sampled-motion`/`rigid-motion`/`source-motion`/`axial-retention`/`assembly-path`/`disassembly-path` PASS。历史层表不因接线回溯。
-- [ ] **隐藏集 + 外部模型 baseline**（1 周）
+- [x] **已记录模型 baseline replay**：6 条 DeepSeek v4 flash 产物原样导入并重评分，6/6 PASS；见 §4.1。这是 replay，不是新调用
+- [ ] **独立隐藏集 + 新鲜外部模型 baseline**：隐藏任务维护者、unpublished split 和至少一次新模型采样仍未发生；当前 `bench/assembly` 任务集与参考解都在仓库里
 - [ ] **L5 两缸横截面**（2–3 周）：验证阶梯能延伸到 V8 而不重写判据
 
 ## 6. 防退化
