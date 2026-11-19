@@ -22,6 +22,7 @@ The branch is **not** a simple fast-forward of `main`: both sides have 35 and 17
 | Check | Result |
 |---|---|
 | Unit suite | 1193 PASS / 3 SKIP / 0 FAIL (184 files) |
+| Production build | **PASS** (`bun run build`, Next.js production output) |
 | Native OpenSCAD suite | **68 PASS / 1 SKIP / 0 FAIL** (1379.43 s, 69 tests, 15 files, serial) |
 | Twelve-family gate | **90 cases**, `overall: PASS`, about 118.6 minutes |
 | Product family | 6 cases, reference 7/7, gate row **25/42** |

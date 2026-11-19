@@ -2730,3 +2730,5 @@ Attempted to close the threaded-fastener coaxiality gap with the existing `measu
 - Nut stations: rejected as a non-regular polygon (inradius/circumradius implies about 5.3 facets at the sampled section).
 
 The generic cylindrical-feature probe is not applicable to threaded or hex sections. A real coaxiality measurement needs a dedicated thread-axis estimator; until then the tool's coaxiality stays **NOT_RUN**, and the thread family claims only geometry, engagement/lead and exit. No PASS was fabricated. The overall tool status remains NOT_RUN for the geometry task; the exit task's measured exit layer is independent and remains PASS.
+
+Production build on the phase branch: `bun run build` completed with **PASS** (Next.js production output, no build errors). This verifies the app compiles and bundles; it does not change the bench gate or the merge blockers.
