@@ -41,4 +41,4 @@ The hidden manifest family `product` has an external development copy `hidden-pr
 - Only the seven product-preparation layers are scored. Fit/joint cover only the eccentric revolute. The assembly path is a discrete reverse of declared removals, not continuous transport.
 - This is not the A001 contract gate, user acceptance, continuous motion, or physical function.
 - One fixture, one correct order, five counterexamples; no claim about arbitrary product workflows or model generation.
-- Included in the twelve-family `bench:all` gate and the hidden split. The last gate matrix predates the sixth counterexample (`adversarial-joint-offset`); the product row is therefore not the latest case count.
+- Included in the twelve-family `bench:all` gate and the hidden split. The latest gate matrix includes all six product cases (reference plus five adversarial).

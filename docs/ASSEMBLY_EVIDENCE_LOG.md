@@ -2664,3 +2664,25 @@ Authoritative serial run:
 - No model calls
 
 The earlier parallel run's failures are load-sensitive timing, not product regressions. The serial result is the current native baseline; the twelve-family gate remains the separate 87-case public snapshot, which predates the sixth product adversarial.
+
+## 2026-11-19 · Final twelve-family gate with product joint-offset (English log)
+
+Native OpenSCAD, no model calls, about **69.9 minutes**. The product family now has six cases: the reference plus five adversarial submissions, including `adversarial-joint-offset`.
+
+```
+family       self-check cases refs adv unscored pass fail not-run layers
+assembly     OK         20    6    8   6        12   8    0       104/120
+gear         OK         6     1    5   0        1    4    1       7/12
+slider       OK         17    3    14  0        3    14   0       51/77
+l4           OK         5     1    4   0        1    4    0       14/25
+twin         OK         6     1    5   0        1    5    0       11/24
+vtwin        OK         5     1    4   0        1    4    0       11/20
+declaration  OK         4     1    3   0        1    3    0       7/20
+v8           OK         7     1    6   0        1    6    0       17/28
+planetary    OK         4     1    3   0        1    3    0       4/8
+planetary3   OK         4     1    3   0        1    3    0       4/8
+product      OK         6     1    5   0        1    5    0       25/42
+thread       OK         4     1    3   0        1    2    1       7/12
+```
+
+`overall: PASS`; **88 cases**, 19 reference, 63 adversarial, 6 unscored; 25 PASS / 61 FAIL-or-ERROR / 2 NOT_RUN; **262/396** observed layer entries. This is the current public gate snapshot. It is not hidden evaluation, model ability, physical function, or user acceptance. Connected-crankshaft V8 and full A001 remain open.
