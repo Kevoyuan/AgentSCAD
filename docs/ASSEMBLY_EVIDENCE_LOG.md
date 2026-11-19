@@ -2298,7 +2298,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1170 PASS / 3 SKIP / 0 FAIL**（175 文件）；
+- 全量单元测试：**1171 PASS / 3 SKIP / 0 FAIL**（175 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
@@ -2396,9 +2396,10 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 本机验证：
 
 - assembly dev 副本（旧 manifest 无 family）：`1 task / 2 case`，1 reference PASS、1 adversarial rejected；仍按 assembly 读取；
-- gear dev 副本：`hidden-gear-dev [gear]`，`1 task / 1 case`，reference PASS，`layers 2/2`；报告 `family=gear`；
-- `slider`/`l4` 的 loader/scorer 分派通过 typecheck，但本轮没有隐藏冒烟；
-- 单元测试 `hidden-freeze.test.ts` 新增 gear-family 冻结/重载用例；全量单元测试 **1170 PASS / 3 SKIP / 0 FAIL**（175 文件），typecheck、lint 通过。
+- gear dev 副本：`hidden-gear-dev [gear]`，`1 task / 1 case`，reference PASS，`layers 2/2`；
+- slider dev 副本：`hidden-slider-dev [slider]`，`1 task / 1 case`，reference PASS，`layers 4/4`；
+- L4 dev 副本：`hidden-l4-dev [l4]`，`1 task / 1 case`，reference PASS，`layers 5/5`；L4 的 `specFile` 现在从 hidden 集的 external `specs/` 目录读取，不依赖仓库；
+- 单元测试新增 gear/L4 family 冻结用例；全量单元测试 **1171 PASS / 3 SKIP / 0 FAIL**（175 文件），typecheck、lint 通过。
 
 边界：仍然没有任何独立隐藏任务或新鲜外部模型采样；这些 dev 副本只证明路径、family 分派、哈希、聚合和 fail-closed，`independentHiddenEvaluation` 仍为 NOT_RUN。
 

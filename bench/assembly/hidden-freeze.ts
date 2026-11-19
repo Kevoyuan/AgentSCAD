@@ -40,7 +40,7 @@ export async function freezeHiddenSet(input: {
       ? await loadGearTasks(path.join(root, "tasks"))
       : family === "slider"
         ? await loadSliderTasks(path.join(root, "tasks"))
-        : await loadL4Tasks(path.join(root, "tasks"));
+        : await loadL4Tasks(path.join(root, "tasks"), path.join(root, "specs"));
   for (const task of tasks) {
     const submissions = family === "assembly"
       ? await loadSubmissions(task.id, path.join(root, "submissions"))

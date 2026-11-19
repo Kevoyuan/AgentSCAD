@@ -191,7 +191,9 @@ bun run bench:hidden -- --hidden /outside/repo/hidden --json /outside/repo/repor
 
 - assembly 副本（一个公开任务 + 一条反例）：`1 task / 2 case`，1 reference PASS、1 adversarial rejected；旧 manifest 省略 family 仍按 assembly 读取；
 - gear 副本（`gear-12-24` reference）：`1 task / 1 case`，reference PASS，报告 `family=gear`、`layers 2/2`；
-- 两者 `independentHiddenEvaluation=NOT_RUN`；加 `--require-independent` 退出 2。`slider`/`l4` 的 loader/scorer 分派已接通，但本轮没有做隐藏冒烟。
+- slider 副本（`slider-crank-8-28` reference）：`1 task / 1 case`，reference PASS，`layers 4/4`；
+- L4 副本（`slider-shaft-keyed-7x9` reference，specs 放在 external 目录）：`1 task / 1 case`，reference PASS，`layers 5/5`；
+- 以上 `independentHiddenEvaluation=NOT_RUN`；加 `--require-independent` 退出 2。
 
 这些运行只证明路径、family 分派、哈希、聚合和 fail-closed，不证明独立隐藏评估。
 

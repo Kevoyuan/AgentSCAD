@@ -164,7 +164,7 @@ export function l4Directory(): string { return import.meta.dir; }
 export function l4TasksDirectory(): string { return path.join(import.meta.dir, "tasks"); }
 export function l4SubmissionsDirectory(): string { return path.join(import.meta.dir, "submissions"); }
 
-export async function loadL4Tasks(root = l4TasksDirectory()): Promise<L4BenchTask[]> {
+export async function loadL4Tasks(root = l4TasksDirectory(), specsRoot = path.join(import.meta.dir, "specs")): Promise<L4BenchTask[]> {
   const names = (await readdir(root)).filter((name) => name.endsWith(".json")).sort();
   const tasks: L4BenchTask[] = [];
   for (const name of names) {
@@ -174,7 +174,7 @@ export async function loadL4Tasks(root = l4TasksDirectory()): Promise<L4BenchTas
     if (typeof raw.prompt !== "string" || raw.prompt.trim().length < 8) fail(`${name}: prompt must be non-trivial`);
     if (typeof raw.specFile !== "string" || raw.specFile.includes("..") || path.isAbsolute(raw.specFile)) fail(`${name}: specFile must be a relative path without ..`);
     if (typeof raw.specSha256 !== "string" || !/^[a-f0-9]{64}$/.test(raw.specSha256)) fail(`${name}: specSha256 must be a lowercase SHA-256`);
-    const specPath = path.join(import.meta.dir, "specs", raw.specFile);
+    const specPath = path.join(specsRoot, raw.specFile);
     const parsedSpec = validateAssemblySpec(JSON.parse(await readFile(specPath, "utf8")));
     if (!parsedSpec.success) fail(`${name}: byte spec is invalid`);
     const spec = parsedSpec.data;

@@ -45,6 +45,24 @@ describe("hidden-set freezer", () => {
     }
   });
 
+  test("freezes an L4 set with its specs directory outside the repository", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agentscad-hidden-l4-"));
+    try {
+      await cp("bench/l4/tasks/slider-shaft-keyed-7x9.json", path.join(root, "tasks", "slider-shaft-keyed-7x9.json"), { recursive: true });
+      await cp("bench/l4/specs/slider-shaft-keyed.spec.json", path.join(root, "specs", "slider-shaft-keyed.spec.json"), { recursive: true });
+      await cp("bench/l4/submissions/slider-shaft-keyed-7x9/reference.scad", path.join(root, "submissions", "slider-shaft-keyed-7x9", "reference.scad"), { recursive: true });
+      const manifest = await freezeHiddenSet({ directory: root, id: "hidden-l4-test", maintainer: "local unit test", independent: false, family: "l4", frozenAt: "2026-11-19T00:00:00Z" });
+      expect(manifest.family).toBe("l4");
+      const loaded = await loadHiddenSet(root);
+      expect(loaded.manifest.family).toBe("l4");
+      expect(loaded.tasks[0].id).toBe("slider-shaft-keyed-7x9");
+      const l4 = loaded.tasks[0] as { spec?: { parts?: unknown[] } };
+      expect(l4.spec?.parts).toHaveLength(7);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   test("refuses a set without submissions and a repo-internal directory", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "agentscad-hidden-freeze-empty-"));
     try {

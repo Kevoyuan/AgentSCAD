@@ -138,7 +138,7 @@ export async function loadHiddenSet(directory: string): Promise<HiddenSet> {
       ? await loadGearTasks(path.join(root, "tasks"))
       : manifest.family === "slider"
         ? await loadSliderTasks(path.join(root, "tasks"))
-        : await loadL4Tasks(path.join(root, "tasks"));
+        : await loadL4Tasks(path.join(root, "tasks"), path.join(root, "specs"));
   const actual = hiddenTaskSetSha256(tasks, manifest.family);
   if (actual !== manifest.taskSetSha256) {
     throw new Error(`The hidden task set changed without re-freezing: manifest ${manifest.taskSetSha256.slice(0, 12)}, actual ${actual.slice(0, 12)}.`);
