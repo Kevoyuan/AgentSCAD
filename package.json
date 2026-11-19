@@ -45,7 +45,8 @@
     "bench:slider": "bun bench/slider/run.ts",
     "bench:slider:check": "bun bench/slider/run.ts --self-check",
     "bench:assembly:check": "bun bench/assembly/run.ts --self-check",
-    "bench:ladder": "bun bench/ladder-report.ts"
+    "bench:ladder": "bun bench/ladder-report.ts",
+    "bench:hidden": "bun bench/assembly/hidden-run.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -156,6 +156,30 @@ bun test bench/               # 层模型与任务格式的单测
 
 这 6 条全部通过公开任务，和原记录的 6/6 一致。**边界**：它是已记录产物的 **replay**，不是新的外部模型调用；没有新花费，也没有独立隐藏集。原 run 的 0.391 CNY 与英文提示/输出契约属于 `main` 的记录，不能当作本分支的新测量。6/6 也说明这组公开任务对该模型已经饱和，不能用来区分模型能力。
 
+### 4.2 隐藏集 harness
+
+`bench/assembly/hidden-run.ts` 提供 external hidden split 的运行器，但**仓库里没有任何隐藏任务**。隐藏集必须放在仓库之外：
+
+```
+<outside-repo>/hidden.json
+<outside-repo>/tasks/*.json
+<outside-repo>/submissions/<task-id>/*.scad
+```
+
+`hidden.json` 声明 `id`、`frozenAt`、`maintainer`、`independent` 和 `taskSetSha256`。运行器会：
+
+- 拒绝仓库内路径（即使是 gitignored 的目录）；
+- 从 validated task 定义重算 SHA-256，与 manifest 不符就拒绝；
+- 只写聚合报告：task ID、case 计数、layer 计数；**不复制 prompt、源码、sourcePath 或逐案测量**；
+- `independent: false` 时 `independentHiddenEvaluation = NOT_RUN`；`--require-independent` 以退出码 2 失败；
+- `independent: true` 也只记为 `DECLARED_NOT_VERIFIED`：harness 能验证路径和哈希，不能验证谁编写/扣留了任务。
+
+```bash
+bun run bench:hidden -- --hidden /outside/repo/hidden --json /outside/repo/report.json --self-check
+```
+
+开发冒烟（一个公开任务加一条反例的副本，manifest `independent:false`）：`1 task / 2 case`，1 reference PASS、1 adversarial rejected，`independentHiddenEvaluation=NOT_RUN`；加 `--require-independent` 退出 2。这次运行只证明路径、哈希、聚合和 fail-closed，不证明独立隐藏评估。
+
 ### 实测：35 个真实批次 / 55 个候选
 
 ```
@@ -196,6 +220,7 @@ reconstruction    8     2     5     13    2     28.6%   缺检查      导出重
 - [x] **补 `retention` 与 `source-motion` 的检查**：`bench/assembly` 里已落地（`hinge-captured-45` 的轴向拉拔、5 个任务的位姿重渲染）
 - [x] **把这两个检查接进产品判分器**：`judge-assembly` 现在把派生合同作为 trial attribution gate 传给 `prepareAssembly`，并产出 `rigid-motion`、`source-motion`、`motion-range-*`、`axial-retention`、`assembly-path`、`disassembly-path`。前提是候选声明包含 `motions[].sourceInput`（参数 + 每个实例的 pose selector）和 `translationProbes`；缺声明仍为 `NOT_RUN`。`intent-preserved` 仍为 `NOT_RUN`，`passed` 不是用户确认或验收。证据：`bun test scripts/eval/judge-evidence.test.ts` 7 PASS；`bun test src/lib/tools/__tests__/pipeline-assembly.openscad.test.ts` 5 PASS（原生 OpenSCAD，研究者辅助控制件在 measured assertions 上 PASS，intent 保持 NOT_RUN）；定向判分脚本对同一控制件输出 `sampled-motion`/`rigid-motion`/`source-motion`/`axial-retention`/`assembly-path`/`disassembly-path` PASS。历史层表不因接线回溯。
 - [x] **已记录模型 baseline replay**：6 条 DeepSeek v4 flash 产物原样导入并重评分，6/6 PASS；见 §4.1。这是 replay，不是新调用
+- [x] **隐藏集 harness**：external-only 路径、frozen task-set hash、聚合-only 报告和 `--require-independent` fail-closed 已实现，并用 dev 副本冒烟；见 §4.2。**没有**任何独立隐藏任务
 - [ ] **独立隐藏集 + 新鲜外部模型 baseline**：隐藏任务维护者、unpublished split 和至少一次新模型采样仍未发生；当前 `bench/assembly` 任务集与参考解都在仓库里
 - [ ] **L5 两缸横截面**（2–3 周）：验证阶梯能延伸到 V8 而不重写判据
 

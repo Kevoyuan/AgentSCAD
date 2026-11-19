@@ -2298,7 +2298,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1161 PASS / 3 SKIP / 0 FAIL**（172 文件）；
+- 全量单元测试：**1165 PASS / 3 SKIP / 0 FAIL**（173 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
@@ -2358,4 +2358,18 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 - 6/6 说明该公开任务集对该模型已经饱和，不能区分模型能力；独立隐藏集与新鲜外部模型采样仍未执行。
 
 结论：本地 bench 有了可回归的已记录模型产物，但“外部模型 baseline”只完成了 replay 的一半；隐藏任务维护者、unpublished split 和至少一次新模型采样仍是 NOT_RUN。
+
+## 2026-11-19 · 公开 bench：隐藏集 harness（dev-only 冒烟）
+
+新增 `bench/assembly/hidden.ts` / `hidden-run.ts`：隐藏集必须位于仓库之外，`hidden.json` 必须声明 `id`、`frozenAt`、`maintainer`、`independent` 与 `taskSetSha256`；运行器从 validated task 定义重算哈希，拒绝仓库内路径，只写 task ID/计数/layer 计数的聚合报告，不复制 prompt、源码、sourcePath 或逐案测量。
+
+命令与结果（本机原生 OpenSCAD 2021.01）：
+
+- dev 副本（一个公开任务 + 一条反例；manifest `independent:false`）：
+  - `1 task / 2 case`：1 reference PASS、1 adversarial rejected；
+  - `independentHiddenEvaluation = NOT_RUN`；加 `--require-independent` 退出码 **2**；
+  - 报告只有 `hiddenId`、`maintainer`、`independent`、`taskSetSha256`、计数和 task/layer 计数，没有 prompt/源码/路径。
+- 单元测试 `bench/assembly/hidden.test.ts`：4 PASS，覆盖 manifest 校验、repo 内路径拒绝、冻结哈希、改动任务后拒绝、聚合报告不含 prompt/sourcePath。
+
+边界：harness 只能证明外部路径、manifest/哈希、聚合和 fail-closed；它**不能**证明谁编写或扣留了任务。仓库里仍然没有任何独立隐藏任务，`independentHiddenEvaluation` 不是 PASS；新鲜外部模型采样也未执行。下一步需要独立维护者提供 external hidden set，并用 `--require-independent` 运行。
 

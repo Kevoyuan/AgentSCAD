@@ -202,15 +202,16 @@ hinge-45-loose    reference                 PASS    4/4     PASS   0.400-0.415  
 - **`source-motion` 只验证位姿参数下的刚体一致性**，不验证参数是否覆盖了完整行程，也不验证运动是"机构的"还是"每件单独写死角度"的——后者需要多关节约束。
 - **`axial-retention` 只测一个拉拔距离**，不测拉脱力、疲劳或锁舌的旋出路径。
 - **移动副的行程与拆卸同向**：活塞的行程和抽出都沿 +Z，两条判据在方向上不独立。
-- **无隐藏集**：任务集和参考解都在仓库里。要变成可发表的 benchmark，必须加 unpublished split 和外部模型的 baseline 表。
+- **隐藏集 harness 已有，独立隐藏集仍无**：`bench/assembly/hidden-run.ts` 要求 external-only 路径、frozen task-set hash 和聚合-only 报告；但仓库里没有任何独立隐藏任务，dev 副本只验证 harness 行为。
+- **模型 baseline 只有 recorded replay**：6 条 DeepSeek v4 flash 产物在本地六任务上 6/6 PASS，但没有新鲜外部模型采样或独立隐藏集结果。
 - **与产品代码耦合**：`score.ts` 直接 import `src/lib/assembly/*`。真正的公开发布需要把验证器抽成独立包。
 - **`adversarial-*` 只覆盖每个家族的 1 个任务**，其余任务目前只有参考解。
 
 ## 变成正式 benchmark 还缺什么
 
-1. 任务集从 5 条扩到 100+，并让**没看过判据的人**写参考解（防止判据被参考解反向调参）。
-2. 划出 hidden split，只公开判分器和提交格式。
-3. 跑 6–8 个模型 × 多次采样，出 baseline 表（这张表目前是空的，这是它还不是 benchmark 的主要原因）。
+1. 任务集从 6 条扩到 100+，并让**没看过判据的人**写参考解（防止判据被参考解反向调参）。
+2. 用已实现的 hidden harness 运行**独立维护者**提供的外部任务集；目前只有 dev 副本，`independentHiddenEvaluation` 仍是 NOT_RUN。
+3. 跑 6–8 个模型 × 多次采样，出新鲜 baseline 表；当前只有 6 条 recorded replay，不能替代新采样。
 4. 把 `src/lib/assembly/` 抽成独立包，切断对产品内部模块的依赖。
 5. 对抗集扩到 20+ 条并公开——一个能被刷的 benchmark 比没有 benchmark 更伤信誉。
 

@@ -1,0 +1,88 @@
+#!/usr/bin/env bun
+/**
+ * Runs an external hidden set and writes an aggregate-only report.
+ *
+ * Usage:
+ *   bun run bench:hidden -- --hidden /path/outside/repo [--json /tmp/hidden-report.json] [--self-check]
+ *
+ * The hidden directory must contain:
+ *   hidden.json
+ *   tasks/*.json
+ *   submissions/<task-id>/*.scad
+ */
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import {
+  aggregateHiddenReport,
+  assertExternalHiddenDirectory,
+  defaultHiddenReportPath,
+  loadHiddenSet,
+} from "./hidden";
+import { expectedOutcome } from "./bench";
+import { scoreSubmission, type CaseReport } from "./score";
+
+function argument(name: string): string | null {
+  const index = process.argv.indexOf(name);
+  if (index < 0) return null;
+  const value = process.argv[index + 1];
+  if (!value || value.startsWith("--")) throw new Error(`${name} requires a value`);
+  return value;
+}
+
+async function main(): Promise<void> {
+  const directory = argument("--hidden");
+  if (!directory) throw new Error("Usage: bun run bench:hidden -- --hidden <external-dir> [--json <path>] [--self-check] [--require-independent]");
+  const hidden = await loadHiddenSet(directory);
+  const jsonPath = path.resolve(argument("--json") ?? defaultHiddenReportPath());
+  assertExternalHiddenDirectory(path.dirname(jsonPath));
+  const selfCheck = process.argv.includes("--self-check");
+  const requireIndependent = process.argv.includes("--require-independent");
+
+  const reports: CaseReport[] = [];
+  for (const task of hidden.tasks) {
+    for (const submission of hidden.submissions.get(task.id) ?? []) {
+      reports.push(await scoreSubmission(task, submission));
+    }
+  }
+
+  const aggregate = aggregateHiddenReport(hidden.manifest, reports);
+  await mkdir(path.dirname(jsonPath), { recursive: true });
+  await writeFile(jsonPath, `${JSON.stringify(aggregate, null, 2)}\n`);
+
+  console.log(`hidden set: ${aggregate.hiddenId} (${aggregate.summary.tasks} task(s), ${aggregate.summary.cases} case(s))`);
+  console.log(`independent declaration: ${aggregate.independent ? "true (declared, not verified)" : "false"} — ${aggregate.independentHiddenEvaluation}`);
+  console.log(`result: ${aggregate.summary.passed} PASS / ${aggregate.summary.failed} FAIL-ERROR / ${aggregate.summary.notRun} NOT_RUN`);
+  for (const task of aggregate.tasks) {
+    console.log(`  ${task.taskId}: ${task.passed}/${task.cases} PASS, layers ${task.layers.passed}/${task.layers.observed}`);
+  }
+  console.log(`report: ${jsonPath}`);
+
+  if (selfCheck) {
+    const failures: string[] = [];
+    for (const report of reports) {
+      const expected = expectedOutcome(report.submission);
+      if (expected === "pass" && report.status !== "PASS") failures.push(`${report.taskId}: reference expected PASS, observed ${report.status}`);
+      if (expected === "fail" && report.status === "PASS") failures.push(`${report.taskId}: adversarial submission scored PASS`);
+    }
+    if (failures.length > 0) {
+      console.error(`\nHIDDEN SELF-CHECK FAILED\n${failures.join("\n")}`);
+      process.exitCode = 1;
+    } else {
+      console.log(`\nHIDDEN SELF-CHECK OK: ${reports.filter((report) => report.expected === "pass").length} reference(s) pass, ${reports.filter((report) => report.expected === "fail").length} adversarial submission(s) rejected.`);
+    }
+  }
+
+  if (requireIndependent && !aggregate.independent) {
+    console.error("\nNOT AN INDEPENDENT HIDDEN EVALUATION: the manifest declares independent: false.");
+    process.exitCode = 2;
+  }
+}
+
+if (import.meta.main) {
+  try {
+    await main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 2;
+  }
+}
