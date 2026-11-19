@@ -48,4 +48,4 @@ SELF-CHECK OK: 1 reference(s) pass, 6 adversarial submission(s) rejected.
 - **四个共享曲柄销，但曲柄件是四个不连通的盘/销、没有主轴**；不是完整曲轴 V8，不能称为可制造曲轴。`adversarial-main-shaft` 与 `adversarial-connected-crank` 分别证明连续主轴和 webs+分段主轴候选都会被连杆碰撞拒绝；未来连通曲轴必须真正清空 8 根连杆扫掠。
 - **frame 只是底板**；没有缸体/导管/轴承/曲轴箱，不评分 frame 连通性。
 - 只测五个离散角、网格包围盒位置和 765 次离散碰撞；不测连续运动、负载、润滑、摩擦、磨损、点火/配气或实物功能。
-- V8 family self-check 现为 1 reference / 6 adversarial；`bench:all` 矩阵中的 v8 行是加入 `main-shaft`/`connected-crank` 前的 5-case 快照，未重跑。完整共享曲轴 V8 仍未开始。
+- V8 family self-check 现为 1 reference / 6 adversarial；九家族 `bench:all` 已包含该 7-case V8 行。完整共享曲轴 V8 仍未开始。
