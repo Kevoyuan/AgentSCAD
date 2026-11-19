@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "slider-shaft-keyed-7x9",
-  "prompt": "做一个七件九实例的单缸曲柄滑块：曲柄半径 8 mm、连杆 28 mm，两个横向键和两个四分之一转导向锁必须有保持作用；正确拆卸先解锁再取导向件，错误顺序必须被锁挡住；七种零件能分别制造、九个实例都能导出。",
+  "prompt": "Build a seven-part, nine-instance single-cylinder slider-crank: crank radius 8 mm, rod length 28 mm, two transverse keys and two quarter-turn guide locks with retention. A correct removal releases the locks before taking the guide; the wrong order must be blocked by the locks. Seven manufacturing parts and all nine instances must export.",
   "specFile": "slider-shaft-keyed.spec.json",
   "specSha256": "b5006913b574c131f21bdc03700aa9f9402caa2994d4d6265d04e10224290bb3",
   "motion": {

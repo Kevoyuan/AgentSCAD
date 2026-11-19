@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "slider-crank-keyed-8-28",
-  "prompt": "做一个 8 mm 曲柄、28 mm 连杆的单缸曲柄滑块，带偏心保持键；正确拆卸顺序必须先取键再卸滑块，错误顺序必须被键挡住；五件要能分别导出。",
+  "prompt": "Build a single-cylinder slider-crank with an 8 mm crank and a 28 mm rod, plus an eccentric retaining key. The correct removal takes the key before the slider; the wrong order must be blocked by the key. All five parts must export separately.",
   "selectors": {
     "crank": "crank",
     "rod": "rod",

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "slider-crank-8-28",
-  "prompt": "做一个单缸曲柄滑块机构：曲柄半径 8 mm、连杆 28 mm，输入轴转 0–360° 时滑块沿导轨移动，四件（机架、曲柄、连杆、滑块）能分别导出，运动范围内不得干涉。",
+  "prompt": "Build a single-cylinder slider-crank: crank radius 8 mm, rod length 28 mm. As the input shaft turns through 0-360 degrees, the slider moves along its guide. The four parts (frame, crank, rod, slider) must export separately and must not interfere anywhere in the motion range.",
   "selectors": {
     "crank": "crank",
     "rod": "rod",
@@ -77,7 +77,7 @@
     }
   ],
   "notes": [
-    "The frozen contract comes from the original centered slider-crank setup; it is not a physical acceptance contract.",
+    "The frozen contract comes from the original centred slider-crank setup; it is not a physical acceptance contract.",
     "Only the nine listed input angles are covered. The crank radius, rod length and pin-axis drift are measured from the rendered meshes.",
     "Disassembly, tool access, load and manufacturing tolerance are outside this family."
   ]

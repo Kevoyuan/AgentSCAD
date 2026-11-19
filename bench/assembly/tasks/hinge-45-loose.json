@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "hinge-45-loose",
-  "prompt": "做一个两件式铰链：固定叶片带销，活动叶片带轴套，活动件能绕销转至少 ±45°。两件必须能以独立实体分别导出，并且能沿销轴方向抽开分离。销轴为 Z 轴、过原点；销直径 6 mm；轴孔与销的直径间隙必须在 0.35 到 0.45 mm 之间。单位 mm，可直接 3D 打印。",
+  "prompt": "Build a two-part hinge: a fixed leaf with a pin and a moving leaf with a bore, with at least +/-45 degrees of rotation. The two parts must export as separate solids and must slide apart along the pin axis. The pin axis is Z through the origin, the pin diameter is 6 mm, and the diametral bore-to-pin clearance must be between 0.35 and 0.45 mm. Units are mm; the parts must be directly 3D printable.",
   "parts": [
     {
       "id": "fixed",
@@ -93,9 +93,9 @@
     "steps": 9
   },
   "notes": [
-    "The clearance band is stated in the prompt so that hitting it is an execution problem, not a guessing problem.",
+    "The clearance band is stated in the prompt so hitting it is an execution problem, not a guessing problem.",
     "Interference is sampled on a grid; a pose between samples is not covered.",
-    "提交源码必须接受 pose.parameter 并以它为位姿：评测会按该参数重渲染，比较活动件质心与刚体变换，并确认固定件不随参数变化。"
+    "The submitted source must accept pose.parameter as its pose: the evaluator re-renders at that parameter, compares the moving leaf centroid and rigid transform, and confirms the fixed leaf does not move with the parameter."
   ],
   "pose": {
     "parameter": "hinge_angle",

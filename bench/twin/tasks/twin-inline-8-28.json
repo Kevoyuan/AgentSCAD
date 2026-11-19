@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "twin-inline-8-28",
-  "prompt": "做一个直列双缸曲柄滑块演示件：曲柄半径 8 mm、连杆 28 mm，两缸沿曲柄轴分开 50 mm，右缸相位落后 180°；六个实例能分别导出，五个输入角内全件不得干涉。",
+  "prompt": "Build an inline twin-cylinder slider-crank demonstration: crank radius 8 mm, rod length 28 mm, the two cylinders separated by 50 mm along the crank axis, with the right cylinder phased 180 degrees behind. All six instances must export separately and must not interfere at the five listed input angles.",
   "selectors": {
     "frame": "frame",
     "crank": "crank_pose",
@@ -11,7 +11,13 @@
     "sliderRight": "slider_right_pose"
   },
   "motionParameter": "crank_angle",
-  "angles": [0, 90, 180, 270, 360],
+  "angles": [
+    0,
+    90,
+    180,
+    270,
+    360
+  ],
   "contract": {
     "crankRadiusMm": 8,
     "rodLengthMm": 28,
@@ -21,10 +27,46 @@
     "sliderToleranceMm": 0.1
   },
   "requirements": [
-    { "id": "distinct-exported-parts", "layer": "parts", "required": true, "applicable": true, "expected": { "kind": "equals", "value": 6 } },
-    { "id": "measured-joint-frames", "layer": "assembly", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
-    { "id": "sampled-motion", "layer": "motion", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
-    { "id": "source-motion", "layer": "motion", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } }
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 6
+      }
+    },
+    {
+      "id": "measured-joint-frames",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "sampled-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "source-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
   ],
   "notes": [
     "Inline twin, not the V8 V-angle cross-section; L5 remains open.",

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "guided-declaration-8-28",
-  "prompt": "\u63d0\u4ea4\u4e00\u4e2a\u516d\u4ef6\u5bfc\u5411/\u4fdd\u6301\u5355\u7f38\u66f2\u67c4\u6ed1\u5757\uff0c\u5e76\u5185\u5d4c\u4e00\u4efd\u5b8c\u6574\u88c5\u914d\u58f0\u660e\u3002\u58f0\u660e\u5fc5\u987b\u5305\u542b frame/crank/rod/slider/eccentric_key/guide_front \u516d\u4e2a\u89d2\u8272\u3001\u516d\u4e2a\u5b9e\u4f8b\u3001\u56db\u4e2a\u5de5\u4f5c\u5173\u8282\u548c\u952e/\u5bfc\u5411\u91ca\u653e\uff1b\u6b63\u786e\u62c6\u5378\u5fc5\u987b\u5148\u53d6\u5bfc\u5411\u4ef6\u518d\u53d6\u952e\uff0c\u9519\u8bef\u987a\u5e8f\u5fc5\u987b\u88ab\u5bfc\u5411\u4ef6\u6321\u4f4f\u3002\u4efb\u52a1\u6309\u58f0\u660e\u5408\u540c\u68c0\u67e5\uff0c\u4e0d\u8981\u6c42 ID \u6216 part \u987a\u5e8f\u9010\u5b57\u76f8\u540c\u3002",
+  "prompt": "Submit a six-part guided/retained single-cylinder slider-crank with a complete embedded assembly declaration. The declaration must contain the frame/crank/rod/slider/eccentric_key/guide_front roles, six instances, four working joints, and the key/guide releases. A correct removal takes the guide before the key; the wrong order must be blocked by the guide. The task checks the declaration contract, not byte-identical IDs or part order.",
   "geometry": {
     "selectors": {
       "crank": "crank",

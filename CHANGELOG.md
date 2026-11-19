@@ -33,6 +33,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add a scoped eccentric-revolute fit layer to the product-path family, with a pin-clearance adversarial; main-shaft/wrist fit stations remain NOT_RUN
 - Add a declared assembly-path layer to the product-path family, measured as the reverse of the declared removal sequence
 - Add measured joint-frame evidence for the product eccentric fit, without promoting unmeasured joints
+- Translate all public bench task prompts and notes to English; new logs, prompts and commit messages use English
 - Add a square-profile threaded-fastener family under `bench/thread`: two parts, measured pitch/hand/diameters and lead/advance over nine turns
 - Add the threaded-fastener family to external hidden sets (family `thread`) and the unified twelve-family gate
 - Make the external hidden-split harness family-aware (`assembly`/`gear`/`slider`/`l4`), with family-specific freezing, hashing, scoring and external L4 spec loading; dev copies verify all four dispatches without claiming independence

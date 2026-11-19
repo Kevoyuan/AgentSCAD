@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "piston-bore-45",
-  "prompt": "做一个活塞-缸筒两件式直线机构：缸筒为盲底杯形件，活塞在孔内沿轴线走 45 mm 行程。两件必须能以独立实体分别导出，活塞能沿轴方向完全抽出，整个行程中不得与缸筒干涉。轴为 Z 轴、过原点；活塞直径 10 mm；孔与活塞的直径间隙必须落在 0.20 到 0.30 mm 之间。单位 mm。",
+  "prompt": "Build a two-part piston-and-cylinder linear mechanism: the cylinder is a blind cup and the piston travels 45 mm along the axis inside the bore. The two parts must export as separate solids, the piston must fully withdraw along the axis, and the piston must not interfere with the cylinder anywhere in the stroke. The axis is Z through the origin, the piston diameter is 10 mm, and the diametral bore-to-piston clearance must be between 0.20 and 0.30 mm. Units are mm.",
   "parts": [
     {
       "id": "barrel",
@@ -94,7 +94,7 @@
   },
   "notes": [
     "Same family as piston-bore-30 with a longer stroke and a tighter band: one task is one JSON plus one reference source, which is the whole marginal cost of a case.",
-    "提交源码必须接受 pose.parameter 并以它为位姿：评测会按该参数重渲染，比较活动件质心与刚体变换，并确认固定件不随参数变化。"
+    "The submitted source must accept pose.parameter as its pose: the evaluator re-renders at that parameter, compares the moving part centroid and rigid transform, and confirms the fixed part does not move with the parameter."
   ],
   "pose": {
     "parameter": "piston_stroke",

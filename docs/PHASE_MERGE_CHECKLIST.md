@@ -22,6 +22,7 @@ Status as of 2026-11-19, after the twelve-family gate refresh.
 | Twelve-family gate | 87 cases, `overall: PASS`, about 69.4 minutes |
 | Product family | reference 7/7; 1 reference / 4 adversarial |
 | Hidden product dev | 1/1 PASS, 7/7 layers; `independentHiddenEvaluation=NOT_RUN` |
+| Public bench task prompts | 19/19 in English |
 
 ## What this merge would include
 
