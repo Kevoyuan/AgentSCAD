@@ -2298,7 +2298,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1187 PASS / 3 SKIP / 0 FAIL**（181 文件）；
+- 全量单元测试：**1188 PASS / 3 SKIP / 0 FAIL**（182 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
@@ -2554,4 +2554,18 @@ planetary    OK         4     1    3   0        1    3    0       4/8
 - `adversarial-sun-teeth`：ERROR 0/2，太阳 13 齿使 ring 闭合不成立，profile gate 拒绝。
 
 全量单元测试 **1186 PASS / 3 SKIP / 0 FAIL**（181 文件）；typecheck、lint 通过。边界：只测一个行星轮；不测多行星均载、齿面接触、侧隙、效率、负载、磨损或实物制造；直边齿，节圆是 tip/root 估计；5 个位姿；已加入 `bench:all`（九家族）与 hidden family。
+
+## 2026-11-19 · 公开 bench：L2.8 三行星齿轮系
+
+`bench/planetary3` 新增三行星阶梯：固定内齿圈、太阳输入、行星架输出，三个行星轮相隔 120°，六件（sun、ring、carrier、三个 planets），五个正负输入位姿。每个行星独立测量，不复用单行星结果。
+
+结果（原生 OpenSCAD，无模型调用）：
+
+- `bun run bench:planetary3:check` → **`SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`**；
+- reference **PASS 2/2**，6 parts，三个行星全部 PASS；carrier 0.25、planet absolute −0.5；max planet/carrier residual **0.0000°**（三行星原始残差约 3.1e−6°）；
+- `adversarial-carrier-ratio`：FAIL 1/2，planet 720°、carrier 360°；
+- `adversarial-static`：FAIL 1/2，planet 240°、carrier 120°；
+- `adversarial-sun-teeth`：ERROR 0/2，太阳 13 齿使 ring 闭合不成立，profile gate 拒绝。
+
+全量单元测试 **1188 PASS / 3 SKIP / 0 FAIL**（182 文件）；typecheck、lint 通过。边界：单 carrier/单 ring/三行星；不测多级齿轮箱、均载、轴承、齿面接触、侧隙、效率、负载、磨损或实物制造；直边齿，节圆为 tip/root 估计；5 个位姿；尚未加入 `bench:all`/hidden。
 
