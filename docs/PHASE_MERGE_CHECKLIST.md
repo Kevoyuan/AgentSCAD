@@ -47,9 +47,11 @@ A non-destructive merge was run in a temporary worktree from `main`, then aborte
 
 The conflict list is saved at `/tmp/merge-conflicts.txt` for this session; it is not a repository artifact.
 
+A second attempt resolved conflicts by scope: branch-priority for bench/evidence, main-priority for product source. That integrated tree **failed typechecking** with missing product-manifest fields (`declaredAssembly`, `partConnectivity`, `jointFrames`, `sourceMotion`) and stale API shapes. The branches have divergent product-assembly implementations, so a side-priority merge is not valid. The temporary integration branch/worktree was aborted and removed; neither `main` nor the phase branch changed.
+
 ## Merge strategy
 
-Do **not** merge this branch into `main` directly. The 35 main-only commits and 170 branch-only commits overlap in product assembly code, bench documentation and tests.
+Do **not** merge this branch into `main` directly. The 35 main-only commits and 170 branch-only commits overlap in product assembly code, bench documentation and tests, and the product APIs do not reconcile by choosing one side.
 
 Recommended path:
 
@@ -87,10 +89,12 @@ Alternative: rebase the 170 branch commits onto `main`; that preserves a linear 
 
 ## Open decision
 
-Choose the integration path:
+A quick merge is **not safe**. The product-assembly implementations need a deliberate reconciliation, not a conflict-side choice.
 
-1. **Merge `main` into the phase branch, resolve conflicts, re-run all evidence, then merge the phase into `main`** (recommended).
-2. Rebase the phase branch onto `main` and resolve conflicts per commit (rewrites 170 commits).
-3. Open a review branch/PR where the merge conflicts are resolved and reviewed.
+Options:
 
-No merge has been executed; `main` remains at `2addffd`.
+1. **Dedicated integration branch/PR**: merge `main` into a copy of the phase branch, reconcile `prepare-assembly`, `fit-measurement`, `rigid-pose-path`, `contract-bridge`, A001 tests and UI routes against the newer product APIs, then re-run unit/native/gate. This is the recommended path, but it is a substantial integration task.
+2. Rebase the 170 phase commits onto `main` and resolve conflicts per commit; this rewrites history and repeats the same semantic reconciliation.
+3. Defer the merge and continue independent phase development.
+
+No merge has been executed; `main` remains at `2addffd`, and the phase branch remains at `28d4544`.
