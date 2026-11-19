@@ -60,13 +60,13 @@ gate 保留不动，它守的是正确性。coverage 是新增的，它守的是
 | L1 | 两件转动副（铰链，松/紧） | 1 关节、2 零件 | M3 | `bench/assembly` 已有 |
 | L2 | 两件移动副（活塞-缸筒） | 1 关节、2 零件 | M3 | `bench/assembly` 已有 |
 | L2.5 | 外啮合齿轮对（12/24 齿） | 1 传动副、2 零件 | M5 / A10 | `bench/gear` 已有 |
-| L3 | 单缸曲柄滑块 | 4 关节闭环、6 零件 | M4 | 工具级已验证，未接入评测 |
+| L3 | 单缸曲柄滑块（4 件基础夹具） | 4 关节闭环、4 零件 | M4 | `bench/slider` 已有；6 件保持版本属 A08 |
 | L4 | 带保持件的多关节 | 4 关节、7 零件 / 9 实例 | M4 | 有原创夹具，A001 已 PASS（研究者辅助） |
 | L5 | V8 横截面（两缸）→ 完整 V8 | 8 组运动链 | M6 | 未开始 |
 
 **阶梯的意义**：L5 过不去不代表 L3 不存在。有了分级，即使整体停在 L3，分数也能告诉你卡在哪一层。
 
-齿轮对是阶梯上的独立家族：它不测孔轴配合或插拔，而测实际重渲染的齿数、节圆估计、中心距与转向比值；命令和边界见 [`gear/README.md`](gear/README.md)。
+齿轮对是阶梯上的独立家族：它不测孔轴配合或插拔，而测实际重渲染的齿数、节圆估计、中心距与转向比值；命令和边界见 [`gear/README.md`](gear/README.md)。单缸曲柄滑块也独立成 [`slider/README.md`](slider/README.md)：五个输入角、真实重渲染的四件、圆周/杆长/轴漂移/全件碰撞。
 
 ### 2.3 层判据
 
@@ -175,7 +175,7 @@ reconstruction    8     2     5     13    2     28.6%   缺检查      导出重
 - [x] **layer scorer**：`bench/layers.ts` + `bench/ladder-report.ts`，跑在已有批次上
 - [x] **`bench/assembly` 接层计数**：每个 case 报告 `cover 4/4`，与 trial 共用同一个 `scoreEvidence`
 - [x] **齿轮对家族**：`bench/gear` 已有 12/24 外啮合任务、reference 与 5 条反例；`bun run bench:gear:check` → `SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected`。它只测有限输入角的齿数/节圆/中心距/转向比值，不测齿面接触、侧隙或承载
-- [ ] **L3 曲柄滑块任务**（1–2 周）：多关节运动学 + 闭环约束，真正的门槛
+- [x] **L3 基础曲柄滑块家族**：`bench/slider` 已有 4 件夹具（曲柄半径 8 mm、杆长 28 mm、5 个输入角）；`bun run bench:slider:check` → `SELF-CHECK OK: 1 reference(s) pass, 7 adversarial submission(s) rejected`。只覆盖列出的角度和 4 件基础夹具；6 件保持/导向版本（A08）仍属产品工作
 - [x] **补 `retention` 与 `source-motion` 的检查**：`bench/assembly` 里已落地（`hinge-captured-45` 的轴向拉拔、5 个任务的位姿重渲染）
 - [x] **把这两个检查接进产品判分器**：`judge-assembly` 现在把派生合同作为 trial attribution gate 传给 `prepareAssembly`，并产出 `rigid-motion`、`source-motion`、`motion-range-*`、`axial-retention`、`assembly-path`、`disassembly-path`。前提是候选声明包含 `motions[].sourceInput`（参数 + 每个实例的 pose selector）和 `translationProbes`；缺声明仍为 `NOT_RUN`。`intent-preserved` 仍为 `NOT_RUN`，`passed` 不是用户确认或验收。证据：`bun test scripts/eval/judge-evidence.test.ts` 7 PASS；`bun test src/lib/tools/__tests__/pipeline-assembly.openscad.test.ts` 5 PASS（原生 OpenSCAD，研究者辅助控制件在 measured assertions 上 PASS，intent 保持 NOT_RUN）；定向判分脚本对同一控制件输出 `sampled-motion`/`rigid-motion`/`source-motion`/`axial-retention`/`assembly-path`/`disassembly-path` PASS。历史层表不因接线回溯。
 - [ ] **隐藏集 + 外部模型 baseline**（1 周）

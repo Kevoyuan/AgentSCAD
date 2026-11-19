@@ -2298,11 +2298,11 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1148 PASS / 3 SKIP / 0 FAIL**（170 文件）；
+- 全量单元测试：**1160 PASS / 3 SKIP / 0 FAIL**（172 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
-- 公开 bench 自检：`bun run bench:assembly:check` → **SELF-CHECK OK: 6 reference(s) pass, 8 adversarial submission(s) rejected**；只覆盖公开任务集，不覆盖隐藏集/模型/物理；
+- 公开 bench 自检：`bun run bench:assembly:check` → **SELF-CHECK OK: 6 reference(s) pass, 8 adversarial submission(s) rejected**；`bun run bench:gear:check` → **1 / 5**；`bun run bench:slider:check` → **1 / 7**；只覆盖公开任务集，不覆盖隐藏集/模型/物理；
 - 完整原生套件：**67 PASS / 1 SKIP / 0 FAIL**（68 tests、14 文件、1301.73 秒；skip 为依赖缺失的 manufacturing geometry）；未执行：WASM、浏览器 E2E、付费模型、隐藏集、实物制造/加载。
 
 ### 公开 bench：齿轮对家族（L2.5）
@@ -2320,4 +2320,16 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 - `adversarial-no-marker`：两轮齿形可测但没有索引标记，`rigid-motion` 保持 NOT_RUN（不是伪造 PASS）。
 
 边界：直边全齿高样例，不是渐开线；没有齿面接触、侧隙、重合度、承载、效率、磨损或制造公差证据；只覆盖 8 个输入角，角与角之间与连续运动无证据；节圆是标准全齿高估计；标记/通孔是测量特征。该家族不替代主基准的 L3 多关节闭环、隐藏集或实物验证。
+
+### 公开 bench：单缸曲柄滑块家族（L3 基础）
+
+`bench/slider` 是公开装配基准的 L3 基础家族：四件式（机架、曲柄、连杆、滑块）、四关节闭环、输入角 0/90/180/270/360°。任务拥有曲柄半径 8 mm、杆长 28 mm、截面 y=2.3 mm、销/孔半径窗口和角度；提交只提供 SCAD。
+
+命令与结果（本机原生 OpenSCAD 2021.01，无模型调用）：
+
+- `bun run bench:slider:check` → **`SELF-CHECK OK: 1 reference(s) pass, 7 adversarial submission(s) rejected`**；
+- `reference`：四件分别导出；曲柄半径 **8.000000 mm**、圆拟合残差 **0**、杆长跨姿态散布 **5.96e−8 mm**、销轴漂移 **0**；五个角度全件两两三角对约 7.8 万–8.8 万，全部 `SEPARATED`；PASS 4/4 层；
+- 反例：曲柄半径 9 → FAIL（实测 9.000）；杆长 30 → FAIL；连杆角度不随曲柄 → landmark FAIL；曲柄整体平移 1 mm → landmark/碰撞/source-motion 全 FAIL；静态运动参数 → source-motion NOT_RUN；机架缺轴承孔 → 碰撞 FAIL；曲柄绕 X 轴 → ERROR（截面找不到应有销轮廓，不伪造 PASS）。
+
+边界：只覆盖列出的五个输入角；列出的姿态之间、连续运动、间隙/过盈、摩擦、载荷和隐藏障碍都没有证据；轮廓身份依赖选择器和半径窗口；无拆卸/工具可达、制造公差、逐件 ZIP、产品端到端、隐藏集或实物。6 件保持/导向版本仍属 A08，不由该基准家族替代。
 

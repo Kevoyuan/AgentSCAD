@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "id": "slider-crank-8-28",
+  "prompt": "做一个单缸曲柄滑块机构：曲柄半径 8 mm、连杆 28 mm，输入轴转 0–360° 时滑块沿导轨移动，四件（机架、曲柄、连杆、滑块）能分别导出，运动范围内不得干涉。",
+  "selectors": {
+    "crank": "crank",
+    "rod": "rod",
+    "slider": "slider",
+    "frame": "frame"
+  },
+  "motionParameter": "motion_angle",
+  "poseParameters": {
+    "agentscad_pose": true
+  },
+  "angles": [
+    0,
+    90,
+    180,
+    270,
+    360
+  ],
+  "contract": {
+    "crankRadiusMm": 8,
+    "rodLengthMm": 28,
+    "toleranceMm": 0.02,
+    "sectionYmm": 2.3,
+    "axisProbeMm": 1,
+    "pinRadiusMm": {
+      "min": 1.98,
+      "max": 2.02
+    },
+    "rodBoreRadiusMm": {
+      "min": 2.18,
+      "max": 2.22
+    }
+  },
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 4
+      }
+    },
+    {
+      "id": "measured-joint-frames",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "sampled-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "source-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "The frozen contract comes from the original centered slider-crank setup; it is not a physical acceptance contract.",
+    "Only the nine listed input angles are covered. The crank radius, rod length and pin-axis drift are measured from the rendered meshes.",
+    "Disassembly, tool access, load and manufacturing tolerance are outside this family."
+  ]
+}

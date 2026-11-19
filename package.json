@@ -42,6 +42,8 @@
     "bench:assembly": "bun bench/assembly/run.ts",
     "bench:gear": "bun bench/gear/run.ts",
     "bench:gear:check": "bun bench/gear/run.ts --self-check",
+    "bench:slider": "bun bench/slider/run.ts",
+    "bench:slider:check": "bun bench/slider/run.ts --self-check",
     "bench:assembly:check": "bun bench/assembly/run.ts --self-check",
     "bench:ladder": "bun bench/ladder-report.ts"
   },
