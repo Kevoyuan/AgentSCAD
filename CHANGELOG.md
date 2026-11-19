@@ -43,6 +43,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add a threaded full-withdrawal exit task and short-thread adversarial
 - Refresh the twelve-family gate with the threaded exit task
 - Verify the hidden thread family with both geometry and exit tasks
+- Record that thread coaxiality remains NOT_RUN because the cylindrical probe rejects threaded/hex sections
 - Add a square-profile threaded-fastener family under `bench/thread`: two parts, measured pitch/hand/diameters and lead/advance over nine turns
 - Add the threaded-fastener family to external hidden sets (family `thread`) and the unified twelve-family gate
 - Make the external hidden-split harness family-aware (`assembly`/`gear`/`slider`/`l4`), with family-specific freezing, hashing, scoring and external L4 spec loading; dev copies verify all four dispatches without claiming independence

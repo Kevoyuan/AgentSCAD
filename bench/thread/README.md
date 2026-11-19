@@ -44,5 +44,5 @@ The hidden manifest family `thread` has an external development copy `hidden-thr
 
 - Square profile, not ISO metric thread; no flank angle, tolerance grade or manufacturing metrology.
 - No torque, preload, strength, wear, self-locking, full withdrawal or physical part.
-- The geometry task covers nine turn angles; the exit task covers 49 angles and the frozen 12-turn withdrawal. The tool's coaxiality status may still be NOT_RUN; the family claims only measured geometry, motion and exit layers.
+- The geometry task covers nine turn angles; the exit task covers 49 angles and the frozen 12-turn withdrawal. The tool's coaxiality status remains NOT_RUN: the generic cylindrical-feature probe rejects the threaded/hex sections as non-regular polygons, so no coaxiality PASS is claimed. The family claims only measured geometry, motion and exit layers.
 - Included in the twelve-family `bench:all` gate and the hidden split. The 88-case gate snapshot predates the exit task; the current thread family has 6 cases and is not in that snapshot.
