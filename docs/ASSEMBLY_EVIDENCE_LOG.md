@@ -2590,3 +2590,13 @@ product      OK         5     1    4   0        1    4    0       17/25
 
 全量单元测试 **1191 PASS / 3 SKIP / 0 FAIL**（183 文件）；typecheck、lint 通过。边界：只测产品准备路径 5 层；不是 A001 合同 gate、用户验收、连续运动、配合或物理功能；一个 fixture/一个正确顺序/四个反例；已加入 `bench:all`（十一家族）与 hidden (family `product`)，但十一家族矩阵是加入 fit 前的快照。
 
+## 2026-11-19 · 完整原生 OpenSCAD 套件重新基线
+
+在 `continue/local-assembly-2026-11-18` 当前工作树上重跑 `bun run test:openscad`：
+
+- **67 PASS / 1 SKIP / 0 FAIL**，68 项、14 文件、800 expect、**1204.26 秒**；
+- 覆盖 assembly-hinge、retention-release、slider-crank 产品/bundle、declaration、planetary-gear、gear-coupling、thread 等原生回归；
+- 该套件运行的是产品代码，不包含 bench 家族；无模型调用。
+
+这只证明当前分支的原生产品回归全绿，不证明 bench 的 11 家族门禁、隐藏集、模型自主能力或物理功能。bench 的最近一次完整门禁仍是 **83 case / overall PASS / 约 59.8 分钟**。
+
