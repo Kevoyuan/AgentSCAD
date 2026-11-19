@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "v-twin-8-28",
+  "prompt": "做一个 90° V 型双缸曲柄滑块横截面：曲柄半径 8 mm、连杆 28 mm，两缸轴线各偏 45°，共用一个曲柄销；六件能分别导出，九个输入角内全件不得干涉。",
+  "selectors": {
+    "frame": "frame",
+    "crank": "crank_pose",
+    "rodLeft": "rod_left_pose",
+    "rodRight": "rod_right_pose",
+    "sliderLeft": "slider_left_pose",
+    "sliderRight": "slider_right_pose"
+  },
+  "motionParameter": "crank_angle",
+  "angles": [0, 45, 90, 135, 180, 225, 270, 315, 360],
+  "contract": {
+    "crankRadiusMm": 8,
+    "rodLengthMm": 28,
+    "vHalfAngleDeg": 45,
+    "bankYmm": 10,
+    "sliderToleranceMm": 0.1
+  },
+  "requirements": [
+    { "id": "distinct-exported-parts", "layer": "parts", "required": true, "applicable": true, "expected": { "kind": "equals", "value": 6 } },
+    { "id": "measured-joint-frames", "layer": "assembly", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
+    { "id": "sampled-motion", "layer": "motion", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
+    { "id": "source-motion", "layer": "motion", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } }
+  ],
+  "notes": [
+    "90-degree V-twin cross-section: two banks at +/-45 degrees sharing one crankpin; it is not a complete V8.",
+    "The frame is two inclined guide tubes plus a base, not a complete crankcase; disconnected frame components are not scored for connectivity.",
+    "Only nine input angles, mesh-bounds slider positions and 135 discrete pair checks are covered; no load, lubrication, friction, wear or physical function."
+  ]
+}

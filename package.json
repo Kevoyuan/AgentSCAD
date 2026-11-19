@@ -51,7 +51,9 @@
     "bench:l4": "bun bench/l4/run.ts",
     "bench:l4:check": "bun bench/l4/run.ts --self-check",
     "bench:twin": "bun bench/twin/run.ts",
-    "bench:twin:check": "bun bench/twin/run.ts --self-check"
+    "bench:twin:check": "bun bench/twin/run.ts --self-check",
+    "bench:vtwin": "bun bench/vtwin/run.ts",
+    "bench:vtwin:check": "bun bench/vtwin/run.ts --self-check"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

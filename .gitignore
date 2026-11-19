@@ -62,6 +62,7 @@ bench/gear/report.json
 bench/slider/report.json
 bench/l4/report.json
 bench/twin/report.json
+bench/vtwin/report.json
 bench/ladder-report.json
 
 # agent/IDE context directories

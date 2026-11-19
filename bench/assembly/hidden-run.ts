@@ -26,6 +26,7 @@ import { scoreGearSubmission, type GearBenchTask } from "../gear/bench";
 import { scoreSliderSubmission, type SliderBenchTask } from "../slider/bench";
 import { scoreL4Submission, type L4BenchTask } from "../l4/bench";
 import { scoreTwinSubmission, type TwinBenchTask } from "../twin/bench";
+import { scoreVTwinSubmission, type VTwinBenchTask } from "../vtwin/bench";
 
 interface HiddenReport {
   taskId: string;
@@ -42,6 +43,7 @@ async function scoreFamily(family: HiddenFamily, task: HiddenTask, submission: A
     case "slider": return scoreSliderSubmission(task as SliderBenchTask, submission);
     case "l4": return scoreL4Submission(task as L4BenchTask, submission);
     case "twin": return scoreTwinSubmission(task as TwinBenchTask, submission);
+    case "vtwin": return scoreVTwinSubmission(task as VTwinBenchTask, submission);
   }
 }
 
