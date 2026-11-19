@@ -2339,7 +2339,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 命令与结果（本机原生 OpenSCAD 2021.01，无模型调用）：
 
-- `bun run bench:slider --task slider-crank-keyed-8-28 --self-check` → **`SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`**；
+- `bun run bench:slider --task slider-crank-keyed-8-28 --self-check` → **`SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected`**；
 - `reference`：五件分别导出，5/5 层 PASS；曲柄半径 **8.000000 mm**、杆长散布约 **6e−8 mm**、销轴漂移 0；正确顺序 PASS，错误顺序 FAIL；
 - `adversarial-key-out-of-way`：把键移到不挡错误顺序的位置；**运动/轮廓/碰撞仍 PASS，仅 `disassembly-path` FAIL（4/5）**，证明错误顺序检查本身不是空壳；
 - `adversarial-crank-radius`：3/5，实测 9.000 mm；
@@ -2490,7 +2490,7 @@ declaration  OK         4     1    3   0        1    3    0       7/20
 v8           OK         5     1    4   0        1    4    0       11/20
 ```
 
-`overall: PASS`，共 **68 case**：15 reference、47 adversarial、6 unscored（assembly 的 recorded model replay）；21 PASS / 46 FAIL-or-ERROR / 1 NOT_RUN。assembly 的 unscored 6 不是新模型采样；gear 的 NOT_RUN 是 `adversarial-no-marker`，self-check 仍拒绝它。`layers` 是各 case 观测层数合计，不是通过率。
+`overall: PASS`，共 **68 case**：15 reference、47 adversarial、6 unscored（assembly 的 recorded model replay）；21 PASS / 46 FAIL-or-ERROR / 1 NOT_RUN。V8 family 此后新增 `adversarial-main-shaft`（1 reference / 5 adversarial），完整门禁未重跑。assembly 的 unscored 6 不是新模型采样；gear 的 NOT_RUN 是 `adversarial-no-marker`，self-check 仍拒绝它。`layers` 是各 case 观测层数合计，不是通过率。
 
 全量单元测试 **1185 PASS / 3 SKIP / 0 FAIL**（180 文件）；typecheck、lint 通过。边界：这是公开八家族的自检门禁；不包含独立隐藏集、新模型采样或物理功能；42.3 分钟是原生渲染时间，不是产品运行时。
 
@@ -2521,12 +2521,13 @@ v8           OK         5     1    4   0        1    4    0       11/20
 
 结果（原生 OpenSCAD，无模型调用）：
 
-- `bun run bench:v8:check` → **`SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`**；
+- `bun run bench:v8:check` → **`SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected`**；
 - reference **4/4 层 PASS**，18 实例，765 次碰撞全分离，位置误差 **0.0000 mm**；
 - `adversarial-phase`：2/4，相位全 0°，误差 11.3137 mm；
 - `adversarial-static`：2/4，误差 11.3137 mm；
 - `adversarial-crank-radius`：2/4，曲柄 9 mm，误差 0.8625 mm，碰撞仍分离；
 - `adversarial-collision`：1/4，右滑块移到左 bank，误差 6.0000 mm 且碰撞失败。
+- `adversarial-main-shaft`：3/4，位置/轮廓/源码 PASS，仅 `sampled-motion` FAIL；简单加回连续主轴会与连杆相交，证明“连通曲轴”不能只靠视觉连接。
 
-全量单元测试 **1185 PASS / 3 SKIP / 0 FAIL**（180 文件）；typecheck、lint 通过。边界：四个共享销、每销两连杆，但曲柄件是四个不连通盘/销、没有主轴，不是完整曲轴 V8；frame 只是底板，没有缸体/轴承/曲轴箱；只测五个离散角、网格包围盒位置和 765 次碰撞；不测负载、润滑、摩擦、磨损、点火/配气或实物功能；尚未加入 `bench:all`/hidden。
+全量单元测试 **1185 PASS / 3 SKIP / 0 FAIL**（180 文件）；typecheck、lint 通过。边界：四个共享销、每销两连杆，但曲柄件是四个不连通盘/销、没有主轴，不是完整曲轴 V8；`adversarial-main-shaft` 证明连续主轴会撞连杆，完整门禁矩阵是加入该反例前的快照；frame 只是底板，没有缸体/轴承/曲轴箱；只测五个离散角、网格包围盒位置和 765 次碰撞；不测负载、润滑、摩擦、磨损、点火/配气或实物功能；已加入 `bench:all`/hidden，V8 family self-check 现为 1 reference / 5 adversarial；`bench:all` 矩阵是加入 `main-shaft` 前的快照。
 
