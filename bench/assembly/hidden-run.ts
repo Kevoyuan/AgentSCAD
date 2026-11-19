@@ -17,9 +17,31 @@ import {
   assertExternalHiddenDirectory,
   defaultHiddenReportPath,
   loadHiddenSet,
+  type HiddenFamily,
+  type HiddenTask,
 } from "./hidden";
-import { expectedOutcome } from "./bench";
-import { scoreSubmission, type CaseReport } from "./score";
+import { type BenchTask, type EvidenceStatus, type ExpectedOutcome } from "./bench";
+import { scoreSubmission } from "./score";
+import { scoreGearSubmission, type GearBenchTask } from "../gear/bench";
+import { scoreSliderSubmission, type SliderBenchTask } from "../slider/bench";
+import { scoreL4Submission, type L4BenchTask } from "../l4/bench";
+
+interface HiddenReport {
+  taskId: string;
+  submission: string;
+  expected: ExpectedOutcome;
+  status: EvidenceStatus;
+  layers: { coverage: { passed: number; observed: number } };
+}
+
+async function scoreFamily(family: HiddenFamily, task: HiddenTask, submission: Awaited<ReturnType<typeof loadHiddenSet>>["submissions"] extends Map<string, Array<infer T>> ? T : never): Promise<HiddenReport> {
+  switch (family) {
+    case "assembly": return scoreSubmission(task as BenchTask, submission);
+    case "gear": return scoreGearSubmission(task as GearBenchTask, submission);
+    case "slider": return scoreSliderSubmission(task as SliderBenchTask, submission);
+    case "l4": return scoreL4Submission(task as L4BenchTask, submission);
+  }
+}
 
 function argument(name: string): string | null {
   const index = process.argv.indexOf(name);
@@ -38,10 +60,10 @@ async function main(): Promise<void> {
   const selfCheck = process.argv.includes("--self-check");
   const requireIndependent = process.argv.includes("--require-independent");
 
-  const reports: CaseReport[] = [];
+  const reports: HiddenReport[] = [];
   for (const task of hidden.tasks) {
     for (const submission of hidden.submissions.get(task.id) ?? []) {
-      reports.push(await scoreSubmission(task, submission));
+      reports.push(await scoreFamily(hidden.manifest.family, task, submission));
     }
   }
 
@@ -49,7 +71,7 @@ async function main(): Promise<void> {
   await mkdir(path.dirname(jsonPath), { recursive: true });
   await writeFile(jsonPath, `${JSON.stringify(aggregate, null, 2)}\n`);
 
-  console.log(`hidden set: ${aggregate.hiddenId} (${aggregate.summary.tasks} task(s), ${aggregate.summary.cases} case(s))`);
+  console.log(`hidden set: ${aggregate.hiddenId} [${aggregate.family}] (${aggregate.summary.tasks} task(s), ${aggregate.summary.cases} case(s))`);
   console.log(`independent declaration: ${aggregate.independent ? "true (declared, not verified)" : "false"} — ${aggregate.independentHiddenEvaluation}`);
   console.log(`result: ${aggregate.summary.passed} PASS / ${aggregate.summary.failed} FAIL-ERROR / ${aggregate.summary.notRun} NOT_RUN`);
   for (const task of aggregate.tasks) {
@@ -60,9 +82,8 @@ async function main(): Promise<void> {
   if (selfCheck) {
     const failures: string[] = [];
     for (const report of reports) {
-      const expected = expectedOutcome(report.submission);
-      if (expected === "pass" && report.status !== "PASS") failures.push(`${report.taskId}: reference expected PASS, observed ${report.status}`);
-      if (expected === "fail" && report.status === "PASS") failures.push(`${report.taskId}: adversarial submission scored PASS`);
+      if (report.expected === "pass" && report.status !== "PASS") failures.push(`${report.taskId}: reference expected PASS, observed ${report.status}`);
+      if (report.expected === "fail" && report.status === "PASS") failures.push(`${report.taskId}: adversarial submission scored PASS`);
     }
     if (failures.length > 0) {
       console.error(`\nHIDDEN SELF-CHECK FAILED\n${failures.join("\n")}`);

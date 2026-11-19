@@ -2298,7 +2298,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1169 PASS / 3 SKIP / 0 FAIL**（175 文件）；
+- 全量单元测试：**1170 PASS / 3 SKIP / 0 FAIL**（175 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
@@ -2388,4 +2388,17 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 - `adversarial-declaration-motion-range`：内嵌 motion 上限 360→180；spec SHA 不匹配，渲染前拒绝，报告 `changed: motions`，5 个 requirement 全 ERROR。哈希仍是门，差异只是诊断。
 
 边界：这是 **declaration-bound** 家族，不测模型能否提出/修正声明；只覆盖 5 个输入角和声明的离散拆卸位姿；连续运动、力、磨损、工具可达、制造公差和实物功能未验证；7 件/9 实例不是 V8，L5 两缸仍未开始。
+
+## 2026-11-19 · 隐藏集 harness 扩展为四家族
+
+`hidden.json` 现在声明 `family`（`assembly`/`gear`/`slider`/`l4`）；旧 manifest 省略时按 assembly 读取。`bench:hidden:freeze` 按 family 校验任务/提交并冻结对应 task-set hash，`bench:hidden` 按 family 分派到 `scoreSubmission`、`scoreGearSubmission`、`scoreSliderSubmission` 或 `scoreL4Submission`，报告增加 `family` 字段；外部路径、聚合-only、`independent:false → NOT_RUN` 和 `--require-independent` 退出 2 的规则不变。
+
+本机验证：
+
+- assembly dev 副本（旧 manifest 无 family）：`1 task / 2 case`，1 reference PASS、1 adversarial rejected；仍按 assembly 读取；
+- gear dev 副本：`hidden-gear-dev [gear]`，`1 task / 1 case`，reference PASS，`layers 2/2`；报告 `family=gear`；
+- `slider`/`l4` 的 loader/scorer 分派通过 typecheck，但本轮没有隐藏冒烟；
+- 单元测试 `hidden-freeze.test.ts` 新增 gear-family 冻结/重载用例；全量单元测试 **1170 PASS / 3 SKIP / 0 FAIL**（175 文件），typecheck、lint 通过。
+
+边界：仍然没有任何独立隐藏任务或新鲜外部模型采样；这些 dev 副本只证明路径、family 分派、哈希、聚合和 fail-closed，`independentHiddenEvaluation` 仍为 NOT_RUN。
 

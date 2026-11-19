@@ -168,7 +168,7 @@ bun test bench/               # 层模型与任务格式的单测
 <outside-repo>/submissions/<task-id>/*.scad
 ```
 
-`hidden.json` 声明 `id`、`frozenAt`、`maintainer`、`independent` 和 `taskSetSha256`。运行器会：
+`hidden.json` 声明 `id`、`frozenAt`、`family`（`assembly` / `gear` / `slider` / `l4`）、`maintainer`、`independent` 和 `taskSetSha256`；旧 manifest 省略 `family` 时按 `assembly` 读取。运行器按 family 分派到对应 scorer，并会：
 
 - 拒绝仓库内路径（即使是 gitignored 的目录）；
 - 从 validated task 定义重算 SHA-256，与 manifest 不符就拒绝；
@@ -179,7 +179,7 @@ bun test bench/               # 层模型与任务格式的单测
 ```bash
 # 1) freeze the external task set (validates tasks/submissions, writes hidden.json)
 bun run bench:hidden:freeze -- --hidden /outside/repo/hidden --id hidden-v1 \
-  --maintainer "independent maintainer" [--independent] [--force]
+  --maintainer "independent maintainer" [--family assembly|gear|slider|l4] [--independent] [--force]
 
 # 2) run it (aggregate-only report)
 bun run bench:hidden -- --hidden /outside/repo/hidden --json /outside/repo/report.json --self-check
@@ -187,7 +187,13 @@ bun run bench:hidden -- --hidden /outside/repo/hidden --json /outside/repo/repor
 
 `bench:hidden:freeze` 会校验每个任务至少有一个提交、重算 task-set hash，并拒绝覆盖已有 `hidden.json`（除非显式 `--force`）。它不渲染几何、不调用模型。
 
-开发冒烟（一个公开任务加一条反例的副本，manifest `independent:false`）：`1 task / 2 case`，1 reference PASS、1 adversarial rejected，`independentHiddenEvaluation=NOT_RUN`；加 `--require-independent` 退出 2。这次运行只证明路径、哈希、聚合和 fail-closed，不证明独立隐藏评估。
+开发冒烟（manifest `independent:false`）：
+
+- assembly 副本（一个公开任务 + 一条反例）：`1 task / 2 case`，1 reference PASS、1 adversarial rejected；旧 manifest 省略 family 仍按 assembly 读取；
+- gear 副本（`gear-12-24` reference）：`1 task / 1 case`，reference PASS，报告 `family=gear`、`layers 2/2`；
+- 两者 `independentHiddenEvaluation=NOT_RUN`；加 `--require-independent` 退出 2。`slider`/`l4` 的 loader/scorer 分派已接通，但本轮没有做隐藏冒烟。
+
+这些运行只证明路径、family 分派、哈希、聚合和 fail-closed，不证明独立隐藏评估。
 
 ### 实测：35 个真实批次 / 55 个候选
 
