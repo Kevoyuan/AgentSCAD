@@ -2304,3 +2304,20 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
 - 公开 bench 自检：`bun run bench:assembly:check` → **SELF-CHECK OK: 6 reference(s) pass, 8 adversarial submission(s) rejected**；只覆盖公开任务集，不覆盖隐藏集/模型/物理；
 - 未执行：完整 56 条原生套件、WASM、浏览器 E2E、付费模型、隐藏集、实物制造/加载。
+
+### 公开 bench：齿轮对家族（L2.5）
+
+`bench/gear` 是公开装配基准的传动家族，与六个两件式装配任务分开：任务拥有输入角/齿数/中心距合同，提交只提供几何与位姿参数；齿数、节圆估计、中心通孔轴与中心、标记朝向、中心距和转向比值全部由实际重渲染的 STL 三角形测量。
+
+命令与结果（本机原生 OpenSCAD 2021.01，无模型调用）：
+
+- `bun run bench:gear:check` → **`SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected`**；
+- `reference`：12/24 齿，节圆估计 11.978 / 23.989 mm，中心距 36.000 mm，实测比值 **−0.500000**，PASS；
+- `adversarial-same-direction`：比值 +0.500，FAIL；
+- `adversarial-wrong-ratio`：比值 −0.400，FAIL；
+- `adversarial-static-pinion`：销轮标记不跟随输入，FAIL；
+- `adversarial-wrong-centre`：实测中心距 37.000 mm，FAIL；
+- `adversarial-no-marker`：两轮齿形可测但没有索引标记，`rigid-motion` 保持 NOT_RUN（不是伪造 PASS）。
+
+边界：直边全齿高样例，不是渐开线；没有齿面接触、侧隙、重合度、承载、效率、磨损或制造公差证据；只覆盖 8 个输入角，角与角之间与连续运动无证据；节圆是标准全齿高估计；标记/通孔是测量特征。该家族不替代主基准的 L3 多关节闭环、隐藏集或实物验证。
+

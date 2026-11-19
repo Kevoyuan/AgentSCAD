@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "gear-12-24",
+  "prompt": "做一个 12 齿与 24 齿的外啮合直齿轮对，中心距 36 mm，输入正转时从动轮反向半速，两个齿轮要能分别导出；齿数和中心距是合同的一部分。",
+  "parts": [
+    { "id": "pinion", "selector": "pinion_pose" },
+    { "id": "wheel", "selector": "wheel_pose" }
+  ],
+  "pinionPartId": "pinion",
+  "wheelPartId": "wheel",
+  "axisDirection": [0, 0, 1],
+  "pinion": { "centerMm": [0, 0], "toothCount": 12 },
+  "wheel": { "centerMm": [36, 0], "toothCount": 24 },
+  "ratio": -0.5,
+  "centerDistanceMm": 36,
+  "pose": {
+    "parameter": "input_deg",
+    "values": [0, 45, 90, 135, 180, 225, 270, 315],
+    "angleToleranceDeg": 0.5,
+    "ratioTolerance": 0.005,
+    "centerDistanceToleranceMm": 0.2
+  },
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": { "kind": "equals", "value": 2 }
+    },
+    {
+      "id": "rigid-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": { "kind": "equals", "value": true }
+    }
+  ],
+  "notes": [
+    "The markers and through-bores are measurement features, not a claim about tooth contact.",
+    "The fixture uses straight-sided full-depth teeth; pitch radius is an estimate from measured tip/root radii.",
+    "A PASS covers the listed eight input angles only."
+  ]
+}
