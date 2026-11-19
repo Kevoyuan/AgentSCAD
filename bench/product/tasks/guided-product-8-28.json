@@ -1,17 +1,74 @@
 {
   "schemaVersion": 1,
   "id": "guided-product-8-28",
-  "prompt": "用产品装配准备路径检查一个六件导向/保持单缸曲柄滑块：内嵌声明必须通过选择器分件、part connectivity、导出重构和正确拆卸；错误声明或几何必须被产品层拒绝。",
+  "prompt": "\u7528\u4ea7\u54c1\u88c5\u914d\u51c6\u5907\u8def\u5f84\u68c0\u67e5\u4e00\u4e2a\u516d\u4ef6\u5bfc\u5411/\u4fdd\u6301\u5355\u7f38\u66f2\u67c4\u6ed1\u5757\uff1a\u5185\u5d4c\u58f0\u660e\u5fc5\u987b\u901a\u8fc7\u9009\u62e9\u5668\u5206\u4ef6\u3001part connectivity\u3001\u5bfc\u51fa\u91cd\u6784\u548c\u6b63\u786e\u62c6\u5378\uff1b\u9519\u8bef\u58f0\u660e\u6216\u51e0\u4f55\u5fc5\u987b\u88ab\u4ea7\u54c1\u5c42\u62d2\u7edd\u3002",
   "partCount": 6,
   "requirements": [
-    { "id": "distinct-exported-parts", "layer": "parts", "required": true, "applicable": true, "expected": { "kind": "equals", "value": 6 } },
-    { "id": "part-connectivity", "layer": "assembly", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
-    { "id": "assembly-reconstruction", "layer": "assembly", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
-    { "id": "disassembly-path", "layer": "assembly", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } }
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 6
+      }
+    },
+    {
+      "id": "part-connectivity",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "assembly-reconstruction",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "disassembly-path",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "diametral-clearance",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
   ],
   "notes": [
     "This family calls prepareContractAssembly, not a tool-level renderer or A001 route.",
     "Only the product preparation layers available without a confirmed requirement contract are scored: identity/distinct parts, topology, reconstruction and declared disassembly.",
-    "Fit, joint frames, assembly path, motion and physical function remain unmeasured here."
-  ]
+    "Fit, joint frames, assembly path, motion and physical function remain unmeasured here.",
+    "Fit covers only the eccentric revolute; main-shaft and wrist stations are not valid cylindrical probes in this fixture and remain NOT_RUN."
+  ],
+  "fit": {
+    "minClearanceMm": 0.1,
+    "maxClearanceMm": 0.6,
+    "requirements": [
+      {
+        "connectionId": "eccentric",
+        "boreSelector": "rod"
+      }
+    ]
+  }
 }

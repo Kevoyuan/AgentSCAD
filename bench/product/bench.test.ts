@@ -6,6 +6,7 @@ describe("product-path task", () => {
     expect(tasks).toHaveLength(1);
     const task = tasks[0];
     expect(task.partCount).toBe(6);
-    expect(task.requirements.map((r) => r.id)).toEqual(["distinct-exported-parts", "part-connectivity", "assembly-reconstruction", "disassembly-path"]);
+    expect(task.requirements.map((r) => r.id)).toEqual(["distinct-exported-parts", "part-connectivity", "assembly-reconstruction", "disassembly-path", "diametral-clearance"]);
+    expect(task.fit?.minClearanceMm).toBe(0.1);
   });
 });

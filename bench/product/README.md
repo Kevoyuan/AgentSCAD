@@ -5,23 +5,25 @@
 - `distinct-exported-parts`：选择器分件数；
 - `part-connectivity`：每个渲染 part 的连通性；
 - `assembly-reconstruction`：交付三角面重装；
-- `disassembly-path`：提交声明的拆卸顺序。
+- `disassembly-path`：提交声明的拆卸顺序；
+- `diametral-clearance`：**偏心 revolute 的单关节配合**（0.1–0.6 mm）。
 
-这些层不需要已确认的 requirement contract；fit、jointFrames、assemblyPath、motion、sourceMotion、physical 仍为 NOT_RUN，不计入本 family。
+fit 只覆盖偏心 revolute；main-shaft 与 wrist 的截面站不是有效圆柱探针，仍为 NOT_RUN。jointFrames、assemblyPath、motion、sourceMotion、physical 也不计入本 family。
 
 ## 结果
 
 ```
 bun run bench:product:check
-SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected.
+SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected.
 ```
 
 | 提交 | 结果 |
 |---|---|
-| `reference` | **PASS 4/4**；6 parts；topology/reconstruction/disassembly 全 PASS |
-| `adversarial-slider-before-guide` | **FAIL 3/4**；topology/reconstruction PASS，**只有 disassembly FAIL**；slider 先于 guide 被挡 |
-| `adversarial-declaration-missing-guide` | FAIL 2/4；5 parts；reconstruction NOT_RUN，distinct 失败 |
-| `adversarial-crank-radius` | FAIL 2/4；reconstruction NOT_RUN、disassembly FAIL，topology 仍 PASS |
+| `reference` | **PASS 5/5**；6 parts；topology/reconstruction/disassembly 全 PASS；eccentric fit 0.395–0.405 mm PASS |
+| `adversarial-slider-before-guide` | **FAIL 4/5**；topology/reconstruction/fit PASS，**只有 disassembly FAIL**；slider 先于 guide 被挡 |
+| `adversarial-declaration-missing-guide` | FAIL 3/5；5 parts；reconstruction NOT_RUN，distinct 失败 |
+| `adversarial-crank-radius` | FAIL 3/5；reconstruction NOT_RUN、disassembly FAIL，topology 仍 PASS |
+| `adversarial-fit-pin` | FAIL 2/5；eccentric clearance **−0.605–−0.594 mm**，fit FAIL；reconstruction NOT_RUN |
 
 ### 一个语义边界
 
@@ -29,11 +31,11 @@ SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected.
 
 ## 隐藏集
 
-隐藏 manifest 的 family 新增 `product`；外部 dev 副本 `hidden-product-dev [product]` 为 `1 task / 1 case`、reference PASS、`layers 4/4`、`independentHiddenEvaluation=NOT_RUN`。这仍只是开发副本，不是独立隐藏评估。
+隐藏 manifest 的 family 新增 `product`；外部 dev 副本 `hidden-product-fit-dev [product]` 为 `1 task / 1 case`、reference PASS、`layers 5/5`、`independentHiddenEvaluation=NOT_RUN`。这仍只是开发副本，不是独立隐藏评估。
 
 ## 边界
 
-- 只测产品准备路径的 4 层；不是 A001 合同 gate、用户验收、连续运动、配合或物理功能。
-- 没有确认合同，所以 fit/joint/motion 仍为 NOT_RUN；不是这些层通过。
+- 只测产品准备路径的 5 层；fit 只覆盖偏心 revolute；不是 A001 合同 gate、用户验收、连续运动或物理功能。
+- fit 之外的 jointFrames/assemblyPath/motion/sourceMotion/physical 仍为 NOT_RUN；不是这些层通过。
 - 一个 fixture、一个正确顺序和三个反例；不证明任意产品工作流或模型生成。
 - 已加入 `bench:all`（十一家族）与 hidden family；完整总门禁结果见主 README。

@@ -62,7 +62,7 @@ gate 保留不动，它守的是正确性。coverage 是新增的，它守的是
 | L2.5 | 外啮合齿轮对（12/24 齿） | 1 传动副、2 零件 | M5 / A10 | `bench/gear` 已有 |
 | L2.75 | 行星齿轮系（12/12/36） | 固定内齿圈、太阳输入、行星架输出 | A10 | `bench/planetary` 已有；只测一个行星轮 |
 | L2.8 | 三行星齿轮系（12/12/36 × 3） | 三个行星轮相隔 120° | A10 | `bench/planetary3` 已有；单 carrier/单 ring，不测均载 |
-| P-A08 | 产品准备路径（六件导向/保持） | prepareContractAssembly 四层 | A08 | `bench/product` 已有；不是 A001/物理 |
+| P-A08 | 产品准备路径（六件导向/保持） | prepareContractAssembly 五层（含偏心 fit） | A08 | `bench/product` 已有；不是 A001/物理 |
 | L3 | 单缸曲柄滑块（4 件基础夹具） | 4 关节闭环、4 零件 | M4 | `bench/slider` 已有；6 件 guided 已有 |
 | L3.5 | 带偏心保持键的滑块（5 件） | 4 关节 + 保持键、5 零件 | M4 | `bench/slider` keyed 已有；guided 6 件已有 |
 | L4 | 带保持件的多关节（7 件 / 9 实例） | 4 关节 + 双键/双锁 | M4 | `bench/l4` 已有（exact-spec bound）；自主声明生成未接入 |
@@ -278,7 +278,7 @@ reconstruction    8     2     5     13    2     28.6%   缺检查      导出重
 - [x] **L4.1 合同约束声明**：`bench/declaration` 的 reference 使用 renamed part/instance IDs 仍 PASS 5/5；缺失 guide 或错误拆卸顺序在渲染前被合同拒绝；几何曲柄半径篡改 FAIL 2/5。`bun run bench:declaration:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。它接受不同 ID/顺序，但仍不测自主 authorship
 - [x] **三行星齿轮系（12/12/36 × 3）**：`bench/planetary3` 三个行星轮相隔 120°、六件、正负输入；`bun run bench:planetary3:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。reference 2/2，三个行星独立 PASS，残差 ≤3.1e−6°；单 carrier/单 ring，不测均载/齿面接触；已并入十家族 `bench:all` 与 hidden (family `planetary3`)
 - [x] **行星齿轮系（12/12/36）**：`bench/planetary` 固定内齿圈、太阳输入、行星架输出；`bun run bench:planetary:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。reference 2/2、carrier/planet residual 0.000°；只测一个行星轮，不是多行星均载或齿面接触；已并入十家族 `bench:all` 与 hidden (family `planetary3`)
-- [x] **P-A08 产品准备路径**：`bench/product` 调用真实 `prepareContractAssembly`，六件 guided 声明的分件/连通/重构/拆卸四层；`bun run bench:product:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。reference 4/4；`adversarial-slider-before-guide` 只有 disassembly FAIL；fit/joint/motion 仍 NOT_RUN。已并入十一家族 `bench:all` 与 hidden (family `product`)
+- [x] **P-A08 产品准备路径**：`bench/product` 调用真实 `prepareContractAssembly`，六件 guided 声明的分件/连通/重构/拆卸四层加偏心 revolute 配合；`bun run bench:product:check` → `SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`。reference 5/5；`adversarial-slider-before-guide` 只有 disassembly FAIL；`adversarial-fit-pin` 的 eccentric clearance 为负；fit 只覆盖偏心 revolute，joint/motion 仍 NOT_RUN。已并入十一家族 `bench:all` 与 hidden (family `product`)；product self-check 现为 1 reference / 4 adversarial
 - [x] **全家族门禁**：`bun run bench:all` 顺序运行十一家族 self-check，重写各自 report 后聚合矩阵到 `bench/matrix.json`；任一失败退出 1。2026-11-19 十一家族全部 OK，`overall: PASS`（82 case：18 refs / 58 adversarial / 6 unscored；约 56.2 分钟，无模型调用）。它证明十一家族门禁一起可运行，不证明隐藏集、模型能力或物理功能
 - [x] **L5b V8 相位/封装载体**：`bench/v8` 八缸、四相位组、18 实例、五个输入角、765 次离散碰撞；`bun run bench:v8:check` → `SELF-CHECK OK: 1 reference(s) pass, 6 adversarial submission(s) rejected`。reference 位置误差 0.0000 mm；四个共享销、每销两连杆，无主轴，不是完整曲轴 V8；`adversarial-main-shaft` 与 `adversarial-connected-crank` 都只让碰撞层失败。已并入九家族 `bench:all` 与 hidden (family `v8`)；当前九家族 gate 的 v8 行为 7-case（1 ref / 6 adversarial）
 - [x] **补 `retention` 与 `source-motion` 的检查**：`bench/assembly` 里已落地（`hinge-captured-45` 的轴向拉拔、5 个任务的位姿重渲染）
