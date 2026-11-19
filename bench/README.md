@@ -151,11 +151,11 @@ bun test bench/               # 层模型与任务格式的单测
 
 家族命令：`bun run bench:gear:check`、`bun run bench:slider:check`、`bun run bench:l4:check`、`bun run bench:declaration:check`、`bun run bench:twin:check`、`bun run bench:vtwin:check`、`bun run bench:v8:check`、`bun run bench:planetary:check`、`bun run bench:planetary3:check`、`bun run bench:product:check`、`bun run bench:thread:check`；各自只证明对应家族的自检边界。
 
-### 4.3 全家族门禁
+### 4.3 All-family gate
 
-`bun run bench:all` 依次运行 **assembly / gear / slider / l4 / twin / vtwin / declaration / v8 / planetary / planetary3 / product / thread** 十二家族的自检；每个家族先真实重写自己的 `report.json`，再读取 `cases`/`reports` 汇总到终端矩阵和 `bench/matrix.json`（gitignored）。任一家族 self-check 非 0 或没有 `SELF-CHECK OK` 就整体退出 1。它不会读缓存或把旧报告拼成新结论；`bench/matrix.json` 只是本次运行的聚合产物。
+`bun run bench:all` runs the self-checks for all twelve families in order: **assembly / gear / slider / l4 / twin / vtwin / declaration / v8 / planetary / planetary3 / product / thread**. Each family rewrites its own `report.json` from real renders, then the runner aggregates `cases`/`reports` into the terminal matrix and `bench/matrix.json` (gitignored). A non-zero self-check, or output without `SELF-CHECK OK`, exits 1. It does not read cached reports or stitch old conclusions: `bench/matrix.json` is only this run's aggregate.
 
-2026-11-19 在原生 OpenSCAD 上完整跑通（约 **75.6 分钟**，无模型调用）：
+Full native OpenSCAD run on 2026-11-19 (about **69.4 minutes**, no model calls):
 
 ```
 family       self-check cases refs adv unscored pass fail not-run layers
@@ -169,11 +169,11 @@ declaration  OK         4     1    3   0        1    3    0       7/20
 v8           OK         7     1    6   0        1    6    0       17/28
 planetary    OK         4     1    3   0        1    3    0       4/8
 planetary3   OK         4     1    3   0        1    3    0       4/8
-product      OK         5     1    4   0        1    4    0       17/25
+product      OK         5     1    4   0        1    4    0       22/35
 thread       OK         4     1    3   0        1    2    1       7/12
 ```
 
-`overall: PASS`；共 **87 case**：19 reference、62 adversarial、6 unscored；25 PASS / 60 FAIL-or-ERROR / 2 NOT_RUN。assembly 的 6 个 `unscored` 是 recorded model replay 行，不是新的模型采样；gear 和 thread 各 1 个 NOT_RUN 都是被 self-check 拒绝的反例。`layers` 是各 case 观测层数的合计，不是通过率。完整共享曲轴 V8 仍未开始；v8 family 是共享销/封装载体，四个独立盘/销、没有主轴。
+`overall: PASS`; **87 cases**: 19 reference, 62 adversarial, 6 unscored; 25 PASS / 60 FAIL-or-ERROR / 2 NOT_RUN. The six assembly `unscored` rows are recorded model replays, not new model samples. The gear and thread NOT_RUN rows are adversarial cases rejected by their self-checks; they are not promoted. `layers` is the sum of observed layers across cases, not a pass rate. A connected-crankshaft V8 is still not started; the v8 family is the shared-pin/carrier subset with no main shaft.
 
 ### 4.1 已记录模型 baseline（replay）
 
