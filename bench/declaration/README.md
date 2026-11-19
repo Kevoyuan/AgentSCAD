@@ -40,6 +40,10 @@ SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected.
 
 参考件用 renamed 声明仍然 PASS，证明合同接受不同的 ID/顺序；两个声明反例都在渲染前被拒绝，证明不是“先渲染再补声明”。
 
+## 隐藏集
+
+隐藏 manifest 的 family 新增 `declaration`；外部 dev 副本 `hidden-declaration-dev [declaration]` 为 `1 task / 1 case`、reference PASS、`layers 5/5`、`independentHiddenEvaluation=NOT_RUN`。这仍只是开发副本，不是独立隐藏评估。
+
 ## 边界
 
 - 这是**合同约束**，不是自主声明 authorship：角色/选择器、实例数、关节端点、运动范围和操作顺序仍由任务冻结。模型可以换 ID/顺序，但不能决定机构。

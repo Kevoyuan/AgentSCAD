@@ -20,6 +20,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add the L5a 90-degree V-twin cross-section under `bench/vtwin`: two banks at ±45 degrees sharing one crankpin, nine angles, 135 pairwise collisions and shared-pin slider-closure checks; it is explicitly not a complete V8
 - Add `bench:all`, a unified gate that runs every public family self-check (now seven families including contract-bound declarations) and aggregates cases, references, adversarial submissions and layer coverage into `bench/matrix.json`
 - Add the L4.1 contract-bound declaration family: a renamed six-part declaration passes, while missing-guide and wrong-order declarations are rejected before rendering
+- Make the contract-bound declaration family usable in external hidden sets (family `declaration`); a dev copy verifies loading and scoring without claiming independence
 - Make the external hidden-split harness family-aware (`assembly`/`gear`/`slider`/`l4`), with family-specific freezing, hashing, scoring and external L4 spec loading; dev copies verify all four dispatches without claiming independence
 
 ## [0.6.0.0] - 2026-10-12

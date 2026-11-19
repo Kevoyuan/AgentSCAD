@@ -202,7 +202,7 @@ hinge-45-loose    reference                 PASS    4/4     PASS   0.400-0.415  
 - **`source-motion` 只验证位姿参数下的刚体一致性**，不验证参数是否覆盖了完整行程，也不验证运动是"机构的"还是"每件单独写死角度"的——后者需要多关节约束。
 - **`axial-retention` 只测一个拉拔距离**，不测拉脱力、疲劳或锁舌的旋出路径。
 - **移动副的行程与拆卸同向**：活塞的行程和抽出都沿 +Z，两条判据在方向上不独立。
-- **隐藏集 harness 已有，独立隐藏集仍无**：`bench/assembly/hidden-run.ts` 要求 external-only 路径、frozen task-set hash 和聚合-only 报告，`bench:hidden:freeze` 负责生成 manifest；manifest 的 `family` 支持 assembly/gear/slider/l4/twin/vtwin，运行器按 family 分派 scorer；但仓库里没有任何独立隐藏任务，dev 副本只验证 harness 行为。
+- **隐藏集 harness 已有，独立隐藏集仍无**：`bench/assembly/hidden-run.ts` 要求 external-only 路径、frozen task-set hash 和聚合-only 报告，`bench:hidden:freeze` 负责生成 manifest；manifest 的 `family` 支持 assembly/gear/slider/l4/twin/vtwin/declaration，运行器按 family 分派 scorer；但仓库里没有任何独立隐藏任务，dev 副本只验证 harness 行为。
 - **模型 baseline 只有 recorded replay**：6 条 DeepSeek v4 flash 产物在本地六任务上 6/6 PASS，但没有新鲜外部模型采样或独立隐藏集结果。
 - **与产品代码耦合**：`score.ts` 直接 import `src/lib/assembly/*`。真正的公开发布需要把验证器抽成独立包。
 - **`adversarial-*` 只覆盖每个家族的 1 个任务**，其余任务目前只有参考解。

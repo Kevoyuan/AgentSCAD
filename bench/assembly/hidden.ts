@@ -20,9 +20,10 @@ import { loadSliderSubmissions, loadSliderTasks, type SliderBenchTask } from "..
 import { loadL4Submissions, loadL4Tasks, type L4BenchTask } from "../l4/bench";
 import { loadTwinSubmissions, loadTwinTasks, type TwinBenchTask } from "../twin/bench";
 import { loadVTwinSubmissions, loadVTwinTasks, type VTwinBenchTask } from "../vtwin/bench";
+import { loadDeclarationSubmissions, loadDeclarationTasks, type DeclarationBenchTask } from "../declaration/bench";
 
-export type HiddenFamily = "assembly" | "gear" | "slider" | "l4" | "twin" | "vtwin";
-export type HiddenTask = BenchTask | GearBenchTask | SliderBenchTask | L4BenchTask | TwinBenchTask | VTwinBenchTask;
+export type HiddenFamily = "assembly" | "gear" | "slider" | "l4" | "twin" | "vtwin" | "declaration";
+export type HiddenTask = BenchTask | GearBenchTask | SliderBenchTask | L4BenchTask | TwinBenchTask | VTwinBenchTask | DeclarationBenchTask;
 export interface HiddenCase {
   taskId: string;
   status: string;
@@ -78,7 +79,7 @@ export function validateHiddenManifest(value: unknown): HiddenManifest {
   if (typeof raw.id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,63}$/.test(raw.id)) throw new Error("hidden.json id is invalid");
   if (typeof raw.frozenAt !== "string" || !Number.isFinite(Date.parse(raw.frozenAt))) throw new Error("hidden.json frozenAt must be an ISO date");
   const family = raw.family === undefined ? "assembly" : raw.family;
-  if (family !== "assembly" && family !== "gear" && family !== "slider" && family !== "l4" && family !== "twin" && family !== "vtwin") throw new Error("hidden.json family must be assembly, gear, slider, l4, twin or vtwin");
+  if (family !== "assembly" && family !== "gear" && family !== "slider" && family !== "l4" && family !== "twin" && family !== "vtwin" && family !== "declaration") throw new Error("hidden.json family must be assembly, gear, slider, l4, twin, vtwin or declaration");
   if (typeof raw.independent !== "boolean") throw new Error("hidden.json independent must be boolean");
   if (typeof raw.maintainer !== "string" || raw.maintainer.trim().length < 3) throw new Error("hidden.json maintainer must be non-trivial");
   if (typeof raw.taskSetSha256 !== "string" || !/^[a-f0-9]{64}$/.test(raw.taskSetSha256)) throw new Error("hidden.json taskSetSha256 must be a lowercase SHA-256");
@@ -144,7 +145,9 @@ export async function loadHiddenSet(directory: string): Promise<HiddenSet> {
           ? await loadL4Tasks(path.join(root, "tasks"), path.join(root, "specs"))
           : manifest.family === "twin"
             ? await loadTwinTasks(path.join(root, "tasks"))
-            : await loadVTwinTasks(path.join(root, "tasks"));
+            : manifest.family === "vtwin"
+              ? await loadVTwinTasks(path.join(root, "tasks"))
+              : await loadDeclarationTasks(path.join(root, "tasks"));
   const actual = hiddenTaskSetSha256(tasks, manifest.family);
   if (actual !== manifest.taskSetSha256) {
     throw new Error(`The hidden task set changed without re-freezing: manifest ${manifest.taskSetSha256.slice(0, 12)}, actual ${actual.slice(0, 12)}.`);
@@ -161,7 +164,9 @@ export async function loadHiddenSet(directory: string): Promise<HiddenSet> {
             ? await loadL4Submissions(task.id, path.join(root, "submissions"))
             : manifest.family === "twin"
               ? await loadTwinSubmissions(task.id, path.join(root, "submissions"))
-              : await loadVTwinSubmissions(task.id, path.join(root, "submissions"));
+              : manifest.family === "vtwin"
+                ? await loadVTwinSubmissions(task.id, path.join(root, "submissions"))
+                : await loadDeclarationSubmissions(task.id, path.join(root, "submissions"));
     if (rows.length === 0) throw new Error(`Hidden task ${task.id} has no submissions.`);
     submissions.set(task.id, rows);
   }

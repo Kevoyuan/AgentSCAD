@@ -190,7 +190,7 @@ declaration  OK         4     1    3   0        1    3    0       7/20
 <outside-repo>/submissions/<task-id>/*.scad
 ```
 
-`hidden.json` 声明 `id`、`frozenAt`、`family`（`assembly` / `gear` / `slider` / `l4` / `twin` / `vtwin`）、`maintainer`、`independent` 和 `taskSetSha256`；旧 manifest 省略 `family` 时按 `assembly` 读取。运行器按 family 分派到对应 scorer，并会：
+`hidden.json` 声明 `id`、`frozenAt`、`family`（`assembly` / `gear` / `slider` / `l4` / `twin` / `vtwin` / `declaration`）、`maintainer`、`independent` 和 `taskSetSha256`；旧 manifest 省略 `family` 时按 `assembly` 读取。运行器按 family 分派到对应 scorer，并会：
 
 - 拒绝仓库内路径（即使是 gitignored 的目录）；
 - 从 validated task 定义重算 SHA-256，与 manifest 不符就拒绝；
@@ -217,6 +217,7 @@ bun run bench:hidden -- --hidden /outside/repo/hidden --json /outside/repo/repor
 - L4 副本（`slider-shaft-keyed-7x9` reference，specs 放在 external 目录）：`1 task / 1 case`，reference PASS，`layers 5/5`；
 - twin 副本（`twin-inline-8-28` reference）：`1 task / 1 case`，reference PASS，`layers 4/4`；
 - vtwin 副本（`v-twin-8-28` reference）：`1 task / 1 case`，reference PASS，`layers 4/4`；
+- declaration 副本（`guided-declaration-8-28` reference，renamed IDs）：`1 task / 1 case`，reference PASS，`layers 5/5`；
 - 以上 `independentHiddenEvaluation=NOT_RUN`；加 `--require-independent` 退出 2。
 
 这些运行只证明路径、family 分派、哈希、聚合和 fail-closed，不证明独立隐藏评估。

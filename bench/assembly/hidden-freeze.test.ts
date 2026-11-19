@@ -95,6 +95,22 @@ describe("hidden-set freezer", () => {
     }
   });
 
+  test("freezes and reloads a declaration-family hidden set", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agentscad-hidden-declaration-"));
+    try {
+      await cp("bench/declaration/tasks/guided-declaration-8-28.json", path.join(root, "tasks", "guided-declaration-8-28.json"), { recursive: true });
+      await cp("bench/declaration/submissions/guided-declaration-8-28/reference.scad", path.join(root, "submissions", "guided-declaration-8-28", "reference.scad"), { recursive: true });
+      const manifest = await freezeHiddenSet({ directory: root, id: "hidden-declaration-test", maintainer: "local unit test", independent: false, family: "declaration", frozenAt: "2026-11-19T00:00:00Z" });
+      expect(manifest.family).toBe("declaration");
+      const loaded = await loadHiddenSet(root);
+      expect(loaded.manifest.family).toBe("declaration");
+      expect(loaded.tasks[0].id).toBe("guided-declaration-8-28");
+      expect(loaded.submissions.get("guided-declaration-8-28")?.[0].id).toBe("reference");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   test("refuses a set without submissions and a repo-internal directory", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "agentscad-hidden-freeze-empty-"));
     try {
