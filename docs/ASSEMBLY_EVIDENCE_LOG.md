@@ -2616,3 +2616,11 @@ thread       OK         4     1    3   0        1    2    1       7/12
 
 全量单元测试 **1192 PASS / 3 SKIP / 0 FAIL**（184 文件）；typecheck、lint 通过。边界：方形牙型不是 ISO 米制计量；不测扭矩、预紧、强度、磨损、自锁、全程旋入/旋出或实物；只测 9 个转角；已加入 `bench:all`（十二家族）与 hidden (family `thread`)。
 
+## 2026-11-19 · V8 连通曲轴布局负结果 / A001 合同边界
+
+**V8 连通曲轴**：把曲柄 web 移到 ±13 mm、pin 加长到 26 mm、保留分段主轴后，在 0/90/180/270/360° 仍分别有 4/5/2/2/4 根连杆相交；相交从“全部 8 根”降到部分，但没有任何一个位姿全分离。该候选没有升级，也没有写入 repo；共享销/封装载体 V8 仍是当前 reference。
+
+**A001 合同边界**：用真实 SQLite job + `saveRequirementContract` 确认一份由 guided 六件请求派生的合同后，A001 对同一 `slider_crank_guided.scad` 只返回单行 **NOT_RUN**。派生合同只有 `intent-preserved` 和 `disassembly-path`；guided 源没有 assembly operations，A001 选中的 identity/reconstruction/assembly/jointFrames/disassembly 不能全 PASS。确认合同不会把未测层升级，A001 也不会因为 disassembly PASS 就整体 PASS。
+
+这两项都是负结果/边界，不是成功；不计入任何 PASS 数量。V8 连通曲轴和 A001 完整通过仍未完成。
+
