@@ -2298,7 +2298,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1165 PASS / 3 SKIP / 0 FAIL**（173 文件）；
+- 全量单元测试：**1167 PASS / 3 SKIP / 0 FAIL**（174 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
@@ -2370,6 +2370,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
   - `independentHiddenEvaluation = NOT_RUN`；加 `--require-independent` 退出码 **2**；
   - 报告只有 `hiddenId`、`maintainer`、`independent`、`taskSetSha256`、计数和 task/layer 计数，没有 prompt/源码/路径。
 - 单元测试 `bench/assembly/hidden.test.ts`：4 PASS，覆盖 manifest 校验、repo 内路径拒绝、冻结哈希、改动任务后拒绝、聚合报告不含 prompt/sourcePath。
+- 新增 `bench/assembly/hidden-freeze.ts` + `bench:hidden:freeze`：校验每个任务至少有提交、重算 task-set hash、写 `hidden.json`，拒绝无 `--force` 的覆盖；单元测试 `hidden-freeze.test.ts` 2 PASS。dev 集用 `--force` 重新冻结后，`bench:hidden` 仍为 1 reference PASS / 1 adversarial rejected、`independentHiddenEvaluation=NOT_RUN`。
 
 边界：harness 只能证明外部路径、manifest/哈希、聚合和 fail-closed；它**不能**证明谁编写或扣留了任务。仓库里仍然没有任何独立隐藏任务，`independentHiddenEvaluation` 不是 PASS；新鲜外部模型采样也未执行。下一步需要独立维护者提供 external hidden set，并用 `--require-independent` 运行。
 

@@ -175,8 +175,15 @@ bun test bench/               # 层模型与任务格式的单测
 - `independent: true` 也只记为 `DECLARED_NOT_VERIFIED`：harness 能验证路径和哈希，不能验证谁编写/扣留了任务。
 
 ```bash
+# 1) freeze the external task set (validates tasks/submissions, writes hidden.json)
+bun run bench:hidden:freeze -- --hidden /outside/repo/hidden --id hidden-v1 \
+  --maintainer "independent maintainer" [--independent] [--force]
+
+# 2) run it (aggregate-only report)
 bun run bench:hidden -- --hidden /outside/repo/hidden --json /outside/repo/report.json --self-check
 ```
+
+`bench:hidden:freeze` 会校验每个任务至少有一个提交、重算 task-set hash，并拒绝覆盖已有 `hidden.json`（除非显式 `--force`）。它不渲染几何、不调用模型。
 
 开发冒烟（一个公开任务加一条反例的副本，manifest `independent:false`）：`1 task / 2 case`，1 reference PASS、1 adversarial rejected，`independentHiddenEvaluation=NOT_RUN`；加 `--require-independent` 退出 2。这次运行只证明路径、哈希、聚合和 fail-closed，不证明独立隐藏评估。
 

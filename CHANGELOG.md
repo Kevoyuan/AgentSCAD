@@ -12,6 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add a keyed five-part slider-crank task with a frozen correct and wrong removal order: the eccentric retention key must block the wrong order, and the `adversarial-key-out-of-way` case fails only that layer while motion and collision still pass
 - Import the six recorded DeepSeek v4 flash model submissions from the public bench history and score them on the local six-task set as a clearly labelled replay (all 6 PASS); no new model calls or spend
 - Add an external-only hidden-split harness: frozen task-set hash, path guard, aggregate-only report, and `--require-independent` fail-closed; a dev copy verifies the plumbing but no independent hidden tasks are published
+- Add `bench:hidden:freeze` to validate an external hidden set, freeze its task-set hash into `hidden.json`, and refuse accidental re-freezes without `--force`
 
 ## [0.6.0.0] - 2026-10-12
 
