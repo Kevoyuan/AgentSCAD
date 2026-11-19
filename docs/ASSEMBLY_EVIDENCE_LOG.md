@@ -2298,7 +2298,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1167 PASS / 3 SKIP / 0 FAIL**（174 文件）；
+- 全量单元测试：**1168 PASS / 3 SKIP / 0 FAIL**（175 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
@@ -2373,4 +2373,18 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 - 新增 `bench/assembly/hidden-freeze.ts` + `bench:hidden:freeze`：校验每个任务至少有提交、重算 task-set hash、写 `hidden.json`，拒绝无 `--force` 的覆盖；单元测试 `hidden-freeze.test.ts` 2 PASS。dev 集用 `--force` 重新冻结后，`bench:hidden` 仍为 1 reference PASS / 1 adversarial rejected、`independentHiddenEvaluation=NOT_RUN`。
 
 边界：harness 只能证明外部路径、manifest/哈希、聚合和 fail-closed；它**不能**证明谁编写或扣留了任务。仓库里仍然没有任何独立隐藏任务，`independentHiddenEvaluation` 不是 PASS；新鲜外部模型采样也未执行。下一步需要独立维护者提供 external hidden set，并用 `--require-independent` 运行。
+
+## 2026-11-19 · 公开 bench：L4 declaration-bound 7 件 / 9 实例
+
+`bench/l4` 新增声明绑定的 L4 家族：冻结 `slider_crank_shaft_keyed.scad` 的 7 part / 9 instance 声明，包括两个横向键、两个四分之一转导向锁和 8 个拆卸操作。提交只拥有几何；内嵌声明与冻结 spec SHA 不一致就直接拒绝，不会把候选拿去和另一套机构比较。
+
+命令与结果（本机原生 OpenSCAD 2021.01，无模型调用）：
+
+- `bun run bench:l4:check` → **`SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`**；
+- `reference`：9 个实例网格、7 个 part 网格；曲柄半径 **8.000000 mm**；0/90/180/270/360° 的 9 实例、36 对碰撞全 PASS；正确拆卸 8 步 PASS，冻结错误顺序被 `guide_lock_right` 挡住；5/5 层 PASS；
+- `adversarial-guide-locks-away`：把 `guide_lock` 的 part 局部网格和两个实例选择器移出导向路径；运动/轮廓/碰撞/source 全 PASS，**仅 `disassembly-path` FAIL（4/5）**；
+- `adversarial-crank-radius`：实测 9.000 mm，landmark/source/disassembly FAIL（2/5）；
+- `adversarial-static`：source-motion NOT_RUN（共线销位置），3/5，不是伪造 PASS。
+
+边界：这是 **declaration-bound** 家族，不测模型能否提出/修正声明；只覆盖 5 个输入角和声明的离散拆卸位姿；连续运动、力、磨损、工具可达、制造公差和实物功能未验证；7 件/9 实例不是 V8，L5 两缸仍未开始。
 

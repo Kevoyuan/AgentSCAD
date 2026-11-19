@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "id": "slider-shaft-keyed-7x9",
+  "prompt": "做一个七件九实例的单缸曲柄滑块：曲柄半径 8 mm、连杆 28 mm，两个横向键和两个四分之一转导向锁必须有保持作用；正确拆卸先解锁再取导向件，错误顺序必须被锁挡住；七种零件能分别制造、九个实例都能导出。",
+  "specFile": "slider-shaft-keyed.spec.json",
+  "specSha256": "b5006913b574c131f21bdc03700aa9f9402caa2994d4d6265d04e10224290bb3",
+  "motion": {
+    "angles": [
+      0,
+      90,
+      180,
+      270,
+      360
+    ],
+    "contract": {
+      "crankRadiusMm": 8,
+      "rodLengthMm": 28,
+      "toleranceMm": 0.02,
+      "sectionYmm": 2.3,
+      "axisProbeMm": 1,
+      "pinRadiusMm": {
+        "min": 1.98,
+        "max": 2.02
+      },
+      "rodBoreRadiusMm": {
+        "min": 2.18,
+        "max": 2.22
+      }
+    },
+    "selectors": {
+      "crank": "crank",
+      "rod": "rod",
+      "slider": "slider",
+      "frame": "frame"
+    },
+    "attachments": {
+      "eccentric_key": "eccentric_key",
+      "guide_front": "guide_front",
+      "main_key": "main_key",
+      "guide_lock_right": "guide_lock_right",
+      "guide_lock_left": "guide_lock_left"
+    },
+    "motionParameter": "motion_angle",
+    "poseParameters": {
+      "agentscad_pose": true
+    }
+  },
+  "wrongOrder": {
+    "operationId": "remove_guide",
+    "beforeOperationId": "release_guide_lock_right"
+  },
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 9
+      }
+    },
+    {
+      "id": "measured-joint-frames",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "sampled-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "source-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "disassembly-path",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "Seven manufacturing parts and nine instances (two transverse keys, two guide retainers). The submission must embed the frozen declaration; the task does not accept a changed joint set, fit range or operation order.",
+    "Correct removal: both guide-lock quarter-turns, guide, main key, eccentric key, slider, rod, crank. The frozen wrong order moves remove_guide before the guide-lock release and must fail.",
+    "Only five input angles and discrete declared poses are covered; no continuous motion, hand force, wear, tool access or physical function."
+  ]
+}

@@ -60,6 +60,7 @@ benchmark-render-results.json
 bench/assembly/report.json
 bench/gear/report.json
 bench/slider/report.json
+bench/l4/report.json
 bench/ladder-report.json
 
 # agent/IDE context directories
