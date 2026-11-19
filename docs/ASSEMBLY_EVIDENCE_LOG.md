@@ -2298,7 +2298,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1184 PASS / 3 SKIP / 0 FAIL**（180 文件）；
+- 全量单元测试：**1185 PASS / 3 SKIP / 0 FAIL**（180 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
@@ -2391,7 +2391,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ## 2026-11-19 · 隐藏集 harness 扩展为四家族
 
-`hidden.json` 现在声明 `family`（`assembly`/`gear`/`slider`/`l4`/`twin`/`vtwin`/`declaration`）；旧 manifest 省略时按 assembly 读取。`bench:hidden:freeze` 按 family 校验任务/提交并冻结对应 task-set hash，`bench:hidden` 按 family 分派到 `scoreSubmission`、`scoreGearSubmission`、`scoreSliderSubmission` 或 `scoreL4Submission`，报告增加 `family` 字段；外部路径、聚合-only、`independent:false → NOT_RUN` 和 `--require-independent` 退出 2 的规则不变。
+`hidden.json` 现在声明 `family`（`assembly`/`gear`/`slider`/`l4`/`twin`/`vtwin`/`declaration`/`v8`）；旧 manifest 省略时按 assembly 读取。`bench:hidden:freeze` 按 family 校验任务/提交并冻结对应 task-set hash，`bench:hidden` 按 family 分派到 `scoreSubmission`、`scoreGearSubmission`、`scoreSliderSubmission` 或 `scoreL4Submission`，报告增加 `family` 字段；外部路径、聚合-only、`independent:false → NOT_RUN` 和 `--require-independent` 退出 2 的规则不变。
 
 本机验证：
 
@@ -2402,6 +2402,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 - twin dev 副本：`hidden-twin-dev [twin]`，`1 task / 1 case`，reference PASS，`layers 4/4`；
 - vtwin dev 副本：`hidden-vtwin-dev [vtwin]`，`1 task / 1 case`，reference PASS，`layers 4/4`；
 - declaration dev 副本：`hidden-declaration-dev [declaration]`，`1 task / 1 case`，reference PASS，`layers 5/5`；
+- v8 dev 副本：`hidden-v8-dev [v8]`，`1 task / 1 case`，reference PASS，`layers 4/4`；
 - 单元测试新增 gear/L4 family 冻结用例；全量单元测试 **1171 PASS / 3 SKIP / 0 FAIL**（175 文件），typecheck、lint 通过。
 
 边界：仍然没有任何独立隐藏任务或新鲜外部模型采样；这些 dev 副本只证明路径、family 分派、哈希、聚合和 fail-closed，`independentHiddenEvaluation` 仍为 NOT_RUN。
@@ -2471,11 +2472,11 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 单元测试 **1177 PASS / 3 SKIP / 0 FAIL**（177 文件）；typecheck、lint 通过。边界：90° V-twin 不是完整 V8；frame 是两根倾斜导向管 + 底部基板，不是完整曲轴箱且不评分连通性；只测九个离散角、网格包围盒位置和 135 次碰撞；不测负载、润滑、摩擦、磨损、连续运动或实物功能。
 
-## 2026-11-19 · 全家族 bench 门禁（七家族）
+## 2026-11-19 · 全家族 bench 门禁（八家族）
 
-新增 `bench/all.ts` / `bun run bench:all`：顺序运行 assembly、gear、slider、l4、twin、vtwin、declaration 七家族 self-check；每个家族先真实重写自己的 report，再读取 `cases`/`reports` 汇总到终端矩阵和 `bench/matrix.json`（gitignored）。任一家族退出非 0 或输出没有 `SELF-CHECK OK`，整体退出 1。
+新增 `bench/all.ts` / `bun run bench:all`：顺序运行 assembly、gear、slider、l4、twin、vtwin、declaration、v8 八家族 self-check；每个家族先真实重写自己的 report，再读取 `cases`/`reports` 汇总到终端矩阵和 `bench/matrix.json`（gitignored）。任一家族退出非 0 或输出没有 `SELF-CHECK OK`，整体退出 1。
 
-本机原生 OpenSCAD 完整运行（约 **28.4 分钟**，无模型调用）：
+本机原生 OpenSCAD 完整运行（八家族，约 **42.3 分钟**，无模型调用）：
 
 ```
 family       self-check cases refs adv unscored pass fail not-run layers
@@ -2486,11 +2487,12 @@ l4           OK         5     1    4   0        1    4    0       14/25
 twin         OK         6     1    5   0        1    5    0       11/24
 vtwin        OK         5     1    4   0        1    4    0       11/20
 declaration  OK         4     1    3   0        1    3    0       7/20
+v8           OK         5     1    4   0        1    4    0       11/20
 ```
 
-`overall: PASS`，共 **63 case**：14 reference、43 adversarial、6 unscored（assembly 的 recorded model replay）；20 PASS / 42 FAIL-or-ERROR / 1 NOT_RUN。assembly 的 unscored 6 不是新模型采样；gear 的 NOT_RUN 是 `adversarial-no-marker`，self-check 仍拒绝它。`layers` 是各 case 观测层数合计，不是通过率。
+`overall: PASS`，共 **68 case**：15 reference、47 adversarial、6 unscored（assembly 的 recorded model replay）；21 PASS / 46 FAIL-or-ERROR / 1 NOT_RUN。assembly 的 unscored 6 不是新模型采样；gear 的 NOT_RUN 是 `adversarial-no-marker`，self-check 仍拒绝它。`layers` 是各 case 观测层数合计，不是通过率。
 
-全量单元测试 **1181 PASS / 3 SKIP / 0 FAIL**（179 文件）；typecheck、lint 通过。边界：这是公开七家族的自检门禁；不包含独立隐藏集、新模型采样或物理功能；28.4 分钟是原生渲染时间，不是产品运行时。
+全量单元测试 **1185 PASS / 3 SKIP / 0 FAIL**（180 文件）；typecheck、lint 通过。边界：这是公开八家族的自检门禁；不包含独立隐藏集、新模型采样或物理功能；42.3 分钟是原生渲染时间，不是产品运行时。
 
 ## 2026-11-19 · 公开 bench：L4.1 合同约束声明
 
@@ -2526,5 +2528,5 @@ declaration  OK         4     1    3   0        1    3    0       7/20
 - `adversarial-crank-radius`：2/4，曲柄 9 mm，误差 0.8625 mm，碰撞仍分离；
 - `adversarial-collision`：1/4，右滑块移到左 bank，误差 6.0000 mm 且碰撞失败。
 
-全量单元测试 **1184 PASS / 3 SKIP / 0 FAIL**（180 文件）；typecheck、lint 通过。边界：每缸独立销，不是共享曲轴 V8；frame 只是底板，没有缸体/轴承/曲轴箱；只测五个离散角、网格包围盒位置和 765 次碰撞；不测负载、润滑、摩擦、磨损、点火/配气或实物功能；尚未加入 `bench:all`/hidden。
+全量单元测试 **1185 PASS / 3 SKIP / 0 FAIL**（180 文件）；typecheck、lint 通过。边界：每缸独立销，不是共享曲轴 V8；frame 只是底板，没有缸体/轴承/曲轴箱；只测五个离散角、网格包围盒位置和 765 次碰撞；不测负载、润滑、摩擦、磨损、点火/配气或实物功能；尚未加入 `bench:all`/hidden。
 

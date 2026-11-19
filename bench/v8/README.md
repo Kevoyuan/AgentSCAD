@@ -37,9 +37,13 @@ SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected.
 
 参考在 0° 时八个滑块的相位组分别为 0/90/180/270；同一组左右 bank 的轴向位置相同、x 相反，y 分为 station±3。
 
+## 隐藏集
+
+隐藏 manifest 的 family 新增 `v8`；外部 dev 副本 `hidden-v8-dev [v8]` 为 `1 task / 1 case`、reference PASS、`layers 4/4`、`independentHiddenEvaluation=NOT_RUN`。这仍只是开发副本，不是独立隐藏评估。
+
 ## 边界
 
 - **每缸独立曲柄销，不是共享曲轴 V8**；曲柄件是八个不连通的销，不能称为可制造曲轴。
 - **frame 只是底板**；没有缸体/导管/轴承/曲轴箱，不评分 frame 连通性。
 - 只测五个离散角、网格包围盒位置和 765 次离散碰撞；不测连续运动、负载、润滑、摩擦、磨损、点火/配气或实物功能。
-- 尚未加入 `bench:all` 与 hidden family；完整共享曲轴 V8 仍未开始。
+- 已加入 `bench:all` 与 hidden family；完整共享曲轴 V8 仍未开始。

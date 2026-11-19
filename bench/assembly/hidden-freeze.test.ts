@@ -111,6 +111,22 @@ describe("hidden-set freezer", () => {
     }
   });
 
+  test("freezes and reloads a V8-family hidden set", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agentscad-hidden-v8-"));
+    try {
+      await cp("bench/v8/tasks/v8-phase-8.json", path.join(root, "tasks", "v8-phase-8.json"), { recursive: true });
+      await cp("bench/v8/submissions/v8-phase-8/reference.scad", path.join(root, "submissions", "v8-phase-8", "reference.scad"), { recursive: true });
+      const manifest = await freezeHiddenSet({ directory: root, id: "hidden-v8-test", maintainer: "local unit test", independent: false, family: "v8", frozenAt: "2026-11-19T00:00:00Z" });
+      expect(manifest.family).toBe("v8");
+      const loaded = await loadHiddenSet(root);
+      expect(loaded.manifest.family).toBe("v8");
+      expect(loaded.tasks[0].id).toBe("v8-phase-8");
+      expect(loaded.submissions.get("v8-phase-8")?.[0].id).toBe("reference");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   test("refuses a set without submissions and a repo-internal directory", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "agentscad-hidden-freeze-empty-"));
     try {

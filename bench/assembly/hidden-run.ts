@@ -28,6 +28,7 @@ import { scoreL4Submission, type L4BenchTask } from "../l4/bench";
 import { scoreTwinSubmission, type TwinBenchTask } from "../twin/bench";
 import { scoreVTwinSubmission, type VTwinBenchTask } from "../vtwin/bench";
 import { scoreDeclarationSubmission, type DeclarationBenchTask } from "../declaration/bench";
+import { scoreV8Submission, type V8BenchTask } from "../v8/bench";
 
 interface HiddenReport {
   taskId: string;
@@ -46,6 +47,7 @@ async function scoreFamily(family: HiddenFamily, task: HiddenTask, submission: A
     case "twin": return scoreTwinSubmission(task as TwinBenchTask, submission);
     case "vtwin": return scoreVTwinSubmission(task as VTwinBenchTask, submission);
     case "declaration": return scoreDeclarationSubmission(task as DeclarationBenchTask, submission);
+    case "v8": return scoreV8Submission(task as V8BenchTask, submission);
   }
 }
 
