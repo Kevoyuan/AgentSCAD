@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { loadL4Tasks } from "./bench";
+import { loadL4Tasks, specSectionDiff } from "./bench";
 
 describe("L4 declaration-bound task", () => {
   test("freezes seven parts, nine instances and a wrong-order operation pair", async () => {
@@ -17,5 +17,13 @@ describe("L4 declaration-bound task", () => {
     expect(distinct?.expected.kind).toBe("equals");
     expect(distinct?.expected.kind === "equals" ? distinct.expected.value : null).toBe(9);
     expect(task.motion.angles).toContain(0);
+  });
+
+  test("reports which frozen sections a tampered declaration changed", async () => {
+    const task = (await loadL4Tasks())[0];
+    const changed = structuredClone(task.spec);
+    changed.motions[0].range.max = 180;
+    expect(specSectionDiff(changed, task.spec)).toEqual(["motions"]);
+    expect(specSectionDiff(structuredClone(task.spec), task.spec)).toEqual([]);
   });
 });

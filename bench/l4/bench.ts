@@ -11,6 +11,7 @@
  */
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
+import { canonicalJson } from "../../src/lib/canonical-json";
 import path from "node:path";
 import { validateAssemblySpec, type AssemblySpec } from "../../src/lib/assembly/assembly-spec";
 import { checkDeclaredPoseDisassembly } from "../../src/lib/assembly/declared-pose-disassembly";
@@ -249,6 +250,12 @@ function openscadVersion(): string {
   cachedOpenscadVersion = result.success ? result.stdout.toString().trim() : "unavailable";
   return cachedOpenscadVersion;
 }
+/** Diagnostic only: the hash check remains the gate. Lists frozen top-level sections that differ. */
+export function specSectionDiff(actual: AssemblySpec, expected: AssemblySpec): string[] {
+  const sections = ["parts", "instances", "connections", "motions", "operations", "groundedInstanceId"] as const;
+  return sections.filter((section) => canonicalJson(actual[section]) !== canonicalJson(expected[section]));
+}
+
 function observationStatus(status: string | undefined): Observation["status"] {
   return status === "PASS" || status === "FAIL" ? "MEASURED" : status === "ERROR" ? "ERROR" : "NOT_RUN";
 }
@@ -305,7 +312,8 @@ export async function scoreL4Submission(task: L4BenchTask, submission: Submissio
   const extracted = extractEmbeddedAssemblySpec(submission.source);
   if (extracted.status !== "valid") return blocked("The source carries no valid embedded assembly declaration.");
   if (assemblySpecificationHash(extracted.spec) !== task.specSha256) {
-    return blocked("The embedded declaration does not match the task's frozen specification; refusing to measure a different mechanism.");
+    const changed = specSectionDiff(extracted.spec, task.spec);
+    return blocked(`The embedded declaration does not match the task's frozen specification (changed: ${changed.join(", ") || "unknown section"}); refusing to measure a different mechanism.`);
   }
 
   let partRender: Awaited<ReturnType<typeof renderAssemblySpecParts>>;

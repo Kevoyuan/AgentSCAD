@@ -34,14 +34,16 @@ slider-shaft-keyed-7x9  reference                     PASS  5/5  9  PASS PASS PA
 slider-shaft-keyed-7x9  adversarial-crank-radius      FAIL  2/5  9  FAIL PASS FAIL FAIL
 slider-shaft-keyed-7x9  adversarial-static            FAIL  3/5  9  FAIL PASS NOT_RUN PASS
 slider-shaft-keyed-7x9  adversarial-guide-locks-away  FAIL  4/5  9  PASS PASS PASS FAIL
+slider-shaft-keyed-7x9  adversarial-declaration-motion-range  ERROR 0/5  —  ERROR ERROR ERROR ERROR
 ```
 
 - reference 实测曲柄半径 **8.000000 mm**、9 个实例、7 个 part 网格；正确拆卸 PASS，错误顺序被 `guide_lock_right` 挡住。
 - `adversarial-guide-locks-away` 把 `guide_lock` 的 part 局部网格和两个实例选择器一起移出导向路径：运动/轮廓/碰撞/source 全 PASS，**只有 `disassembly-path` FAIL**。这是错误顺序检查的存在理由。
 - `adversarial-crank-radius` 实测 9.000 mm，landmark/source/disassembly 失败。
 - `adversarial-static` 的 source-motion 是 NOT_RUN（共线销位置），不是伪造 FAIL/PASS。
+- `adversarial-declaration-motion-range` 把内嵌声明的 motion 上限从 360° 改成 180°；spec SHA 不匹配，报告 `changed: motions` 并在渲染前拒绝，所有 requirement 为 ERROR。声明哈希是门，spec 差异只是可行动的诊断。
 
-自检：`SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected.`
+自检：`SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected.`
 
 ## 边界
 

@@ -2298,7 +2298,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1168 PASS / 3 SKIP / 0 FAIL**（175 文件）；
+- 全量单元测试：**1169 PASS / 3 SKIP / 0 FAIL**（175 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
@@ -2384,7 +2384,8 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 - `reference`：9 个实例网格、7 个 part 网格；曲柄半径 **8.000000 mm**；0/90/180/270/360° 的 9 实例、36 对碰撞全 PASS；正确拆卸 8 步 PASS，冻结错误顺序被 `guide_lock_right` 挡住；5/5 层 PASS；
 - `adversarial-guide-locks-away`：把 `guide_lock` 的 part 局部网格和两个实例选择器移出导向路径；运动/轮廓/碰撞/source 全 PASS，**仅 `disassembly-path` FAIL（4/5）**；
 - `adversarial-crank-radius`：实测 9.000 mm，landmark/source/disassembly FAIL（2/5）；
-- `adversarial-static`：source-motion NOT_RUN（共线销位置），3/5，不是伪造 PASS。
+- `adversarial-static`：source-motion NOT_RUN（共线销位置），3/5，不是伪造 PASS；
+- `adversarial-declaration-motion-range`：内嵌 motion 上限 360→180；spec SHA 不匹配，渲染前拒绝，报告 `changed: motions`，5 个 requirement 全 ERROR。哈希仍是门，差异只是诊断。
 
 边界：这是 **declaration-bound** 家族，不测模型能否提出/修正声明；只覆盖 5 个输入角和声明的离散拆卸位姿；连续运动、力、磨损、工具可达、制造公差和实物功能未验证；7 件/9 实例不是 V8，L5 两缸仍未开始。
 
