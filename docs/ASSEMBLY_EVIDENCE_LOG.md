@@ -2298,7 +2298,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1177 PASS / 3 SKIP / 0 FAIL**（177 文件）；
+- 全量单元测试：**1179 PASS / 3 SKIP / 0 FAIL**（178 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
@@ -2469,4 +2469,24 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 隐藏集 family 增加 `vtwin`；外部 dev 副本 `hidden-vtwin-dev [vtwin]` 为 `1 task / 1 case`、reference PASS、`layers 4/4`、`independentHiddenEvaluation=NOT_RUN`。这仍是开发副本，不是独立隐藏评估。
 
 单元测试 **1177 PASS / 3 SKIP / 0 FAIL**（177 文件）；typecheck、lint 通过。边界：90° V-twin 不是完整 V8；frame 是两根倾斜导向管 + 底部基板，不是完整曲轴箱且不评分连通性；只测九个离散角、网格包围盒位置和 135 次碰撞；不测负载、润滑、摩擦、磨损、连续运动或实物功能。
+
+## 2026-11-19 · 全家族 bench 门禁
+
+新增 `bench/all.ts` / `bun run bench:all`：顺序运行 assembly、gear、slider、l4、twin、vtwin 六家族 self-check；每个家族先真实重写自己的 report，再读取 `cases`/`reports` 汇总到终端矩阵和 `bench/matrix.json`（gitignored）。任一家族退出非 0 或输出没有 `SELF-CHECK OK`，整体退出 1。
+
+本机原生 OpenSCAD 完整运行（约 26.6 分钟，无模型调用）：
+
+```
+family    self-check cases refs adv unscored pass fail not-run layers
+assembly  OK         20    6    8   6        12   8    0       104/120
+gear      OK         6     1    5   0        1    4    1       7/12
+slider    OK         17    3    14  0        3    14   0       51/77
+l4        OK         5     1    4   0        1    4    0       14/25
+twin      OK         6     1    5   0        1    5    0       11/24
+vtwin     OK         5     1    4   0        1    4    0       11/20
+```
+
+`overall: PASS`，共 **59 case**：13 reference、40 adversarial、6 unscored（assembly 的 recorded model replay）；19 PASS / 39 FAIL-or-ERROR / 1 NOT_RUN。assembly 的 unscored 6 不是新模型采样；gear 的 NOT_RUN 是 `adversarial-no-marker`，self-check 仍拒绝它。`layers` 是各 case 观测层数合计，不是通过率。
+
+全量单元测试 **1179 PASS / 3 SKIP / 0 FAIL**（178 文件）；typecheck、lint 通过。边界：这是公开六家族的自检门禁；不包含独立隐藏集、新模型采样或物理功能；26.6 分钟是原生渲染时间，不是产品运行时。
 

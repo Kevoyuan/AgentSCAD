@@ -145,6 +145,24 @@ bun test bench/               # 层模型与任务格式的单测
 
 家族命令：`bun run bench:gear:check`、`bun run bench:slider:check`、`bun run bench:l4:check`、`bun run bench:twin:check`、`bun run bench:vtwin:check`；各自只证明对应家族的自检边界。
 
+### 4.3 全家族门禁
+
+`bun run bench:all` 依次运行 **assembly / gear / slider / l4 / twin / vtwin** 六家族的自检；每个家族先真实重写自己的 `report.json`，再读取 `cases`/`reports` 汇总到终端矩阵和 `bench/matrix.json`（gitignored）。任一家族 self-check 非 0 或没有 `SELF-CHECK OK` 就整体退出 1。它不会读缓存或把旧报告拼成新结论；`bench/matrix.json` 只是本次运行的聚合产物。
+
+2026-11-19 在原生 OpenSCAD 上完整跑通（约 26.6 分钟，无模型调用）：
+
+```
+family    self-check cases refs adv unscored pass fail not-run layers
+assembly  OK         20    6    8   6        12   8    0       104/120
+gear      OK         6     1    5   0        1    4    1       7/12
+slider    OK         17    3    14  0        3    14   0       51/77
+l4        OK         5     1    4   0        1    4    0       14/25
+twin      OK         6     1    5   0        1    5    0       11/24
+vtwin     OK         5     1    4   0        1    4    0       11/20
+```
+
+`overall: PASS`。assembly 的 6 个 `unscored` 是 recorded model replay 行，不是新的模型采样；gear 的 1 个 `not-run` 是 `adversarial-no-marker`，self-check 仍拒绝它。`layers` 是各 case 观测层数的合计，不是通过率。
+
 ### 4.1 已记录模型 baseline（replay）
 
 `bench/assembly` 现在有 6 条 `model-deepseek-v4-flash` 提交，原样取自 `main` 的 PR #64 记录；在本分支重评分：
@@ -242,6 +260,7 @@ reconstruction    8     2     5     13    2     28.6%   缺检查      导出重
 - [x] **L4 declaration-bound 7 件/9 实例**：`bench/l4` 冻结 7 part/9 instance、8 个拆卸操作和错误顺序；`bun run bench:l4:check` → `SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`。`adversarial-guide-locks-away` 运动/轮廓/碰撞/source 全 PASS，仅 `disassembly-path` FAIL；`adversarial-declaration-motion-range` 改内嵌声明后在渲染前被 spec SHA 拒绝（`changed: motions`）；这不是自主声明生成，也不是 V8
 - [x] **L4.5 直列双缸（不是 V8）**：`bench/twin` 六个实例、单曲轴 180° 相位、五个输入角、75 次离散碰撞；`bun run bench:twin:check` → `SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected`。reference 滑块位置误差 0.0000 mm；`adversarial-rod-length` 碰撞全分离但位置/相位失败。L5 仍未开始
 - [x] **L5a 90° V-twin（V 角，不是完整 V8）**：`bench/vtwin` 六实例、共享曲柄销、±45° 双缸、九个输入角、135 次离散碰撞；`bun run bench:vtwin:check` → `SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`。reference 位置误差 0.0000 mm；`adversarial-v-angle` 半角 30° 时误差 9.3587 mm。frame 是两导向管+基板，不是完整曲轴箱；L5 完整 V8 仍未开始
+- [x] **全家族门禁**：`bun run bench:all` 顺序运行六家族 self-check，重写各自 report 后聚合矩阵到 `bench/matrix.json`；任一失败退出 1。2026-11-19 六家族全部 OK，`overall: PASS`（59 case：13 refs / 40 adversarial / 6 unscored；约 26.6 分钟，无模型调用）。它证明六家族门禁一起可运行，不证明隐藏集、模型能力或物理功能
 - [x] **补 `retention` 与 `source-motion` 的检查**：`bench/assembly` 里已落地（`hinge-captured-45` 的轴向拉拔、5 个任务的位姿重渲染）
 - [x] **把这两个检查接进产品判分器**：`judge-assembly` 现在把派生合同作为 trial attribution gate 传给 `prepareAssembly`，并产出 `rigid-motion`、`source-motion`、`motion-range-*`、`axial-retention`、`assembly-path`、`disassembly-path`。前提是候选声明包含 `motions[].sourceInput`（参数 + 每个实例的 pose selector）和 `translationProbes`；缺声明仍为 `NOT_RUN`。`intent-preserved` 仍为 `NOT_RUN`，`passed` 不是用户确认或验收。证据：`bun test scripts/eval/judge-evidence.test.ts` 7 PASS；`bun test src/lib/tools/__tests__/pipeline-assembly.openscad.test.ts` 5 PASS（原生 OpenSCAD，研究者辅助控制件在 measured assertions 上 PASS，intent 保持 NOT_RUN）；定向判分脚本对同一控制件输出 `sampled-motion`/`rigid-motion`/`source-motion`/`axial-retention`/`assembly-path`/`disassembly-path` PASS。历史层表不因接线回溯。
 - [x] **已记录模型 baseline replay**：6 条 DeepSeek v4 flash 产物原样导入并重评分，6/6 PASS；见 §4.1。这是 replay，不是新调用
