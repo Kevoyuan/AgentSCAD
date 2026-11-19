@@ -38,7 +38,7 @@ SELF-CHECK OK: 2 reference(s) pass, 4 adversarial submission(s) rejected.
 
 ## Hidden set
 
-The hidden manifest family `thread` has an external development copy `hidden-thread-dev [thread]`: 1 task / 1 case, reference PASS, `layers 3/3`, `independentHiddenEvaluation=NOT_RUN`. It is still a development copy, not an independent hidden evaluation.
+The hidden manifest family `thread` has an external development copy `hidden-thread-exit-dev [thread]`: 2 tasks / 2 cases, both references PASS, geometry `layers 3/3` and exit `layers 4/4`, `independentHiddenEvaluation=NOT_RUN`. It is still a development copy, not an independent hidden evaluation.
 
 ## Boundaries
 

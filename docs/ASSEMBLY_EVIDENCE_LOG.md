@@ -2719,3 +2719,5 @@ thread       OK         6     2    4   0        2    3    1       13/20
 ```
 
 `overall: PASS`; **90 cases**, 20 reference, 64 adversarial, 6 unscored; 26 PASS / 62 FAIL-or-ERROR / 2 NOT_RUN; **268/404** observed layer entries. This is the current public gate snapshot; it is not hidden evaluation, model ability, physical function, or user acceptance. Connected-crankshaft V8 and full A001 pass remain open.
+
+Hidden thread verification on 2026-11-19: `hidden-thread-exit-dev [thread]` contains both public thread tasks and references. Result: **2 tasks / 2 cases PASS**, geometry `3/3`, exit `4/4`; `independentHiddenEvaluation=NOT_RUN`. This is still a development copy, not an independent hidden evaluation.
