@@ -2267,7 +2267,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 - 只测量 5–6 个输入角，角与角之间、连续运动与真实啮合没有证据；没有内嵌装配声明、ZIP、逐件重建、拆卸顺序或产品端到端。外形/轴只在零位姿测量，旋转后的孔轴不作为独立证据。
 - 未执行：付费模型、WASM、浏览器、隐藏集、全套原生 OpenSCAD 测试、实物制造与加载。
 
-本轮软件验证：上述两条定向原生测试 **11 PASS / 0 FAIL**（外啮合 5、行星 6）；全量单元测试 **1148 PASS / 3 SKIP / 0 FAIL**（170 文件）；`bun run typecheck` 与针对改动文件的 ESLint 通过。另跑了 `pipeline-assembly.openscad.test.ts` **5 PASS** 与 `judge-evidence.test.ts` **7 PASS**；未重跑完整原生 OpenSCAD 套件、WASM 套件、浏览器 E2E、付费模型或实物试验。
+本轮软件验证：上述两条定向原生测试 **11 PASS / 0 FAIL**（外啮合 5、行星 6）；全量单元测试 **1148 PASS / 3 SKIP / 0 FAIL**（170 文件）；`bun run typecheck` 与针对改动文件的 ESLint 通过。另跑了 `pipeline-assembly.openscad.test.ts` **5 PASS** 与 `judge-evidence.test.ts` **7 PASS**；完整原生 OpenSCAD 套件 **67 PASS / 1 SKIP / 0 FAIL**（68 tests、14 文件、1301.73 秒）；未跑 WASM 套件、浏览器 E2E、付费模型或实物试验。
 
 ## 2026-11-18 · 判分器接线核验、本地分支恢复与 A10 齿轮
 
@@ -2303,7 +2303,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
 - 公开 bench 自检：`bun run bench:assembly:check` → **SELF-CHECK OK: 6 reference(s) pass, 8 adversarial submission(s) rejected**；只覆盖公开任务集，不覆盖隐藏集/模型/物理；
-- 未执行：完整 56 条原生套件、WASM、浏览器 E2E、付费模型、隐藏集、实物制造/加载。
+- 完整原生套件：**67 PASS / 1 SKIP / 0 FAIL**（68 tests、14 文件、1301.73 秒；skip 为依赖缺失的 manufacturing geometry）；未执行：WASM、浏览器 E2E、付费模型、隐藏集、实物制造/加载。
 
 ### 公开 bench：齿轮对家族（L2.5）
 
