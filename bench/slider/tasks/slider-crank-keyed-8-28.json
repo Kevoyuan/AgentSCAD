@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "id": "slider-crank-keyed-8-28",
+  "prompt": "做一个 8 mm 曲柄、28 mm 连杆的单缸曲柄滑块，带偏心保持键；正确拆卸顺序必须先取键再卸滑块，错误顺序必须被键挡住；五件要能分别导出。",
+  "selectors": {
+    "crank": "crank",
+    "rod": "rod",
+    "slider": "slider",
+    "frame": "frame"
+  },
+  "attachments": {
+    "eccentric_key": "eccentric_key"
+  },
+  "motionParameter": "motion_angle",
+  "poseParameters": {
+    "agentscad_pose": true
+  },
+  "angles": [
+    0,
+    90,
+    180,
+    270,
+    360
+  ],
+  "contract": {
+    "crankRadiusMm": 8,
+    "rodLengthMm": 28,
+    "toleranceMm": 0.02,
+    "sectionYmm": 2.3,
+    "axisProbeMm": 1,
+    "pinRadiusMm": {
+      "min": 1.98,
+      "max": 2.02
+    },
+    "rodBoreRadiusMm": {
+      "min": 2.18,
+      "max": 2.22
+    }
+  },
+  "disassembly": {
+    "plan": {
+      "groundedInstanceId": "frame",
+      "steps": [
+        {
+          "instanceId": "eccentric_key",
+          "translationMm": [
+            30,
+            0,
+            0
+          ],
+          "samples": 121
+        },
+        {
+          "instanceId": "slider",
+          "translationMm": [
+            0,
+            20,
+            0
+          ],
+          "samples": 81
+        },
+        {
+          "instanceId": "rod",
+          "translationMm": [
+            0,
+            20,
+            0
+          ],
+          "samples": 81
+        },
+        {
+          "instanceId": "crank",
+          "translationMm": [
+            0,
+            20,
+            0
+          ],
+          "samples": 81
+        }
+      ]
+    },
+    "wrongOrder": {
+      "groundedInstanceId": "frame",
+      "steps": [
+        {
+          "instanceId": "slider",
+          "translationMm": [
+            0,
+            20,
+            0
+          ],
+          "samples": 81
+        },
+        {
+          "instanceId": "rod",
+          "translationMm": [
+            0,
+            20,
+            0
+          ],
+          "samples": 81
+        },
+        {
+          "instanceId": "eccentric_key",
+          "translationMm": [
+            30,
+            0,
+            0
+          ],
+          "samples": 121
+        },
+        {
+          "instanceId": "crank",
+          "translationMm": [
+            0,
+            20,
+            0
+          ],
+          "samples": 81
+        }
+      ]
+    }
+  },
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 5
+      }
+    },
+    {
+      "id": "measured-joint-frames",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "sampled-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "source-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "disassembly-path",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "The correct plan removes the eccentric key first; the frozen wrong order removes the slider and rod before the key and must be blocked.",
+    "Only the five listed input angles and the zero-pose removal plans are covered; no continuous motion, force, tool access or physical function is claimed.",
+    "The keyed fixture is a five-part original candidate, not the six-part guided/retained A08 product."
+  ]
+}

@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, test } from "bun:test";
 import { expectedOutcome } from "../assembly/bench";
 import { validateSliderTask } from "./bench";
@@ -49,6 +50,16 @@ describe("slider-crank benchmark task", () => {
     const wrongCount = baseTask.requirements.map((requirement) =>
       requirement.id === "distinct-exported-parts" ? { ...requirement, expected: { kind: "equals", value: 3 } } : requirement);
     expect(() => validateSliderTask({ ...baseTask, requirements: wrongCount })).toThrow(/distinct-exported-parts = 4/);
+  });
+
+  test("loads the keyed five-part task with a frozen wrong order", async () => {
+    const raw = JSON.parse(await readFile("bench/slider/tasks/slider-crank-keyed-8-28.json", "utf8"));
+    const task = validateSliderTask(raw);
+    expect(task.attachments?.eccentric_key).toBe("eccentric_key");
+    const distinct = task.requirements.find((requirement) => requirement.id === "distinct-exported-parts");
+    expect(distinct?.expected.kind).toBe("equals");
+    expect(distinct?.expected.kind === "equals" ? distinct.expected.value : null).toBe(5);
+    expect(task.disassembly?.plan.steps.map((step) => step.instanceId)).not.toEqual(task.disassembly?.wrongOrder.steps.map((step) => step.instanceId));
   });
 
   test("keeps the reference/adversarial/model expectation rule", () => {

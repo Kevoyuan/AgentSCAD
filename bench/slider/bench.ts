@@ -13,6 +13,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { evaluateRequirement, type Observation, type Result } from "../../scripts/eval/assembly-evidence";
 import type { SliderCrankGeometryContract } from "../../src/lib/assembly/slider-crank-geometry";
+import { checkDisassemblySequence, type DisassemblySequence } from "../../src/lib/assembly/disassembly-sequence";
 import { readBinaryStl, meshBounds, type TriangleMesh } from "../../src/lib/geometry/stl-mesh";
 import type { RenderedAssemblyPart } from "../../src/lib/tools/assembly-part-renderer";
 import { sampleSliderCrankSource } from "../../src/lib/tools/slider-crank-measurement";
@@ -38,10 +39,18 @@ export interface SliderBenchTask {
   id: string;
   prompt: string;
   selectors: SliderSelectors;
+  /** Optional extra moving parts, e.g. an eccentric retention key. */
+  attachments?: Record<string, string>;
   motionParameter: string;
   poseParameters: Record<string, number | string | boolean>;
   angles: number[];
   contract: SliderCrankGeometryContract;
+  /**
+   * Optional: the correct removal sequence must pass and the frozen wrong
+   * order must be blocked. The pair is what tests a retention feature; one
+   * plan alone only proves that one route happens to be clear.
+   */
+  disassembly?: { plan: DisassemblySequence; wrongOrder: DisassemblySequence };
   requirements: BenchRequirement[];
   notes?: string[];
 }
@@ -57,6 +66,13 @@ export interface SliderCaseMeasurements {
   crankResidualMm: number | null;
   rodLengthSpreadMm: number | null;
   axisDriftMm: number | null;
+  disassembly: {
+    correctStatus: string;
+    wrongOrderStatus: string;
+    correctRemaining: string[];
+    wrongOrderRemaining: string[];
+    wrongOrderFirstBlockedAt: unknown;
+  } | null;
 }
 
 export interface SliderCaseReport {
@@ -123,6 +139,20 @@ export function validateSliderTask(value: unknown): SliderBenchTask {
   })) as unknown as SliderSelectors;
   if (new Set(Object.values(selectors)).size !== 4) fail("task.selectors must be four distinct selectors");
 
+  const attachments: Record<string, string> = {};
+  if (raw.attachments !== undefined) {
+    if (!raw.attachments || typeof raw.attachments !== "object" || Array.isArray(raw.attachments)) fail("task.attachments must be an object");
+    for (const [id, selector] of Object.entries(raw.attachments as Record<string, unknown>)) {
+      if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(id)) fail(`task.attachments key "${id}" is invalid`);
+      if ((roles as readonly string[]).includes(id)) fail(`task.attachments key "${id}" collides with a mechanism role`);
+      if (typeof selector !== "string" || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(selector)) fail(`task.attachments.${id} is invalid`);
+      attachments[id] = selector;
+    }
+    if (Object.keys(attachments).length > 8) fail("task.attachments supports at most 8 parts");
+    const allSelectors = [...Object.values(selectors), ...Object.values(attachments)];
+    if (new Set(allSelectors).size !== allSelectors.length) fail("task.attachments selectors must be distinct from the four mechanism selectors");
+  }
+
   if (typeof raw.motionParameter !== "string" || !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(raw.motionParameter)) fail("task.motionParameter must be a SCAD identifier");
   if (["agentscad_part", "agentscad_pose"].includes(raw.motionParameter)) fail("task.motionParameter must not be a reserved control");
 
@@ -170,13 +200,60 @@ export function validateSliderTask(value: unknown): SliderBenchTask {
     return { id: requirement.id, layer: requirement.layer as BenchRequirement["layer"], required: requirement.required, applicable: requirement.applicable, expected: { kind: "equals", value: expected.value as string | boolean | number } };
   });
   if (new Set(requirements.map((requirement) => requirement.id)).size !== requirements.length) fail("task.requirements ids must be unique");
-  const observable = new Set(["distinct-exported-parts", "measured-joint-frames", "sampled-motion", "source-motion"]);
+  const instanceIds = new Set<string>([...roles, ...Object.keys(attachments)]);
+  const readPlan = (value: unknown, field: string): DisassemblySequence => {
+    if (!value || typeof value !== "object") fail(`${field} must be an object`);
+    const rawPlan = value as Record<string, unknown>;
+    if (typeof rawPlan.groundedInstanceId !== "string" || !instanceIds.has(rawPlan.groundedInstanceId)) {
+      fail(`${field}.groundedInstanceId must name one of the declared parts`);
+    }
+    if (!Array.isArray(rawPlan.steps) || rawPlan.steps.length < 1 || rawPlan.steps.length > 16) fail(`${field}.steps must have 1 to 16 entries`);
+    const steps = rawPlan.steps.map((entry, index) => {
+      if (!entry || typeof entry !== "object") fail(`${field}.steps[${index}] must be an object`);
+      const step = entry as Record<string, unknown>;
+      if (typeof step.instanceId !== "string" || !instanceIds.has(step.instanceId) || step.instanceId === rawPlan.groundedInstanceId) {
+        fail(`${field}.steps[${index}].instanceId must name a non-grounded declared part`);
+      }
+      if (!Array.isArray(step.translationMm) || step.translationMm.length !== 3 || !step.translationMm.every((item) => typeof item === "number" && Number.isFinite(item))) {
+        fail(`${field}.steps[${index}].translationMm must be three finite numbers`);
+      }
+      if (Math.hypot(...(step.translationMm as number[])) <= 0) fail(`${field}.steps[${index}].translationMm must be nonzero`);
+      if (typeof step.samples !== "number" || !Number.isInteger(step.samples) || step.samples < 2 || step.samples > 4096) {
+        fail(`${field}.steps[${index}].samples must be an integer from 2 to 4096`);
+      }
+      return { instanceId: step.instanceId, translationMm: step.translationMm as [number, number, number], samples: step.samples };
+    });
+    const expected = [...instanceIds].filter((id) => id !== rawPlan.groundedInstanceId).sort();
+    const removed = steps.map((step) => step.instanceId);
+    if (removed.length !== expected.length || new Set(removed).size !== removed.length || [...removed].sort().join("|") !== expected.join("|")) {
+      fail(`${field} must remove every non-grounded part exactly once`);
+    }
+    if (steps.reduce((sum, step) => sum + step.samples, 0) * instanceIds.size > 100_000) fail(`${field} exceeds the collision sampling budget`);
+    return { groundedInstanceId: rawPlan.groundedInstanceId, steps };
+  };
+  let disassembly: { plan: DisassemblySequence; wrongOrder: DisassemblySequence } | undefined;
+  if (raw.disassembly !== undefined) {
+    if (!raw.disassembly || typeof raw.disassembly !== "object") fail("task.disassembly must be an object");
+    const rawDisassembly = raw.disassembly as Record<string, unknown>;
+    const plan = readPlan(rawDisassembly.plan, "task.disassembly.plan");
+    const wrongOrder = readPlan(rawDisassembly.wrongOrder, "task.disassembly.wrongOrder");
+    if (plan.groundedInstanceId !== wrongOrder.groundedInstanceId) fail("task.disassembly plans must share the grounded part");
+    if (plan.steps.map((step) => step.instanceId).join("|") === wrongOrder.steps.map((step) => step.instanceId).join("|")) {
+      fail("task.disassembly.wrongOrder must differ from the correct order");
+    }
+    disassembly = { plan, wrongOrder };
+  }
+  const wantsDisassembly = requirements.some((requirement) => requirement.id === "disassembly-path");
+  if (wantsDisassembly !== Boolean(disassembly)) fail("a disassembly-path requirement and task.disassembly must be declared together");
+
+  const observable = new Set(["distinct-exported-parts", "measured-joint-frames", "sampled-motion", "source-motion", "disassembly-path"]);
   for (const requirement of requirements) {
     if (!observable.has(requirement.id)) fail(`task.requirements id "${requirement.id}" has no observer in this slider benchmark`);
   }
+  const expectedParts = 4 + Object.keys(attachments).length;
   const distinct = requirements.find((requirement) => requirement.id === "distinct-exported-parts");
-  if (!distinct || distinct.expected.kind !== "equals" || distinct.expected.value !== 4) {
-    fail("task.requirements must require distinct-exported-parts = 4");
+  if (!distinct || distinct.expected.kind !== "equals" || distinct.expected.value !== expectedParts) {
+    fail(`task.requirements must require distinct-exported-parts = ${expectedParts}`);
   }
 
   return {
@@ -184,10 +261,12 @@ export function validateSliderTask(value: unknown): SliderBenchTask {
     id: raw.id,
     prompt: raw.prompt,
     selectors,
+    ...(Object.keys(attachments).length ? { attachments } : {}),
     motionParameter: raw.motionParameter,
     poseParameters,
     angles,
     contract,
+    ...(disassembly ? { disassembly } : {}),
     requirements,
     ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}),
   };
@@ -282,11 +361,13 @@ export async function scoreSliderSubmission(task: SliderBenchTask, submission: S
   const unknowns = [
     "A PASS covers exactly the listed input angles and the measured sections at those angles; it is not a proof of continuous motion, a hidden obstruction between samples, load capacity, friction, wear or physical function.",
     "The crank circle, rod length and pin-axis drift are fitted from actual re-rendered meshes; contour identity still depends on the declared selectors and radius windows.",
-    "The run does not include disassembly, tool access, manufacturing tolerance or a hidden task set.",
+    "The run does not include tool access, manufacturing tolerance or a hidden task set.",
+    "Disassembly evidence, when declared, is a sampled straight-line order at the assembled pose; it does not prove continuous removal, force, accidental release or tool reach.",
   ];
   const emptyMeasurements: SliderCaseMeasurements = {
     parts: [], angles: task.angles, landmarkStatus: "NOT_RUN", collisionStatus: "NOT_RUN", motionStatus: "NOT_RUN",
     collisionSamples: [], crankRadiusMm: null, crankResidualMm: null, rodLengthSpreadMm: null, axisDriftMm: null,
+    disassembly: null,
   };
   const baseReport = (status: EvidenceStatus, results: Result[], measurements: SliderCaseMeasurements): SliderCaseReport => {
     const scored = scoreEvidence(results.map((result) => ({ id: result.id, status: result.status })));
@@ -316,6 +397,7 @@ export async function scoreSliderSubmission(task: SliderBenchTask, submission: S
       angles: task.angles,
       motionParameter: task.motionParameter,
       selectors: task.selectors,
+      ...(task.attachments ? { attachments: task.attachments } : {}),
       poseParameters: task.poseParameters,
       onArtifacts: async (angle, parts) => {
         if (angle === 0) zeroParts = parts;
@@ -371,6 +453,52 @@ export async function scoreSliderSubmission(task: SliderBenchTask, submission: S
       }
     : { id: "distinct-exported-parts", status: "NOT_RUN", reason: "No rendered parts at the assembled pose.", toolVersion: "slider-bench/1" };
 
+  let disassemblyObservation: Observation | null = null;
+  if (task.disassembly) {
+    if (!parts) {
+      disassemblyObservation = { id: "disassembly-path", status: "NOT_RUN", reason: "No zero-pose meshes were available for the declared disassembly plans.", toolVersion: "slider-bench/1" };
+    } else {
+      try {
+        const meshes = Object.fromEntries(parts.map((part) => [part.partId, part.stl]));
+        const correct = checkDisassemblySequence({ meshes, plan: task.disassembly.plan });
+        const wrong = checkDisassemblySequence({ meshes, plan: task.disassembly.wrongOrder });
+        const wrongFirst = wrong.results.find((result) => result.status !== "PASS");
+        measurements.disassembly = {
+          correctStatus: correct.status,
+          wrongOrderStatus: wrong.status,
+          correctRemaining: correct.remainingInstanceIds,
+          wrongOrderRemaining: wrong.remainingInstanceIds,
+          wrongOrderFirstBlockedAt: wrongFirst?.blockedAt ?? null,
+        };
+        const passed = correct.status === "PASS" && wrong.status === "FAIL";
+        // PASS/FAIL on both plans are measured outcomes. NOT_RUN is reserved
+        // for a plan that could not be evaluated at all.
+        const status: Observation["status"] = correct.status === "ERROR" || wrong.status === "ERROR"
+          ? "ERROR"
+          : correct.status === "NOT_RUN" || wrong.status === "NOT_RUN" ? "NOT_RUN" : "MEASURED";
+        disassemblyObservation = {
+          id: "disassembly-path",
+          status,
+          value: passed,
+          artifactSha256: partArtifact,
+          method: "Frozen correct removal order and a frozen wrong order on the zero-pose meshes; the declared retention key must block the wrong order.",
+          toolVersion: `slider-bench/1 openscad:${openscadVersion()}`,
+          coverage: `Correct order: ${correct.results.length} step(s); wrong order: ${wrong.results.length} step(s); parts: ${parts.map((part) => part.partId).join(", ")}.`,
+          ...(passed ? {} : {
+            reason: correct.status !== "PASS"
+              ? `Correct removal did not pass: ${correct.results.find((result) => result.status !== "PASS")?.reason ?? correct.status}`
+              : wrong.status !== "FAIL"
+                ? `Wrong removal order was not blocked (${wrong.status}): ${wrongFirst?.reason ?? "no failure"}.`
+                : "Disassembly evidence is incomplete.",
+          }),
+        };
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        disassemblyObservation = { id: "disassembly-path", status: "ERROR", reason: `Disassembly check failed: ${reason}` };
+      }
+    }
+  }
+
   const firstNonPass = (items: Array<{ status: string; reason?: string }>) => items.find((item) => item.status !== "PASS");
   const toolVersion = `slider-bench/1 openscad:${openscadVersion()}`;
   const landmarkObservation: Observation = {
@@ -415,6 +543,7 @@ export async function scoreSliderSubmission(task: SliderBenchTask, submission: S
     "measured-joint-frames": landmarkObservation,
     "sampled-motion": collisionObservation,
     "source-motion": motionObservation,
+    ...(disassemblyObservation ? { "disassembly-path": disassemblyObservation } : {}),
   };
   const results: Result[] = task.requirements.map((requirement) => {
     const evaluated = evaluateRequirement(

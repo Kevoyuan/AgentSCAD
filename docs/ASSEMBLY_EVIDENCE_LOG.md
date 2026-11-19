@@ -2298,11 +2298,11 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1160 PASS / 3 SKIP / 0 FAIL**（172 文件）；
+- 全量单元测试：**1161 PASS / 3 SKIP / 0 FAIL**（172 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
-- 公开 bench 自检：`bun run bench:assembly:check` → **SELF-CHECK OK: 6 reference(s) pass, 8 adversarial submission(s) rejected**；`bun run bench:gear:check` → **1 / 5**；`bun run bench:slider:check` → **1 / 7**；只覆盖公开任务集，不覆盖隐藏集/模型/物理；
+- 公开 bench 自检：`bun run bench:assembly:check` → **SELF-CHECK OK: 6 reference(s) pass, 8 adversarial submission(s) rejected**；`bun run bench:gear:check` → **1 / 5**；`bun run bench:slider:check` → **2 reference / 11 adversarial rejected**；只覆盖公开任务集，不覆盖隐藏集/模型/物理；
 - 完整原生套件：**67 PASS / 1 SKIP / 0 FAIL**（68 tests、14 文件、1301.73 秒；skip 为依赖缺失的 manufacturing geometry）；未执行：WASM、浏览器 E2E、付费模型、隐藏集、实物制造/加载。
 
 ### 公开 bench：齿轮对家族（L2.5）
@@ -2327,9 +2327,24 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 命令与结果（本机原生 OpenSCAD 2021.01，无模型调用）：
 
-- `bun run bench:slider:check` → **`SELF-CHECK OK: 1 reference(s) pass, 7 adversarial submission(s) rejected`**；
+- `bun run bench:slider --task slider-crank-8-28 --self-check` → **`SELF-CHECK OK: 1 reference(s) pass, 7 adversarial submission(s) rejected`**；
 - `reference`：四件分别导出；曲柄半径 **8.000000 mm**、圆拟合残差 **0**、杆长跨姿态散布 **5.96e−8 mm**、销轴漂移 **0**；五个角度全件两两三角对约 7.8 万–8.8 万，全部 `SEPARATED`；PASS 4/4 层；
 - 反例：曲柄半径 9 → FAIL（实测 9.000）；杆长 30 → FAIL；连杆角度不随曲柄 → landmark FAIL；曲柄整体平移 1 mm → landmark/碰撞/source-motion 全 FAIL；静态运动参数 → source-motion NOT_RUN；机架缺轴承孔 → 碰撞 FAIL；曲柄绕 X 轴 → ERROR（截面找不到应有销轮廓，不伪造 PASS）。
 
 边界：只覆盖列出的五个输入角；列出的姿态之间、连续运动、间隙/过盈、摩擦、载荷和隐藏障碍都没有证据；轮廓身份依赖选择器和半径窗口；无拆卸/工具可达、制造公差、逐件 ZIP、产品端到端、隐藏集或实物。6 件保持/导向版本仍属 A08，不由该基准家族替代。
+
+### 公开 bench：五件带偏心保持键的滑块（L3.5）
+
+`bench/slider` 增加了 `slider-crank-keyed-8-28`：四件机构加一个 `eccentric_key`，并冻结两条拆卸计划。正确顺序先取键，再取滑块、连杆、曲柄；错误顺序先取滑块/连杆，必须被键挡住。评分器在零位姿网格上同时运行两条计划，只有**正确计划 PASS 且错误计划 FAIL** 才给 `disassembly-path` PASS；两者都能跑但错误顺序未被挡住时，这是**已测量 FAIL**，不是 NOT_RUN。
+
+命令与结果（本机原生 OpenSCAD 2021.01，无模型调用）：
+
+- `bun run bench:slider --task slider-crank-keyed-8-28 --self-check` → **`SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`**；
+- `reference`：五件分别导出，5/5 层 PASS；曲柄半径 **8.000000 mm**、杆长散布约 **6e−8 mm**、销轴漂移 0；正确顺序 PASS，错误顺序 FAIL；
+- `adversarial-key-out-of-way`：把键移到不挡错误顺序的位置；**运动/轮廓/碰撞仍 PASS，仅 `disassembly-path` FAIL（4/5）**，证明错误顺序检查本身不是空壳；
+- `adversarial-crank-radius`：3/5，实测 9.000 mm；
+- `adversarial-missing-bearing`：3/5，碰撞与拆卸失败；
+- `adversarial-static`：3/5，source-motion NOT_RUN（共线销位置）。
+
+边界：两条拆卸计划都是零位姿的直线平移采样；不证明连续拆卸、力、意外释放、工具可达、保持力或装配顺序搜索。五件带键版本不是 6 件导向/保持的 A08 产品。
 
