@@ -47,7 +47,9 @@ A non-destructive merge was run in a temporary worktree from `main`, then aborte
 
 The conflict list is saved at `/tmp/merge-conflicts.txt` for this session; it is not a repository artifact.
 
-A second attempt resolved conflicts by scope: branch-priority for bench/evidence, main-priority for product source. That integrated tree **failed typechecking** with missing product-manifest fields (`declaredAssembly`, `partConnectivity`, `jointFrames`, `sourceMotion`) and stale API shapes. The branches have divergent product-assembly implementations, so a side-priority merge is not valid. The temporary integration branch/worktree was aborted and removed; neither `main` nor the phase branch changed.
+A second attempt resolved conflicts by scope: branch-priority for bench/evidence, main-priority for product source. That integrated tree **failed typechecking** with missing product-manifest fields (`declaredAssembly`, `partConnectivity`, `jointFrames`, `sourceMotion`) and stale API shapes. The temporary integration branch/worktree was aborted and removed; neither `main` nor the phase branch changed.
+
+A third attempt used **branch-priority for everything** (phase product implementation retained, `main` non-conflicting files added). It also failed typechecking: `main`’s newer tests require `radialEnclosure`, `testedTrianglePairs`, collision `replayFrame`, `roleCheck` and related APIs that the phase implementation does not expose. Both priority directions therefore require real product-feature ports, not conflict-side selection.
 
 ## Merge strategy
 
@@ -89,7 +91,7 @@ Alternative: rebase the 170 branch commits onto `main`; that preserves a linear 
 
 ## Open decision
 
-A quick merge is **not safe**. The product-assembly implementations need a deliberate reconciliation, not a conflict-side choice.
+A quick merge is **not safe**. The product-assembly implementations need a deliberate reconciliation, not a conflict-side choice. Both branch-priority and main-priority integrations were attempted and failed typechecking in opposite directions.
 
 Options:
 
