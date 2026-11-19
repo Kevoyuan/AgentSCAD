@@ -66,6 +66,7 @@ bench/vtwin/report.json
 bench/matrix.json
 bench/declaration/report.json
 bench/v8/report.json
+bench/planetary/report.json
 bench/ladder-report.json
 
 # agent/IDE context directories

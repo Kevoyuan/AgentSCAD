@@ -24,6 +24,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add the L5b V8 phase/packaging carrier: eight cylinders in four 90-degree phase groups with one independent crankpin per cylinder, 18 instances and 765 pairwise collision checks; it is explicitly not a shared-crankshaft V8
 - Add the V8 phase carrier to external hidden sets (family `v8`) and the unified eight-family gate
 - Upgrade the V8 carrier to four shared crankpins with two rods per pin, while retaining the explicit no-main-shaft/not-a-complete-crankshaft boundary
+- Add the epicyclic/planetary gear-train family under `bench/planetary`: fixed ring, sun input, carrier output, positive/negative poses and measured carrier/planet ratios
 - Make the external hidden-split harness family-aware (`assembly`/`gear`/`slider`/`l4`), with family-specific freezing, hashing, scoring and external L4 spec loading; dev copies verify all four dispatches without claiming independence
 
 ## [0.6.0.0] - 2026-10-12

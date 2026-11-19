@@ -60,6 +60,7 @@ gate 保留不动，它守的是正确性。coverage 是新增的，它守的是
 | L1 | 两件转动副（铰链，松/紧） | 1 关节、2 零件 | M3 | `bench/assembly` 已有 |
 | L2 | 两件移动副（活塞-缸筒） | 1 关节、2 零件 | M3 | `bench/assembly` 已有 |
 | L2.5 | 外啮合齿轮对（12/24 齿） | 1 传动副、2 零件 | M5 / A10 | `bench/gear` 已有 |
+| L2.75 | 行星齿轮系（12/12/36） | 固定内齿圈、太阳输入、行星架输出 | A10 | `bench/planetary` 已有；只测一个行星轮 |
 | L3 | 单缸曲柄滑块（4 件基础夹具） | 4 关节闭环、4 零件 | M4 | `bench/slider` 已有；6 件 guided 已有 |
 | L3.5 | 带偏心保持键的滑块（5 件） | 4 关节 + 保持键、5 零件 | M4 | `bench/slider` keyed 已有；guided 6 件已有 |
 | L4 | 带保持件的多关节（7 件 / 9 实例） | 4 关节 + 双键/双锁 | M4 | `bench/l4` 已有（exact-spec bound）；自主声明生成未接入 |
@@ -71,7 +72,7 @@ gate 保留不动，它守的是正确性。coverage 是新增的，它守的是
 
 **阶梯的意义**：L5 过不去不代表 L3 不存在。有了分级，即使整体停在 L3，分数也能告诉你卡在哪一层。
 
-齿轮对是阶梯上的独立家族：它不测孔轴配合或插拔，而测实际重渲染的齿数、节圆估计、中心距与转向比值；命令和边界见 [`gear/README.md`](gear/README.md)。单缸曲柄滑块也独立成 [`slider/README.md`](slider/README.md)：五个输入角、真实重渲染的四件、圆周/杆长/轴漂移/全件碰撞。L4 的 7 件/9 实例声明夹具见 [`l4/README.md`](l4/README.md)：冻结声明、正确/错误拆卸顺序、9 实例运动与全件碰撞。L4.5 的直列双缸见 [`twin/README.md`](twin/README.md)：六个实例、180° 相位、五个输入角和 75 次离散碰撞；它是直列双缸，不是 V8 V 角。L5a 的 90° V-twin 见 [`vtwin/README.md`](vtwin/README.md)：共享曲柄销、±45° 双缸、九个输入角和 135 次离散碰撞；它是 V 角，但仍不是完整 V8。L4.1 的合同约束声明见 [`declaration/README.md`](declaration/README.md)：reference 用 renamed IDs 仍通过，缺件/错序在渲染前被拒绝。L5b 的 V8 共享销/封装载体见 [`v8/README.md`](v8/README.md)：八缸、四相位组、四个共享销、每销两连杆；无主轴，仍不是完整曲轴 V8。
+齿轮对是阶梯上的独立家族：它不测孔轴配合或插拔，而测实际重渲染的齿数、节圆估计、中心距与转向比值；命令和边界见 [`gear/README.md`](gear/README.md)。单缸曲柄滑块也独立成 [`slider/README.md`](slider/README.md)：五个输入角、真实重渲染的四件、圆周/杆长/轴漂移/全件碰撞。L4 的 7 件/9 实例声明夹具见 [`l4/README.md`](l4/README.md)：冻结声明、正确/错误拆卸顺序、9 实例运动与全件碰撞。L4.5 的直列双缸见 [`twin/README.md`](twin/README.md)：六个实例、180° 相位、五个输入角和 75 次离散碰撞；它是直列双缸，不是 V8 V 角。L5a 的 90° V-twin 见 [`vtwin/README.md`](vtwin/README.md)：共享曲柄销、±45° 双缸、九个输入角和 135 次离散碰撞；它是 V 角，但仍不是完整 V8。L4.1 的合同约束声明见 [`declaration/README.md`](declaration/README.md)：reference 用 renamed IDs 仍通过，缺件/错序在渲染前被拒绝。行星齿轮系见 [`planetary/README.md`](planetary/README.md)：12/12/36、正负输入、carrier/planet 斜率与 ring 闭合；只测一个行星轮。L5b 的 V8 共享销/封装载体见 [`v8/README.md`](v8/README.md)：八缸、四相位组、四个共享销、每销两连杆；无主轴，仍不是完整曲轴 V8。
 
 ### 2.3 层判据
 
@@ -145,7 +146,7 @@ bun test bench/               # 层模型与任务格式的单测
 
 2026-11-18 在 `continue/local-assembly-2026-11-18` 复跑：`SELF-CHECK OK: 6 reference(s) pass, 8 adversarial submission(s) rejected.` 这只证明公开自检未退化，不证明隐藏集、模型能力或物理功能。
 
-家族命令：`bun run bench:gear:check`、`bun run bench:slider:check`、`bun run bench:l4:check`、`bun run bench:declaration:check`、`bun run bench:twin:check`、`bun run bench:vtwin:check`、`bun run bench:v8:check`；各自只证明对应家族的自检边界。
+家族命令：`bun run bench:gear:check`、`bun run bench:slider:check`、`bun run bench:l4:check`、`bun run bench:declaration:check`、`bun run bench:twin:check`、`bun run bench:vtwin:check`、`bun run bench:v8:check`、`bun run bench:planetary:check`；各自只证明对应家族的自检边界。
 
 ### 4.3 全家族门禁
 
@@ -267,6 +268,7 @@ reconstruction    8     2     5     13    2     28.6%   缺检查      导出重
 - [x] **L4.5 直列双缸（不是 V8）**：`bench/twin` 六个实例、单曲轴 180° 相位、五个输入角、75 次离散碰撞；`bun run bench:twin:check` → `SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected`。reference 滑块位置误差 0.0000 mm；`adversarial-rod-length` 碰撞全分离但位置/相位失败。L5 仍未开始
 - [x] **L5a 90° V-twin（V 角，不是完整 V8）**：`bench/vtwin` 六实例、共享曲柄销、±45° 双缸、九个输入角、135 次离散碰撞；`bun run bench:vtwin:check` → `SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`。reference 位置误差 0.0000 mm；`adversarial-v-angle` 半角 30° 时误差 9.3587 mm。frame 是两导向管+基板，不是完整曲轴箱；L5 完整 V8 仍未开始
 - [x] **L4.1 合同约束声明**：`bench/declaration` 的 reference 使用 renamed part/instance IDs 仍 PASS 5/5；缺失 guide 或错误拆卸顺序在渲染前被合同拒绝；几何曲柄半径篡改 FAIL 2/5。`bun run bench:declaration:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。它接受不同 ID/顺序，但仍不测自主 authorship
+- [x] **行星齿轮系（12/12/36）**：`bench/planetary` 固定内齿圈、太阳输入、行星架输出；`bun run bench:planetary:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。reference 2/2、carrier/planet residual 0.000°；只测一个行星轮，不是多行星均载或齿面接触；尚未并入 `bench:all`/hidden
 - [x] **全家族门禁**：`bun run bench:all` 顺序运行八家族 self-check，重写各自 report 后聚合矩阵到 `bench/matrix.json`；任一失败退出 1。2026-11-19 八家族全部 OK，`overall: PASS`（68 case：15 refs / 47 adversarial / 6 unscored；约 42.3 分钟，无模型调用）。它证明八家族门禁一起可运行，不证明隐藏集、模型能力或物理功能
 - [x] **L5b V8 相位/封装载体**：`bench/v8` 八缸、四相位组、18 实例、五个输入角、765 次离散碰撞；`bun run bench:v8:check` → `SELF-CHECK OK: 1 reference(s) pass, 6 adversarial submission(s) rejected`。reference 位置误差 0.0000 mm；四个共享销、每销两连杆，无主轴，不是完整曲轴 V8；`adversarial-main-shaft` 与 `adversarial-connected-crank` 都只让碰撞层失败。已并入八家族 `bench:all` 与 hidden (family `v8`)；gate 的 v8 行是加入该反例前的快照
 - [x] **补 `retention` 与 `source-motion` 的检查**：`bench/assembly` 里已落地（`hinge-captured-45` 的轴向拉拔、5 个任务的位姿重渲染）

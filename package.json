@@ -58,7 +58,9 @@
     "bench:declaration": "bun bench/declaration/run.ts",
     "bench:declaration:check": "bun bench/declaration/run.ts --self-check",
     "bench:v8": "bun bench/v8/run.ts",
-    "bench:v8:check": "bun bench/v8/run.ts --self-check"
+    "bench:v8:check": "bun bench/v8/run.ts --self-check",
+    "bench:planetary": "bun bench/planetary/run.ts",
+    "bench:planetary:check": "bun bench/planetary/run.ts --self-check"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

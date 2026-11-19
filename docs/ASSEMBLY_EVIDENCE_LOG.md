@@ -2298,7 +2298,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1185 PASS / 3 SKIP / 0 FAIL**（180 文件）；
+- 全量单元测试：**1186 PASS / 3 SKIP / 0 FAIL**（181 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
@@ -2531,4 +2531,25 @@ v8           OK         5     1    4   0        1    4    0       11/20
 - `adversarial-connected-crank`：3/4，位置/轮廓/源码 PASS，仅 `sampled-motion` FAIL；webs + 分段主轴候选仍与 8 根连杆全部相交，未晋级。
 
 全量单元测试 **1185 PASS / 3 SKIP / 0 FAIL**（180 文件）；typecheck、lint 通过。边界：四个共享销、每销两连杆，但曲柄件是四个不连通盘/销、没有主轴，不是完整曲轴 V8；`adversarial-main-shaft` 证明连续主轴会撞连杆，完整门禁矩阵是加入 `main-shaft`/`connected-crank` 前的快照；frame 只是底板，没有缸体/轴承/曲轴箱；只测五个离散角、网格包围盒位置和 765 次碰撞；不测负载、润滑、摩擦、磨损、点火/配气或实物功能；已加入 `bench:all`/hidden，V8 family self-check 现为 1 reference / 6 adversarial；`bench:all` 矩阵是加入 `main-shaft`/`connected-crank` 前的快照。
+
+## 2026-11-19 · 公开 bench：L2.75 行星齿轮系
+
+`bench/planetary` 新增行星齿轮系家族：固定内齿圈、太阳输入、行星架输出，测一个行星轮。模数 2 mm、太阳 12 齿、行星 12 齿、内齿圈 36 齿、行星架半径 24 mm；输入位姿 `[0,120,240,-120,-240]`，正负都覆盖。
+
+测量复用 `measureGearProfile`、`measureGearMarkerAngle` 和 `checkPlanetaryCoupling`：
+
+- 内齿圈 internal profile（中心/齿数/节圆）；
+- 每个位姿的太阳/行星/行星架 marker 相位；
+- ring = sun + 2·planet、节圆闭合、太阳/行星架/行星绝对斜率、正负反转和中心距；
+- 四个 part 分别导出。
+
+结果（原生 OpenSCAD，无模型调用）：
+
+- `bun run bench:planetary:check` → **`SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`**；
+- reference **PASS 2/2**，4 parts，carrier/planet residual **0.000°**，实测太阳斜率 1、行星架 0.25、行星绝对 −0.5；
+- `adversarial-carrier-ratio`：FAIL 1/2，行星架 1:1，carrier residual 360°、planet 720°；
+- `adversarial-static`：FAIL 1/2，residual 120°/240°；
+- `adversarial-sun-teeth`：ERROR 0/2，太阳 13 齿使 ring 闭合不成立，profile gate 拒绝。
+
+全量单元测试 **1186 PASS / 3 SKIP / 0 FAIL**（181 文件）；typecheck、lint 通过。边界：只测一个行星轮；不测多行星均载、齿面接触、侧隙、效率、负载、磨损或实物制造；直边齿，节圆是 tip/root 估计；5 个位姿；尚未加入 `bench:all`/hidden。
 
