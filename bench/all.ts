@@ -14,6 +14,7 @@ export const FAMILIES = [
   { family: "l4", script: "bench/l4/run.ts", report: "bench/l4/report.json" },
   { family: "twin", script: "bench/twin/run.ts", report: "bench/twin/report.json" },
   { family: "vtwin", script: "bench/vtwin/run.ts", report: "bench/vtwin/report.json" },
+  { family: "declaration", script: "bench/declaration/run.ts", report: "bench/declaration/report.json" },
 ] as const;
 
 export interface FamilyRow {
@@ -58,10 +59,10 @@ export function summarizeReport(family: string, reportPath: string, exitCode: nu
 
 export function formatMatrix(rows: FamilyRow[]): string {
   const pad = (value: string, width: number) => value.padEnd(width).slice(0, width);
-  const header = [pad("family", 10), pad("self-check", 10), pad("cases", 6), pad("refs", 5), pad("adv", 5), pad("unscored", 9), pad("pass", 5), pad("fail", 5), pad("not-run", 8), pad("layers", 9)].join(" ");
+  const header = [pad("family", 12), pad("self-check", 10), pad("cases", 6), pad("refs", 5), pad("adv", 5), pad("unscored", 9), pad("pass", 5), pad("fail", 5), pad("not-run", 8), pad("layers", 9)].join(" ");
   const lines = [header, "-".repeat(header.length)];
   for (const row of rows) {
-    lines.push([pad(row.family, 10), pad(row.selfCheck ? "OK" : "FAIL", 10), pad(String(row.cases), 6), pad(String(row.references), 5), pad(String(row.adversarial), 5), pad(String(row.unscored), 9), pad(String(row.passed), 5), pad(String(row.failed), 5), pad(String(row.notRun), 8), pad(`${row.layers.passed}/${row.layers.observed}`, 9)].join(" "));
+    lines.push([pad(row.family, 12), pad(row.selfCheck ? "OK" : "FAIL", 10), pad(String(row.cases), 6), pad(String(row.references), 5), pad(String(row.adversarial), 5), pad(String(row.unscored), 9), pad(String(row.passed), 5), pad(String(row.failed), 5), pad(String(row.notRun), 8), pad(`${row.layers.passed}/${row.layers.observed}`, 9)].join(" "));
   }
   return lines.join("\n");
 }

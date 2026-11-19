@@ -2298,7 +2298,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1179 PASS / 3 SKIP / 0 FAIL**（178 文件）；
+- 全量单元测试：**1181 PASS / 3 SKIP / 0 FAIL**（179 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
@@ -2470,23 +2470,38 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 单元测试 **1177 PASS / 3 SKIP / 0 FAIL**（177 文件）；typecheck、lint 通过。边界：90° V-twin 不是完整 V8；frame 是两根倾斜导向管 + 底部基板，不是完整曲轴箱且不评分连通性；只测九个离散角、网格包围盒位置和 135 次碰撞；不测负载、润滑、摩擦、磨损、连续运动或实物功能。
 
-## 2026-11-19 · 全家族 bench 门禁
+## 2026-11-19 · 全家族 bench 门禁（七家族）
 
-新增 `bench/all.ts` / `bun run bench:all`：顺序运行 assembly、gear、slider、l4、twin、vtwin 六家族 self-check；每个家族先真实重写自己的 report，再读取 `cases`/`reports` 汇总到终端矩阵和 `bench/matrix.json`（gitignored）。任一家族退出非 0 或输出没有 `SELF-CHECK OK`，整体退出 1。
+新增 `bench/all.ts` / `bun run bench:all`：顺序运行 assembly、gear、slider、l4、twin、vtwin、declaration 七家族 self-check；每个家族先真实重写自己的 report，再读取 `cases`/`reports` 汇总到终端矩阵和 `bench/matrix.json`（gitignored）。任一家族退出非 0 或输出没有 `SELF-CHECK OK`，整体退出 1。
 
-本机原生 OpenSCAD 完整运行（约 26.6 分钟，无模型调用）：
+本机原生 OpenSCAD 完整运行（约 **28.4 分钟**，无模型调用）：
 
 ```
-family    self-check cases refs adv unscored pass fail not-run layers
-assembly  OK         20    6    8   6        12   8    0       104/120
-gear      OK         6     1    5   0        1    4    1       7/12
-slider    OK         17    3    14  0        3    14   0       51/77
-l4        OK         5     1    4   0        1    4    0       14/25
-twin      OK         6     1    5   0        1    5    0       11/24
-vtwin     OK         5     1    4   0        1    4    0       11/20
+family       self-check cases refs adv unscored pass fail not-run layers
+assembly     OK         20    6    8   6        12   8    0       104/120
+gear         OK         6     1    5   0        1    4    1       7/12
+slider       OK         17    3    14  0        3    14   0       51/77
+l4           OK         5     1    4   0        1    4    0       14/25
+twin         OK         6     1    5   0        1    5    0       11/24
+vtwin        OK         5     1    4   0        1    4    0       11/20
+declaration  OK         4     1    3   0        1    3    0       7/20
 ```
 
-`overall: PASS`，共 **59 case**：13 reference、40 adversarial、6 unscored（assembly 的 recorded model replay）；19 PASS / 39 FAIL-or-ERROR / 1 NOT_RUN。assembly 的 unscored 6 不是新模型采样；gear 的 NOT_RUN 是 `adversarial-no-marker`，self-check 仍拒绝它。`layers` 是各 case 观测层数合计，不是通过率。
+`overall: PASS`，共 **63 case**：14 reference、43 adversarial、6 unscored（assembly 的 recorded model replay）；20 PASS / 42 FAIL-or-ERROR / 1 NOT_RUN。assembly 的 unscored 6 不是新模型采样；gear 的 NOT_RUN 是 `adversarial-no-marker`，self-check 仍拒绝它。`layers` 是各 case 观测层数合计，不是通过率。
 
-全量单元测试 **1179 PASS / 3 SKIP / 0 FAIL**（178 文件）；typecheck、lint 通过。边界：这是公开六家族的自检门禁；不包含独立隐藏集、新模型采样或物理功能；26.6 分钟是原生渲染时间，不是产品运行时。
+全量单元测试 **1181 PASS / 3 SKIP / 0 FAIL**（179 文件）；typecheck、lint 通过。边界：这是公开七家族的自检门禁；不包含独立隐藏集、新模型采样或物理功能；28.4 分钟是原生渲染时间，不是产品运行时。
+
+## 2026-11-19 · 公开 bench：L4.1 合同约束声明
+
+`bench/declaration` 新增 L4.1：不再要求提交的声明与冻结 spec 逐字相同，而是按角色/选择器合同检查。reference 故意使用 renamed part/instance IDs（`part_frame`/`inst_frame` 等），仍 **PASS 5/5**；合同接受不同 ID/part 顺序。
+
+结果（原生 OpenSCAD，无模型调用）：
+
+- `bun run bench:declaration:check` → **`SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`**；
+- `adversarial-declaration-missing-guide`：合同报告 missing guide part/connection、operations 少一项，**渲染前 ERROR 0/5**；
+- `adversarial-declaration-wrong-order`：合同报告 `eccentric_key, guide_front, ...` 不等于冻结顺序，**渲染前 ERROR 0/5**；
+- `adversarial-crank-radius`：合同通过，几何/运动/拆卸 FAIL 2/5；
+- 正确的六个 part 网格、九个角度运动、15 对碰撞和正确/错误拆卸都独立测量。
+
+单元测试 **1181 PASS / 3 SKIP / 0 FAIL**（179 文件）；typecheck、lint 通过。边界：合同仍冻结角色、选择器、实例数、关节端点、0–360° 范围和操作顺序；这是“接受不同 ID/顺序”的合同约束，不是自主声明 authorship；reference 的 renamed 变体是本地手工构造，不是模型生成；只有离散角和零位姿拆卸，无物理功能。
 

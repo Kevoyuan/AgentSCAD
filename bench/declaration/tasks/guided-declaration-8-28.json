@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "id": "guided-declaration-8-28",
+  "prompt": "\u63d0\u4ea4\u4e00\u4e2a\u516d\u4ef6\u5bfc\u5411/\u4fdd\u6301\u5355\u7f38\u66f2\u67c4\u6ed1\u5757\uff0c\u5e76\u5185\u5d4c\u4e00\u4efd\u5b8c\u6574\u88c5\u914d\u58f0\u660e\u3002\u58f0\u660e\u5fc5\u987b\u5305\u542b frame/crank/rod/slider/eccentric_key/guide_front \u516d\u4e2a\u89d2\u8272\u3001\u516d\u4e2a\u5b9e\u4f8b\u3001\u56db\u4e2a\u5de5\u4f5c\u5173\u8282\u548c\u952e/\u5bfc\u5411\u91ca\u653e\uff1b\u6b63\u786e\u62c6\u5378\u5fc5\u987b\u5148\u53d6\u5bfc\u5411\u4ef6\u518d\u53d6\u952e\uff0c\u9519\u8bef\u987a\u5e8f\u5fc5\u987b\u88ab\u5bfc\u5411\u4ef6\u6321\u4f4f\u3002\u4efb\u52a1\u6309\u58f0\u660e\u5408\u540c\u68c0\u67e5\uff0c\u4e0d\u8981\u6c42 ID \u6216 part \u987a\u5e8f\u9010\u5b57\u76f8\u540c\u3002",
+  "geometry": {
+    "selectors": {
+      "crank": "crank",
+      "rod": "rod",
+      "slider": "slider",
+      "frame": "frame"
+    },
+    "attachments": {
+      "eccentric_key": "eccentric_key",
+      "guide_front": "guide_front"
+    },
+    "motionParameter": "motion_angle",
+    "poseParameters": {
+      "agentscad_pose": true
+    },
+    "angles": [
+      0,
+      45,
+      90,
+      135,
+      180,
+      225,
+      270,
+      315,
+      360
+    ],
+    "contract": {
+      "crankRadiusMm": 8,
+      "rodLengthMm": 28,
+      "toleranceMm": 0.02,
+      "sectionYmm": 2.3,
+      "axisProbeMm": 1,
+      "pinRadiusMm": {
+        "min": 1.98,
+        "max": 2.02
+      },
+      "rodBoreRadiusMm": {
+        "min": 2.18,
+        "max": 2.22
+      }
+    }
+  },
+  "declaration": {
+    "parts": [
+      {
+        "role": "frame",
+        "selector": "frame",
+        "instances": 1
+      },
+      {
+        "role": "crank",
+        "selector": "crank",
+        "instances": 1
+      },
+      {
+        "role": "rod",
+        "selector": "rod",
+        "instances": 1
+      },
+      {
+        "role": "slider",
+        "selector": "slider",
+        "instances": 1
+      },
+      {
+        "role": "eccentric_key",
+        "selector": "eccentric_key",
+        "instances": 1
+      },
+      {
+        "role": "guide_front",
+        "selector": "guide_front",
+        "instances": 1
+      }
+    ],
+    "groundedSelector": "frame",
+    "connections": [
+      {
+        "type": "revolute",
+        "a": "frame",
+        "b": "crank"
+      },
+      {
+        "type": "revolute",
+        "a": "crank",
+        "b": "rod"
+      },
+      {
+        "type": "revolute",
+        "a": "rod",
+        "b": "slider"
+      },
+      {
+        "type": "prismatic",
+        "a": "frame",
+        "b": "slider"
+      },
+      {
+        "type": "other",
+        "a": "crank",
+        "b": "eccentric_key"
+      },
+      {
+        "type": "prismatic",
+        "a": "frame",
+        "b": "guide_front"
+      }
+    ],
+    "motionRange": {
+      "min": 0,
+      "max": 360
+    },
+    "operations": [
+      "guide_front",
+      "eccentric_key",
+      "slider",
+      "rod",
+      "crank"
+    ],
+    "wrongOrder": [
+      "eccentric_key",
+      "slider",
+      "guide_front",
+      "rod",
+      "crank"
+    ]
+  },
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 6
+      }
+    },
+    {
+      "id": "measured-joint-frames",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "sampled-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "source-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "disassembly-path",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "Contract-bound declaration: part IDs, instance IDs and part/connection order may vary; the six role selectors, instance counts, joint endpoints, motion range and removal order are frozen.",
+    "The reference declares renamed part/instance IDs to prove the contract does not require byte-identical declarations.",
+    "Only nine sampled angles and zero-pose removal plans are covered; no physical function, wear or tool access."
+  ]
+}
