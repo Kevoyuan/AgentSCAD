@@ -1,51 +1,51 @@
-# L5b V8 shared-pin/packaging carrier（4 共享销，8 缸）
+# L5b V8 shared-pin/packaging carrier (4 shared pins, 8 cylinders)
 
-这是 V8 方向的相位/封装阶梯：**8 个活塞-连杆、4 个 90° 相位组、两排 ±45°**，每个相位组一个**共享曲柄销、每销两连杆**。曲柄件是四个独立的盘/销，**没有主轴**；frame 只是一块底板，没有缸体、轴承或点火顺序。它不是完整曲轴 V8，但比每缸独立销更接近 V8 的共享销布局。
+This is the V8 phase/packaging rung: **eight piston-and-rod sets in four 90° phase groups on two ±45° banks**, one **shared crankpin per phase group with two rods per pin**. The crank part is four separate discs/pins with **no main shaft**; the frame is only a base plate, with no block, bearings or firing order. It is not a complete crankshaft V8, but it is closer to a V8 shared-pin layout than independent pins per cylinder.
 
-## 任务
+## Task
 
-`tasks/v8-phase-8.json`：
+`tasks/v8-phase-8.json`:
 
-- 曲柄半径 8 mm、连杆 28 mm、半角 45°；
-- 4 个站位 y = -30 / -10 / 10 / 30，相位 0 / 90 / 180 / 270；
-- 两排 bank y = station ± 3；
-- 4 个共享曲柄销、每销两连杆；8 根连杆、8 个滑块、18 个实例（frame、crank、8 rods、8 sliders）；
-- 五个输入角 0/90/180/270/360°；
-- 滑块中心容差 0.1 mm。
+- crank radius 8 mm, rod length 28 mm, half-angle 45°;
+- four stations y = −30 / −10 / 10 / 30 with phases 0 / 90 / 180 / 270;
+- two banks at y = station ± 3;
+- four shared crankpins, two rods per pin; eight rods, eight sliders and 18 instances (frame, crank, 8 rods, 8 sliders);
+- five input angles 0/90/180/270/360°;
+- slider-centre tolerance 0.1 mm.
 
-评分器真实重渲染 18 个实例：
+The scorer re-renders all 18 instances:
 
-- 8 个滑块中心与 4 个相位组的共享闭合公式比较；
-- 每角 153 对实例网格，共 **765 次** BVH 碰撞；
-- 规范三角形哈希确认 18 实例分别可导出；
-- 源码每角重新执行，静态或错误相位不能通过。
+- compares eight slider centres with the shared closure formula for the four phase groups;
+- runs 153 instance-mesh pairs per angle, **765 BVH collision checks** in total;
+- canonical triangle hashes confirm the 18 instances export separately;
+- the source is re-executed per angle; a static or wrong-phase source cannot pass.
 
-## 当前结果
+## Result
 
 ```
 bun run bench:v8:check
 SELF-CHECK OK: 1 reference(s) pass, 6 adversarial submission(s) rejected.
 ```
 
-| 提交 | 结果 |
+| Submission | Result |
 |---|---|
-| `reference` | **PASS 4/4**；18 实例；765 次碰撞全分离；位置误差 **0.0000 mm** |
-| `adversarial-phase` | FAIL 2/4；相位组全改为 0°，误差 11.3137 mm |
-| `adversarial-static` | FAIL 2/4；不随角运动，误差 11.3137 mm |
-| `adversarial-crank-radius` | FAIL 2/4；曲柄 9 mm，误差 0.8625 mm，碰撞仍分离 |
-| `adversarial-collision` | FAIL 1/4；右滑块移到左 bank，误差 6.0000 mm 且碰撞失败 |
-| `adversarial-main-shaft` | **FAIL 3/4；位置/轮廓/源码 PASS，只有 `sampled-motion` FAIL**；连续主轴与连杆相交 |
-| `adversarial-connected-crank` | **FAIL 3/4；位置/轮廓/源码 PASS，只有 `sampled-motion` FAIL**；webs + 分段主轴候选仍与 8 根连杆相交 |
+| `reference` | **PASS 4/4**; 18 instances; all 765 collision checks separate; position error **0.0000 mm** |
+| `adversarial-phase` | FAIL 2/4; all phase groups forced to 0°, error 11.3137 mm |
+| `adversarial-static` | FAIL 2/4; does not move with angle, error 11.3137 mm |
+| `adversarial-crank-radius` | FAIL 2/4; crank 9 mm, error 0.8625 mm, collisions still separate |
+| `adversarial-collision` | FAIL 1/4; right slider moved to the left bank, error 6.0000 mm and collision failure |
+| `adversarial-main-shaft` | **FAIL 3/4; position/contour/source PASS, only `sampled-motion` FAIL**; a continuous main shaft intersects the rods |
+| `adversarial-connected-crank` | **FAIL 3/4; position/contour/source PASS, only `sampled-motion` FAIL**; webs plus segmented main journals still intersect all eight rods |
 
-参考在 0° 时八个滑块的相位组分别为 0/90/180/270；同一组左右 bank 的轴向位置相同、x 相反，y 分为 station±3。
+At 0° the eight sliders form phase groups 0/90/180/270; the two banks in a group share axial position, have opposite x, and are separated by station ±3 in y.
 
-## 隐藏集
+## Hidden set
 
-隐藏 manifest 的 family 新增 `v8`；外部 dev 副本 `hidden-v8-shared-dev [v8]` 为 `1 task / 1 case`、reference PASS、`layers 4/4`、`independentHiddenEvaluation=NOT_RUN`。这仍只是开发副本，不是独立隐藏评估。
+The hidden manifest family `v8` has an external development copy `hidden-v8-shared-dev [v8]`: 1 task / 1 case, reference PASS, `layers 4/4`, `independentHiddenEvaluation=NOT_RUN`. It is still a development copy, not an independent hidden evaluation.
 
-## 边界
+## Boundaries
 
-- **四个共享曲柄销，但曲柄件是四个不连通的盘/销、没有主轴**；不是完整曲轴 V8，不能称为可制造曲轴。`adversarial-main-shaft` 与 `adversarial-connected-crank` 分别证明连续主轴和 webs+分段主轴候选都会被连杆碰撞拒绝；未来连通曲轴必须真正清空 8 根连杆扫掠。
-- **frame 只是底板**；没有缸体/导管/轴承/曲轴箱，不评分 frame 连通性。
-- 只测五个离散角、网格包围盒位置和 765 次离散碰撞；不测连续运动、负载、润滑、摩擦、磨损、点火/配气或实物功能。
-- V8 family self-check 现为 1 reference / 6 adversarial；九家族 `bench:all` 已包含该 7-case V8 行。完整共享曲轴 V8 仍未开始。
+- **Four shared crankpins, but the crank part is four disconnected discs/pins with no main shaft**; this is not a complete crankshaft V8 and must not be called a manufacturable crankshaft. `adversarial-main-shaft` and `adversarial-connected-crank` show that both a continuous main shaft and a webs-plus-segmented-main candidate are rejected by rod collisions; a future connected crank must actually clear the sweep of all eight rods.
+- **The frame is only a base plate**; no block, tubes, bearings or crankcase, and frame connectivity is not scored.
+- Only five discrete angles, mesh-bound slider positions and 765 discrete collisions are covered; no continuous motion, load, lubrication, friction, wear, firing/valve timing or physical function.
+- The V8 family self-check is 1 reference / 6 adversarial; the twelve-family `bench:all` gate includes this seven-case V8 row. A complete shared-crankshaft V8 remains open.
