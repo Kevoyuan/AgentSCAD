@@ -16,7 +16,7 @@ fit 只覆盖偏心 revolute；main-shaft 与 wrist 的截面站不是有效圆�
 
 ```
 bun run bench:product:check
-SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected.
+SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected.
 ```
 
 | 提交 | 结果 |
@@ -26,6 +26,7 @@ SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected.
 | `adversarial-declaration-missing-guide` | FAIL 4/7；5 parts；reconstruction NOT_RUN，distinct 失败 |
 | `adversarial-crank-radius` | FAIL 3/7；reconstruction NOT_RUN、disassembly FAIL，topology 仍 PASS |
 | `adversarial-fit-pin` | FAIL 3/7；eccentric clearance **−0.605–−0.594 mm**，fit FAIL；joint 仍 PASS，reconstruction NOT_RUN |
+| `adversarial-joint-offset` | FAIL 3/7；fit 仍 PASS，但 measured joint frames FAIL；assembly/disassembly FAIL |
 
 ### 一个语义边界
 
