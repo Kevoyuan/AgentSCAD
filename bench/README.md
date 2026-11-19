@@ -151,9 +151,9 @@ bun test bench/               # 层模型与任务格式的单测
 
 ### 4.3 全家族门禁
 
-`bun run bench:all` 依次运行 **assembly / gear / slider / l4 / twin / vtwin / declaration / v8 / planetary** 九家族的自检；每个家族先真实重写自己的 `report.json`，再读取 `cases`/`reports` 汇总到终端矩阵和 `bench/matrix.json`（gitignored）。任一家族 self-check 非 0 或没有 `SELF-CHECK OK` 就整体退出 1。它不会读缓存或把旧报告拼成新结论；`bench/matrix.json` 只是本次运行的聚合产物。
+`bun run bench:all` 依次运行 **assembly / gear / slider / l4 / twin / vtwin / declaration / v8 / planetary / planetary3** 十家族的自检；每个家族先真实重写自己的 `report.json`，再读取 `cases`/`reports` 汇总到终端矩阵和 `bench/matrix.json`（gitignored）。任一家族 self-check 非 0 或没有 `SELF-CHECK OK` 就整体退出 1。它不会读缓存或把旧报告拼成新结论；`bench/matrix.json` 只是本次运行的聚合产物。
 
-2026-11-19 在原生 OpenSCAD 上完整跑通（约 **49.9 分钟**，无模型调用）：
+2026-11-19 在原生 OpenSCAD 上完整跑通（约 **52.0 分钟**，无模型调用）：
 
 ```
 family       self-check cases refs adv unscored pass fail not-run layers
@@ -166,9 +166,10 @@ vtwin        OK         5     1    4   0        1    4    0       11/20
 declaration  OK         4     1    3   0        1    3    0       7/20
 v8           OK         7     1    6   0        1    6    0       17/28
 planetary    OK         4     1    3   0        1    3    0       4/8
+planetary3   OK         4     1    3   0        1    3    0       4/8
 ```
 
-`overall: PASS`；共 **74 case**：16 reference、52 adversarial、6 unscored；22 PASS / 51 FAIL-or-ERROR / 1 NOT_RUN。assembly 的 6 个 `unscored` 是 recorded model replay 行，不是新的模型采样；gear 的 1 个 `not-run` 是 `adversarial-no-marker`，self-check 仍拒绝它。`layers` 是各 case 观测层数的合计，不是通过率。完整共享曲轴 V8 仍未开始；v8 family 是共享销/封装载体，四个独立盘/销、没有主轴。
+`overall: PASS`；共 **78 case**：17 reference、55 adversarial、6 unscored；23 PASS / 54 FAIL-or-ERROR / 1 NOT_RUN。assembly 的 6 个 `unscored` 是 recorded model replay 行，不是新的模型采样；gear 的 1 个 `not-run` 是 `adversarial-no-marker`，self-check 仍拒绝它。`layers` 是各 case 观测层数的合计，不是通过率。完整共享曲轴 V8 仍未开始；v8 family 是共享销/封装载体，四个独立盘/销、没有主轴。
 
 ### 4.1 已记录模型 baseline（replay）
 
@@ -195,7 +196,7 @@ planetary    OK         4     1    3   0        1    3    0       4/8
 <outside-repo>/submissions/<task-id>/*.scad
 ```
 
-`hidden.json` 声明 `id`、`frozenAt`、`family`（`assembly` / `gear` / `slider` / `l4` / `twin` / `vtwin` / `declaration` / `v8` / `planetary`）、`maintainer`、`independent` 和 `taskSetSha256`；旧 manifest 省略 `family` 时按 `assembly` 读取。运行器按 family 分派到对应 scorer，并会：
+`hidden.json` 声明 `id`、`frozenAt`、`family`（`assembly` / `gear` / `slider` / `l4` / `twin` / `vtwin` / `declaration` / `v8` / `planetary` / `planetary3`）、`maintainer`、`independent` 和 `taskSetSha256`；旧 manifest 省略 `family` 时按 `assembly` 读取。运行器按 family 分派到对应 scorer，并会：
 
 - 拒绝仓库内路径（即使是 gitignored 的目录）；
 - 从 validated task 定义重算 SHA-256，与 manifest 不符就拒绝；
@@ -225,6 +226,7 @@ bun run bench:hidden -- --hidden /outside/repo/hidden --json /outside/repo/repor
 - declaration 副本（`guided-declaration-8-28` reference，renamed IDs）：`1 task / 1 case`，reference PASS，`layers 5/5`；
 - v8 副本（`v8-phase-8` reference）：`1 task / 1 case`，reference PASS，`layers 4/4`；
 - planetary 副本（`planetary-12-12-36` reference）：`1 task / 1 case`，reference PASS，`layers 2/2`；
+- planetary3 副本（`planetary-3x-12-12-36` reference）：`1 task / 1 case`，reference PASS，`layers 2/2`；
 - 以上 `independentHiddenEvaluation=NOT_RUN`；加 `--require-independent` 退出 2。
 
 这些运行只证明路径、family 分派、哈希、聚合和 fail-closed，不证明独立隐藏评估。
@@ -271,9 +273,9 @@ reconstruction    8     2     5     13    2     28.6%   缺检查      导出重
 - [x] **L4.5 直列双缸（不是 V8）**：`bench/twin` 六个实例、单曲轴 180° 相位、五个输入角、75 次离散碰撞；`bun run bench:twin:check` → `SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected`。reference 滑块位置误差 0.0000 mm；`adversarial-rod-length` 碰撞全分离但位置/相位失败。L5 仍未开始
 - [x] **L5a 90° V-twin（V 角，不是完整 V8）**：`bench/vtwin` 六实例、共享曲柄销、±45° 双缸、九个输入角、135 次离散碰撞；`bun run bench:vtwin:check` → `SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`。reference 位置误差 0.0000 mm；`adversarial-v-angle` 半角 30° 时误差 9.3587 mm。frame 是两导向管+基板，不是完整曲轴箱；L5 完整 V8 仍未开始
 - [x] **L4.1 合同约束声明**：`bench/declaration` 的 reference 使用 renamed part/instance IDs 仍 PASS 5/5；缺失 guide 或错误拆卸顺序在渲染前被合同拒绝；几何曲柄半径篡改 FAIL 2/5。`bun run bench:declaration:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。它接受不同 ID/顺序，但仍不测自主 authorship
-- [x] **三行星齿轮系（12/12/36 × 3）**：`bench/planetary3` 三个行星轮相隔 120°、六件、正负输入；`bun run bench:planetary3:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。reference 2/2，三个行星独立 PASS，残差 ≤3.1e−6°；单 carrier/单 ring，不测均载/齿面接触；尚未并入 `bench:all`/hidden
-- [x] **行星齿轮系（12/12/36）**：`bench/planetary` 固定内齿圈、太阳输入、行星架输出；`bun run bench:planetary:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。reference 2/2、carrier/planet residual 0.000°；只测一个行星轮，不是多行星均载或齿面接触；尚未并入 `bench:all`/hidden
-- [x] **全家族门禁**：`bun run bench:all` 顺序运行九家族 self-check，重写各自 report 后聚合矩阵到 `bench/matrix.json`；任一失败退出 1。2026-11-19 九家族全部 OK，`overall: PASS`（74 case：16 refs / 52 adversarial / 6 unscored；约 49.9 分钟，无模型调用）。它证明九家族门禁一起可运行，不证明隐藏集、模型能力或物理功能
+- [x] **三行星齿轮系（12/12/36 × 3）**：`bench/planetary3` 三个行星轮相隔 120°、六件、正负输入；`bun run bench:planetary3:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。reference 2/2，三个行星独立 PASS，残差 ≤3.1e−6°；单 carrier/单 ring，不测均载/齿面接触；已并入十家族 `bench:all` 与 hidden (family `planetary3`)
+- [x] **行星齿轮系（12/12/36）**：`bench/planetary` 固定内齿圈、太阳输入、行星架输出；`bun run bench:planetary:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。reference 2/2、carrier/planet residual 0.000°；只测一个行星轮，不是多行星均载或齿面接触；已并入十家族 `bench:all` 与 hidden (family `planetary3`)
+- [x] **全家族门禁**：`bun run bench:all` 顺序运行十家族 self-check，重写各自 report 后聚合矩阵到 `bench/matrix.json`；任一失败退出 1。2026-11-19 十家族全部 OK，`overall: PASS`（78 case：17 refs / 55 adversarial / 6 unscored；约 52.0 分钟，无模型调用）。它证明十家族门禁一起可运行，不证明隐藏集、模型能力或物理功能
 - [x] **L5b V8 相位/封装载体**：`bench/v8` 八缸、四相位组、18 实例、五个输入角、765 次离散碰撞；`bun run bench:v8:check` → `SELF-CHECK OK: 1 reference(s) pass, 6 adversarial submission(s) rejected`。reference 位置误差 0.0000 mm；四个共享销、每销两连杆，无主轴，不是完整曲轴 V8；`adversarial-main-shaft` 与 `adversarial-connected-crank` 都只让碰撞层失败。已并入九家族 `bench:all` 与 hidden (family `v8`)；当前九家族 gate 的 v8 行为 7-case（1 ref / 6 adversarial）
 - [x] **补 `retention` 与 `source-motion` 的检查**：`bench/assembly` 里已落地（`hinge-captured-45` 的轴向拉拔、5 个任务的位姿重渲染）
 - [x] **把这两个检查接进产品判分器**：`judge-assembly` 现在把派生合同作为 trial attribution gate 传给 `prepareAssembly`，并产出 `rigid-motion`、`source-motion`、`motion-range-*`、`axial-retention`、`assembly-path`、`disassembly-path`。前提是候选声明包含 `motions[].sourceInput`（参数 + 每个实例的 pose selector）和 `translationProbes`；缺声明仍为 `NOT_RUN`。`intent-preserved` 仍为 `NOT_RUN`，`passed` 不是用户确认或验收。证据：`bun test scripts/eval/judge-evidence.test.ts` 7 PASS；`bun test src/lib/tools/__tests__/pipeline-assembly.openscad.test.ts` 5 PASS（原生 OpenSCAD，研究者辅助控制件在 measured assertions 上 PASS，intent 保持 NOT_RUN）；定向判分脚本对同一控制件输出 `sampled-motion`/`rigid-motion`/`source-motion`/`axial-retention`/`assembly-path`/`disassembly-path` PASS。历史层表不因接线回溯。

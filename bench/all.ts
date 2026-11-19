@@ -17,6 +17,7 @@ export const FAMILIES = [
   { family: "declaration", script: "bench/declaration/run.ts", report: "bench/declaration/report.json" },
   { family: "v8", script: "bench/v8/run.ts", report: "bench/v8/report.json" },
   { family: "planetary", script: "bench/planetary/run.ts", report: "bench/planetary/report.json" },
+  { family: "planetary3", script: "bench/planetary3/run.ts", report: "bench/planetary3/report.json" },
 ] as const;
 
 export interface FamilyRow {

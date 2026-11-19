@@ -30,6 +30,7 @@ import { scoreVTwinSubmission, type VTwinBenchTask } from "../vtwin/bench";
 import { scoreDeclarationSubmission, type DeclarationBenchTask } from "../declaration/bench";
 import { scoreV8Submission, type V8BenchTask } from "../v8/bench";
 import { scorePlanetarySubmission, type PlanetaryBenchTask } from "../planetary/bench";
+import { scorePlanetary3Submission, type Planetary3Task } from "../planetary3/bench";
 
 interface HiddenReport {
   taskId: string;
@@ -50,6 +51,7 @@ async function scoreFamily(family: HiddenFamily, task: HiddenTask, submission: A
     case "declaration": return scoreDeclarationSubmission(task as DeclarationBenchTask, submission);
     case "v8": return scoreV8Submission(task as V8BenchTask, submission);
     case "planetary": return scorePlanetarySubmission(task as PlanetaryBenchTask, submission);
+    case "planetary3": return scorePlanetary3Submission(task as Planetary3Task, submission);
   }
 }
 
