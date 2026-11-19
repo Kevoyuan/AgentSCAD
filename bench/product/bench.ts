@@ -21,9 +21,11 @@ export interface ProductMeasurements {
   topology: string | null;
   reconstruction: string | null;
   disassembly: string | null;
+  assembly: string | null;
   fitStatuses: Array<{ connectionId: string; status: string | null; reason: string | null }>;
   reconstructionReason: string | null;
   disassemblyReason: string | null;
+  assemblyReason: string | null;
 }
 export interface ProductReport {
   schemaVersion: "product-bench.case.v1"; taskId: string; submission: string; expected: ExpectedOutcome;
@@ -52,7 +54,7 @@ export function validateProductTask(value: unknown): ProductTask {
     if (!e || e.kind !== "equals" || !["string", "boolean", "number"].includes(typeof e.value)) fail(`requirements[${index}].expected is invalid`);
     return { id: r.id, layer: r.layer as BenchRequirement["layer"], required: r.required, applicable: r.applicable, expected: { kind: "equals", value: e.value as string | boolean | number } };
   });
-  const observable = new Set(["distinct-exported-parts", "part-connectivity", "assembly-reconstruction", "disassembly-path", "diametral-clearance"]);
+  const observable = new Set(["distinct-exported-parts", "part-connectivity", "assembly-reconstruction", "assembly-path", "disassembly-path", "diametral-clearance"]);
   for (const r of requirements) if (!observable.has(r.id)) fail(`requirement ${r.id} has no product observer`);
   const distinct = requirements.find((r) => r.id === "distinct-exported-parts");
   if (!distinct || distinct.expected.kind !== "equals" || distinct.expected.value !== partCount) fail("distinct-exported-parts must equal partCount");
@@ -95,7 +97,7 @@ export async function scoreProductSubmission(task: ProductTask, submission: Subm
   const sourceSha256 = sha256(submission.source);
   const provenance = { createdAt: new Date().toISOString(), backend: process.env.AGENTSCAD_OPENSCAD_BACKEND === "wasm" ? "wasm" : "native", openscad: openscadVersion(), runtime: `bun ${process.env.BUN_VERSION ?? "unknown"}`, platform: process.platform };
   const unknowns = ["A PASS covers product preparation layers only: distinct selectors, part connectivity, export reconstruction and the submitted disassembly order.", "Fit, joint frames, assembly path, motion, source motion and physical function are not measured without a confirmed requirement contract.", "The product's A001 contract gate remains separate; this is not a user acceptance or physical-function verdict."];
-  const empty: ProductMeasurements = { parts: 0, partStatuses: [], topology: null, reconstruction: null, disassembly: null, fitStatuses: [], reconstructionReason: null, disassemblyReason: null };
+  const empty: ProductMeasurements = { parts: 0, partStatuses: [], topology: null, reconstruction: null, disassembly: null, assembly: null, fitStatuses: [], reconstructionReason: null, disassemblyReason: null, assemblyReason: null };
   const baseReport = (status: EvidenceStatus, results: Result[], measurements: ProductMeasurements): ProductReport => {
     const scored = scoreEvidence(results.map((r) => ({ id: r.id, status: r.status })));
     return { schemaVersion: "product-bench.case.v1", taskId: task.id, submission: submission.id, expected: expectedOutcome(submission.id), sourcePath: path.relative(process.cwd(), submission.sourcePath), sourceSha256, status, gatePassed: status === "PASS", results, layers: { coverage: scored.coverage, byLayer: scored.layers.map((l) => ({ layer: l.layer, status: l.status, blockers: l.blockers })) }, measurements, provenance, unknowns };
@@ -128,19 +130,21 @@ export async function scoreProductSubmission(task: ProductTask, submission: Subm
   const topology = statusOf(m.evidence && typeof m.evidence === "object" ? (m.evidence as Record<string, unknown>).topology : null) ?? (partStatuses.length && partStatuses.every((s) => s === "PASS") ? "PASS" : partStatuses.length ? "FAIL" : null);
   const reconstruction = statusOf(m.reconstruction);
   const disassembly = statusOf(m.declaredDisassembly);
+  const assembly = statusOf(m.declaredAssembly);
   const fitStatuses = Array.isArray(m.fits) ? (m.fits as Array<Record<string, unknown>>).map((fit) => ({ connectionId: String(fit.connectionId ?? "?"), status: statusOf(fit), reason: typeof fit.reason === "string" ? fit.reason : null })) : [];
-  const measurements: ProductMeasurements = { parts: connectivity.length, partStatuses, topology, reconstruction, disassembly, fitStatuses, reconstructionReason: typeof (m.reconstruction as Record<string, unknown> | undefined)?.reason === "string" ? (m.reconstruction as Record<string, unknown>).reason as string : null, disassemblyReason: typeof (m.declaredDisassembly as Record<string, unknown> | undefined)?.reason === "string" ? (m.declaredDisassembly as Record<string, unknown>).reason as string : null };
+  const measurements: ProductMeasurements = { parts: connectivity.length, partStatuses, topology, reconstruction, disassembly, assembly, fitStatuses, reconstructionReason: typeof (m.reconstruction as Record<string, unknown> | undefined)?.reason === "string" ? (m.reconstruction as Record<string, unknown>).reason as string : null, disassemblyReason: typeof (m.declaredDisassembly as Record<string, unknown> | undefined)?.reason === "string" ? (m.declaredDisassembly as Record<string, unknown>).reason as string : null, assemblyReason: typeof (m.declaredAssembly as Record<string, unknown> | undefined)?.reason === "string" ? (m.declaredAssembly as Record<string, unknown>).reason as string : null };
   const artifactSha256 = sourceSha256;
   const toolVersion = `product-bench/1 openscad:${openscadVersion()}`;
   const distinctObservation: Observation = { id: "distinct-exported-parts", status: topology !== null ? "MEASURED" : "NOT_RUN", value: connectivity.length, artifactSha256, method: "Product partConnectivity array length after selector rendering.", toolVersion, coverage: `${connectivity.length} part(s) measured by prepareContractAssembly.` };
   const topologyObservation: Observation = { id: "part-connectivity", status: topology === null ? "NOT_RUN" : "MEASURED", ...(topology === null ? {} : { value: topology === "PASS" }), artifactSha256, method: "Product partConnectivity verdicts for every rendered part.", toolVersion, coverage: `${partStatuses.length} part(s): ${partStatuses.join(", ") || "none"}.`, ...(topology === "PASS" ? {} : { reason: `partConnectivity statuses ${partStatuses.join(", ") || "missing"}.` }) };
   const reconstructionObservation: Observation = { id: "assembly-reconstruction", status: reconstruction === null ? "NOT_RUN" : reconstruction === "PASS" || reconstruction === "FAIL" ? "MEASURED" : "NOT_RUN", ...(reconstruction === "PASS" || reconstruction === "FAIL" ? { value: reconstruction === "PASS" } : {}), artifactSha256, method: "Product reconstruction of delivered part triangles into the placed assembly.", toolVersion, coverage: "One product reconstruction layer.", ...(reconstruction === "PASS" ? {} : { reason: measurements.reconstructionReason ?? `reconstruction ${reconstruction ?? "missing"}.` }) };
   const disassemblyObservation: Observation = { id: "disassembly-path", status: disassembly === null ? "NOT_RUN" : disassembly === "PASS" || disassembly === "FAIL" ? "MEASURED" : "NOT_RUN", ...(disassembly === "PASS" || disassembly === "FAIL" ? { value: disassembly === "PASS" } : {}), artifactSha256, method: "Product declaredDisassembly on the submitted declaration and rendered part meshes.", toolVersion, coverage: "One declared removal order.", ...(disassembly === "PASS" ? {} : { reason: measurements.disassemblyReason ?? `declaredDisassembly ${disassembly ?? "missing"}.` }) };
+  const assemblyObservation: Observation = { id: "assembly-path", status: assembly === null ? "NOT_RUN" : assembly === "PASS" || assembly === "FAIL" ? "MEASURED" : "NOT_RUN", ...(assembly === "PASS" || assembly === "FAIL" ? { value: assembly === "PASS" } : {}), artifactSha256, method: "Product declaredAssembly via reversed removal paths.", toolVersion, coverage: "One declared insertion order.", ...(assembly === "PASS" ? {} : { reason: measurements.assemblyReason ?? `declaredAssembly ${assembly ?? "missing"}.` }) };
   const fitValues = fitStatuses.map((fit) => fit.status);
   const fitAllPass = fitStatuses.length > 0 && fitValues.every((status) => status === "PASS");
   const fitMeasured = fitStatuses.length > 0 && fitValues.every((status) => status === "PASS" || status === "FAIL");
   const fitObservation: Observation = { id: "diametral-clearance", status: fitStatuses.length === 0 ? "NOT_RUN" : fitMeasured ? "MEASURED" : "NOT_RUN", ...(fitMeasured ? { value: fitAllPass } : {}), artifactSha256, method: "Product revolute fit measurements at declared stations for the task clearance band.", toolVersion, coverage: `${fitStatuses.length} revolute fit(s): ${fitStatuses.map((fit) => `${fit.connectionId}:${fit.status ?? "?"}`).join(", ") || "none"}.`, ...(fitAllPass ? {} : { reason: fitStatuses.filter((fit) => fit.status !== "PASS").map((fit) => `${fit.connectionId}: ${fit.reason ?? fit.status}`).join(" | ") || "No revolute fits were measured." }) };
-  const observations: Record<string, Observation> = { "distinct-exported-parts": distinctObservation, "part-connectivity": topologyObservation, "assembly-reconstruction": reconstructionObservation, "disassembly-path": disassemblyObservation, "diametral-clearance": fitObservation };
+  const observations: Record<string, Observation> = { "distinct-exported-parts": distinctObservation, "part-connectivity": topologyObservation, "assembly-reconstruction": reconstructionObservation, "assembly-path": assemblyObservation, "disassembly-path": disassemblyObservation, "diametral-clearance": fitObservation };
   const results: Result[] = task.requirements.map((requirement) => {
     const evaluated = evaluateRequirement({ id: requirement.id, layer: requirement.layer, required: requirement.required, applicable: requirement.applicable, expected: requirement.expected }, observations[requirement.id]);
     if (evaluated.status === "FAIL" && requirement.expected.kind === "equals") return { ...evaluated, reason: `${evaluated.reason} Observed ${String(observations[requirement.id]?.value)}, expected ${String(requirement.expected.value)}.` };

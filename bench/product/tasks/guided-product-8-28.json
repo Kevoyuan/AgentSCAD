@@ -35,6 +35,16 @@
       }
     },
     {
+      "id": "assembly-path",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
       "id": "disassembly-path",
       "layer": "assembly",
       "required": true,
@@ -59,7 +69,8 @@
     "This family calls prepareContractAssembly, not a tool-level renderer or A001 route.",
     "Only the product preparation layers available without a confirmed requirement contract are scored: identity/distinct parts, topology, reconstruction and declared disassembly.",
     "Fit, joint frames, assembly path, motion and physical function remain unmeasured here.",
-    "Fit covers only the eccentric revolute; main-shaft and wrist stations are not valid cylindrical probes in this fixture and remain NOT_RUN."
+    "Fit covers only the eccentric revolute; main-shaft and wrist stations are not valid cylindrical probes in this fixture and remain NOT_RUN.",
+    "Assembly path is the declared insertion sequence; it is checked as the reverse of the declared removal paths, not as continuous transport."
   ],
   "fit": {
     "minClearanceMm": 0.1,
