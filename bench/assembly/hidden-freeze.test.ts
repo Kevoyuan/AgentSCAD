@@ -175,6 +175,22 @@ describe("hidden-set freezer", () => {
     }
   });
 
+  test("freezes and reloads a thread-family hidden set", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agentscad-hidden-thread-"));
+    try {
+      await cp("bench/thread/tasks/threaded-fastener-1.5.json", path.join(root, "tasks", "threaded-fastener-1.5.json"), { recursive: true });
+      await cp("bench/thread/submissions/threaded-fastener-1-5/reference.scad", path.join(root, "submissions", "threaded-fastener-1-5", "reference.scad"), { recursive: true });
+      const manifest = await freezeHiddenSet({ directory: root, id: "hidden-thread-test", maintainer: "local unit test", independent: false, family: "thread", frozenAt: "2026-11-19T00:00:00Z" });
+      expect(manifest.family).toBe("thread");
+      const loaded = await loadHiddenSet(root);
+      expect(loaded.manifest.family).toBe("thread");
+      expect(loaded.tasks[0].id).toBe("threaded-fastener-1-5");
+      expect(loaded.submissions.get("threaded-fastener-1-5")?.[0].id).toBe("reference");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   test("refuses a set without submissions and a repo-internal directory", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "agentscad-hidden-freeze-empty-"));
     try {

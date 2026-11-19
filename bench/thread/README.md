@@ -30,9 +30,13 @@ SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected.
 
 `adversarial-plain-bore` 是 NOT_RUN 而不是伪造 FAIL/PASS；self-check 仍拒绝它。
 
+## 隐藏集
+
+隐藏 manifest 的 family 新增 `thread`；外部 dev 副本 `hidden-thread-dev [thread]` 为 `1 task / 1 case`、reference PASS、`layers 3/3`、`independentHiddenEvaluation=NOT_RUN`。这仍只是开发副本，不是独立隐藏评估。
+
 ## 边界
 
 - 方形牙型，不是 ISO 米制牙；不测牙型角、公差等级或制造计量。
 - 不测扭矩、预紧、强度、磨损、自锁、旋入/旋出全程或实物。
 - 只测 9 个转角；exit/coaxiality 总状态仍可 NOT_RUN，本 family 只主张列出的几何/运动层。
-- 尚未加入 `bench:all`/hidden。
+- 已加入 `bench:all`（十二家族）与 hidden family；完整总门禁结果见主 README。
