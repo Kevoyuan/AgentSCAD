@@ -159,6 +159,22 @@ describe("hidden-set freezer", () => {
     }
   });
 
+  test("freezes and reloads a product-family hidden set", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agentscad-hidden-product-"));
+    try {
+      await cp("bench/product/tasks/guided-product-8-28.json", path.join(root, "tasks", "guided-product-8-28.json"), { recursive: true });
+      await cp("bench/product/submissions/guided-product-8-28/reference.scad", path.join(root, "submissions", "guided-product-8-28", "reference.scad"), { recursive: true });
+      const manifest = await freezeHiddenSet({ directory: root, id: "hidden-product-test", maintainer: "local unit test", independent: false, family: "product", frozenAt: "2026-11-19T00:00:00Z" });
+      expect(manifest.family).toBe("product");
+      const loaded = await loadHiddenSet(root);
+      expect(loaded.manifest.family).toBe("product");
+      expect(loaded.tasks[0].id).toBe("guided-product-8-28");
+      expect(loaded.submissions.get("guided-product-8-28")?.[0].id).toBe("reference");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   test("refuses a set without submissions and a repo-internal directory", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "agentscad-hidden-freeze-empty-"));
     try {

@@ -24,9 +24,10 @@ import { loadDeclarationSubmissions, loadDeclarationTasks, type DeclarationBench
 import { loadV8Submissions, loadV8Tasks, type V8BenchTask } from "../v8/bench";
 import { loadPlanetarySubmissions, loadPlanetaryTasks, type PlanetaryBenchTask } from "../planetary/bench";
 import { loadPlanetary3Submissions, loadPlanetary3Tasks, type Planetary3Task } from "../planetary3/bench";
+import { loadProductSubmissions, loadProductTasks, type ProductTask } from "../product/bench";
 
-export type HiddenFamily = "assembly" | "gear" | "slider" | "l4" | "twin" | "vtwin" | "declaration" | "v8" | "planetary" | "planetary3";
-export type HiddenTask = BenchTask | GearBenchTask | SliderBenchTask | L4BenchTask | TwinBenchTask | VTwinBenchTask | DeclarationBenchTask | V8BenchTask | PlanetaryBenchTask | Planetary3Task;
+export type HiddenFamily = "assembly" | "gear" | "slider" | "l4" | "twin" | "vtwin" | "declaration" | "v8" | "planetary" | "planetary3" | "product";
+export type HiddenTask = BenchTask | GearBenchTask | SliderBenchTask | L4BenchTask | TwinBenchTask | VTwinBenchTask | DeclarationBenchTask | V8BenchTask | PlanetaryBenchTask | Planetary3Task | ProductTask;
 export interface HiddenCase {
   taskId: string;
   status: string;
@@ -82,7 +83,7 @@ export function validateHiddenManifest(value: unknown): HiddenManifest {
   if (typeof raw.id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,63}$/.test(raw.id)) throw new Error("hidden.json id is invalid");
   if (typeof raw.frozenAt !== "string" || !Number.isFinite(Date.parse(raw.frozenAt))) throw new Error("hidden.json frozenAt must be an ISO date");
   const family = raw.family === undefined ? "assembly" : raw.family;
-  if (family !== "assembly" && family !== "gear" && family !== "slider" && family !== "l4" && family !== "twin" && family !== "vtwin" && family !== "declaration" && family !== "v8" && family !== "planetary" && family !== "planetary3") throw new Error("hidden.json family must be assembly, gear, slider, l4, twin, vtwin, declaration, v8, planetary or planetary3");
+  if (family !== "assembly" && family !== "gear" && family !== "slider" && family !== "l4" && family !== "twin" && family !== "vtwin" && family !== "declaration" && family !== "v8" && family !== "planetary" && family !== "planetary3" && family !== "product") throw new Error("hidden.json family must be assembly, gear, slider, l4, twin, vtwin, declaration, v8, planetary, planetary3 or product");
   if (typeof raw.independent !== "boolean") throw new Error("hidden.json independent must be boolean");
   if (typeof raw.maintainer !== "string" || raw.maintainer.trim().length < 3) throw new Error("hidden.json maintainer must be non-trivial");
   if (typeof raw.taskSetSha256 !== "string" || !/^[a-f0-9]{64}$/.test(raw.taskSetSha256)) throw new Error("hidden.json taskSetSha256 must be a lowercase SHA-256");
@@ -156,7 +157,9 @@ export async function loadHiddenSet(directory: string): Promise<HiddenSet> {
                   ? await loadV8Tasks(path.join(root, "tasks"))
                   : manifest.family === "planetary"
                     ? await loadPlanetaryTasks(path.join(root, "tasks"))
-                    : await loadPlanetary3Tasks(path.join(root, "tasks"));
+                    : manifest.family === "planetary3"
+                      ? await loadPlanetary3Tasks(path.join(root, "tasks"))
+                      : await loadProductTasks(path.join(root, "tasks"));
   const actual = hiddenTaskSetSha256(tasks, manifest.family);
   if (actual !== manifest.taskSetSha256) {
     throw new Error(`The hidden task set changed without re-freezing: manifest ${manifest.taskSetSha256.slice(0, 12)}, actual ${actual.slice(0, 12)}.`);
@@ -181,7 +184,9 @@ export async function loadHiddenSet(directory: string): Promise<HiddenSet> {
                     ? await loadV8Submissions(task.id, path.join(root, "submissions"))
                     : manifest.family === "planetary"
                       ? await loadPlanetarySubmissions(task.id, path.join(root, "submissions"))
-                      : await loadPlanetary3Submissions(task.id, path.join(root, "submissions"));
+                      : manifest.family === "planetary3"
+                        ? await loadPlanetary3Submissions(task.id, path.join(root, "submissions"))
+                        : await loadProductSubmissions(task.id, path.join(root, "submissions"));
     if (rows.length === 0) throw new Error(`Hidden task ${task.id} has no submissions.`);
     submissions.set(task.id, rows);
   }

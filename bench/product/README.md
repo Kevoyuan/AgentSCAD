@@ -27,9 +27,13 @@ SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected.
 
 早期把“key/guide 互换”当作反例，但产品路径正确地 PASS 了它：这两个顺序在几何上都能拆。真正被挡的是 **slider 先于 guide**。因此本 family 用 `adversarial-slider-before-guide`，而不是结构合同层的 key/guide 互换。产品层测几何顺序，声明合同层还可额外冻结结构顺序，两者不是同一件事。
 
+## 隐藏集
+
+隐藏 manifest 的 family 新增 `product`；外部 dev 副本 `hidden-product-dev [product]` 为 `1 task / 1 case`、reference PASS、`layers 4/4`、`independentHiddenEvaluation=NOT_RUN`。这仍只是开发副本，不是独立隐藏评估。
+
 ## 边界
 
 - 只测产品准备路径的 4 层；不是 A001 合同 gate、用户验收、连续运动、配合或物理功能。
 - 没有确认合同，所以 fit/joint/motion 仍为 NOT_RUN；不是这些层通过。
 - 一个 fixture、一个正确顺序和三个反例；不证明任意产品工作流或模型生成。
-- 尚未加入 `bench:all`/hidden；作为独立产品路径 family 通过 self-check。
+- 已加入 `bench:all`（十一家族）与 hidden family；完整总门禁结果见主 README。
