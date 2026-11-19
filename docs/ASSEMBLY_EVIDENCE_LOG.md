@@ -2648,3 +2648,5 @@ thread       OK         4     1    3   0        1    2    1       7/12
 `overall: PASS`; **87 cases**, 19 reference, 62 adversarial, 6 unscored; 25 PASS / 60 FAIL-or-ERROR / 2 NOT_RUN; **259/389** observed layer entries. Product now records 22/35 because reference passes 7/7 and its four adversarial cases record additional measured layers. The result is a public self-check gate, not hidden evaluation, model ability, physical function, or user acceptance. Connected-crankshaft V8 and full A001 remain open.
 
 Public bench task prompts and notes were translated to English on 2026-11-19; the gate matrix is unchanged because prompt text is metadata, not a measured value. New logs, prompts and commit messages use English.
+
+A001 regression added on 2026-11-19: a stored, confirmed contract for the product six-part source remains NOT_RUN because A001 selects `assembly` and `jointFrames` layers that its multi-joint path did not measure. The test checks declared assembly and disassembly are PASS, `contract.evidenceCurrent` is true, and the A001 row is still NOT_RUN; it does not promote unmeasured layers.
