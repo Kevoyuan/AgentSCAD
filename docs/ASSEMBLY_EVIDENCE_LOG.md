@@ -2405,7 +2405,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 - v8 dev 副本：`hidden-v8-shared-dev [v8]`，`1 task / 1 case`，reference PASS，`layers 4/4`；
 - planetary dev 副本：`hidden-planetary-dev [planetary]`，`1 task / 1 case`，reference PASS，`layers 2/2`；
 - planetary3 dev 副本：`hidden-planetary3-dev [planetary3]`，`1 task / 1 case`，reference PASS，`layers 2/2`；
-- product dev 副本：`hidden-product-assembly-dev [product]`，`1 task / 1 case`，reference PASS，`layers 6/6`；
+- product dev 副本：`hidden-product-joint-dev [product]`，`1 task / 1 case`，reference PASS，`layers 7/7`；
 - thread dev 副本：`hidden-thread-dev [thread]`，`1 task / 1 case`，reference PASS，`layers 3/3`；
 - 单元测试新增 gear/L4 family 冻结用例；全量单元测试 **1171 PASS / 3 SKIP / 0 FAIL**（175 文件），typecheck、lint 通过。
 
@@ -2577,20 +2577,20 @@ thread       OK         4     1    3   0        1    2    1       7/12
 
 ## 2026-11-19 · 公开 bench：P-A08 产品准备路径
 
-`bench/product` 是第一个调用真实 `prepareContractAssembly` 的产品路径 family，不是工具级渲染器。它用六件 guided 声明测六层：分件数、part connectivity、导出重构、提交声明的插入顺序、拆卸顺序，以及偏心 revolute 的配合；fit 只覆盖偏心关节，main-shaft/wrist 站不是有效圆柱探针，joint/motion 等仍 NOT_RUN。
+`bench/product` 是第一个调用真实 `prepareContractAssembly` 的产品路径 family，不是工具级渲染器。它用六件 guided 声明测七层：分件数、part connectivity、导出重构、提交声明的插入顺序、拆卸顺序、偏心 revolute 配合及该配合的 joint frames；fit 只覆盖偏心关节，main-shaft/wrist 站不是有效圆柱探针，joint/motion 等仍 NOT_RUN。
 
 结果（原生 OpenSCAD，无模型调用）：
 
 - `bun run bench:product:check` → **`SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`**；
-- reference **PASS 6/6**，6 parts，topology/reconstruction/assembly/disassembly 全 PASS；eccentric clearance 0.395–0.405 mm PASS；
-- `adversarial-slider-before-guide`：**FAIL 4/6**，topology/reconstruction/fit PASS，disassembly FAIL，assembly NOT_RUN；
-- `adversarial-declaration-missing-guide`：FAIL 3/6，5 parts，reconstruction NOT_RUN，distinct 失败；
-- `adversarial-crank-radius`：FAIL 3/6，reconstruction NOT_RUN、disassembly FAIL，topology 仍 PASS；
-- `adversarial-fit-pin`：FAIL 2/6，eccentric clearance −0.605–−0.594 mm，fit FAIL；reconstruction NOT_RUN。
+- reference **PASS 7/7**，6 parts，topology/reconstruction/assembly/disassembly 全 PASS；eccentric clearance 0.395–0.405 mm PASS，joint frames PASS；
+- `adversarial-slider-before-guide`：**FAIL 5/7**，topology/reconstruction/fit/joint PASS，disassembly FAIL，assembly NOT_RUN；
+- `adversarial-declaration-missing-guide`：FAIL 4/7，5 parts，reconstruction NOT_RUN，distinct 失败；
+- `adversarial-crank-radius`：FAIL 3/7，reconstruction NOT_RUN、disassembly FAIL，topology 仍 PASS；
+- `adversarial-fit-pin`：FAIL 3/7，eccentric clearance −0.605–−0.594 mm，fit FAIL；joint 仍 PASS，reconstruction NOT_RUN。
 
 一个语义边界：key/guide 互换在产品几何层是**可拆的**（产品 PASS），真正被挡的是 slider 先于 guide；所以产品 family 用后者作反例，声明合同层仍可额外冻结结构顺序。fit 只覆盖偏心 revolute，main-shaft/wrist 的截面站不是有效圆柱探针。assembly 是离散插入路径的逆序列，不是连续搬运。
 
-全量单元测试 **1193 PASS / 3 SKIP / 0 FAIL**（184 文件）；typecheck、lint 通过。边界：只测产品准备路径 6 层；不是 A001 合同 gate、用户验收、连续运动、配合或物理功能；一个 fixture/一个正确顺序/四个反例；已加入 `bench:all`（十一家族）与 hidden (family `product`)，但十一家族矩阵是加入 fit 前的快照。
+全量单元测试 **1193 PASS / 3 SKIP / 0 FAIL**（184 文件）；typecheck、lint 通过。边界：只测产品准备路径 7 层；不是 A001 合同 gate、用户验收、连续运动、配合或物理功能；一个 fixture/一个正确顺序/四个反例；已加入 `bench:all`（十一家族）与 hidden (family `product`)，但十一家族矩阵是加入 fit 前的快照。
 
 ## 2026-11-19 · 完整原生 OpenSCAD 套件重新基线
 

@@ -22,7 +22,7 @@ export interface ProductMeasurements {
   reconstruction: string | null;
   disassembly: string | null;
   assembly: string | null;
-  fitStatuses: Array<{ connectionId: string; status: string | null; reason: string | null }>;
+  fitStatuses: Array<{ connectionId: string; status: string | null; joint: string | null; reason: string | null }>;
   reconstructionReason: string | null;
   disassemblyReason: string | null;
   assemblyReason: string | null;
@@ -54,7 +54,7 @@ export function validateProductTask(value: unknown): ProductTask {
     if (!e || e.kind !== "equals" || !["string", "boolean", "number"].includes(typeof e.value)) fail(`requirements[${index}].expected is invalid`);
     return { id: r.id, layer: r.layer as BenchRequirement["layer"], required: r.required, applicable: r.applicable, expected: { kind: "equals", value: e.value as string | boolean | number } };
   });
-  const observable = new Set(["distinct-exported-parts", "part-connectivity", "assembly-reconstruction", "assembly-path", "disassembly-path", "diametral-clearance"]);
+  const observable = new Set(["distinct-exported-parts", "part-connectivity", "assembly-reconstruction", "assembly-path", "disassembly-path", "diametral-clearance", "measured-joint-frames"]);
   for (const r of requirements) if (!observable.has(r.id)) fail(`requirement ${r.id} has no product observer`);
   const distinct = requirements.find((r) => r.id === "distinct-exported-parts");
   if (!distinct || distinct.expected.kind !== "equals" || distinct.expected.value !== partCount) fail("distinct-exported-parts must equal partCount");
@@ -131,7 +131,7 @@ export async function scoreProductSubmission(task: ProductTask, submission: Subm
   const reconstruction = statusOf(m.reconstruction);
   const disassembly = statusOf(m.declaredDisassembly);
   const assembly = statusOf(m.declaredAssembly);
-  const fitStatuses = Array.isArray(m.fits) ? (m.fits as Array<Record<string, unknown>>).map((fit) => ({ connectionId: String(fit.connectionId ?? "?"), status: statusOf(fit), reason: typeof fit.reason === "string" ? fit.reason : null })) : [];
+  const fitStatuses = Array.isArray(m.fits) ? (m.fits as Array<Record<string, unknown>>).map((fit) => ({ connectionId: String(fit.connectionId ?? "?"), status: statusOf(fit), joint: statusOf(fit.jointFrames), reason: typeof fit.reason === "string" ? fit.reason : null })) : [];
   const measurements: ProductMeasurements = { parts: connectivity.length, partStatuses, topology, reconstruction, disassembly, assembly, fitStatuses, reconstructionReason: typeof (m.reconstruction as Record<string, unknown> | undefined)?.reason === "string" ? (m.reconstruction as Record<string, unknown>).reason as string : null, disassemblyReason: typeof (m.declaredDisassembly as Record<string, unknown> | undefined)?.reason === "string" ? (m.declaredDisassembly as Record<string, unknown>).reason as string : null, assemblyReason: typeof (m.declaredAssembly as Record<string, unknown> | undefined)?.reason === "string" ? (m.declaredAssembly as Record<string, unknown>).reason as string : null };
   const artifactSha256 = sourceSha256;
   const toolVersion = `product-bench/1 openscad:${openscadVersion()}`;
@@ -143,8 +143,12 @@ export async function scoreProductSubmission(task: ProductTask, submission: Subm
   const fitValues = fitStatuses.map((fit) => fit.status);
   const fitAllPass = fitStatuses.length > 0 && fitValues.every((status) => status === "PASS");
   const fitMeasured = fitStatuses.length > 0 && fitValues.every((status) => status === "PASS" || status === "FAIL");
+  const jointValues = fitStatuses.map((fit) => fit.joint);
+  const jointMeasured = jointValues.length > 0 && jointValues.every((status) => status === "PASS" || status === "FAIL");
+  const jointPass = jointValues.length > 0 && jointValues.every((status) => status === "PASS");
+  const jointObservation: Observation = { id: "measured-joint-frames", status: !jointMeasured ? "NOT_RUN" : "MEASURED", ...(jointMeasured ? { value: jointPass } : {}), artifactSha256, method: "Product joint-frame verdicts for measured revolute fits.", toolVersion, coverage: `${fitStatuses.length} fit(s): ${fitStatuses.map((fit) => `${fit.connectionId}:${fit.joint ?? "?"}`).join(", ") || "none"}.`, ...(jointPass ? {} : { reason: "At least one measured joint frame did not agree." }) };
   const fitObservation: Observation = { id: "diametral-clearance", status: fitStatuses.length === 0 ? "NOT_RUN" : fitMeasured ? "MEASURED" : "NOT_RUN", ...(fitMeasured ? { value: fitAllPass } : {}), artifactSha256, method: "Product revolute fit measurements at declared stations for the task clearance band.", toolVersion, coverage: `${fitStatuses.length} revolute fit(s): ${fitStatuses.map((fit) => `${fit.connectionId}:${fit.status ?? "?"}`).join(", ") || "none"}.`, ...(fitAllPass ? {} : { reason: fitStatuses.filter((fit) => fit.status !== "PASS").map((fit) => `${fit.connectionId}: ${fit.reason ?? fit.status}`).join(" | ") || "No revolute fits were measured." }) };
-  const observations: Record<string, Observation> = { "distinct-exported-parts": distinctObservation, "part-connectivity": topologyObservation, "assembly-reconstruction": reconstructionObservation, "assembly-path": assemblyObservation, "disassembly-path": disassemblyObservation, "diametral-clearance": fitObservation };
+  const observations: Record<string, Observation> = { "distinct-exported-parts": distinctObservation, "part-connectivity": topologyObservation, "assembly-reconstruction": reconstructionObservation, "assembly-path": assemblyObservation, "disassembly-path": disassemblyObservation, "diametral-clearance": fitObservation, "measured-joint-frames": jointObservation };
   const results: Result[] = task.requirements.map((requirement) => {
     const evaluated = evaluateRequirement({ id: requirement.id, layer: requirement.layer, required: requirement.required, applicable: requirement.applicable, expected: requirement.expected }, observations[requirement.id]);
     if (evaluated.status === "FAIL" && requirement.expected.kind === "equals") return { ...evaluated, reason: `${evaluated.reason} Observed ${String(observations[requirement.id]?.value)}, expected ${String(requirement.expected.value)}.` };

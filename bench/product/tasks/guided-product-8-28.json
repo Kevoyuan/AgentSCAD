@@ -63,6 +63,16 @@
         "kind": "equals",
         "value": true
       }
+    },
+    {
+      "id": "measured-joint-frames",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
     }
   ],
   "notes": [
