@@ -1,6 +1,6 @@
-# L5b V8 phase/packaging carrier（8 缸，不是共享曲轴 V8）
+# L5b V8 shared-pin/packaging carrier（4 共享销，8 缸）
 
-这是 V8 方向的相位/封装阶梯：**8 个活塞-连杆、4 个 90° 相位组、两排 ±45°**，每缸有独立曲柄销。它**不是**共享曲轴 V8：曲柄件是八个独立销，frame 只是一块底板，没有缸体、轴承或点火顺序。
+这是 V8 方向的相位/封装阶梯：**8 个活塞-连杆、4 个 90° 相位组、两排 ±45°**，每个相位组一个**共享曲柄销、每销两连杆**。曲柄件是四个独立的盘/销，**没有主轴**；frame 只是一块底板，没有缸体、轴承或点火顺序。它不是完整曲轴 V8，但比每缸独立销更接近 V8 的共享销布局。
 
 ## 任务
 
@@ -9,7 +9,7 @@
 - 曲柄半径 8 mm、连杆 28 mm、半角 45°；
 - 4 个站位 y = -30 / -10 / 10 / 30，相位 0 / 90 / 180 / 270；
 - 两排 bank y = station ± 3；
-- 8 根连杆、8 个滑块、18 个实例（frame、crank、8 rods、8 sliders）；
+- 4 个共享曲柄销、每销两连杆；8 根连杆、8 个滑块、18 个实例（frame、crank、8 rods、8 sliders）；
 - 五个输入角 0/90/180/270/360°；
 - 滑块中心容差 0.1 mm。
 
@@ -39,11 +39,11 @@ SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected.
 
 ## 隐藏集
 
-隐藏 manifest 的 family 新增 `v8`；外部 dev 副本 `hidden-v8-dev [v8]` 为 `1 task / 1 case`、reference PASS、`layers 4/4`、`independentHiddenEvaluation=NOT_RUN`。这仍只是开发副本，不是独立隐藏评估。
+隐藏 manifest 的 family 新增 `v8`；外部 dev 副本 `hidden-v8-shared-dev [v8]` 为 `1 task / 1 case`、reference PASS、`layers 4/4`、`independentHiddenEvaluation=NOT_RUN`。这仍只是开发副本，不是独立隐藏评估。
 
 ## 边界
 
-- **每缸独立曲柄销，不是共享曲轴 V8**；曲柄件是八个不连通的销，不能称为可制造曲轴。
+- **四个共享曲柄销，但曲柄件是四个不连通的盘/销、没有主轴**；不是完整曲轴 V8，不能称为可制造曲轴。
 - **frame 只是底板**；没有缸体/导管/轴承/曲轴箱，不评分 frame 连通性。
 - 只测五个离散角、网格包围盒位置和 765 次离散碰撞；不测连续运动、负载、润滑、摩擦、磨损、点火/配气或实物功能。
 - 已加入 `bench:all` 与 hidden family；完整共享曲轴 V8 仍未开始。

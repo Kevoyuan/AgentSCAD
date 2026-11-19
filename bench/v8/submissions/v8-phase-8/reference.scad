@@ -14,10 +14,9 @@ function phi(a, sx) = atan2(travel(a, sx) * sx - px(a), travel(a, sx) * uz - pz(
 module frame_part() { translate([0,0,-20]) cube([32, 85, 3], center = true); }
 module crank_part() {
   union() {
-    for (i = [0:3]) for (side = [0:1]) {
-      a = phase[i];
-      yy = station_y[i] + (side == 0 ? -rod_y : rod_y);
-      translate([px(a), yy, pz(a)]) rotate([90,0,0]) cylinder(h = 6, r = 2, center = true);
+    for (i = [0:3]) {
+      translate([0, station_y[i], 0]) rotate([90,0,0]) cylinder(h = 1.5, r = 11, center = true);
+      translate([px(phase[i]), station_y[i], pz(phase[i])]) rotate([90,0,0]) cylinder(h = 18, r = 2, center = true);
     }
   }
 }

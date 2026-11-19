@@ -66,12 +66,12 @@ gate 保留不动，它守的是正确性。coverage 是新增的，它守的是
 | L4.1 | 合同约束的六件声明（导向/保持） | 6 件、6 关节 | M4 | `bench/declaration` 已有；IDs/顺序可换，自主 authorship 未接入 |
 | L4.5 | 直列双缸（单曲轴、180° 相位） | 6 实例、5 角 | M4→L5 | `bench/twin` 已有；**不是 V8 V 角**，L5 仍未开始 |
 | L5a | 90° V-twin 横截面（共享曲柄销） | 6 实例、9 角 | L5 | `bench/vtwin` 已有；**V 角，但不是完整 V8** |
-| L5b | V8 相位/封装载体（8 缸、4 相位组） | 18 实例 | L5 | `bench/v8` 已有；每缸独立销，不是共享曲轴 V8 |
+| L5b | V8 共享销/封装载体（4 销、8 缸） | 18 实例 | L5 | `bench/v8` 已有；4 共享销、无主轴，不是完整曲轴 V8 |
 | L5 | V8 横截面（两缸）→ 完整 V8 | 8 组运动链 | M6 | 未开始；L5a/L5b 是 V 角与相位/封装，不是共享曲轴 V8 |
 
 **阶梯的意义**：L5 过不去不代表 L3 不存在。有了分级，即使整体停在 L3，分数也能告诉你卡在哪一层。
 
-齿轮对是阶梯上的独立家族：它不测孔轴配合或插拔，而测实际重渲染的齿数、节圆估计、中心距与转向比值；命令和边界见 [`gear/README.md`](gear/README.md)。单缸曲柄滑块也独立成 [`slider/README.md`](slider/README.md)：五个输入角、真实重渲染的四件、圆周/杆长/轴漂移/全件碰撞。L4 的 7 件/9 实例声明夹具见 [`l4/README.md`](l4/README.md)：冻结声明、正确/错误拆卸顺序、9 实例运动与全件碰撞。L4.5 的直列双缸见 [`twin/README.md`](twin/README.md)：六个实例、180° 相位、五个输入角和 75 次离散碰撞；它是直列双缸，不是 V8 V 角。L5a 的 90° V-twin 见 [`vtwin/README.md`](vtwin/README.md)：共享曲柄销、±45° 双缸、九个输入角和 135 次离散碰撞；它是 V 角，但仍不是完整 V8。L4.1 的合同约束声明见 [`declaration/README.md`](declaration/README.md)：reference 用 renamed IDs 仍通过，缺件/错序在渲染前被拒绝。L5b 的 V8 相位/封装载体见 [`v8/README.md`](v8/README.md)：八缸、四相位组、18 实例；每缸独立销，不是共享曲轴 V8。
+齿轮对是阶梯上的独立家族：它不测孔轴配合或插拔，而测实际重渲染的齿数、节圆估计、中心距与转向比值；命令和边界见 [`gear/README.md`](gear/README.md)。单缸曲柄滑块也独立成 [`slider/README.md`](slider/README.md)：五个输入角、真实重渲染的四件、圆周/杆长/轴漂移/全件碰撞。L4 的 7 件/9 实例声明夹具见 [`l4/README.md`](l4/README.md)：冻结声明、正确/错误拆卸顺序、9 实例运动与全件碰撞。L4.5 的直列双缸见 [`twin/README.md`](twin/README.md)：六个实例、180° 相位、五个输入角和 75 次离散碰撞；它是直列双缸，不是 V8 V 角。L5a 的 90° V-twin 见 [`vtwin/README.md`](vtwin/README.md)：共享曲柄销、±45° 双缸、九个输入角和 135 次离散碰撞；它是 V 角，但仍不是完整 V8。L4.1 的合同约束声明见 [`declaration/README.md`](declaration/README.md)：reference 用 renamed IDs 仍通过，缺件/错序在渲染前被拒绝。L5b 的 V8 共享销/封装载体见 [`v8/README.md`](v8/README.md)：八缸、四相位组、四个共享销、每销两连杆；无主轴，仍不是完整曲轴 V8。
 
 ### 2.3 层判据
 
@@ -165,7 +165,7 @@ declaration  OK         4     1    3   0        1    3    0       7/20
 v8           OK         5     1    4   0        1    4    0       11/20
 ```
 
-`overall: PASS`；共 **68 case**：15 reference、47 adversarial、6 unscored；21 PASS / 46 FAIL-or-ERROR / 1 NOT_RUN。assembly 的 6 个 `unscored` 是 recorded model replay 行，不是新的模型采样；gear 的 1 个 `not-run` 是 `adversarial-no-marker`，self-check 仍拒绝它。`layers` 是各 case 观测层数的合计，不是通过率。完整共享曲轴 V8 仍未开始；v8 family 是相位/封装载体，每缸独立销。
+`overall: PASS`；共 **68 case**：15 reference、47 adversarial、6 unscored；21 PASS / 46 FAIL-or-ERROR / 1 NOT_RUN。assembly 的 6 个 `unscored` 是 recorded model replay 行，不是新的模型采样；gear 的 1 个 `not-run` 是 `adversarial-no-marker`，self-check 仍拒绝它。`layers` 是各 case 观测层数的合计，不是通过率。完整共享曲轴 V8 仍未开始；v8 family 是共享销/封装载体，四个独立盘/销、没有主轴。
 
 ### 4.1 已记录模型 baseline（replay）
 
@@ -268,7 +268,7 @@ reconstruction    8     2     5     13    2     28.6%   缺检查      导出重
 - [x] **L5a 90° V-twin（V 角，不是完整 V8）**：`bench/vtwin` 六实例、共享曲柄销、±45° 双缸、九个输入角、135 次离散碰撞；`bun run bench:vtwin:check` → `SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`。reference 位置误差 0.0000 mm；`adversarial-v-angle` 半角 30° 时误差 9.3587 mm。frame 是两导向管+基板，不是完整曲轴箱；L5 完整 V8 仍未开始
 - [x] **L4.1 合同约束声明**：`bench/declaration` 的 reference 使用 renamed part/instance IDs 仍 PASS 5/5；缺失 guide 或错误拆卸顺序在渲染前被合同拒绝；几何曲柄半径篡改 FAIL 2/5。`bun run bench:declaration:check` → `SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`。它接受不同 ID/顺序，但仍不测自主 authorship
 - [x] **全家族门禁**：`bun run bench:all` 顺序运行八家族 self-check，重写各自 report 后聚合矩阵到 `bench/matrix.json`；任一失败退出 1。2026-11-19 八家族全部 OK，`overall: PASS`（68 case：15 refs / 47 adversarial / 6 unscored；约 42.3 分钟，无模型调用）。它证明八家族门禁一起可运行，不证明隐藏集、模型能力或物理功能
-- [x] **L5b V8 相位/封装载体**：`bench/v8` 八缸、四相位组、18 实例、五个输入角、765 次离散碰撞；`bun run bench:v8:check` → `SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`。reference 位置误差 0.0000 mm；每缸独立销，不是共享曲轴 V8；已并入八家族 `bench:all` 与 hidden (family `v8`)
+- [x] **L5b V8 相位/封装载体**：`bench/v8` 八缸、四相位组、18 实例、五个输入角、765 次离散碰撞；`bun run bench:v8:check` → `SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`。reference 位置误差 0.0000 mm；四个共享销、每销两连杆，无主轴，不是完整曲轴 V8；已并入八家族 `bench:all` 与 hidden (family `v8`)
 - [x] **补 `retention` 与 `source-motion` 的检查**：`bench/assembly` 里已落地（`hinge-captured-45` 的轴向拉拔、5 个任务的位姿重渲染）
 - [x] **把这两个检查接进产品判分器**：`judge-assembly` 现在把派生合同作为 trial attribution gate 传给 `prepareAssembly`，并产出 `rigid-motion`、`source-motion`、`motion-range-*`、`axial-retention`、`assembly-path`、`disassembly-path`。前提是候选声明包含 `motions[].sourceInput`（参数 + 每个实例的 pose selector）和 `translationProbes`；缺声明仍为 `NOT_RUN`。`intent-preserved` 仍为 `NOT_RUN`，`passed` 不是用户确认或验收。证据：`bun test scripts/eval/judge-evidence.test.ts` 7 PASS；`bun test src/lib/tools/__tests__/pipeline-assembly.openscad.test.ts` 5 PASS（原生 OpenSCAD，研究者辅助控制件在 measured assertions 上 PASS，intent 保持 NOT_RUN）；定向判分脚本对同一控制件输出 `sampled-motion`/`rigid-motion`/`source-motion`/`axial-retention`/`assembly-path`/`disassembly-path` PASS。历史层表不因接线回溯。
 - [x] **已记录模型 baseline replay**：6 条 DeepSeek v4 flash 产物原样导入并重评分，6/6 PASS；见 §4.1。这是 replay，不是新调用

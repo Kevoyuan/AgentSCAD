@@ -2402,7 +2402,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 - twin dev 副本：`hidden-twin-dev [twin]`，`1 task / 1 case`，reference PASS，`layers 4/4`；
 - vtwin dev 副本：`hidden-vtwin-dev [vtwin]`，`1 task / 1 case`，reference PASS，`layers 4/4`；
 - declaration dev 副本：`hidden-declaration-dev [declaration]`，`1 task / 1 case`，reference PASS，`layers 5/5`；
-- v8 dev 副本：`hidden-v8-dev [v8]`，`1 task / 1 case`，reference PASS，`layers 4/4`；
+- v8 dev 副本：`hidden-v8-shared-dev [v8]`，`1 task / 1 case`，reference PASS，`layers 4/4`；
 - 单元测试新增 gear/L4 family 冻结用例；全量单元测试 **1171 PASS / 3 SKIP / 0 FAIL**（175 文件），typecheck、lint 通过。
 
 边界：仍然没有任何独立隐藏任务或新鲜外部模型采样；这些 dev 副本只证明路径、family 分派、哈希、聚合和 fail-closed，`independentHiddenEvaluation` 仍为 NOT_RUN。
@@ -2508,9 +2508,9 @@ v8           OK         5     1    4   0        1    4    0       11/20
 
 单元测试 **1181 PASS / 3 SKIP / 0 FAIL**（179 文件）；typecheck、lint 通过。边界：合同仍冻结角色、选择器、实例数、关节端点、0–360° 范围和操作顺序；这是“接受不同 ID/顺序”的合同约束，不是自主声明 authorship；reference 的 renamed 变体是本地手工构造，不是模型生成；只有离散角和零位姿拆卸，无物理功能。
 
-## 2026-11-19 · 公开 bench：L5b V8 相位/封装载体
+## 2026-11-19 · 公开 bench：L5b V8 共享销/封装载体
 
-`benchmarks/assembly/v8_phase_carrier.scad` + `bench/v8` 新增八缸相位/封装阶梯：8 个活塞-连杆、4 个 90° 相位组（0/90/180/270）、两排 ±45°、18 个实例。每缸有独立曲柄销；**不是共享曲轴 V8**，frame 只是底板。
+`benchmarks/assembly/v8_shared_pins.scad` + `bench/v8` 新增八缸共享销/封装阶梯：8 个活塞-连杆、4 个 90° 相位组（0/90/180/270）、两排 ±45°、18 个实例；**四个共享曲柄销、每销两连杆**。曲柄件是四个独立盘/销，没有主轴；**不是完整曲轴 V8**，frame 只是底板。
 
 测量：
 
@@ -2528,5 +2528,5 @@ v8           OK         5     1    4   0        1    4    0       11/20
 - `adversarial-crank-radius`：2/4，曲柄 9 mm，误差 0.8625 mm，碰撞仍分离；
 - `adversarial-collision`：1/4，右滑块移到左 bank，误差 6.0000 mm 且碰撞失败。
 
-全量单元测试 **1185 PASS / 3 SKIP / 0 FAIL**（180 文件）；typecheck、lint 通过。边界：每缸独立销，不是共享曲轴 V8；frame 只是底板，没有缸体/轴承/曲轴箱；只测五个离散角、网格包围盒位置和 765 次碰撞；不测负载、润滑、摩擦、磨损、点火/配气或实物功能；尚未加入 `bench:all`/hidden。
+全量单元测试 **1185 PASS / 3 SKIP / 0 FAIL**（180 文件）；typecheck、lint 通过。边界：四个共享销、每销两连杆，但曲柄件是四个不连通盘/销、没有主轴，不是完整曲轴 V8；frame 只是底板，没有缸体/轴承/曲轴箱；只测五个离散角、网格包围盒位置和 765 次碰撞；不测负载、润滑、摩擦、磨损、点火/配气或实物功能；尚未加入 `bench:all`/hidden。
 
