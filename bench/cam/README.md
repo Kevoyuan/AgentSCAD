@@ -41,4 +41,4 @@ SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected.
 - Five sampled angles only; no continuous contact, spring preload, friction, load, wear or physical function.
 - The follower face is a flat plane; the cam is a circular eccentric disk. No roller, profile law, pressure angle or undercutting is modelled.
 - The frame is a base plus two guide rails; no bearing, shaft or lubrication.
-- Not yet in `bench:all`/hidden; the current 90-case gate snapshot predates this family.
+- In the hidden split as family `cam` (external dev copy `hidden-cam-dev`: 1 task / 1 case, 2/2 layers). Listed in `bench:all`, but the current 90-case gate snapshot predates this family.

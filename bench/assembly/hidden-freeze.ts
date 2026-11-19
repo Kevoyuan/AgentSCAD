@@ -20,6 +20,7 @@ import { loadPlanetarySubmissions, loadPlanetaryTasks } from "../planetary/bench
 import { loadPlanetary3Submissions, loadPlanetary3Tasks } from "../planetary3/bench";
 import { loadProductSubmissions, loadProductTasks } from "../product/bench";
 import { loadThreadSubmissions, loadThreadTasks } from "../thread/bench";
+import { loadCamSubmissions, loadCamTasks } from "../cam/bench";
 import {
   assertExternalHiddenDirectory,
   hiddenTaskSetSha256,
@@ -41,7 +42,7 @@ export async function freezeHiddenSet(input: {
 }): Promise<HiddenManifest> {
   const root = assertExternalHiddenDirectory(input.directory);
   const family = input.family ?? "assembly";
-  if (!["assembly", "gear", "slider", "l4", "twin", "vtwin", "declaration", "v8", "planetary", "planetary3", "product", "thread"].includes(family)) throw new Error(`Unknown hidden family "${family}"`);
+  if (!["assembly", "gear", "slider", "l4", "twin", "vtwin", "declaration", "v8", "planetary", "planetary3", "product", "thread", "cam"].includes(family)) throw new Error(`Unknown hidden family "${family}"`);
   const tasks: HiddenTask[] = family === "assembly"
     ? await loadTasks(path.join(root, "tasks"))
     : family === "gear"
@@ -64,7 +65,9 @@ export async function freezeHiddenSet(input: {
                       ? await loadPlanetary3Tasks(path.join(root, "tasks"))
                       : family === "product"
                         ? await loadProductTasks(path.join(root, "tasks"))
-                        : await loadThreadTasks(path.join(root, "tasks"));
+                        : family === "thread"
+                          ? await loadThreadTasks(path.join(root, "tasks"))
+                          : await loadCamTasks(path.join(root, "tasks"));
   for (const task of tasks) {
     const submissions = family === "assembly"
       ? await loadSubmissions(task.id, path.join(root, "submissions"))
@@ -125,7 +128,7 @@ async function main(): Promise<void> {
   const id = argument("--id");
   const maintainer = argument("--maintainer");
   if (!directory || !id || !maintainer) {
-    throw new Error("Usage: bun run bench:hidden:freeze -- --hidden <external-dir> --id <id> --maintainer <name> [--family assembly|gear|slider|l4|twin|vtwin|declaration|v8|planetary|planetary3|product|thread] [--independent] [--force] [--frozen-at <ISO>]");
+    throw new Error("Usage: bun run bench:hidden:freeze -- --hidden <external-dir> --id <id> --maintainer <name> [--family assembly|gear|slider|l4|twin|vtwin|declaration|v8|planetary|planetary3|product|thread|cam] [--independent] [--force] [--frozen-at <ISO>]");
   }
   const family = (argument("--family") ?? "assembly") as HiddenFamily;
   const manifest = await freezeHiddenSet({

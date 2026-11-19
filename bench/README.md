@@ -201,7 +201,7 @@ thread       OK         6     2    4   0        2    3    1       13/20
 <outside-repo>/submissions/<task-id>/*.scad
 ```
 
-`hidden.json` 声明 `id`、`frozenAt`、`family`（`assembly` / `gear` / `slider` / `l4` / `twin` / `vtwin` / `declaration` / `v8` / `planetary` / `planetary3` / `product` / `thread`）、`maintainer`、`independent` 和 `taskSetSha256`；旧 manifest 省略 `family` 时按 `assembly` 读取。运行器按 family 分派到对应 scorer，并会：
+`hidden.json` 声明 `id`、`frozenAt`、`family`（`assembly` / `gear` / `slider` / `l4` / `twin` / `vtwin` / `declaration` / `v8` / `planetary` / `planetary3` / `product` / `thread` / `cam`）、`maintainer`、`independent` 和 `taskSetSha256`；旧 manifest 省略 `family` 时按 `assembly` 读取。运行器按 family 分派到对应 scorer，并会：
 
 - 拒绝仓库内路径（即使是 gitignored 的目录）；
 - 从 validated task 定义重算 SHA-256，与 manifest 不符就拒绝；
@@ -234,6 +234,7 @@ bun run bench:hidden -- --hidden /outside/repo/hidden --json /outside/repo/repor
 - planetary3 副本（`planetary-3x-12-12-36` reference）：`1 task / 1 case`，reference PASS，`layers 2/2`；
 - product 副本（`guided-product-8-28` reference）：`1 task / 1 case`，reference PASS，`layers 4/4`；
 - thread 副本（`threaded-fastener-1-5` reference）：`1 task / 1 case`，reference PASS，`layers 3/3`；
+- cam 副本（`cam-follower-e4` reference）：`1 task / 1 case`，reference PASS，`layers 2/2`；
 - 以上 `independentHiddenEvaluation=NOT_RUN`；加 `--require-independent` 退出 2。
 
 这些运行只证明路径、family 分派、哈希、聚合和 fail-closed，不证明独立隐藏评估。

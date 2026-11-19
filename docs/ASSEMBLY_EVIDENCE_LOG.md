@@ -2744,3 +2744,5 @@ Added `bench/cam`: an eccentric disk cam rotating about +Y and a flat follower t
 - `adversarial-collision`: FAIL, negative gap causes interference and 0.5000 mm error
 
 Five sampled angles only; this is a source-driven pose check, not dynamic contact, spring, load, friction or physical function. The cam family is not yet in the 90-case gate.
+
+Hidden cam verification on 2026-11-19: `hidden-cam-dev [cam]` contains the cam reference and task. Result: **1 task / 1 case PASS**, layers `2/2`; `independentHiddenEvaluation=NOT_RUN`. The cam family is listed in `bench:all` and the hidden split, but the published 90-case gate snapshot predates it.

@@ -33,6 +33,7 @@ import { scorePlanetarySubmission, type PlanetaryBenchTask } from "../planetary/
 import { scorePlanetary3Submission, type Planetary3Task } from "../planetary3/bench";
 import { scoreProductSubmission, type ProductTask } from "../product/bench";
 import { scoreThreadSubmission, type ThreadTask } from "../thread/bench";
+import { scoreCamSubmission, type CamTask } from "../cam/bench";
 
 interface HiddenReport {
   taskId: string;
@@ -56,6 +57,7 @@ async function scoreFamily(family: HiddenFamily, task: HiddenTask, submission: A
     case "planetary3": return scorePlanetary3Submission(task as Planetary3Task, submission);
     case "product": return scoreProductSubmission(task as ProductTask, submission);
     case "thread": return scoreThreadSubmission(task as ThreadTask, submission);
+    case "cam": return scoreCamSubmission(task as CamTask, submission);
   }
 }
 

@@ -191,6 +191,22 @@ describe("hidden-set freezer", () => {
     }
   });
 
+  test("freezes and reloads a cam-family hidden set", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agentscad-hidden-cam-"));
+    try {
+      await cp("bench/cam/tasks/cam-follower-e4.json", path.join(root, "tasks", "cam-follower-e4.json"), { recursive: true });
+      await cp("bench/cam/submissions/cam-follower-e4/reference.scad", path.join(root, "submissions", "cam-follower-e4", "reference.scad"), { recursive: true });
+      const manifest = await freezeHiddenSet({ directory: root, id: "hidden-cam-test", maintainer: "local unit test", independent: false, family: "cam", frozenAt: "2026-11-19T00:00:00Z" });
+      expect(manifest.family).toBe("cam");
+      const loaded = await loadHiddenSet(root);
+      expect(loaded.manifest.family).toBe("cam");
+      expect(loaded.tasks[0].id).toBe("cam-follower-e4");
+      expect(loaded.submissions.get("cam-follower-e4")?.[0].id).toBe("reference");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   test("refuses a set without submissions and a repo-internal directory", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "agentscad-hidden-freeze-empty-"));
     try {
