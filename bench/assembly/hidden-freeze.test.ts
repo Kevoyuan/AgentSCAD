@@ -127,6 +127,22 @@ describe("hidden-set freezer", () => {
     }
   });
 
+  test("freezes and reloads a planetary-family hidden set", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "agentscad-hidden-planetary-"));
+    try {
+      await cp("bench/planetary/tasks/planetary-12-12-36.json", path.join(root, "tasks", "planetary-12-12-36.json"), { recursive: true });
+      await cp("bench/planetary/submissions/planetary-12-12-36/reference.scad", path.join(root, "submissions", "planetary-12-12-36", "reference.scad"), { recursive: true });
+      const manifest = await freezeHiddenSet({ directory: root, id: "hidden-planetary-test", maintainer: "local unit test", independent: false, family: "planetary", frozenAt: "2026-11-19T00:00:00Z" });
+      expect(manifest.family).toBe("planetary");
+      const loaded = await loadHiddenSet(root);
+      expect(loaded.manifest.family).toBe("planetary");
+      expect(loaded.tasks[0].id).toBe("planetary-12-12-36");
+      expect(loaded.submissions.get("planetary-12-12-36")?.[0].id).toBe("reference");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   test("refuses a set without submissions and a repo-internal directory", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "agentscad-hidden-freeze-empty-"));
     try {

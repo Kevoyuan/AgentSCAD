@@ -22,9 +22,10 @@ import { loadTwinSubmissions, loadTwinTasks, type TwinBenchTask } from "../twin/
 import { loadVTwinSubmissions, loadVTwinTasks, type VTwinBenchTask } from "../vtwin/bench";
 import { loadDeclarationSubmissions, loadDeclarationTasks, type DeclarationBenchTask } from "../declaration/bench";
 import { loadV8Submissions, loadV8Tasks, type V8BenchTask } from "../v8/bench";
+import { loadPlanetarySubmissions, loadPlanetaryTasks, type PlanetaryBenchTask } from "../planetary/bench";
 
-export type HiddenFamily = "assembly" | "gear" | "slider" | "l4" | "twin" | "vtwin" | "declaration" | "v8";
-export type HiddenTask = BenchTask | GearBenchTask | SliderBenchTask | L4BenchTask | TwinBenchTask | VTwinBenchTask | DeclarationBenchTask | V8BenchTask;
+export type HiddenFamily = "assembly" | "gear" | "slider" | "l4" | "twin" | "vtwin" | "declaration" | "v8" | "planetary";
+export type HiddenTask = BenchTask | GearBenchTask | SliderBenchTask | L4BenchTask | TwinBenchTask | VTwinBenchTask | DeclarationBenchTask | V8BenchTask | PlanetaryBenchTask;
 export interface HiddenCase {
   taskId: string;
   status: string;
@@ -80,7 +81,7 @@ export function validateHiddenManifest(value: unknown): HiddenManifest {
   if (typeof raw.id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,63}$/.test(raw.id)) throw new Error("hidden.json id is invalid");
   if (typeof raw.frozenAt !== "string" || !Number.isFinite(Date.parse(raw.frozenAt))) throw new Error("hidden.json frozenAt must be an ISO date");
   const family = raw.family === undefined ? "assembly" : raw.family;
-  if (family !== "assembly" && family !== "gear" && family !== "slider" && family !== "l4" && family !== "twin" && family !== "vtwin" && family !== "declaration" && family !== "v8") throw new Error("hidden.json family must be assembly, gear, slider, l4, twin, vtwin, declaration or v8");
+  if (family !== "assembly" && family !== "gear" && family !== "slider" && family !== "l4" && family !== "twin" && family !== "vtwin" && family !== "declaration" && family !== "v8" && family !== "planetary") throw new Error("hidden.json family must be assembly, gear, slider, l4, twin, vtwin, declaration, v8 or planetary");
   if (typeof raw.independent !== "boolean") throw new Error("hidden.json independent must be boolean");
   if (typeof raw.maintainer !== "string" || raw.maintainer.trim().length < 3) throw new Error("hidden.json maintainer must be non-trivial");
   if (typeof raw.taskSetSha256 !== "string" || !/^[a-f0-9]{64}$/.test(raw.taskSetSha256)) throw new Error("hidden.json taskSetSha256 must be a lowercase SHA-256");
@@ -150,7 +151,9 @@ export async function loadHiddenSet(directory: string): Promise<HiddenSet> {
               ? await loadVTwinTasks(path.join(root, "tasks"))
               : manifest.family === "declaration"
                 ? await loadDeclarationTasks(path.join(root, "tasks"))
-                : await loadV8Tasks(path.join(root, "tasks"));
+                : manifest.family === "v8"
+                  ? await loadV8Tasks(path.join(root, "tasks"))
+                  : await loadPlanetaryTasks(path.join(root, "tasks"));
   const actual = hiddenTaskSetSha256(tasks, manifest.family);
   if (actual !== manifest.taskSetSha256) {
     throw new Error(`The hidden task set changed without re-freezing: manifest ${manifest.taskSetSha256.slice(0, 12)}, actual ${actual.slice(0, 12)}.`);
@@ -171,7 +174,9 @@ export async function loadHiddenSet(directory: string): Promise<HiddenSet> {
                 ? await loadVTwinSubmissions(task.id, path.join(root, "submissions"))
                 : manifest.family === "declaration"
                   ? await loadDeclarationSubmissions(task.id, path.join(root, "submissions"))
-                  : await loadV8Submissions(task.id, path.join(root, "submissions"));
+                  : manifest.family === "v8"
+                    ? await loadV8Submissions(task.id, path.join(root, "submissions"))
+                    : await loadPlanetarySubmissions(task.id, path.join(root, "submissions"));
     if (rows.length === 0) throw new Error(`Hidden task ${task.id} has no submissions.`);
     submissions.set(task.id, rows);
   }

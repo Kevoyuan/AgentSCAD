@@ -35,9 +35,13 @@ SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected.
 
 `adversarial-sun-teeth` 是结构 gate：它在测到齿数后直接拒绝，不伪造 PASS。
 
+## 隐藏集
+
+隐藏 manifest 的 family 新增 `planetary`；外部 dev 副本 `hidden-planetary-dev [planetary]` 为 `1 task / 1 case`、reference PASS、`layers 2/2`、`independentHiddenEvaluation=NOT_RUN`。这仍只是开发副本，不是独立隐藏评估。
+
 ## 边界
 
 - 只测一个行星轮；不测多行星均载、齿面接触、侧隙、效率、负载、磨损或实物制造。
 - 直边全齿高齿形；节圆是 tip/root 半径估计，不是渐开线计量。
 - 只覆盖 5 个输入位姿；marker/bores 是测量特征，不是任意生成件的身份证明。
-- 尚未加入 `bench:all`/hidden family；作为第九个独立家族通过 self-check。
+- 已加入 `bench:all`（九家族）与 hidden family；完整总门禁结果见主 README。
