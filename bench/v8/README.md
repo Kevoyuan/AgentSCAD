@@ -24,7 +24,7 @@
 
 ```
 bun run bench:v8:check
-SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected.
+SELF-CHECK OK: 1 reference(s) pass, 6 adversarial submission(s) rejected.
 ```
 
 | 提交 | 结果 |
@@ -35,6 +35,7 @@ SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected.
 | `adversarial-crank-radius` | FAIL 2/4；曲柄 9 mm，误差 0.8625 mm，碰撞仍分离 |
 | `adversarial-collision` | FAIL 1/4；右滑块移到左 bank，误差 6.0000 mm 且碰撞失败 |
 | `adversarial-main-shaft` | **FAIL 3/4；位置/轮廓/源码 PASS，只有 `sampled-motion` FAIL**；连续主轴与连杆相交 |
+| `adversarial-connected-crank` | **FAIL 3/4；位置/轮廓/源码 PASS，只有 `sampled-motion` FAIL**；webs + 分段主轴候选仍与 8 根连杆相交 |
 
 参考在 0° 时八个滑块的相位组分别为 0/90/180/270；同一组左右 bank 的轴向位置相同、x 相反，y 分为 station±3。
 
@@ -44,7 +45,7 @@ SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected.
 
 ## 边界
 
-- **四个共享曲柄销，但曲柄件是四个不连通的盘/销、没有主轴**；不是完整曲轴 V8，不能称为可制造曲轴。`adversarial-main-shaft` 证明简单加回连续主轴会被连杆碰撞拒绝；未来连通曲轴必须证明主轴/webs 清空连杆扫掠。
+- **四个共享曲柄销，但曲柄件是四个不连通的盘/销、没有主轴**；不是完整曲轴 V8，不能称为可制造曲轴。`adversarial-main-shaft` 与 `adversarial-connected-crank` 分别证明连续主轴和 webs+分段主轴候选都会被连杆碰撞拒绝；未来连通曲轴必须真正清空 8 根连杆扫掠。
 - **frame 只是底板**；没有缸体/导管/轴承/曲轴箱，不评分 frame 连通性。
 - 只测五个离散角、网格包围盒位置和 765 次离散碰撞；不测连续运动、负载、润滑、摩擦、磨损、点火/配气或实物功能。
-- V8 family self-check 现为 1 reference / 5 adversarial；`bench:all` 矩阵中的 v8 行是加入 `main-shaft` 前的 5-case 快照，未重跑。完整共享曲轴 V8 仍未开始。
+- V8 family self-check 现为 1 reference / 6 adversarial；`bench:all` 矩阵中的 v8 行是加入 `main-shaft`/`connected-crank` 前的 5-case 快照，未重跑。完整共享曲轴 V8 仍未开始。

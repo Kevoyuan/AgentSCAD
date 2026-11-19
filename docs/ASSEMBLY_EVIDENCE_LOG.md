@@ -2521,13 +2521,14 @@ v8           OK         5     1    4   0        1    4    0       11/20
 
 结果（原生 OpenSCAD，无模型调用）：
 
-- `bun run bench:v8:check` → **`SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected`**；
+- `bun run bench:v8:check` → **`SELF-CHECK OK: 1 reference(s) pass, 6 adversarial submission(s) rejected`**；
 - reference **4/4 层 PASS**，18 实例，765 次碰撞全分离，位置误差 **0.0000 mm**；
 - `adversarial-phase`：2/4，相位全 0°，误差 11.3137 mm；
 - `adversarial-static`：2/4，误差 11.3137 mm；
 - `adversarial-crank-radius`：2/4，曲柄 9 mm，误差 0.8625 mm，碰撞仍分离；
 - `adversarial-collision`：1/4，右滑块移到左 bank，误差 6.0000 mm 且碰撞失败。
-- `adversarial-main-shaft`：3/4，位置/轮廓/源码 PASS，仅 `sampled-motion` FAIL；简单加回连续主轴会与连杆相交，证明“连通曲轴”不能只靠视觉连接。
+- `adversarial-main-shaft`：3/4，位置/轮廓/源码 PASS，仅 `sampled-motion` FAIL；简单加回连续主轴会与连杆相交。
+- `adversarial-connected-crank`：3/4，位置/轮廓/源码 PASS，仅 `sampled-motion` FAIL；webs + 分段主轴候选仍与 8 根连杆全部相交，未晋级。
 
-全量单元测试 **1185 PASS / 3 SKIP / 0 FAIL**（180 文件）；typecheck、lint 通过。边界：四个共享销、每销两连杆，但曲柄件是四个不连通盘/销、没有主轴，不是完整曲轴 V8；`adversarial-main-shaft` 证明连续主轴会撞连杆，完整门禁矩阵是加入该反例前的快照；frame 只是底板，没有缸体/轴承/曲轴箱；只测五个离散角、网格包围盒位置和 765 次碰撞；不测负载、润滑、摩擦、磨损、点火/配气或实物功能；已加入 `bench:all`/hidden，V8 family self-check 现为 1 reference / 5 adversarial；`bench:all` 矩阵是加入 `main-shaft` 前的快照。
+全量单元测试 **1185 PASS / 3 SKIP / 0 FAIL**（180 文件）；typecheck、lint 通过。边界：四个共享销、每销两连杆，但曲柄件是四个不连通盘/销、没有主轴，不是完整曲轴 V8；`adversarial-main-shaft` 证明连续主轴会撞连杆，完整门禁矩阵是加入 `main-shaft`/`connected-crank` 前的快照；frame 只是底板，没有缸体/轴承/曲轴箱；只测五个离散角、网格包围盒位置和 765 次碰撞；不测负载、润滑、摩擦、磨损、点火/配气或实物功能；已加入 `bench:all`/hidden，V8 family self-check 现为 1 reference / 6 adversarial；`bench:all` 矩阵是加入 `main-shaft`/`connected-crank` 前的快照。
 
