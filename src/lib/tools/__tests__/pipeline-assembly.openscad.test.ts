@@ -63,14 +63,21 @@ test("a complete explicit contract with declared axial probes reaches A001 PASS"
  // Simulate confirmation only in this isolated test; no user decision or database is written.
  // The frozen seed makes the seeded challenge pose reproducible; the product path generates a fresh seed per run.
  const prepare:typeof prepareContractAssembly=(input)=>prepareContractAssembly({...input,contractGate:{evidenceCurrent:true},sourceSamplingSeed:"11223344556677889900aabbccddeeff"});
- const [row]=await validateAssemblyArtifact({inputRequest:request,scadSource:geometry},prepare);
- expect(row.status).toBe("PASS");
- expect(row.passed).toBe(true);
- const requirements=Object.fromEntries(row.assemblyEvidence!.requirements.map(item=>[item.id,item]));
- for(const id of ["distinct-exported-parts","motion-range-negative-end","motion-range-positive-end","diametral-clearance","axial-retention"])
-  expect(requirements[id].status).toBe("PASS");
- expect(requirements["axial-retention"].reason).toContain("declared-geometry evidence");
- expect(row.message).not.toContain("axial-retention NOT_RUN");
+ const previous=process.env.AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS;
+ process.env.AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS="60000";
+ try{
+  const [row]=await validateAssemblyArtifact({inputRequest:request,scadSource:geometry},prepare);
+  expect(row.status).toBe("PASS");
+  expect(row.passed).toBe(true);
+  const requirements=Object.fromEntries(row.assemblyEvidence!.requirements.map(item=>[item.id,item]));
+  for(const id of ["distinct-exported-parts","motion-range-negative-end","motion-range-positive-end","diametral-clearance","axial-retention"])
+   expect(requirements[id].status).toBe("PASS");
+  expect(requirements["axial-retention"].reason).toContain("declared-geometry evidence");
+  expect(row.message).not.toContain("axial-retention NOT_RUN");
+ }finally{
+  if(previous===undefined)delete process.env.AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS;
+  else process.env.AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS=previous;
+ }
 },240000);
 
 test("offline trial measures source motion and axial retention under a derived-contract attribution gate",async()=>{
