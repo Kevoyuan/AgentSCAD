@@ -2571,3 +2571,19 @@ planetary3   OK         4     1    3   0        1    3    0       4/8
 
 全量单元测试 **1188 PASS / 3 SKIP / 0 FAIL**（182 文件）；typecheck、lint 通过。边界：单 carrier/单 ring/三行星；不测多级齿轮箱、均载、轴承、齿面接触、侧隙、效率、负载、磨损或实物制造；直边齿，节圆为 tip/root 估计；5 个位姿；尚未加入 `bench:all`/hidden。
 
+## 2026-11-19 · 公开 bench：P-A08 产品准备路径
+
+`bench/product` 是第一个调用真实 `prepareContractAssembly` 的产品路径 family，不是工具级渲染器。它用六件 guided 声明测四层：分件数、part connectivity、导出重构、提交声明的拆卸顺序；这些层不需要已确认 requirement contract，fit/joint/motion 等仍 NOT_RUN。
+
+结果（原生 OpenSCAD，无模型调用）：
+
+- `bun run bench:product:check` → **`SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`**；
+- reference **PASS 4/4**，6 parts，topology/reconstruction/disassembly 全 PASS；
+- `adversarial-slider-before-guide`：**FAIL 3/4**，topology/reconstruction PASS，**只有 disassembly FAIL**；
+- `adversarial-declaration-missing-guide`：FAIL 2/4，5 parts，reconstruction NOT_RUN，distinct 失败；
+- `adversarial-crank-radius`：FAIL 2/4，reconstruction NOT_RUN、disassembly FAIL，topology 仍 PASS。
+
+一个语义边界：key/guide 互换在产品几何层是**可拆的**（产品 PASS），真正被挡的是 slider 先于 guide；所以产品 family 用后者作反例，声明合同层仍可额外冻结结构顺序。
+
+全量单元测试 **1190 PASS / 3 SKIP / 0 FAIL**（183 文件）；typecheck、lint 通过。边界：只测产品准备路径 4 层；不是 A001 合同 gate、用户验收、连续运动、配合或物理功能；一个 fixture/一个正确顺序/三个反例；尚未加入 `bench:all`/hidden。
+

@@ -28,6 +28,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add the planetary family to external hidden sets (family `planetary`) and the unified nine-family gate
 - Add a three-planet epicyclic family under `bench/planetary3`: three 120-degree planets, six parts, independent coupling checks and measured residuals
 - Add the three-planet family to external hidden sets (family `planetary3`) and the unified ten-family gate
+- Add a product-path bench family that calls `prepareContractAssembly` on the six-part guided declaration and scores part identity, topology, reconstruction and disassembly
 - Make the external hidden-split harness family-aware (`assembly`/`gear`/`slider`/`l4`), with family-specific freezing, hashing, scoring and external L4 spec loading; dev copies verify all four dispatches without claiming independence
 
 ## [0.6.0.0] - 2026-10-12
