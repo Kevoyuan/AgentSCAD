@@ -2298,7 +2298,7 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 
 ### 合并验证
 
-- 全量单元测试：**1182 PASS / 3 SKIP / 0 FAIL**（179 文件）；
+- 全量单元测试：**1184 PASS / 3 SKIP / 0 FAIL**（180 文件）；
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
@@ -2505,4 +2505,26 @@ declaration  OK         4     1    3   0        1    3    0       7/20
 - 正确的六个 part 网格、九个角度运动、15 对碰撞和正确/错误拆卸都独立测量。
 
 单元测试 **1181 PASS / 3 SKIP / 0 FAIL**（179 文件）；typecheck、lint 通过。边界：合同仍冻结角色、选择器、实例数、关节端点、0–360° 范围和操作顺序；这是“接受不同 ID/顺序”的合同约束，不是自主声明 authorship；reference 的 renamed 变体是本地手工构造，不是模型生成；只有离散角和零位姿拆卸，无物理功能。
+
+## 2026-11-19 · 公开 bench：L5b V8 相位/封装载体
+
+`benchmarks/assembly/v8_phase_carrier.scad` + `bench/v8` 新增八缸相位/封装阶梯：8 个活塞-连杆、4 个 90° 相位组（0/90/180/270）、两排 ±45°、18 个实例。每缸有独立曲柄销；**不是共享曲轴 V8**，frame 只是底板。
+
+测量：
+
+- 8 个滑块中心与四个相位组的共享闭合公式比较，容差 0.1 mm；
+- 每角 153 对实例网格，共 **765 次** BVH 碰撞；
+- 规范三角形哈希确认 18 实例分别可导出；
+- 源码每角重新执行；静态/错误相位/错误曲柄半径不能通过。
+
+结果（原生 OpenSCAD，无模型调用）：
+
+- `bun run bench:v8:check` → **`SELF-CHECK OK: 1 reference(s) pass, 4 adversarial submission(s) rejected`**；
+- reference **4/4 层 PASS**，18 实例，765 次碰撞全分离，位置误差 **0.0000 mm**；
+- `adversarial-phase`：2/4，相位全 0°，误差 11.3137 mm；
+- `adversarial-static`：2/4，误差 11.3137 mm；
+- `adversarial-crank-radius`：2/4，曲柄 9 mm，误差 0.8625 mm，碰撞仍分离；
+- `adversarial-collision`：1/4，右滑块移到左 bank，误差 6.0000 mm 且碰撞失败。
+
+全量单元测试 **1184 PASS / 3 SKIP / 0 FAIL**（180 文件）；typecheck、lint 通过。边界：每缸独立销，不是共享曲轴 V8；frame 只是底板，没有缸体/轴承/曲轴箱；只测五个离散角、网格包围盒位置和 765 次碰撞；不测负载、润滑、摩擦、磨损、点火/配气或实物功能；尚未加入 `bench:all`/hidden。
 

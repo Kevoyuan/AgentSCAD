@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "v8-phase-8",
+  "prompt": "做一个 V8 相位/封装演示件：两排各 45°、四组曲柄相位 0/90/180/270，共八组活塞-连杆；每个缸有独立曲柄销，不要求共享曲轴；十八个实例能分别导出，五个输入角内全件不得干涉。",
+  "selectors": {
+    "frame": "frame",
+    "crank": "crank",
+    "rods": ["rod0L", "rod0R", "rod1L", "rod1R", "rod2L", "rod2R", "rod3L", "rod3R"],
+    "sliders": ["slider0L", "slider0R", "slider1L", "slider1R", "slider2L", "slider2R", "slider3L", "slider3R"]
+  },
+  "motionParameter": "crank_angle",
+  "angles": [0, 90, 180, 270, 360],
+  "contract": {
+    "crankRadiusMm": 8,
+    "rodLengthMm": 28,
+    "vHalfAngleDeg": 45,
+    "bankYmm": 3,
+    "stationsY": [-30, -10, 10, 30],
+    "phasesDeg": [0, 90, 180, 270],
+    "sliderToleranceMm": 0.1
+  },
+  "requirements": [
+    { "id": "distinct-exported-parts", "layer": "parts", "required": true, "applicable": true, "expected": { "kind": "equals", "value": 18 } },
+    { "id": "measured-joint-frames", "layer": "assembly", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
+    { "id": "sampled-motion", "layer": "motion", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } },
+    { "id": "source-motion", "layer": "motion", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } }
+  ],
+  "notes": [
+    "V8 phase/packaging carrier: eight cylinders in four 90-degree phase groups, one independent crankpin per cylinder; it is explicitly not a shared-crankshaft V8.",
+    "The frame is a base plate only; no cylinder block, guides, bearings, firing order, load or lubrication are modeled.",
+    "Only five input angles, mesh-bounds slider centres and 153 pairwise mesh checks per angle are covered."
+  ]
+}
