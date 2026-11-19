@@ -135,6 +135,8 @@ bun run bench:assembly:check  # 几何评测自检：参考解全过、作弊解
 bun test bench/               # 层模型与任务格式的单测
 ```
 
+2026-11-18 在 `continue/local-assembly-2026-11-18` 复跑：`SELF-CHECK OK: 6 reference(s) pass, 8 adversarial submission(s) rejected.` 这只证明公开自检未退化，不证明隐藏集、模型能力或物理功能。
+
 ### 实测：35 个真实批次 / 55 个候选
 
 ```

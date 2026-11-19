@@ -2302,4 +2302,5 @@ M5 状态更新：完全旋出的**采样数字证据**已取得 PASS；同轴�
 - `bun run typecheck`、针对改动文件的 ESLint：通过；
 - A10 齿轮定向原生测试：**11 PASS / 0 FAIL**；`bun run cad:eval:gear` 外啮合/行星均 PASS；
 - 判分器定向原生测试：**5 PASS / 0 FAIL**；判分器辅助证据测试：**7 PASS / 0 FAIL**；
+- 公开 bench 自检：`bun run bench:assembly:check` → **SELF-CHECK OK: 6 reference(s) pass, 8 adversarial submission(s) rejected**；只覆盖公开任务集，不覆盖隐藏集/模型/物理；
 - 未执行：完整 56 条原生套件、WASM、浏览器 E2E、付费模型、隐藏集、实物制造/加载。
