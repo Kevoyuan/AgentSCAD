@@ -2600,3 +2600,17 @@ product      OK         5     1    4   0        1    4    0       17/25
 
 这只证明当前分支的原生产品回归全绿，不证明 bench 的 11 家族门禁、隐藏集、模型自主能力或物理功能。bench 的最近一次完整门禁仍是 **83 case / overall PASS / 约 59.8 分钟**。
 
+## 2026-11-19 · 公开 bench：M5 方形螺纹副
+
+`bench/thread` 新增两件方形牙型螺纹副：螺栓/螺母、pitch 1.5 mm、右旋、9 个转角。评分器调用 `sampleThreadedFastener`，只要求几何（外/内 pitch、手性、大/小径）与啮合/导程；工具 exit/coaxiality 总状态可以仍 NOT_RUN。
+
+结果（原生 OpenSCAD，无模型调用）：
+
+- `bun run bench:thread:check` → **`SELF-CHECK OK: 1 reference(s) pass, 3 adversarial submission(s) rejected`**；
+- reference **PASS 3/3**，2 parts，外/内几何 PASS，engagement/motion PASS，导程 **1.5000 mm/转**、残差约 0；
+- `adversarial-plain-bore`：NOT_RUN 1/3，内螺纹 plain bore，几何层 NOT_RUN；
+- `adversarial-spin-only`：FAIL 2/3，motion FAIL；
+- `adversarial-wrong-pitch`：FAIL 1/3，螺距 1.25，几何与 motion FAIL。
+
+全量单元测试 **1192 PASS / 3 SKIP / 0 FAIL**（184 文件）；typecheck、lint 通过。边界：方形牙型不是 ISO 米制计量；不测扭矩、预紧、强度、磨损、自锁、全程旋入/旋出或实物；只测 9 个转角；尚未加入 `bench:all`/hidden。
+

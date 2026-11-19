@@ -64,7 +64,9 @@
     "bench:planetary3": "bun bench/planetary3/run.ts",
     "bench:planetary3:check": "bun bench/planetary3/run.ts --self-check",
     "bench:product": "bun bench/product/run.ts",
-    "bench:product:check": "bun bench/product/run.ts --self-check"
+    "bench:product:check": "bun bench/product/run.ts --self-check",
+    "bench:thread": "bun bench/thread/run.ts",
+    "bench:thread:check": "bun bench/thread/run.ts --self-check"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

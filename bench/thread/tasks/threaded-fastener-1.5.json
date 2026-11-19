@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "id": "threaded-fastener-1-5",
+  "prompt": "\u505a\u4e00\u4e2a M10 \u7ea7\u65b9\u5f62\u7259\u578b\u87ba\u7eb9\u526f\u6f14\u793a\uff1a\u53f3\u65cb 1.5 mm \u87ba\u8ddd\u3001\u87ba\u6813/\u87ba\u6bcd\u4e24\u4ef6\uff0c\u8f6c 2 \u5708\u65f6\u87ba\u6bcd\u524d\u8fdb 3 mm\uff0c\u51e0\u4f55\u87ba\u8ddd/\u4e2d\u5f84\u548c\u8fd0\u52a8\u5bfc\u7a0b\u90fd\u8981\u7531\u771f\u5b9e\u7f51\u683c\u6d4b\u91cf\u3002",
+  "selectors": {
+    "bolt": "bolt",
+    "nut": "nut"
+  },
+  "geometry": {
+    "external": {
+      "pitchMm": 1.5,
+      "hand": "right",
+      "majorDiameterMm": {
+        "min": 9.95,
+        "max": 10.05
+      },
+      "minorDiameterMm": {
+        "min": 8.15,
+        "max": 8.25
+      },
+      "toleranceMm": 0.01,
+      "searchRadiusMm": 6,
+      "threadRangeMm": {
+        "min": 0.05,
+        "max": 17.95
+      }
+    },
+    "internal": {
+      "pitchMm": 1.5,
+      "hand": "right",
+      "majorDiameterMm": {
+        "min": 10.25,
+        "max": 10.35
+      },
+      "minorDiameterMm": {
+        "min": 8.45,
+        "max": 8.55
+      },
+      "toleranceMm": 0.01,
+      "searchRadiusMm": 6,
+      "threadRangeMm": {
+        "min": 0.05,
+        "max": 5.95
+      }
+    }
+  },
+  "motion": {
+    "pitchMm": 1.5,
+    "hand": "right",
+    "toleranceMm": 0.005,
+    "orientationToleranceDeg": 0.5,
+    "minTurns": 2,
+    "cornerRadiusMm": 9.2
+  },
+  "turns": [
+    0,
+    90,
+    180,
+    270,
+    360,
+    450,
+    540,
+    630,
+    720
+  ],
+  "poseParameters": {
+    "agentscad_pose": true
+  },
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 2
+      }
+    },
+    {
+      "id": "measured-joint-frames",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "rigid-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "Square-profile helical thread, not an ISO metric profile; no torque, preload, strength, wear or self-locking claim.",
+    "Geometry and lead/advance are scored; the tool's overall status can remain NOT_RUN for coaxiality/exit layers not in this task.",
+    "Only the nine listed turn angles are covered."
+  ]
+}
