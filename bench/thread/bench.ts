@@ -18,10 +18,12 @@ export interface ThreadTask {
   geometry: Parameters<typeof sampleThreadedFastener>[0]["geometry"];
   motion: Parameters<typeof sampleThreadedFastener>[0]["motion"];
   turns: number[]; poseParameters?: Record<string, number | string | boolean>;
+  exit?: Parameters<typeof sampleThreadedFastener>[0]["exit"];
   requirements: BenchRequirement[]; notes?: string[];
 }
 export interface ThreadMeasurements {
   parts: number;
+  exit: string | null;
   external: { status: string | null; pitchMm: number | null; hand: string | null; majorDiameterMm: number | null; minorDiameterMm: number | null };
   internal: { status: string | null; pitchMm: number | null; hand: string | null; majorDiameterMm: number | null; minorDiameterMm: number | null };
   engagement: string | null; motion: string | null;
@@ -54,7 +56,7 @@ export function validateThreadTask(value: unknown): ThreadTask {
   const requirements: BenchRequirement[] = raw.requirements.map((entry, index) => {
     if (!entry || typeof entry !== "object") fail(`requirements[${index}] must be an object`);
     const r = entry as Record<string, unknown>;
-    if (typeof r.id !== "string" || !["distinct-exported-parts", "measured-joint-frames", "rigid-motion"].includes(r.id)) fail(`requirements[${index}] has no thread observer`);
+    if (typeof r.id !== "string" || !["distinct-exported-parts", "measured-joint-frames", "rigid-motion", "disassembly-path"].includes(r.id)) fail(`requirements[${index}] has no thread observer`);
     if (!["parts", "assembly", "motion", "physical"].includes(String(r.layer)) || typeof r.required !== "boolean" || typeof r.applicable !== "boolean") fail(`requirements[${index}] flags are invalid`);
     const e = r.expected as Record<string, unknown> | undefined;
     if (!e || e.kind !== "equals" || !["string", "boolean", "number"].includes(typeof e.value)) fail(`requirements[${index}].expected is invalid`);
@@ -62,7 +64,7 @@ export function validateThreadTask(value: unknown): ThreadTask {
   });
   const distinct = requirements.find((r) => r.id === "distinct-exported-parts");
   if (!distinct || distinct.expected.kind !== "equals" || distinct.expected.value !== 2) fail("distinct-exported-parts must equal 2");
-  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, selectors: { bolt, nut }, geometry: raw.geometry as ThreadTask["geometry"], motion: raw.motion as ThreadTask["motion"], turns, ...(raw.poseParameters && typeof raw.poseParameters === "object" ? { poseParameters: raw.poseParameters as Record<string, number | string | boolean> } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
+  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, selectors: { bolt, nut }, geometry: raw.geometry as ThreadTask["geometry"], motion: raw.motion as ThreadTask["motion"], turns, ...(raw.poseParameters && typeof raw.poseParameters === "object" ? { poseParameters: raw.poseParameters as Record<string, number | string | boolean> } : {}), ...(raw.exit && typeof raw.exit === "object" ? { exit: raw.exit as ThreadTask["exit"] } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
 }
 export function threadTasksDirectory(): string { return path.join(import.meta.dir, "tasks"); }
 export function threadSubmissionsDirectory(): string { return path.join(import.meta.dir, "submissions"); }
@@ -86,7 +88,7 @@ export async function scoreThreadSubmission(task: ThreadTask, submission: Submis
   const sourceSha256 = sha256(submission.source);
   const provenance = { createdAt: new Date().toISOString(), backend: process.env.AGENTSCAD_OPENSCAD_BACKEND === "wasm" ? "wasm" : "native", openscad: openscadVersion(), runtime: `bun ${process.env.BUN_VERSION ?? "unknown"}`, platform: process.platform };
   const unknowns = ["A PASS covers nine commanded turns and the listed square-profile geometry contract; it is not ISO metric metrology, torque, preload, strength, wear, self-locking or physical manufacture.", "The tool's overall status may remain NOT_RUN for exit/coaxiality layers outside this task; only geometry and engagement/advance are scored here."];
-  const empty: ThreadMeasurements = { parts: 0, external: { status: null, pitchMm: null, hand: null, majorDiameterMm: null, minorDiameterMm: null }, internal: { status: null, pitchMm: null, hand: null, majorDiameterMm: null, minorDiameterMm: null }, engagement: null, motion: null, leadPerTurnMm: null, advanceResidualMm: null, turnsCovered: null };
+  const empty: ThreadMeasurements = { parts: 0, exit: null, external: { status: null, pitchMm: null, hand: null, majorDiameterMm: null, minorDiameterMm: null }, internal: { status: null, pitchMm: null, hand: null, majorDiameterMm: null, minorDiameterMm: null }, engagement: null, motion: null, leadPerTurnMm: null, advanceResidualMm: null, turnsCovered: null };
   const baseReport = (status: EvidenceStatus, results: Result[], measurements: ThreadMeasurements): ThreadReport => {
     const scored = scoreEvidence(results.map((r) => ({ id: r.id, status: r.status })));
     return { schemaVersion: "thread-bench.case.v1", taskId: task.id, submission: submission.id, expected: expectedOutcome(submission.id), sourcePath: path.relative(process.cwd(), submission.sourcePath), sourceSha256, status, gatePassed: status === "PASS", results, layers: { coverage: scored.coverage, byLayer: scored.layers.map((l) => ({ layer: l.layer, status: l.status, blockers: l.blockers })) }, measurements, provenance, unknowns };
@@ -96,13 +98,13 @@ export async function scoreThreadSubmission(task: ThreadTask, submission: Submis
     return baseReport(aggregateStatus(results), results, empty);
   };
   let sample: Awaited<ReturnType<typeof sampleThreadedFastener>>;
-  try { sample = await sampleThreadedFastener({ scadSource: submission.source, selectors: task.selectors, geometry: task.geometry, motion: task.motion, turns: task.turns, ...(task.poseParameters ? { poseParameters: task.poseParameters } : {}) }); }
+  try { sample = await sampleThreadedFastener({ scadSource: submission.source, selectors: task.selectors, geometry: task.geometry, motion: task.motion, turns: task.turns, ...(task.poseParameters ? { poseParameters: task.poseParameters } : {}), ...(task.exit ? { exit: task.exit } : {}) }); }
   catch (error) { return blocked(`Thread sample failed: ${error instanceof Error ? error.message : String(error)}`); }
   let parts: Awaited<ReturnType<typeof renderAssemblyParts>>;
   try { parts = await renderAssemblyParts({ scadSource: submission.source, parts: [{ partId: "bolt", selector: task.selectors.bolt }, { partId: "nut", selector: task.selectors.nut }], parameters: { ...(task.poseParameters ?? {}), agentscad_pose: false } }); }
   catch (error) { return blocked(`Bolt/nut meshes did not render: ${error instanceof Error ? error.message : String(error)}`); }
   const measurements: ThreadMeasurements = {
-    parts: parts.length,
+    parts: parts.length, exit: statusOf(sample.exit),
     external: { status: statusOf(sample.external), pitchMm: numeric(sample.external.pitchMm), hand: sample.external.hand ?? null, majorDiameterMm: numeric(sample.external.majorDiameterMm), minorDiameterMm: numeric(sample.external.minorDiameterMm) },
     internal: { status: statusOf(sample.internal), pitchMm: numeric(sample.internal.pitchMm), hand: sample.internal.hand ?? null, majorDiameterMm: numeric(sample.internal.majorDiameterMm), minorDiameterMm: numeric(sample.internal.minorDiameterMm) },
     engagement: statusOf(sample.engagement), motion: statusOf(sample.motion),
@@ -120,7 +122,10 @@ export async function scoreThreadSubmission(task: ThreadTask, submission: Submis
   const motionMeasured = motionValues.every((status) => status === "PASS" || status === "FAIL");
   const motionPass = motionValues.every((status) => status === "PASS");
   const motionObservation: Observation = { id: "rigid-motion", status: !motionMeasured ? "NOT_RUN" : "MEASURED", ...(motionMeasured ? { value: motionPass } : {}), artifactSha256, method: "Measured engagement and lead/advance over the commanded turns.", toolVersion, coverage: `${task.turns.length} turns; lead ${measurements.leadPerTurnMm ?? "?"} mm/turn.`, ...(motionPass ? {} : { reason: [sample.engagement.poses.find((pose) => pose.status !== "PASS")?.reason, sample.motion.reason].filter(Boolean).join(" | ") || "Engagement/advance did not pass." }) };
-  const observations: Record<string, Observation> = { "distinct-exported-parts": distinctObservation, "measured-joint-frames": frameObservation, "rigid-motion": motionObservation };
+  const exitStatus = statusOf(sample.exit);
+  const exitMeasured = exitStatus === "PASS" || exitStatus === "FAIL";
+  const exitObservation: Observation = { id: "disassembly-path", status: !exitMeasured ? "NOT_RUN" : "MEASURED", ...(exitMeasured ? { value: exitStatus === "PASS" } : {}), artifactSha256, method: "Frozen full-withdrawal exit sample over the declared turns.", toolVersion, coverage: "One frozen exit contract.", ...(exitStatus === "PASS" ? {} : { reason: sample.exit?.reason ?? `exit ${exitStatus ?? "missing"}.` }) };
+  const observations: Record<string, Observation> = { "distinct-exported-parts": distinctObservation, "measured-joint-frames": frameObservation, "rigid-motion": motionObservation, "disassembly-path": exitObservation };
   const results: Result[] = task.requirements.map((requirement) => {
     const evaluated = evaluateRequirement({ id: requirement.id, layer: requirement.layer, required: requirement.required, applicable: requirement.applicable, expected: requirement.expected }, observations[requirement.id]);
     if (evaluated.status === "FAIL" && requirement.expected.kind === "equals") return { ...evaluated, reason: `${evaluated.reason} Observed ${String(observations[requirement.id]?.value)}, expected ${String(requirement.expected.value)}.` };

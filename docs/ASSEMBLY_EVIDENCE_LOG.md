@@ -2686,3 +2686,14 @@ thread       OK         4     1    3   0        1    2    1       7/12
 ```
 
 `overall: PASS`; **88 cases**, 19 reference, 63 adversarial, 6 unscored; 25 PASS / 61 FAIL-or-ERROR / 2 NOT_RUN; **262/396** observed layer entries. This is the current public gate snapshot. It is not hidden evaluation, model ability, physical function, or user acceptance. Connected-crankshaft V8 and full A001 remain open.
+
+## 2026-11-19 · Threaded full withdrawal (English log)
+
+Added `bench/thread/tasks/threaded-fastener-exit-1.5.json`, which uses the frozen 12-turn, 90-degree-step, 0.1 mm-clearance exit contract over 49 commanded angles. It scores geometry, engagement/lead and `disassembly-path` (full axial withdrawal).
+
+- `bun run bench:thread:check` -> **SELF-CHECK OK: 2 reference(s) pass, 4 adversarial submission(s) rejected**
+- Exit reference: **PASS 4/4**, full withdrawal PASS, lead 1.5000 mm/turn
+- `adversarial-short-thread`: **FAIL 2/4**, geometry PASS, motion NOT_RUN, **disassembly-path FAIL**
+- The tool's overall status can still be NOT_RUN for coaxiality; only the measured exit layer is claimed.
+
+The thread family now has 2 tasks / 6 cases, 2 references and 4 adversarial submissions. The 88-case twelve-family gate snapshot predates this task; the gate was not rerun for this addition. Unit tests remain green.
