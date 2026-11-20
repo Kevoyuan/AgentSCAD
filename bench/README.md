@@ -172,9 +172,10 @@ planetary    OK         4     1    3   0        1    3    0       4/8
 planetary3   OK         4     1    3   0        1    3    0       4/8
 product      OK         6     1    5   0        1    5    0       25/42
 thread       OK         6     2    4   0        2    3    1       13/20
+cam          OK         4     1    3   0        1    3    0       5/8
 ```
 
-`overall: PASS`; **90 cases**: 20 reference, 64 adversarial, 6 unscored; 26 PASS / 62 FAIL-or-ERROR / 2 NOT_RUN. The six product cases include the joint-offset adversarial; the six thread cases include the full-withdrawal exit task. The six assembly `unscored` rows are recorded model replays, not new model samples. The gear and thread NOT_RUN rows are adversarial cases rejected by their self-checks; they are not promoted. `layers` is the sum of observed layers across cases, not a pass rate. A connected-crankshaft V8 is still not started; the v8 family is the shared-pin/carrier subset with no main shaft.
+`overall: PASS`; **94 cases**: 21 reference, 67 adversarial, 6 unscored; 27 PASS / 65 FAIL-or-ERROR / 2 NOT_RUN. The six product cases include the joint-offset adversarial; the six thread cases include the full-withdrawal exit task; the four cam cases include the static, eccentricity and collision adversaries. The six assembly `unscored` rows are recorded model replays, not new model samples. The gear and thread NOT_RUN rows are adversarial cases rejected by their self-checks; they are not promoted. `layers` is the sum of observed layers across cases, not a pass rate. A connected-crankshaft V8 is still not started; the v8 family is the shared-pin/carrier subset with no main shaft.
 
 ### 4.1 已记录模型 baseline（replay）
 

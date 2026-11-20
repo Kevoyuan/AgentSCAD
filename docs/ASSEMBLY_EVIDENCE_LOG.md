@@ -2746,3 +2746,26 @@ Added `bench/cam`: an eccentric disk cam rotating about +Y and a flat follower t
 Five sampled angles only; this is a source-driven pose check, not dynamic contact, spring, load, friction or physical function. The cam family is not yet in the 90-case gate.
 
 Hidden cam verification on 2026-11-19: `hidden-cam-dev [cam]` contains the cam reference and task. Result: **1 task / 1 case PASS**, layers `2/2`; `independentHiddenEvaluation=NOT_RUN`. The cam family is listed in `bench:all` and the hidden split, but the published 90-case gate snapshot predates it.
+
+## 2026-11-20 · Thirteen-family gate with cam (English log)
+
+Full native gate after adding the cam family. About **99.9 minutes**, no model calls.
+
+```
+family       self-check cases refs adv unscored pass fail not-run layers
+assembly     OK         20    6    8   6        12   8    0       104/120
+gear         OK         6     1    5   0        1    4    1       7/12
+slider       OK         17    3    14  0        3    14   0       51/77
+l4           OK         5     1    4   0        1    4    0       14/25
+twin         OK         6     1    5   0        1    5    0       11/24
+vtwin        OK         5     1    4   0        1    4    0       11/20
+declaration  OK         4     1    3   0        1    3    0       7/20
+v8           OK         7     1    6   0        1    6    0       17/28
+planetary    OK         4     1    3   0        1    3    0       4/8
+planetary3   OK         4     1    3   0        1    3    0       4/8
+product      OK         6     1    5   0        1    5    0       25/42
+thread       OK         6     2    4   0        2    3    1       13/20
+cam          OK         4     1    3   0        1    3    0       5/8
+```
+
+`overall: PASS`; **94 cases**, 21 reference, 67 adversarial, 6 unscored; 27 PASS / 65 FAIL-or-ERROR / 2 NOT_RUN; **273/412** observed layer entries. This is the current public gate; it is not independent hidden evaluation, model ability, or physical function. Connected-crankshaft V8 and full A001 remain open.

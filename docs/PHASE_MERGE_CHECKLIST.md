@@ -27,7 +27,7 @@ The branch is **not** a simple fast-forward of `main`: both sides have 35 and 17
 | Twelve-family gate | **90 cases**, `overall: PASS`, about 118.6 minutes |
 | Product family | 6 cases, reference 7/7, gate row **25/42** |
 | Thread family | 6 cases, 2 references / 4 adversarial, gate row **13/20**; hidden dev 2 tasks / 2 refs PASS (3/3 and 4/4) |
-| Cam family | 1 task / 4 cases; reference 2/2, max lift error 0.0000 mm; hidden dev 1/1, 2/2 layers; not in the 90-case gate snapshot |
+| Cam family | 1 task / 4 cases; reference 2/2, max lift error 0.0000 mm; hidden dev 1/1, 2/2 layers; gate row 5/8 |
 | Public bench task prompts | 19/19 in English |
 | New logs, prompts, commit messages | English |
 
