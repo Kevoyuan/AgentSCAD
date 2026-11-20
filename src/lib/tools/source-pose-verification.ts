@@ -142,8 +142,12 @@ export async function verifySourcePoses(input: {
                     throw new Error(`Required local or posed mesh missing for ${instance.id}; purchased parts need actual geometry`);
                 const meshInput = { local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM, surfaceComparison: setup.surfaceComparison };
                 const strictResult = checkStrictReconstructedMesh({ local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM });
-                const result = setup.surfaceComparison === "bounded-cover"
+                let result = setup.surfaceComparison === "bounded-cover"
                     ? { ...compareSurfaceCover(meshInput), method: "bidirectional-convex-triangle-cover/v2" as const, triangleComparison: strictResult } : strictResult;
+                if (result.status === "NOT_RUN") {
+                    const difference = findSurfaceDifference({ local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM, maxDistanceTests: 20_000_000 });
+                    if (difference.status === "DIFFERENT") result = { ...result, status: "FAIL" as const, reason: `A surface-difference witness shows the expected pose does not match the source surface: ${difference.reason}` };
+                }
                 const matrix = item.transforms[instance.id];
                 const reference = references.get(instance.id);
                 let observability: PoseChange = { status: "REFERENCE", reason: "Reference or unchanged expected rigid transform" };
