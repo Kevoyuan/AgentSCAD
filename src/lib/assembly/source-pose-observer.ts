@@ -1,0 +1,184 @@
+/**
+ * Explicit source-pose observations. Local parts are rendered from one CAD
+ * source; the whole assembled reference is separately rendered by OpenSCAD
+ * with explicit source parameters at every requested pose.
+ *
+ * These surface comparisons are not generic motion verification: source
+ * parameters, rigid placements and the reference selector are still caller
+ * bindings. Product motion and physical evidence remain NOT_RUN.
+ */
+import { createHash } from "node:crypto";
+import { validateAssemblySpec, validateRigidTransform, type AssemblySpec } from "./assembly-spec";
+import { assemblySpecificationHash } from "./spec-hash";
+import { buildAssemblyBundle } from "./assembly-bundle";
+import { reconstructAssemblyBundle } from "./reconstruct-assembly-bundle";
+import { renderAssemblyParts, renderAssemblySpecParts, type RenderedAssemblyPart } from "../tools/assembly-part-renderer";
+import type { ScadExecutionOptions } from "../tools/scad-renderer";
+import { verifyAnalyticRigidSweep, type RigidSweepEvidence } from "./source-rigid-sweep";
+import type { Vec3 } from "../geometry/stl-mesh";
+
+type Rendered = { parts: RenderedAssemblyPart[]; purchasedPartIds: string[] };
+export type SourcePoseSample = {
+  id: string;
+  parameters: Record<string, number>;
+  transforms: Record<string, number[]>;
+};
+type ResultStatus = "PASS" | "FAIL" | "NOT_RUN" | "ERROR";
+export type SourcePoseObservation = {
+  id: string;
+  status: ResultStatus;
+  reason: string;
+  sourceSha256: string;
+  posedSpecificationSha256: string;
+  localPartSha256: Record<string, string>;
+  referenceStlSha256: string;
+  reconstructedStlSha256: string;
+  archiveSha256: string;
+  comparisonMethod: string | null;
+  matchedTriangles?: number;
+  testedPairs?: number;
+  trianglesChecked?: number;
+  maximumAreaMismatchMm2?: number;
+  maximumAreaBudgetMm2?: number;
+  bboxErrorMm?: number;
+  maxVertexErrorMm?: number;
+  limitations: string;
+};
+export type SourcePoseReport = {
+  method: "independent-source-pose-stl-comparison/v1";
+  status: ResultStatus;
+  sourceSha256: string;
+  originalSpecificationSha256: string;
+  referenceSelector: string;
+  samples: SourcePoseObservation[];
+  analyticRigidSweep?: RigidSweepEvidence;
+  reason: string;
+  coverage: string;
+};
+
+type ReferenceRenderer = (
+  scadSource: string,
+  selector: string,
+  parameters: Record<string, number>,
+  options?: ScadExecutionOptions,
+) => Promise<{ stl: Buffer; sha256: string }>;
+
+export async function observeSourcePoses(input: {
+  scadSource: string;
+  spec: unknown;
+  referenceSelector: string;
+  samples: SourcePoseSample[];
+  /** Auxiliary conservative clearance for the declared rigid geometry, not actual
+   * source motion semantics between the independently rendered samples. */
+  analyticSweep?: {
+    movingInstanceId: string;
+    axis: { origin: Vec3; direction: Vec3 };
+    anglesDeg: number[];
+  };
+  expectedSourceSha256?: string;
+  expectedSpecificationSha256?: string;
+  options?: ScadExecutionOptions;
+  renderLocal?: (source: string, spec: AssemblySpec, options?: ScadExecutionOptions) => Promise<Rendered>;
+  renderReference?: ReferenceRenderer;
+}): Promise<SourcePoseReport> {
+  const checkedSpec = validateAssemblySpec(input.spec);
+  if (!checkedSpec.success) throw new Error("Invalid source-pose assembly specification");
+  if (!input.scadSource.trim()) throw new Error("Source-pose observation requires nonempty CAD source");
+  if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(input.referenceSelector)) throw new Error("Invalid reference selector");
+  if (input.samples.length < 2 || input.samples.length > 9) throw new Error("Source-pose comparison requires 2 to 9 explicit samples");
+  if (new Set(input.samples.map(sample => sample.id)).size !== input.samples.length) throw new Error("Duplicate source pose sample IDs");
+  const spec = checkedSpec.data;
+  if (!spec.instances.length || spec.instances.length > 32 ||
+    spec.parts.some(part => part.source !== "generated") ||
+    spec.instances.some(instance => !spec.parts.some(part => part.id === instance.partId))) {
+    throw new Error("Complete generated-part geometry is required for source pose replay");
+  }
+  const ids = new Set(spec.instances.map(instance => instance.id));
+  const sourceSha256 = createHash("sha256").update(input.scadSource).digest("hex");
+  if (input.expectedSourceSha256 !== undefined && input.expectedSourceSha256 !== sourceSha256) throw new Error("CAD source has changed since the reference snapshot");
+  if (input.expectedSpecificationSha256 !== undefined && input.expectedSpecificationSha256 !== assemblySpecificationHash(spec)) throw new Error("Assembly specification changed since the reference snapshot");
+  const renderLocal = input.renderLocal ?? renderAssemblySpecParts;
+  const renderReference = input.renderReference ?? (async (source, selector, parameters, options) =>
+    (await renderAssemblyParts({ scadSource: source, parts: [{ partId: "reference", selector }], parameters, options }))[0]);
+
+  for (const sample of input.samples) {
+    if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(sample.id) ||
+      Object.keys(sample.transforms).length === 0 ||
+      Object.keys(sample.transforms).some(id => !ids.has(id)) ||
+      Object.keys(sample.parameters).length === 0 ||
+      Object.entries(sample.parameters).some(([name, value]) =>
+        !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name) || !Number.isFinite(value))) {
+      throw new Error("Source pose sample lacks a valid instance, pose, or finite source parameter");
+    }
+    if (Object.values(sample.transforms).some(transform => !validateRigidTransform(transform).success)) {
+      throw new Error("Source pose transform is not right-handed rigid");
+    }
+  }
+
+  const local = await renderLocal(input.scadSource, spec, input.options);
+  if (local.purchasedPartIds.length || local.parts.length !== spec.parts.length ||
+    new Set(local.parts.map(part => part.partId)).size !== spec.parts.length ||
+    spec.parts.some(part => !local.parts.some(output => output.partId === part.id))) {
+    throw new Error("Source did not render every independently selectable generated part");
+  }
+  const localPartSha256 = Object.fromEntries(local.parts.map(part => [part.partId, part.sha256]));
+  const results: SourcePoseObservation[] = [];
+  for (const sample of input.samples) {
+    input.options?.signal?.throwIfAborted();
+    const posedSpec = {
+      ...spec,
+      instances: spec.instances.map(instance => ({
+        ...instance, transform: sample.transforms[instance.id] ?? instance.transform,
+      })),
+    };
+    const checked = validateAssemblySpec(posedSpec);
+    if (!checked.success) throw new Error("Sample contains an invalid positioned assembly specification");
+
+    // Independent reference render evaluates the CAD source with its own
+    // selector and parameter. It is NEVER synthesized from the matrices.
+    const reference = await renderReference(input.scadSource, input.referenceSelector, sample.parameters, input.options);
+    const referenceHash = createHash("sha256").update(reference.stl).digest("hex");
+    if (referenceHash !== reference.sha256) throw new Error("Independent reference renderer returned incorrect STL SHA-256");
+    const bundle = await buildAssemblyBundle({
+      scadSource: input.scadSource, spec: checked.data, options: input.options,
+      render: async () => local,
+    });
+    const compared = reconstructAssemblyBundle({ zip: bundle.zip, referenceStl: reference.stl });
+    const observation = compared.report.reference;
+    results.push({
+      id: sample.id, status: observation.status,
+      reason: observation.reason, sourceSha256,
+      posedSpecificationSha256: compared.report.specificationSha256,
+      localPartSha256, referenceStlSha256: referenceHash,
+      reconstructedStlSha256: compared.report.assembledStlSha256,
+      archiveSha256: bundle.sha256, comparisonMethod: observation.method,
+      ...("matchedTriangles" in observation ? { matchedTriangles: observation.matchedTriangles } : {}),
+      ...("testedPairs" in observation ? { testedPairs: observation.testedPairs } : {}),
+      ...("trianglesChecked" in observation ? { trianglesChecked: observation.trianglesChecked } : {}),
+      ...("maximumAreaMismatchMm2" in observation ? { maximumAreaMismatchMm2: observation.maximumAreaMismatchMm2 } : {}),
+      ...("maximumAreaBudgetMm2" in observation ? { maximumAreaBudgetMm2: observation.maximumAreaBudgetMm2 } : {}),
+      ...("bboxErrorMm" in observation ? { bboxErrorMm: observation.bboxErrorMm } : {}),
+      ...("maxVertexErrorMm" in observation ? { maxVertexErrorMm: observation.maxVertexErrorMm } : {}),
+      limitations: "One source-parameter pose, measured triangulated surfaces only. No continuous clearance, semantic parameter-to-motion identity, force, physical fit or full product acceptance.",
+    });
+  }
+  input.options?.signal?.throwIfAborted();
+  const analyticRigidSweep = input.analyticSweep === undefined ? undefined : verifyAnalyticRigidSweep({
+    spec, parts: local.parts, movingInstanceId: input.analyticSweep.movingInstanceId,
+    axis: input.analyticSweep.axis, anglesDeg: input.analyticSweep.anglesDeg,
+    signal: input.options?.signal,
+  });
+  const statuses = results.map(item => item.status);
+  const status: ResultStatus = statuses.includes("ERROR") ? "ERROR" :
+    statuses.includes("FAIL") ? "FAIL" :
+    statuses.includes("NOT_RUN") ? "NOT_RUN" : "PASS";
+  return {
+    method: "independent-source-pose-stl-comparison/v1",
+    status, sourceSha256,
+    originalSpecificationSha256: assemblySpecificationHash(spec),
+    referenceSelector: input.referenceSelector, samples: results,
+    ...(analyticRigidSweep ? { analyticRigidSweep } : {}),
+    reason: "Independently rendered source reference versus placed parts at explicit samples, not product motion approval.",
+    coverage: results.length + " independently rendered source parameter poses; no continuous sweep of actual source-generated behavior is proven. Optional analytic rigid-sweep bounds concern only declared rigid-part trajectories, not source behavior between observations, tools or manufacture.",
+  };
+}

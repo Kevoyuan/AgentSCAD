@@ -4,6 +4,10 @@ import * as React from 'react'
 import { AssemblyVerification } from './AssemblyVerification'
 import { useI18n } from '@/components/i18n-provider'
 import { validateAssemblySpec } from '@/lib/assembly/assembly-spec'
+import type { AssemblyEvidenceReport } from '@/lib/assembly/assembly-evidence-report'
+import { CollisionReplayAction } from './CollisionReplayAction'
+import { SourcePoseCheck } from './SourcePoseCheck'
+import { AssemblyRepairPanel } from './AssemblyRepairPanel'
 
 type AssemblyResponse = { spec: unknown | null; stale: boolean; sourceSha256?: string | null; currentSourceSha256?: string | null; specSha256?: string | null; provenance?: 'generated' | 'user' | null; embeddedStatus?: 'valid' | 'invalid' | 'absent'; evidence?: Record<string, { status?: string }> }
 type AssemblyRevisionView = { id: string; revision: number | null; savedAt: string; specSha256: string; sourceSha256?: string | null; stale: boolean; spec: unknown }
@@ -68,6 +72,86 @@ export async function fetchAssemblyBundle(jobId: string, sourceSha256: string, s
   } catch { return { error: 'The parts could not be exported.' as const } }
 }
 
+/** Reconstructs only complete generated-part layouts; no CAD function is implied. */
+export async function fetchAssemblyLayout(jobId: string, sourceSha256: string, specSha256: string, request: Request = fetch) {
+  if (!/^[a-f0-9]{64}$/.test(sourceSha256) || !/^[a-f0-9]{64}$/.test(specSha256)) {
+    return { error: 'The source is unavailable. Refresh the assembly information.' as const }
+  }
+  try {
+    const query = new URLSearchParams({ sourceSha256, specSha256, download: '1' })
+    const url = '/api/jobs/' + encodeURIComponent(jobId) + '/assembly/layout?' + query
+    const response = await request(url, { credentials: 'include' })
+    if (response.status === 409) return { error: 'The source or assembly changed. Refresh the assembly information before downloading.' as const }
+    if (response.status === 422) return { error: 'The layout is unavailable because parts are missing or geometry cannot be reconstructed.' as const }
+    if (!response.ok) return { error: 'The assembly layout could not be exported.' as const }
+    const blob = await response.blob()
+    if (!blob.size) return { error: 'The assembly layout could not be exported.' as const }
+    return { blob }
+  } catch { return { error: 'The assembly layout could not be exported.' as const } }
+}
+
+/** Runs a fresh, explicit measurement; never loads a stored or inferred PASS. */
+export async function fetchAssemblyEvidence(jobId: string, sourceSha256: string, specSha256: string, request: Request = fetch) {
+  if (!/^[a-f0-9]{64}$/.test(sourceSha256) || !/^[a-f0-9]{64}$/.test(specSha256)) {
+    return { error: 'The source is unavailable. Refresh the assembly information.' as const }
+  }
+  try {
+    const query = new URLSearchParams({ sourceSha256, specSha256 })
+    const response = await request('/api/jobs/' + encodeURIComponent(jobId) + '/assembly/evidence?' + query, { credentials: 'include' })
+    if (response.status === 409) return { error: 'The source or assembly changed. Refresh the assembly information before checking.' as const }
+    if (response.status === 422) return { error: 'Assembly parts are not independently selectable or have no generated meshes.' as const }
+    if (!response.ok) return { error: 'Assembly measurement could not be completed.' as const }
+    const data = await response.json() as AssemblyEvidenceReport
+    if (data?.reportSchemaVersion !== 1 || data.sourceSha256 !== sourceSha256 || data.specificationSha256 !== specSha256) {
+      return { error: 'Assembly measurement does not match this source and specification.' as const }
+    }
+    return { report: data }
+  } catch { return { error: 'Assembly measurement could not be completed.' as const } }
+}
+
+type EvidenceSnapshotView = {
+  id: string
+  savedAt: string
+  integrity: 'PASS' | 'ERROR'
+  bindingCurrent: boolean
+  reasons: string[]
+  snapshot: { schemaVersion: 1; checkedAt: string; checkerVersion: string; snapshotSha256: string; report: AssemblyEvidenceReport } | null
+}
+
+export async function fetchAssemblyEvidenceHistory(jobId: string, request: Request = fetch, cursor?: string) {
+  try {
+    const base = '/api/jobs/' + encodeURIComponent(jobId) + '/assembly/evidence/snapshots'
+    const response = await request(base + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''), { credentials: 'include' })
+    if (!response.ok) return { error: 'Saved assembly evidence could not be loaded.' as const }
+    const data = await response.json() as { snapshots?: EvidenceSnapshotView[]; nextCursor?: string | null }
+    if (!Array.isArray(data.snapshots)) return { error: 'Saved assembly evidence could not be loaded.' as const }
+    return { snapshots: data.snapshots, nextCursor: typeof data.nextCursor === 'string' ? data.nextCursor : null }
+  } catch { return { error: 'Saved assembly evidence could not be loaded.' as const } }
+}
+
+export async function recordAssemblyEvidenceSnapshot(jobId: string, sourceSha256: string, specSha256: string, request: Request = fetch) {
+  if (!/^[a-f0-9]{64}$/.test(sourceSha256) || !/^[a-f0-9]{64}$/.test(specSha256)) {
+    return { error: 'The source is unavailable. Refresh the assembly information.' as const }
+  }
+  try {
+    const query = new URLSearchParams({ sourceSha256, specSha256 })
+    const response = await request('/api/jobs/' + encodeURIComponent(jobId) + '/assembly/evidence/snapshots?' + query, {
+      method: 'POST', credentials: 'include',
+    })
+    if (response.status === 409) return { error: 'The source or assembly changed. Refresh the assembly information before checking.' as const }
+    if (response.status === 422) return { error: 'Assembly parts are not independently selectable or have no generated meshes.' as const }
+    if (response.status !== 201) return { error: 'Assembly evidence snapshot could not be recorded.' as const }
+    const data = await response.json() as { id?: string; snapshot?: EvidenceSnapshotView['snapshot'] }
+    if (!data.snapshot || data.snapshot.schemaVersion !== 1 ||
+      data.snapshot.report.sourceSha256 !== sourceSha256 ||
+      data.snapshot.report.specificationSha256 !== specSha256 ||
+      !/^[a-f0-9]{64}$/.test(data.snapshot.snapshotSha256) || !data.id) {
+      return { error: 'Saved evidence does not match the requested assembly.' as const }
+    }
+    return { id: data.id }
+  } catch { return { error: 'Assembly evidence snapshot could not be recorded.' as const } }
+}
+
 function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
@@ -82,11 +166,45 @@ function saveBlob(blob: Blob, filename: string) {
   }
 }
 
+type CollisionReplayFrame = {
+  frame: string
+  movingWorldFromLocal: number[]
+  obstacleWorldFromLocal: number[]
+  movingMeshSha256: string
+  obstacleMeshSha256: string
+}
+
+/** Original validated poses, not camera positions or guessed contact coordinates. */
+export function CollisionReplayDetails({ replay }: { replay: CollisionReplayFrame }) {
+  const { t } = useI18n()
+  return <details className="mt-1 rounded border border-[color:var(--shell-hairline)] p-2 text-[var(--shell-text-label)]">
+    <summary className="cursor-pointer">{t('Replay sampled collision pose')}</summary>
+    <p className="mt-1">{t('These matrices describe the measured assembly scene, not the current single-STL viewport.')}</p>
+    <p>{t('Coordinate convention')}: {replay.frame}</p>
+    <p>{t('Moving mesh SHA-256')}: <code className="break-all">{replay.movingMeshSha256}</code></p>
+    <p>{t('Obstacle mesh SHA-256')}: <code className="break-all">{replay.obstacleMeshSha256}</code></p>
+    <p className="mt-1">{t('Moving mesh world transform')}</p>
+    <pre className="overflow-x-auto whitespace-pre-wrap break-all font-mono text-[10px]">{JSON.stringify(replay.movingWorldFromLocal, null, 2)}</pre>
+    <p className="mt-1">{t('Obstacle mesh world transform')}</p>
+    <pre className="overflow-x-auto whitespace-pre-wrap break-all font-mono text-[10px]">{JSON.stringify(replay.obstacleWorldFromLocal, null, 2)}</pre>
+    <p className="mt-1">{t('Replay requires the matching verified part STL artifacts and source/specification hashes. These sampled poses do not prove continuous motion.')}</p>
+  </details>
+}
+
 /** An intent contract is not evidence that the geometry implements it. */
 export function AssemblyDetails({ data, jobId, canExport = false }: { data: AssemblyResponse; jobId?: string; canExport?: boolean }) {
   const { t } = useI18n()
   const [downloading, setDownloading] = React.useState<string | null>(null)
   const [bundling, setBundling] = React.useState(false)
+  const [layingOut, setLayingOut] = React.useState(false)
+  const [inspecting, setInspecting] = React.useState(false)
+  const [inspection, setInspection] = React.useState<{ jobId: string; report: AssemblyEvidenceReport } | null>(null)
+  const [inspectionError, setInspectionError] = React.useState('')
+  const [savingEvidence, setSavingEvidence] = React.useState(false)
+  const [historyLoading, setHistoryLoading] = React.useState(false)
+  const [historyError, setHistoryError] = React.useState('')
+  const [historyMessage, setHistoryMessage] = React.useState('')
+  const [savedHistory, setSavedHistory] = React.useState<{ jobId: string; sourceSha256: string; specSha256: string; snapshots: EvidenceSnapshotView[]; nextCursor: string | null } | null>(null)
   const [downloadError, setDownloadError] = React.useState('')
   if (data.spec === null) return data.embeddedStatus === 'invalid' ? <p role="alert" className="py-2 text-xs text-[var(--shell-fail)]">{t('The generated assembly description could not be read. It is not verified.')}</p> : null
   const parsed = validateAssemblySpec(data.spec)
@@ -124,7 +242,75 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
     }
     setBundling(false)
   }
+  const downloadLayout = async () => {
+    if (!jobId || !canDownload || !data.sourceSha256 || !data.specSha256) return
+    setLayingOut(true); setDownloadError('')
+    const result = await fetchAssemblyLayout(jobId, data.sourceSha256, data.specSha256)
+    if (result.error) { setDownloadError(result.error); setLayingOut(false); return }
+    if (result.blob) {
+      try { saveBlob(result.blob, 'agentscad-layout-' + jobId.replace(/[^A-Za-z0-9_-]/g, '_') + '.stl') }
+      catch { setDownloadError('The assembly layout could not be exported.') }
+    }
+    setLayingOut(false)
+  }
+  const inspect = async () => {
+    if (!jobId || !canDownload || !data.sourceSha256 || !data.specSha256) return
+    setInspecting(true)
+    setInspection(null)
+    setInspectionError('')
+    const result = await fetchAssemblyEvidence(jobId, data.sourceSha256, data.specSha256)
+    if (result.error) setInspectionError(result.error)
+    else if (result.report) setInspection({ jobId, report: result.report })
+    setInspecting(false)
+  }
+  const report = inspection !== null && inspection.jobId === jobId && !data.stale &&
+    inspection.report.sourceSha256 === data.sourceSha256 &&
+    inspection.report.specificationSha256 === data.specSha256
+      ? inspection.report : null
+  const loadHistory = async () => {
+    if (!jobId || !canDownload || !data.sourceSha256 || !data.specSha256) return
+    setHistoryLoading(true)
+    setHistoryError('')
+    const result = await fetchAssemblyEvidenceHistory(jobId)
+    if (result.error) setHistoryError(result.error)
+    else if (result.snapshots) setSavedHistory({ jobId, sourceSha256: data.sourceSha256, specSha256: data.specSha256, snapshots: result.snapshots, nextCursor: result.nextCursor ?? null })
+    setHistoryLoading(false)
+  }
+  const saveEvidence = async () => {
+    if (!jobId || !canDownload || !data.sourceSha256 || !data.specSha256) return
+    setSavingEvidence(true)
+    setHistoryError('')
+    setHistoryMessage('')
+    const result = await recordAssemblyEvidenceSnapshot(jobId, data.sourceSha256, data.specSha256)
+    if (result.error) setHistoryError(result.error)
+    else {
+      setHistoryMessage('Evidence was re-measured and recorded in immutable history.')
+      const saved = await fetchAssemblyEvidenceHistory(jobId)
+      if (saved.snapshots) setSavedHistory({ jobId, sourceSha256: data.sourceSha256, specSha256: data.specSha256, snapshots: saved.snapshots, nextCursor: saved.nextCursor ?? null })
+      else if (saved.error) setHistoryError(saved.error)
+    }
+    setSavingEvidence(false)
+  }
+  const loadOlderHistory = async () => {
+    if (!jobId || !savedHistory?.nextCursor || historyLoading || !canDownload) return
+    setHistoryLoading(true)
+    setHistoryError('')
+    const result = await fetchAssemblyEvidenceHistory(jobId, fetch, savedHistory.nextCursor)
+    if (result.error) setHistoryError(result.error)
+    else if (result.snapshots) {
+      setSavedHistory(previous => previous && previous.jobId === jobId && previous.sourceSha256 === data.sourceSha256 &&
+        previous.specSha256 === data.specSha256
+          ? { ...previous, snapshots: [...previous.snapshots, ...result.snapshots!], nextCursor: result.nextCursor ?? null }
+          : previous)
+    }
+    setHistoryLoading(false)
+  }
+  const history = savedHistory !== null && savedHistory.jobId === jobId &&
+    savedHistory.sourceSha256 === data.sourceSha256 &&
+    savedHistory.specSha256 === data.specSha256 && !data.stale
+      ? savedHistory.snapshots : null
   const generatedParts = spec.parts.filter(part => part.source === 'generated')
+  const hasPurchasedInstances = spec.instances.some(instance => spec.parts.some(part => part.id === instance.partId && part.source === 'purchased'))
   return (
     <section className="border-t border-[color:var(--shell-hairline)] py-[10px] text-xs" aria-label={t('Assembly')}>
       <h3 className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--shell-text-label)]">{t('Assembly')}</h3>
@@ -135,8 +321,142 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
       {canDownload && <p className="mt-2 text-[var(--shell-text-label)]">{t('Part exports have not been checked for identity or fit.')}</p>}
       {downloadError && <p role="alert" className="mt-2 text-[var(--shell-fail)]">{t(downloadError)}</p>}
       {canDownload && generatedParts.length > 0 && <div className="mt-2">
-        <button type="button" disabled={bundling || downloading !== null} onClick={() => void downloadBundle()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{bundling ? t('Preparing…') : t('Download all parts (ZIP)')}</button>
-        <p className="mt-1 text-[var(--shell-text-label)]">{t('The archive includes one STL per generated part and a version-bound evidence manifest. Review each layer for its status and scope.')}</p>
+        <button type="button" disabled={bundling || layingOut || downloading !== null} onClick={() => void downloadBundle()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{bundling ? t('Preparing…') : t('Download all parts (ZIP)')}</button>
+        <p className="mt-1 text-[var(--shell-text-label)]">{t('The archive holds one STL per generated part and a manifest with hashes. Identity, fit and motion are not verified.')}</p>
+      </div>}
+      {canDownload && generatedParts.length > 0 && <div className="mt-2">
+        {!hasPurchasedInstances
+          ? <button type="button" disabled={layingOut || bundling || downloading !== null} onClick={() => void downloadLayout()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{layingOut ? t('Preparing…') : t('Download assembly layout (STL)')}</button>
+          : <p className="text-[var(--shell-text-label)]">{t('Layout STL unavailable: purchased instances have no geometry. Download the ZIP instead.')}</p>}
+        <p className="mt-1 text-[var(--shell-text-label)]">{t('Layout STL positions part instances for viewing only. It is not a printable union or proof of fit, motion or physical function.')}</p>
+      </div>}
+      {canDownload && generatedParts.length > 0 && <div className="mt-3 border-t border-[color:var(--shell-hairline)] pt-2">
+        <button type="button" disabled={inspecting || downloading !== null || bundling || layingOut} onClick={() => void inspect()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{inspecting ? t('Measuring assembly…') : t('Run assembly geometry checks')}</button>
+        <p className="mt-1 text-[var(--shell-text-label)]">{t('This renders the current parts on demand. Results are a one-time snapshot, not saved validation or proof of physical function.')}</p>
+        {inspectionError && <p role="alert" className="mt-1 text-[var(--shell-fail)]">{t(inspectionError)}</p>}
+        {report && <section className="mt-2" aria-label={t('Measured assembly evidence')}>
+          <p className="font-medium">{t('Measurement snapshot')} · {report.archiveSha256.slice(0, 12)}</p>
+          <p className="mt-1 text-[var(--shell-text-label)]">{t('Requirement contract')}: {report.contract.evidenceCurrent === true ? t('Confirmed') : t('Unconfirmed or stale')}</p>
+          <p className="mt-1 text-[var(--shell-text-label)]">{t('Measured PASS does not count as approved PASS when the requirement contract is unconfirmed or stale.')}</p>
+          <ul className="mt-2 space-y-1" aria-label={t('Measured evidence layers')}>
+            {Object.entries(report.evidence).map(([key, item]) =>
+              <li key={key}><span className="font-medium">{t(key)}: {item.status}</span><span className="block text-[var(--shell-text-label)]">{item.reason}</span></li>)}
+          </ul>
+          <details className="mt-2">
+            <summary className="cursor-pointer">{t('Disassembly measurements')} · {report.disassembly.status} ({t('Raw measurement')}: {report.disassembly.measuredStatus})</summary>
+            <p className="mt-1 text-[var(--shell-text-label)]">{report.disassembly.method}: {report.disassembly.coverage}</p>
+            <p className="mt-1">{t('Operations evaluated')}: {report.disassembly.totalOperations}</p>
+            {report.disassembly.omittedOperations > 0 && <p>{t('Additional operations omitted from this summary')}: {report.disassembly.omittedOperations}</p>}
+            <ol className="mt-1 space-y-2">
+              {report.disassembly.operations.map(op => <li key={op.operationId}>
+                <strong>{op.operationId} ({op.instanceId}): {op.measuredStatus}</strong>
+                <p>{op.reason}</p>
+                {op.path && <p className="text-[var(--shell-text-label)]">{t('Sampled poses')}: {op.path.posesEvaluated}/{op.path.declaredPoseCount}; {t('Maximum translation step')}: {op.path.translationStepMm.toFixed(3)} mm; {t('Maximum rotation step')}: {op.path.rotationStepDeg.toFixed(2)}°</p>}
+                {op.path && <p className="text-[var(--shell-text-label)]">{t('Triangle pairs evaluated')}: {op.path.testedTrianglePairs}</p>}
+                {op.path?.blockedAt && <div className="text-[var(--shell-fail)]">
+                  <p>{t('First blocked pose')}: {op.path.blockedAt.poseIndex}; {t('Blocking instance')}: {op.path.blockedAt.obstacleId} ({op.path.blockedAt.collision})</p>
+                  <p>{t('Triangle pairs evaluated at blocking pose')}: {op.path.blockedAt.testedPairs}</p>
+                  <p>{op.path.blockedAt.collisionReason}</p>
+                  {op.path.blockedAt.trianglePair && <p>{t('Intersecting triangle IDs')}: {op.path.blockedAt.trianglePair.movingTriangleIndex} / {op.path.blockedAt.trianglePair.obstacleTriangleIndex}</p>}
+                  {op.path.blockedAt.witnessCentroidPointMm && <p>{t('Approximate triangle-centroid witness (mm)')}: {op.path.blockedAt.witnessCentroidPointMm.map(x => x.toFixed(3)).join(', ')}</p>}
+                  <p>{t('The witness is not an exact contact point or penetration measurement.')}</p>
+                  {op.path.blockedAt.replayFrame && <CollisionReplayDetails replay={op.path.blockedAt.replayFrame} />}
+                  {canDownload && jobId && op.path.blockedAt.replayFrame && <CollisionReplayAction
+                    jobId={jobId} sourceSha256={report.sourceSha256} specSha256={report.specificationSha256}
+                    evidenceArchiveSha256={report.archiveSha256}
+                    target={{
+                      movingInstanceId: op.instanceId,
+                      obstacleInstanceId: op.path.blockedAt.obstacleId,
+                      collision: op.path.blockedAt.collision as "INTERSECT" | "CONTAINED" | "UNKNOWN",
+                      poseIndex: op.path.blockedAt.poseIndex,
+                      frame: op.path.blockedAt.replayFrame,
+                      witnessCentroidPointMm: op.path.blockedAt.witnessCentroidPointMm,
+                    }}
+                  />}
+                </div>}
+                {op.path?.undecidedAt && <div className="text-[var(--shell-fail)]">
+                  <p>{t('Undecided pose')}: {op.path.undecidedAt.poseIndex}; {t('Blocking instance')}: {op.path.undecidedAt.obstacleId} ({op.path.undecidedAt.collision})</p>
+                  <p>{t('Triangle pairs evaluated')}: {op.path.undecidedAt.testedPairs}; {t('Collision budget exhausted')}: {op.path.undecidedAt.budgetExhausted ? t('Yes') : t('No')}</p>
+                  <p>{op.path.undecidedAt.reason}</p>
+                  {op.path.undecidedAt.replayFrame && <CollisionReplayDetails replay={op.path.undecidedAt.replayFrame} />}
+                  {canDownload && jobId && op.path.undecidedAt.replayFrame && <CollisionReplayAction
+                    jobId={jobId} sourceSha256={report.sourceSha256} specSha256={report.specificationSha256}
+                    evidenceArchiveSha256={report.archiveSha256}
+                    target={{
+                      movingInstanceId: op.instanceId,
+                      obstacleInstanceId: op.path.undecidedAt.obstacleId,
+                      collision: op.path.undecidedAt.collision,
+                      poseIndex: op.path.undecidedAt.poseIndex,
+                      frame: op.path.undecidedAt.replayFrame,
+                      witnessCentroidPointMm: null,
+                    }}
+                  />}
+                </div>}
+              </li>)}
+            </ol>
+          </details>
+          {report.fitBinding && <section className="mt-2" aria-label={t('Contract fit binding')}>
+            <p className="font-medium">{t('Contract fit binding')}: {report.fitBinding.status} · {t('Feature identity')}: {report.fitBinding.featureIdentityStatus}</p>
+            <p className="text-[var(--shell-text-label)]">{report.fitBinding.reason}</p>
+            <p className="text-[var(--shell-text-label)]">{t('A declared bore/shaft role is not independently verified. Candidate dimensions are diagnostic only, never final fit approval.')}</p>
+          </section>}
+          {report.fits.length > 0 && <details className="mt-2">
+            <summary>{t('Fit measurements')}</summary>
+            <ul className="space-y-2">{report.fits.map(fit => <li key={fit.connectionId}>
+              <strong>{fit.connectionId}: {fit.status} ({t('Raw measurement')}: {fit.measuredStatus})</strong>
+              <p>{fit.reason}</p>
+              {fit.diametralClearanceMm && <p className="text-[var(--shell-text-label)]">{t('Candidate diametral clearance')}: {fit.diametralClearanceMm.min.toFixed(3)}–{fit.diametralClearanceMm.max.toFixed(3)} mm</p>}
+              {fit.axisOffsetMm !== null && <p className="text-[var(--shell-text-label)]">{t('Candidate axis offset')}: {fit.axisOffsetMm.toFixed(3)} mm</p>}
+              {fit.radialEnclosure && <div className="text-[var(--shell-text-label)]">
+                <p>{t("Sampled radial clearance margin")}: {fit.radialEnclosure.status}
+                  {fit.radialEnclosure.minimumMarginMm !== null ? " · " + fit.radialEnclosure.minimumMarginMm.toFixed(4) + " mm" : ""}
+                </p>
+                {fit.radialEnclosure.maximumCenterOffsetMm !== null && <p>{t("Maximum sampled center offset")}: {fit.radialEnclosure.maximumCenterOffsetMm.toFixed(4)} mm</p>}
+                <p>{t("Numerical reserve (not calibrated uncertainty)")}: {fit.radialEnclosure.safetyReserveMm.toFixed(3)} mm</p>
+                <p>{fit.radialEnclosure.reason}</p>
+                <details className="mt-1">
+                  <summary className="cursor-pointer">{t("Sampled radial margins")} ({fit.radialEnclosure.stations.length})</summary>
+                  <ul>{fit.radialEnclosure.stations.map((station, index) => <li key={index}>
+                    {t("Sampled station")} {station.stationMm.toFixed(3)} mm · {t("Center offset")}: {station.centerOffsetMm.toFixed(4)} mm · {t("Remaining margin")}: {station.conservativeMarginMm.toFixed(4)} mm
+                  </li>)}</ul>
+                </details>
+                <p>{t("Local sampled clearance is not a continuous sweep, calibrated tolerance, or proof of physical assembly.")}</p>
+              </div>}
+              {fit.boreRoleCheck && <p className={fit.boreRoleCheck.status === 'OBSERVED' && fit.boreRoleCheck.observedRole !== 'bore' ? 'text-[var(--shell-fail)]' : 'text-[var(--shell-text-label)]'}>
+                {t('Declared bore, observed section')}: {fit.boreRoleCheck.status === 'OBSERVED' ? t(fit.boreRoleCheck.observedRole ?? 'Unknown') : t('Not checked')} · {fit.boreRoleCheck.stationsChecked}/{fit.boreRoleCheck.stationsRequested} {t('stations')} · {fit.boreRoleCheck.reason}
+              </p>}
+              {fit.shaftRoleCheck && <p className={fit.shaftRoleCheck.status === 'OBSERVED' && fit.shaftRoleCheck.observedRole !== 'shaft' ? 'text-[var(--shell-fail)]' : 'text-[var(--shell-text-label)]'}>
+                {t('Declared shaft, observed section')}: {fit.shaftRoleCheck.status === 'OBSERVED' ? t(fit.shaftRoleCheck.observedRole ?? 'Unknown') : t('Not checked')} · {fit.shaftRoleCheck.stationsChecked}/{fit.shaftRoleCheck.stationsRequested} {t('stations')} · {fit.shaftRoleCheck.reason}
+              </p>}
+              <p className="text-[var(--shell-text-label)]">{t('Observed solid or void at sampled sections is not proof of the intended feature or calibrated uncertainty.')}</p>
+            </li>)}</ul>
+          </details>}
+          <p className="mt-2 text-[var(--shell-text-label)]">{t('Sampled poses do not prove continuous clearance, tool access, manufacturability or physical function.')}</p>
+        </section>}
+      </div>}
+      {canDownload && generatedParts.length > 0 && <div className="mt-3 border-t border-[color:var(--shell-hairline)] pt-2">
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={savingEvidence || inspecting || historyLoading || bundling || layingOut || downloading !== null} onClick={() => void saveEvidence()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{savingEvidence ? t('Recording measurement…') : t('Save new evidence snapshot')}</button>
+          <button type="button" disabled={savingEvidence || historyLoading} onClick={() => void loadHistory()} className="rounded border border-[color:var(--shell-hairline)] px-2 py-1">{historyLoading ? t('Loading history…') : t('View saved evidence')}</button>
+        </div>
+        <p className="mt-1 text-[var(--shell-text-label)]">{t('Saving re-runs the measurements on the server. A snapshot is historical when source, specification, requirement confirmation or checker version changes.')}</p>
+        {historyMessage && <p role="status" className="mt-1 text-[var(--shell-text-label)]">{t(historyMessage)}</p>}
+        {historyError && <p role="alert" className="mt-1 text-[var(--shell-fail)]">{t(historyError)}</p>}
+        {history && <section className="mt-2" aria-label={t('Saved evidence history')}>
+          {history.length === 0 ? <p>{t('No evidence snapshots recorded yet.')}</p>
+          : <ol className="space-y-2">{history.map(item => <li key={item.id} className="rounded border border-[color:var(--shell-hairline)] p-2">
+              <p>{new Date(item.savedAt).toLocaleString()} · {item.integrity !== 'PASS' ? t('Corrupt evidence record') : item.bindingCurrent ? t('Matches current versions') : t('Historical only — NOT current')}</p>
+              {item.reasons.length > 0 && <p className="text-[var(--shell-fail)]">{item.reasons.join('; ')}</p>}
+              {item.snapshot && <>
+                <p className="font-mono text-[var(--shell-text-label)]">{item.snapshot.snapshotSha256.slice(0, 16)}</p>
+                <p>{t('Disassembly standing')}: {item.bindingCurrent ? item.snapshot.report.evidence.disassembly.status : 'NOT_RUN'} {item.bindingCurrent ? '' : '(' + t('Historical result; not current') + ')'}</p>
+                <p>{t('Raw measurement')}: {item.snapshot.report.disassembly.measuredStatus} · {t('Requirement contract')}: {item.snapshot.report.contract.evidenceCurrent ? t('Confirmed') : t('Unconfirmed or stale')}</p>
+                <button type="button" className="mt-1 rounded border border-[color:var(--shell-hairline)] px-2 py-1" onClick={() => saveBlob(new Blob([JSON.stringify(item, null, 2)], { type: 'application/json' }), 'agentscad-evidence-' + item.snapshot!.snapshotSha256.slice(0, 12) + '.json')}>{t('Download evidence JSON')}</button>
+              </>}
+            </li>)}</ol>}
+          {savedHistory?.nextCursor && <button type="button" disabled={historyLoading} onClick={() => void loadOlderHistory()} className="mt-2 rounded border border-[color:var(--shell-hairline)] px-2 py-1">{t('Load older evidence')}</button>}
+          <p className="mt-2 text-[var(--shell-text-label)]">{t('Saved hashes detect changes but do not authenticate source or prove physical function. Refresh this history after edits.')}</p>
+        </section>}
       </div>}
       <details className="mt-2">
         <summary className="cursor-pointer">{t('{0} part types · {1} instances · {2} connections', { 0: spec.parts.length, 1: spec.instances.length, 2: spec.connections.length })}</summary>
@@ -147,6 +467,14 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
         {spec.connections.length > 0 && <><h4 className="mt-3 font-medium">{t('Connections')}</h4><ul className="mt-1 space-y-1">{spec.connections.map(connection => <li key={connection.id}>{instanceLabel(connection.a)} ↔ {instanceLabel(connection.b)} <span className="text-[var(--shell-text-label)]">({t(connection.type)})</span></li>)}</ul></>}
         {spec.unknowns.length > 0 && <><h4 className="mt-3 font-medium">{t('Unknown conditions')}</h4><ul className="mt-1 space-y-1">{spec.unknowns.map((unknown, index) => <li key={index}>{unknown}</li>)}</ul></>}
       </details>
+      {canDownload && jobId && data.sourceSha256 && data.specSha256 && !hasPurchasedInstances &&
+        <SourcePoseCheck key={jobId + ':' + data.sourceSha256 + ':' + data.specSha256}
+          jobId={jobId} sourceSha256={data.sourceSha256}
+          specSha256={data.specSha256} spec={spec} />}
+      {canDownload && jobId && data.sourceSha256 && data.specSha256 &&
+        data.embeddedStatus === 'valid' && !hasPurchasedInstances &&
+        <AssemblyRepairPanel key={'repair:' + jobId + ':' + data.sourceSha256 + ':' + data.specSha256}
+          jobId={jobId} sourceSha256={data.sourceSha256} specSha256={data.specSha256} />}
     </section>
   )
 }

@@ -1,0 +1,115 @@
+{
+  "model": "deepseek-v4-flash",
+  "dryRun": false,
+  "authorizeCny": 2,
+  "spentCny": 0.390922,
+  "records": [
+    {
+      "task": "hinge-45-loose",
+      "model": "deepseek-v4-flash",
+      "dryRun": false,
+      "error": null,
+      "contractViolations": [],
+      "promptSha256": "d5834c0876adff8a2244fa34692f409ad71961eaace7a8b74e2af22589e1b1f3",
+      "sourceSha256": "a9ec250441869b1caad083bbac4802215bd322878d71b24bb9def3bee848241c",
+      "usage": {
+        "promptTokens": 406,
+        "completionTokens": 9309
+      },
+      "costCny": 0.075284,
+      "createdAt": "2026-11-18T14:00:31.643Z"
+    },
+    {
+      "task": "hinge-60-wide",
+      "model": "deepseek-v4-flash",
+      "dryRun": false,
+      "error": null,
+      "contractViolations": [],
+      "promptSha256": "dcfee62bb670b64d1fdaa8a394c9a455b3f83daeba4b46b576f6cece7d8e91aa",
+      "sourceSha256": "4d71ecc2107f5bdbdc0e82df3c002ec2ba14de89a4e34e70fd99ef62b8a1c0c9",
+      "usage": {
+        "promptTokens": 409,
+        "completionTokens": 7018
+      },
+      "costCny": 0.056962,
+      "createdAt": "2026-11-18T14:01:12.126Z"
+    },
+    {
+      "task": "hinge-90-tight",
+      "model": "deepseek-v4-flash",
+      "dryRun": false,
+      "error": null,
+      "contractViolations": [],
+      "promptSha256": "1b2c0bbfb18a667263bce0af9062e04f87b59bd3f684f34a228e07e6f1414f86",
+      "sourceSha256": "3c84093349b646d4131d7b6d30ea87f71df7613b5438147e4df904dc2affa7ea",
+      "usage": {
+        "promptTokens": 406,
+        "completionTokens": 7238
+      },
+      "costCny": 0.058716,
+      "createdAt": "2026-11-18T14:01:59.129Z"
+    },
+    {
+      "task": "hinge-captured-45",
+      "model": "deepseek-v4-flash",
+      "dryRun": false,
+      "error": null,
+      "contractViolations": [],
+      "promptSha256": "c37f5bb58c8c27941aa4d381ac53f005ab28c1b56eff5abeac6241436fb49597",
+      "sourceSha256": "6c2620b8037e82e26d952494bf3e6cb649f11504b0bd0b5df7c284fedb52fea9",
+      "usage": {
+        "promptTokens": 466,
+        "completionTokens": 10530
+      },
+      "costCny": 0.085172,
+      "createdAt": "2026-11-18T14:03:03.299Z"
+    },
+    {
+      "task": "piston-bore-30",
+      "model": "deepseek-v4-flash",
+      "dryRun": false,
+      "error": null,
+      "contractViolations": [],
+      "promptSha256": "aa1a7990200bc2cb4378748df4483d714cb2619a3a6b6db168c52dbf76848d69",
+      "sourceSha256": "5aa15259f250d080afbc0c193622c09d2e44d45164b8afc4cc7d95f7574e9d10",
+      "usage": {
+        "promptTokens": 420,
+        "completionTokens": 5994
+      },
+      "costCny": 0.048792,
+      "createdAt": "2026-11-18T14:03:40.139Z"
+    },
+    {
+      "task": "piston-bore-45",
+      "model": "deepseek-v4-flash",
+      "dryRun": false,
+      "error": null,
+      "contractViolations": [],
+      "promptSha256": "81a1e015dcf2d5d0622ab337ced4999253326b1910cf8b7216af2bb514f5e4ab",
+      "sourceSha256": "28c1eab02b90c860f832d3e5c3d13bc717c72b8356078a33188c9db47a1bcae0",
+      "usage": {
+        "promptTokens": 414,
+        "completionTokens": 8146
+      },
+      "costCny": 0.065996,
+      "createdAt": "2026-11-18T14:04:25.579Z"
+    }
+  ],
+  "note": "Recorded baseline for the current task set: task prompts and the output contract are both English. Two earlier runs used Chinese text and are superseded: 4/6 with Chinese prompt + Chinese contract, 5/6 with Chinese prompt + English contract. One sample per condition at temperature 0, so none of these is a language comparison.",
+  "priorRuns": [
+    {
+      "promptLanguage": "zh",
+      "contractLanguage": "zh",
+      "passed": 4,
+      "tasks": 6,
+      "spentCny": 0.563806
+    },
+    {
+      "promptLanguage": "zh",
+      "contractLanguage": "en",
+      "passed": 5,
+      "tasks": 6,
+      "spentCny": 0.39853
+    }
+  ]
+}

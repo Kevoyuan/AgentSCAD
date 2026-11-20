@@ -5,7 +5,7 @@ import { aggregateStatus, expectedOutcome, validateTask } from "./bench";
 const baseTask = {
   schemaVersion: 1,
   id: "hinge-unit",
-  prompt: "做一个两件式铰链，销轴为 Z 轴过原点，直径间隙 0.35 到 0.45 mm。",
+  prompt: "A two-piece hinge with the pin on the Z axis through the origin and a 0.35 to 0.45 mm diametral clearance.",
   parts: [
     { id: "fixed", selector: "fixed" },
     { id: "moving", selector: "moving" },

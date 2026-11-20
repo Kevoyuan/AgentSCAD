@@ -238,6 +238,9 @@ export async function prepareAssembly(input: {
       axisOffsetMm: measurement.axis?.offsetMm ?? null,
       axisAngleDeg: measurement.axis?.angleDeg ?? null,
       seedOffsetMm: measurement.bore?.seedOffsetMm ?? null,
+      radialEnclosure: measurement.radialEnclosure ?? null,
+      boreRoleCheck: measurement.bore?.roleCheck ?? null,
+      shaftRoleCheck: measurement.shaft?.roleCheck ?? null,
       unknowns: measurement.unknowns,
       jointFrames:{...frameCheck,...frameVerdict,measuredStatus:frameCheck.status,measuredReason:frameCheck.reason},
     };
@@ -335,6 +338,13 @@ export async function prepareAssembly(input: {
     instances: spec.instances.map((instance) => ({ ...instance })),
     subassemblies: spec.subassemblies.map((subassembly) => ({ ...subassembly })),
     fits,
+    fitBinding: {
+      method: "contract-revolute-fit-binding/v1",
+      status: "NOT_RUN" as const,
+      required: false,
+      reason: "The phase compatibility layer does not bind a contract-derived fit requirement.",
+      featureIdentityStatus: "NOT_RUN" as const,
+    },
     kinematics,
     sourceMotion,
     mechanismDimensions,

@@ -29,7 +29,7 @@ function argument(name: string): string | null {
 
 async function collectReports(root: string): Promise<string[]> {
   const stat = await fs.stat(root).catch(() => null);
-  if (!stat) throw new Error(`找不到路径：${root}`);
+  if (!stat) throw new Error(`Path not found: ${root}`);
   if (stat.isFile()) return [root];
   const entries = await fs.readdir(root, { withFileTypes: true });
   const nested = await Promise.all(
@@ -63,7 +63,7 @@ async function main(): Promise<void> {
   const root = roots.length > 0 ? path.resolve(roots[0]) : DEFAULT_ROOT;
 
   const files = await collectReports(root);
-  if (files.length === 0) throw new Error(`在 ${root} 下没有找到 report.json`);
+  if (files.length === 0) throw new Error(`No report.json found under ${root}`);
 
   const runs: ScoredRun[] = [];
   let skipped = 0;
@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     try {
       parsed = JSON.parse(raw) as TrialReportInput;
     } catch (error) {
-      throw new Error(`${path.relative(process.cwd(), file)}: JSON 解析失败：${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`${path.relative(process.cwd(), file)}: JSON parse failed: ${error instanceof Error ? error.message : String(error)}`);
     }
     // The experiment tree also holds geometry reports that never called a
     // model. They are not trial reports; counting them would pad the batch
@@ -84,7 +84,7 @@ async function main(): Promise<void> {
     }
     runs.push(scoreRun(path.basename(path.dirname(file)), path.relative(process.cwd(), file), parsed));
   }
-  if (runs.length === 0) throw new Error(`在 ${root} 下的 ${files.length} 个 JSON 里没有试验报告（缺少 tasks 数组）`);
+  if (runs.length === 0) throw new Error(`None of the ${files.length} JSON files under ${root} is a trial report (no tasks array)`);
 
   const report = buildLadderReport(runs);
 
@@ -96,10 +96,10 @@ async function main(): Promise<void> {
     .sort((a, b) => (b.task.coverage.ratio ?? 0) - (a.task.coverage.ratio ?? 0));
 
   console.log(
-    `读取 ${runs.length} 个试验批次 / ${report.aggregate.candidates} 个候选（${report.aggregate.candidatesWithEvidence} 个有证据）${skipped > 0 ? `，跳过 ${skipped} 个非试验报告` : ""}\n`,
+    `Read ${runs.length} trial batches / ${report.aggregate.candidates} candidates (${report.aggregate.candidatesWithEvidence} with evidence)${skipped > 0 ? `, skipped ${skipped} non-trial reports` : ""}\n`,
   );
 
-  const header = `${pad("候选", 30)}${pad("批次", 32)}${pad("覆盖", 8)}${pad("gate", 6)}${pad("调用", 6)}${pad("每调用", 8)}`;
+  const header = `${pad("candidate", 30)}${pad("batch", 32)}${pad("cover", 8)}${pad("gate", 6)}${pad("calls", 6)}${pad("per call", 8)}`;
   console.log(header);
   console.log("-".repeat(header.length));
   for (const { run, task } of candidates.slice(0, 20)) {
@@ -107,18 +107,18 @@ async function main(): Promise<void> {
       `${pad(task.id, 30)}${pad(run.runId.replace("paid-deepseek-assembly-", "…"), 32)}${pad(fixed(task.coverage.ratio), 8)}${pad(task.gate === true ? "PASS" : task.gate === false ? "fail" : "—", 6)}${pad(String(task.calls), 6)}${pad(fixed(task.coveragePerCall), 8)}`,
     );
   }
-  if (candidates.length > 20) console.log(`… 其余 ${candidates.length - 20} 个候选省略`);
+  if (candidates.length > 20) console.log(`… ${candidates.length - 20} more candidates omitted`);
 
-  console.log(`\n层聚合（${report.aggregate.candidatesWithEvidence} 个有证据的候选）`);
-  const layerHeader = `${pad("层", 18)}${pad("通过", 6)}${pad("失败", 6)}${pad("错误", 6)}${pad("未跑", 6)}${pad("缺证", 6)}${pad("通过率", 10)}${pad("缺口类型", 14)}修什么`;
+  console.log(`\nLayer aggregate (${report.aggregate.candidatesWithEvidence} candidates with evidence)`);
+  const layerHeader = `${pad("layer", 18)}${pad("pass", 6)}${pad("fail", 6)}${pad("error", 6)}${pad("not_run", 8)}${pad("absent", 7)}${pad("pass rate", 11)}${pad("gap kind", 16)}repair target`;
   console.log(layerHeader);
   console.log("-".repeat(layerHeader.length + 10));
   for (const row of report.aggregate.layers) {
     const spec = LAYERS.find((layer) => layer.id === row.layer);
-    const label = row.diagnosis === "measurement-gap" ? "缺检查"
-      : row.diagnosis === "undetermined" ? "待查 ERROR"
-      : row.diagnosis === "capability-gap" ? "做不出来"
-      : row.diagnosis === "healthy" ? "正常" : "未观测";
+    const label = row.diagnosis === "measurement-gap" ? "missing check"
+      : row.diagnosis === "undetermined" ? "inspect ERROR"
+      : row.diagnosis === "capability-gap" ? "capability"
+      : row.diagnosis === "healthy" ? "healthy" : "unobserved";
     console.log(
       `${pad(row.layer, 18)}${pad(String(row.pass), 6)}${pad(String(row.fail), 6)}${pad(String(row.error), 6)}${pad(String(row.notRun), 6)}${pad(String(row.absent), 6)}${pad(pct(row.observedPassRate), 10)}${pad(label, 14)}${spec?.subsystem ?? ""}`,
     );
@@ -136,22 +136,22 @@ async function main(): Promise<void> {
     byDay.set(day, bucket);
   }
   if (byDay.size > 0) {
-    console.log("\n按时间（只读形状，不可跨版本比高低）");
+    console.log("\nBy date (shape only; task sets differ, so levels are not comparable)");
     for (const [day, bucket] of [...byDay.entries()].sort()) {
       const mean = bucket.ratios.length === 0 ? null : bucket.ratios.reduce((sum, value) => sum + value, 0) / bucket.ratios.length;
       const best = bucket.ratios.length === 0 ? null : Math.max(...bucket.ratios);
-      console.log(`  ${day}  ${String(bucket.runs).padStart(2)} 批  均值 ${pct(mean)}  最好 ${pct(best)}`);
+      console.log(`  ${day}  ${String(bucket.runs).padStart(2)} batches  mean ${pct(mean)}  best ${pct(best)}`);
     }
   }
 
   console.log(
-    `\n汇总：候选 ${report.aggregate.candidates}，有证据 ${report.aggregate.candidatesWithEvidence}，gate 通过 ${report.aggregate.gatePassed}，平均覆盖 ${pct(report.aggregate.meanCoverage)}`,
+    `\nSummary: ${report.aggregate.candidates} candidates, ${report.aggregate.candidatesWithEvidence} with evidence, ${report.aggregate.gatePassed} gate passed, mean coverage ${pct(report.aggregate.meanCoverage)}`,
   );
-  for (const warning of report.warnings) console.log(`注意：${warning}`);
+  for (const warning of report.warnings) console.log(`note: ${warning}`);
 
   const outPath = explicitOut ?? path.join(import.meta.dir, "ladder-report.json");
   await fs.writeFile(outPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-  console.log(`\n报告：${path.relative(process.cwd(), outPath)}`);
+  console.log(`\nreport: ${path.relative(process.cwd(), outPath)}`);
 }
 
 if (import.meta.main) {

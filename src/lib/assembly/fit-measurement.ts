@@ -9,16 +9,30 @@
 import { validateAssemblySpec } from "./assembly-spec";
 import { measureCylindricalFeature, type CylindricalFeatureMeasurement } from "../geometry/cylindrical-feature";
 import { extentAlongAxis, normalize, readBinaryStl, type Vec3 } from "../geometry/stl-mesh";
+import type { SectionRoleEvidence } from "../geometry/section-feature-role";
 
 export interface FitSide {
   instanceId: string;
   partId: string;
   role: "bore" | "shaft";
   measurement: CylindricalFeatureMeasurement;
+  /** Compatibility field for the newer product readers; null when not measured. */
+  roleCheck?: SectionRoleEvidence | null;
   /** Measured axis in assembly coordinates. */
   axisInAssembly: { point: Vec3; direction: Vec3 } | null;
   /** Largest distance between the declared axis and the measured feature centre. */
   seedOffsetMm: number | null;
+}
+
+export interface SampledRadialEnclosure {
+  method: string;
+  status: "OBSERVED" | "NOT_RUN";
+  reason: string;
+  stations: Array<{ stationMm: number; centerOffsetMm: number; conservativeMarginMm: number }>;
+  minimumMarginMm: number | null;
+  maximumCenterOffsetMm: number | null;
+  safetyReserveMm: number;
+  coverage: string;
 }
 
 export interface RevoluteFitMeasurement {
@@ -29,6 +43,8 @@ export interface RevoluteFitMeasurement {
   shaft: FitSide | null;
   /** Diametral clearance interval implied by the tessellated polygons. */
   clearanceMm: { min: number; max: number } | null;
+  /** Compatibility field for the newer product readers; null when not measured. */
+  radialEnclosure?: SampledRadialEnclosure | null;
   /** Alignment of the two measured axes in the assembly frame. */
   axis: { offsetMm: number; angleDeg: number } | null;
   stationsMm: number[];
@@ -177,7 +193,7 @@ export function measureRevoluteFit(input: {
       };
       seedOffsetMm = Math.max(...measurement.stations.map((station) => Math.hypot(station.center[0], station.center[1])));
     }
-    return { instanceId: side.id, partId, role, measurement, axisInAssembly, seedOffsetMm };
+    return { instanceId: side.id, partId, role, measurement, roleCheck: null, axisInAssembly, seedOffsetMm };
   };
 
   const boreInstance = input.boreInstanceId === instanceA.id ? instanceA : instanceB;
@@ -226,6 +242,12 @@ export function measureRevoluteFit(input: {
     bore,
     shaft,
     clearanceMm,
+    radialEnclosure: {
+      method: "sampled-mesh-radial-enclosure/v1",
+      status: "NOT_RUN",
+      reason: "The phase compatibility layer does not compute radial enclosure.",
+      stations: [], minimumMarginMm: null, maximumCenterOffsetMm: null, safetyReserveMm: 0, coverage: "Not measured.",
+    },
     axis,
     stationsMm: stations,
     stationSource: base.stationSource,

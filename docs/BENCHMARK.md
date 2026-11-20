@@ -83,3 +83,18 @@ The command deliberately reports `manifold_mesh=NOT_RUN` and `visual_fidelity=NO
 - deterministic intelligence/retrieval fixtures under 10 seconds: implemented by `cad:eval:*`;
 - one real OpenSCAD WASM case under 2 minutes: implemented by `cad:eval:render`;
 - explicit online generation/evaluation with provider/model, prompts and skills, SCAD/STL/views, validation evidence, baseline diff, stage timings, calls/tokens, and cost: still intentionally separate and not implied by either offline command.
+
+## The functional-assembly benchmark (`bench/`)
+
+The commands above answer "did the pipeline produce something". `bench/` answers a different and narrower question: **is the thing a mechanism** — do the parts fit, turn, hold and come apart, measured on geometry rather than on shape similarity.
+
+See [`bench/README.md`](../bench/README.md) for the layer model and the cross-batch scoring, and [`bench/assembly/README.md`](../bench/assembly/README.md) for the task and submission formats.
+
+```bash
+bun run bench:assembly        # six tasks, references, cheats and recorded model output
+bun run bench:assembly:check  # self-check: references pass AND cheats are caught
+bun run bench:ladder          # score recorded trial reports; no model, no render, no spend
+bun run bench:baseline        # generate submissions from a model and score them
+```
+
+The self-check is the part that makes it usable: it fails if a reference stops passing **or if a cheat starts passing**, so a weakened check breaks the benchmark instead of silently inflating a score. It is not wired into CI, by decision; run it on demand with `bun run bench:assembly:check`.

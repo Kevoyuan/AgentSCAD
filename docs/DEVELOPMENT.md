@@ -27,6 +27,7 @@ For setup failures and common runtime issues, see [Troubleshooting](./TROUBLESHO
 | Run DB migrations | `bun run db:migrate` |
 | Reset DB | `bun run db:reset` |
 | Offline harness full regression | `bun run cad:eval` |
+| Verify an exported assembly ZIP without running CAD | `bun run cad:assembly:verify path/to/assembly.zip` |
 | Offline harness, simple fixtures | `bun run cad:eval:fast` |
 | One evidence case | `bun run cad:eval:case <id>` |
 | Parse the last harness report | `bun run cad:eval:report` |
@@ -173,3 +174,186 @@ OpenSCAD integration checks cover:
 - render pipeline smoke tests that require the OpenSCAD executable
 
 They can be run locally with OpenSCAD installed, or through the optional manual/scheduled OpenSCAD integration job. The GitHub Actions OpenSCAD job is non-blocking so core application quality remains the required signal.
+
+
+## Assembly ZIP integrity verification
+
+After downloading a generated assembly ZIP, run:
+
+```bash
+bun run cad:assembly:verify path/to/agentscad-assembly.zip
+```
+
+The offline verifier checks ZIP entry names and size limits, SHA-256 of the
+canonical assembly specification and each generated STL, valid binary STL
+triangle tables, declared part IDs and manufacturing quantities, and exact
+manifest/specification instance transforms. Purchased parts are intentionally
+listed without an STL. On success it prints JSON with `status: "PASS"`;
+on failure it prints a machine-readable error and returns a nonzero exit code.
+No API key, model call, OpenSCAD executable, database or server is needed.
+
+**Evidence boundary:** this verifies internal consistency of a downloaded ZIP,
+not its origin or whether the part is mechanically sound. The ZIP is not signed,
+its source SCAD is not embedded and cannot be checked against
+`sourceSha256` offline. README text, recorded validation verdicts,
+unobserved joint behavior and physical function are not independently validated.
+Do not interpret an integrity PASS as an assembly-function PASS.
+
+
+## Offline assembly layout reconstruction (M2)
+
+Create a separate, **unmerged** assembly-pose STL from the manufacturing parts
+and instance transforms inside an already-verified ZIP:
+
+```bash
+bun run cad:assembly:reconstruct assembly.zip layout.stl
+```
+
+- Each declared generated instance is placed using its row-major local-to-world
+  rigid transform. Identical designs used multiple times remain distinct
+  instances in the output; this is not a Boolean union.
+- Missing purchased-part geometry prevents full reconstruction by default.
+  Use `--allow-partial` only for an explicitly incomplete layout.
+- The command prints the source, archive, specification and reconstruction
+  SHA-256 digests, per-instance part IDs and triangle counts, world-space bounds,
+  purchased-instance gaps and reference-comparison status.
+- For an independent **single-pose** geometry check, first produce an assembled
+  STL from the original source separately (for example by OpenSCAD) and run:
+
+```bash
+bun run cad:assembly:reconstruct assembly.zip layout.stl --reference independent-pose.stl
+```
+
+  With a reference, the command exits successfully only if the reference
+  matches the reconstructed triangulated surface within the checker tolerance.
+  A clear bounds difference is FAIL; incompatible triangulations or exhausted
+  comparison budgets are NOT_RUN; invalid inputs are ERROR. In all cases the
+  report retains the exact archive and reference hashes. If no reference is
+  provided, the comparison remains NOT_RUN. Purchased geometry cannot be
+  silently invented or counted as an independently reconstructed instance.
+
+**Evidence boundary:** a successful reconstruction establishes only that a
+rigid layout STL was deterministically produced from the archive. Even a
+matching independently rendered STL checks a single tessellated pose, not
+joint kinematics, interference, manufacturing fit, tools, strength or physical
+function. The reference source and its origin must be independently trusted;
+matching a reference derived from the ZIP itself is circular evidence.
+
+## Functional assembly roadmap and measured evidence UI
+
+The ordered, evidence-gated task breakdown is [`ASSEMBLY_EXECUTION_BACKLOG.md`](./ASSEMBLY_EXECUTION_BACKLOG.md) (A01–A14). The UI's **Run assembly geometry checks** button calls `GET /api/jobs/{id}/assembly/evidence?sourceSha256=<64hex>&specSha256=<64hex>` only on user demand. The authenticated route takes the same execution lease as the ZIP export; it renders original generated parts, runs the declared sampled disassembly check, checks the job/source/spec and confirmed requirement contract again, and returns a bounded JSON report. No LLM call or background polling is involved.
+
+The response carries source/spec/archive hashes, `evidence` statuses and reasons, contract confirmation, raw/gated disassembly results, sampled pose counts/steps, first blocking instance and optional fit measurements. **No result is persisted in A01**, and no `accepted`, `validated`, or `exported` outcome is recorded. On confirmation or source changes the user must run the check again; A02 explicitly covers durable snapshots and invalidation. A printed `PASS` only applies to its exact sampled method, artifact versions and requirements; a raw PASS under an unconfirmed contract is exposed but not promoted. No browser preview, simulation or physical test is silently inferred.
+
+
+
+
+
+
+
+
+## A07 — measured-failure geometry repair and immutable attempts
+
+A07 has a strict opt-in production execution path. Start with a DELIVERED source/spec whose exact assembly block is embedded in the source and whose user-frozen RequirementContract is currently confirmed. Explicitly allow 1 or 2 potentially billed model repair proposals in the Assembly details panel. The current geometry is independently rerendered and evaluated with the same frozen contract-derived fit band, one declared revolute joint, 12 disassembly and 24 motion samples. Quantified measured failures (part IDs, bore/shaft clearance, blocked angle/path) are fed into `runRepair`. The candidate's embedded declaration must match the original canonical assembly hash BEFORE any geometry render; changes to part count/selection, joint ranges, frames, orientations, motion or required clearance cannot buy a PASS. All accepted proposals are then rerendered and measured again. Unknown/unrun checks stay NOT_RUN.
+
+Each run writes append-only SHA-bound STARTED / ATTEMPT / FINISHED, ERROR or ABORTED events to `JobVersion`, with original source/spec/confirmed contract/requirement fingerprints, candidate hash, measured evidence, part hashes and actual model usage if reported. The 240-second wall deadline and two-call cap are separate from OpenSCAD individual process limits. Failed/unrenderable/rejected attempts remain in history. A completed passing candidate is saved for manual review/copy only, not auto-applied or recorded as accepted/delivered; applying in the CAD editor is a separate explicit rebuild. An unbound source, unknown mechanism, missing frozen fit role, stale version, unauthorized session or previously changed contract must be refused. Real-world manufacture and feature identity remain NOT_RUN.
+
+## A06 completion checkpoint — controlled source observations + analytic bounded rigid sweep
+
+A user can request 3, 5, 7 or 9 source-controlled poses for a single grounded revolute joint, with the explicit parameter and symmetric angular limits, via the on-demand authenticated Job source-pose API. The canonical binding SHA includes the checker method version and native/WASM backend identity. A witnessed intermediate collision offers a separately triggered, STL SHA-checked A05 3D collision-pair replay; otherwise, the UI displays undecidable ranges and never invents a contact point. The server generates world transforms, renders actual independent full-assembly OpenSCAD STLs, and compares them to the separately rendered local part meshes. The source report displays per-pose PASS/FAIL/NOT_RUN, method, reference/part hash and numerical deviation, plus the largest source-sample step.
+
+The extra analytic-rigid-sweep diagnostic constructs BVHs of each real generated STL. Every original reference angle is collision tested. Each angular interval is cleared **only** if a midpoint AABB expanded by `2 * maximumVertexAxisRadius * sin(intervalRadians/4)` is provably disjoint from all static obstacle AABBs. Otherwise the sampler recurses and collision tests newly chosen midpoints. A hit is FAIL at the observed angle; time/depth/triangle-pair exhaustion or inseparable envelopes are NOT_RUN with explicit unresolved intervals and maximum remaining angular gap. Intentional contacts have no automatic exception. An analytic PASS only establishes non-interference of *the declared rigid rotation*, never that the OpenSCAD source parameter actually generates that trajectory between independently rendered frames. Source parameter semantics, physical fit, forces, mechanisms needing more than a grounded single joint, continuous actual source behavior and manufacturing acceptance remain NOT_RUN.
+
+Adversarial tests include hidden obstacles around 22.5° undetected by original −45°/0°/+45° reference frames, erroneous axes and stale source, bounded unknowns, complete separation, and true native OpenSCAD re-renders. No background render, accepted product-motion outcome, export event or Vercel deployment.
+
+## A06.3.2 — cumulative production-source-pose execution budget
+
+`POST /api/jobs/[id]/assembly/source-poses` now wraps **all three OpenSCAD reference poses and the final version recheck** in a 180s total wall deadline. The upstream lease signal and total deadline combine into one renderer signal; a source/spec/edit cancellation remains HTTP 409, while a deadline returns HTTP 503 with `Retry-After: 30` and no approval or persisted result. Both timers and event listeners are cleaned up. A monotonic elapsed-time recheck prevents a renderer that ignores abort or blocks the event loop from returning a false late PASS. Deterministic tests cover success, timeout, ignored abort, synchronous CPU block, invalid budgets and upstream abort priority.
+
+## A06.3.1 — read-only source pose inspection for current Jobs
+
+`POST /api/jobs/[id]/assembly/source-poses` receives an explicitly user-confirmed request with the current `sourceSha256`, `specSha256`, grounded `connectionId`, `sourceParameter` and `rotationDeg`. A bounded schema refuses arbitrary matrices, selector paths or additional keys. Only a current, complete generated assembly (<=8 parts, 2–12 instances) with matching declared revolute frames and an applicable [-rotation, +rotation] degree range qualifies. The server computes the true world axis from the grounded part's row-major 4×4 transform, constructs three rigid moving instance poses at −angle, 0, +angle, and separately asks OpenSCAD to re-render the source `all` selector for the **user-declared** variable values. It compares each independent STL against placed part meshes, preserving per-pose surface correspondence/area budget, reference hashes and NOT_RUN boundaries.
+
+The `lockAssemblyExport` lease provides authentication, source/spec and requirement-version isolation, heartbeat, abort and post-render revalidation. There is no export/download flag, paid-model call, background execution or JobOutcome. UI requires an explicit check box; source parameter semantics are *user-declared, not independently authenticated*. The top-level response always returns `productMotionApproval: NOT_RUN` and `physicalFunctionApproval: NOT_RUN`. A sampled geometry PASS must not become acceptance of full rotation, fit, continuous motion or real-world assembly. Only the first constrained single-grounded-revolute flow is implemented; multi-joint, generic production binding and physical motion remain A06.3 follow-ups.
+
+## A06.2 — triangulation-independent sampled surface comparison
+
+Original native OpenSCAD source-pose comparisons reported hinge 0° PASS but −45°/+45° NOT_RUN, even when independent rendered surface **bounds** matched exactly. Because a correct CAD source may split a planar face into new triangles when evaluating a rotated Boolean assembly, A06.2 adds a bounded **bidirectional coplanar triangle-area coverage** method. Exact triangle-vertex matching remains a fast path. On correspondence failure it projects coplanar facet pairs to 2D, clips convex triangles, sums overlapping area for each source facet, and repeats in reverse. Plane distances, bounding boxes, per-facet numerical area budgets and a capped pair count prevent a triangle count or matching bounding-box false PASS.
+
+Diagnostic fields (algorithm name, pair count, triangles checked, largest observed area mismatch and numerical budget) propagate into reference and source-pose reports. Negative cases include removed patches with unchanged outer bounds, duplicate surfaces, extra internal facets, bent/coplanar-projection impostors, degenerates and exhausted budgets. The result is **only** a measured tessellated-surface comparison at explicitly supplied source parameters—not continuous mechanism motion, volume identity, true closed manifold, physically calibrated error or manufacturing acceptance. An inconclusive patch is NOT_RUN, never promoted on insufficient evidence.
+
+## A06.1 — source-driven native pose reference
+
+The new `src/lib/assembly/source-pose-observer.ts` implements a bounded, explicitly invoked source-pose reference workflow. For each requested original OpenSCAD source parameter (for example hinge_angle at −45°, 0°, +45°), it independently renders the **whole source** using the declared selector while separately placing the previously rendered local-part STL meshes using supplied rigid 4×4 matrices. `reconstructAssemblyBundle` verifies part archive hashes and checks real triangles against the independently rendered reference. Reports retain source SHA, base and posed specification SHA, part meshes, reference STL SHA, reconstruction SHA, archive hash, comparison status and method per sampled pose.
+
+Native OpenSCAD hinge observations currently give PASS at 0° (808 matched triangles), NOT_RUN at −45°/+45° (bbox errors 0 mm but triangulations cannot be bijectively matched), and FAIL for wrong-axis rotation (bbox error >16 mm). This is **not** three verified motion poses. An additional synthetic test confirms the generic orchestration genuinely returns PASS for two independently matching translated meshes and FAIL for an incorrectly bound source parameter. A modified source, altered expected specification, and invalid non-rigid matrices must be rejected **before rendering**. This is a focused original-fixture proof, not a product-wide runtime motion verifier or an independent user-intent calibration. No implied continuous motion, mechanism force, contact tolerance or physical manufacturing evidence is promoted; A06 remains partial.
+
+## A05.3 — browser 3D replay of a hash-matched collision pair
+
+On a current A01 report, each first actual FAIL/UNKNOWN collision now has an explicit "View collision pair in 3D" action. Clicking fetches the production version-guarded `assembly/bundle` endpoint **without** an export record and performs browser SHA-256 verification of actual returned ZIP bytes, canonical specification bytes and the two involved STL files against the A05.2 replay witness. The browser only inflates the metadata and the two needed STLs, within preflight ZIP budgets. It resolves moving and obstacle by **instance IDs**, not by part names or the first same-part instance. Repeated instances remain distinct through their own 4×4 world transforms. On a mismatch, no scene is rendered.
+
+A separate Three.js/Z-up viewer places the two exact STL geometries with `THREE.Matrix4.set` using the recorded row-major matrix convention; the witness point is rendered only for `INTERSECT` and labelled a BVH triangle-centroid midpoint approximation. For `UNKNOWN`, no fake collision point is drawn. Orbit/zoom is inspection-only, and no motion is inferred. The current job STL viewer is unchanged. This is **not a whole-assembly viewport**: other instances/removed parts, allowed contacts, continuous collision checks and hardware fit still require A05/A06/A13 work. 3D replay is disabled for stale reports and missing purchased-part STL geometry. No extra paid-model calls or background rendering.
+
+## A05.2 — collision reproduction with exact witness poses
+
+For each first sampled collision or undecidable BVH query, `rigid-pose-path` now captures the exact validated 4×4 row-major transforms of the **moving** and **obstacle** meshes used in that query, along with their actual rendered STL SHA-256 hashes. These values travel through the bounded A01 inspection and append-only A02 snapshots in `blockedAt.replayFrame` / `undecidedAt.replayFrame`. The UI provides expandable, selectable matrices. Regression tests re-run the independent triangle collision checker from the recorded matrices, including translated obstacles and an UNKNOWN mesh. Exact matrix output is evidence for a *single sampled pose*, not an exact contact point or sweep.
+
+**Viewport gap:** `ThreeDViewer` currently visualizes the single job STL; it is not a per-instance assembly renderer. Therefore A05.2 does NOT claim collision focus or drop a marker into unrelated geometry. A full assembly-scene renderer must load verified ZIP parts with instance placements and verify source/spec hashes before adding a 3D focus/highlight action. Existing readout is intentionally read-only. Evidence checker v5 makes earlier snapshot reports historical.
+
+## A05.1 — collision pair evidence and undecided positions
+
+The deterministic `checkRigidPosePath` returns the first blocking (FAIL) sample as `blockedAt`, including `poseIndex`, `obstacleId`, collision status, the actual number of triangle-pair tests in that comparison, and `collisionReason`. If the BVH finds an intersecting pair, it also returns the indices of those two triangles and `witnessCentroidPointMm` (centroid midpoint as computed by the collision backend, **not** a precise intersection/contact coordinate). Containment may report no triangle witness; the UI must not fabricate one.
+
+For `UNKNOWN`, the same checker returns a bounded `undecidedAt` with the specific zero-based pose, obstacle instance, reason, tested pairs, and whether the triangle-pair budget was exhausted. It records `testedTrianglePairs` across the evaluated sequence, plus the original sampling bounds. The A01/A02 evidence report and UI display these details; status remains NOT_RUN for undecided and FAIL for actual blocking observations. Checks are still only at discrete declared poses; no swept volume, minimum clearance, contact depth, tools, loading or physical assembly is established. Evidence checker v3 marks pre-v3 saved reports historical.
+
+
+## A04.3 — sampled radial enclosure guard against false nominal clearance PASS
+
+A nominal diametral interval may match the frozen requirement even if the shaft is too far off-axis to fit the bore. The deterministic `fit-measurement` module now transforms **measured** local section centres on both generated meshes into assembly coordinates. For each matching sampled axial station it measures their lateral offset and computes a conservative local radial margin: bore inscribed radius − shaft circumscribed radius − lateral offset. The report includes `radialEnclosure.stations[]` with station position, offset, and margin, plus the worst observed margin and a 0.001 mm *numerical safety reserve*. This reserve is a software guard, **not** a calibrated error bar or a claim about print shrinkage or physical tolerances.
+
+If the worst observed margin cannot exceed the reserve, `assessFit` returns NOT_RUN, not PASS. An off-axis condition is not itself an observed triangle collision, so FAIL is not invented. Independently asserted offset/angle limits and out-of-band diameter requirements continue to yield FAIL. With fewer than two stations, the radial enclosure is NOT_RUN. Older snapshots cannot remain current when the check changes: v4 makes v3 and older records historical. This work reduces false positives but does not establish intended bore/shaft identity, independent centre uncertainty, continuous clearance, or an all-geometry contact guarantee; parent A04 is still open.
+
+## A04.2 — observed section topology of actual candidate features
+
+The deterministic `observeSectionFeatureRole` tool observes the STL at 2–16 specified axial stations. It requires cut contours made of closed degree-two edge loops and samples 29 non-tangent rays from the candidate centre per station. Odd nonzero ray crossing parity suggests local solid, even nonzero parity suggests local void. A real hinge's outer arm can add pairs of crossings along some rays without changing void classification. A solid insert inside a tube changes the centre to solid. Open cuts, vertex/grazing rays, offset seeds and inconsistent parity/stations return `NOT_RUN`. The result appears on each fit as `boreRoleCheck` and `shaftRoleCheck` in the manifest and bounded A01/A02 evidence report, with a warning in the UI if the declared bore/shaft label contradicts the geometry.
+
+The check cannot establish that the local void is the user's *intended* bore, that a hole continues between sampling planes or that the full mesh is watertight/manifold. It does not calibrate feature-centre or ray-sampling uncertainty. No automatic fit is promoted to PASS; even explicitly supplied fit checks cannot return PASS if observed topology contradicts the role or is undecidable, although the raw candidate diameter comparison remains inspectable. This change increments `ASSEMBLY_EVIDENCE_CHECKER_VERSION` from v1 to v2: old saved reports remain inspectable historical evidence but are not current. The A04 parent task still requires independent calibration and holdout/decoy validation.
+
+## A04.1 — candidate bore/shaft fit from the frozen requirement contract
+
+`prepareAssembly` now connects a **required, applicable, explicitly stated** diameter-clearance range (mm) in the supplied requirement contract to the existing `measureRevoluteFit` tool when a single revolute connection names its bore instance. No client-side manual `fitRequirements` JSON is needed. The renderer supplies the real generated STL bytes, and the manifest/report retains candidate measured diametral clearance, axis offset, raw assessment and original contract bounds.
+
+**Evidence safety:** the role `boreInstanceId` comes from the *assembly declaration*. A declared or well-fitted cylindrical surface is not proof that the measured feature is the user's intended bore/shaft. Consequently, automatic binding remains **NOT_RUN for final assembly fit**, even if the candidate assessment is PASS or FAIL; the raw candidate result remains inspectable. Ambiguous multiple revolute connections, missing bore identity, waived/missing requirements, unsupported units or corrupt spec are not guessed or promoted to PASS. Independently calibrated feature identity and measurement uncertainty remain under parent task A04 (#26). Existing explicitly supplied test fit requirements preserve their old semantics.
+
+## A02 — retained assembly evidence snapshots
+
+An explicit **Save new evidence snapshot** action performs a fresh authenticated, current-source/spec-guarded server render and deterministic measurement (not a client upload). It saves an immutable `JobVersion` row (`field = __assembly_evidence_snapshot`); the row includes the full bounded A01 summary, the archive SHA-256, source/specification hashes, the exact requirement confirmation fingerprint, a checker version, a check timestamp and a canonical JSON digest. There is no schema migration, no job acceptance event and no automatic model call.
+
+`GET /api/jobs/{id}/assembly/evidence/snapshots` reads the latest ten records, optionally with `limit` (max 20) and `cursor` for older records, and returns `{ snapshots, nextCursor }`. Session authorization is mandatory. Every read recomputes the current source/spec/requirements/DELIVERED binding. Historic reports remain accessible but return `bindingCurrent: false` with reasons; malformed or modified rows return `integrity: ERROR` and `snapshot: null`. A newer checker version makes older reports historical. UI offers history inspection and JSON export; unapproved raw measurements are not elevated to PASS.
+
+**Limits:** the SHA-256 record digest detects accidental mutation, not malicious substitution by someone with DB write access. Stored results attest only the measured artifacts and method at the capture instant, not future source revisions, hidden geometric contacts, continuous clearance or physical function. No source ZIP is re-rendered on history GET; always re-measure to get a new current observation. Each record is size-bounded (512 kB), history pages are size-bounded (20 records); records remain append-only and available by pagination. Production backup and external attestation still belong to future tasks.
+
+## Assembly layout export in the UI (M2)
+
+The Assembly panel now offers **Download assembly layout (STL)** alongside
+**Download all parts (ZIP)** for delivered jobs with a current source and
+assembly specification. The endpoint is `GET /api/jobs/{id}/assembly/layout`;
+it accepts the same `sourceSha256`, `specSha256` and optional `download=1`
+query arguments as the ZIP route. It reuses `lockAssemblyExport`, a bounded
+part renderer, the hash-verified archive reconstruction and a final
+`verifyUnchanged()` check before responding. A download logs `exported`
+with artifact `assembly_layout`, instance count, source/spec/bundle/layout
+hashes and a `referenceStatus: NOT_RUN`; download does not imply acceptance.
+
+Layouts are deliberately only offered when **all instances have generated
+geometry**. If any instance is purchased and no geometry was exported, the
+endpoint returns HTTP 422 and the UI explains the missing geometry. The ZIP
+remains available as the manufacturing inventory. This prevents an incomplete
+render from masquerading as the whole assembly.
+
+The returned STL is a transformed triangle collection, not a Boolean union
+and not a validated, directly printable assembly. Header
+`X-AgentSCAD-Layout-Status: COMPLETE` describes reconstruction completeness,
+while `X-AgentSCAD-Reference-Status: NOT_RUN` correctly records that no
+independently rendered pose was checked by this request. Collision, fit,
+motion, tool access and physical function have not been established.

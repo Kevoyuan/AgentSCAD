@@ -116,6 +116,17 @@ export interface PathSample {
   direction: 1 | -1;
   worst: "CLEAR" | "BLOCKED" | "UNDECIDED";
   blocking: PosePairResult[];
+  /** Compatibility fields for the newer replay UI; unset means unavailable. */
+  poseIndex?: number;
+  obstacleId?: string;
+  collision?: CollisionStatus | "SEPARATED";
+  testedPairs?: number;
+  collisionReason?: string;
+  budgetExhausted?: boolean;
+  trianglePair?: { movingTriangleIndex: number; obstacleTriangleIndex: number } | null;
+  witnessCentroidPointMm?: [number, number, number] | null;
+  replayFrame?: unknown;
+  reason?: string;
 }
 
 export interface DisassemblyPathEvidence {
@@ -133,6 +144,8 @@ export interface DisassemblyPathEvidence {
   toleratedContacts: number;
   /** First pose that blocked, with the pairs responsible. */
   blockedAt: PathSample | null;
+  undecidedAt?: PathSample | null;
+  testedTrianglePairs?: number;
   coverage: string;
   unknowns: string[];
 }

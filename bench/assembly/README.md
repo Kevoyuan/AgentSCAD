@@ -1,63 +1,65 @@
-# assembly-bench — 功能性装配生成的小型评测
+# assembly-bench — a small benchmark for functional assembly generation
 
-一个**窄而完整**的评测：给定一句自然语言需求，模型能否产出真的能装、能转、能拆的两件式装配几何？
+A **narrow but complete** benchmark: given one natural-language request, can a model produce two-part geometry that actually assembles, turns and comes apart?
 
-它回答的问题是可机器判定的：
+Every question it asks is machine-decidable:
 
-1. 两个选择器是否真的导出两个不同的实体？
-2. 轴与孔的直径间隙是否落在指定的窗口内？
-3. 活动件在声明角度范围内旋转时是否与固定件干涉？
-4. 活动件能否沿轴方向抽开？
+1. do the two selectors really export two different solids?
+2. does the bore/shaft diametral clearance land inside the specified window?
+3. does the moving part avoid the fixed part anywhere in the declared sweep?
+4. can the moving part be withdrawn along the axis?
 
-不需要人类标注，不需要视觉模型，不需要 Chamfer distance。全部结论来自确定性几何测量。
+No human labelling, no vision model, no Chamfer distance. Every verdict comes from a deterministic geometry measurement.
 
-## 为什么是这个形态
+## Why this shape
 
-现有的 CAD 生成 benchmark（DeepCAD / ABC / Fusion 360 Gallery / Text2CAD）几乎全部只评**静态几何**：重建误差、序列相似度、Chamfer distance。没有一个评"这东西动起来会不会撞""间隙是不是真的 0.4 mm"。
+Existing CAD generation benchmarks (DeepCAD / ABC / Fusion 360 Gallery / Text2CAD) almost all score **static geometry**: reconstruction error, sequence similarity, Chamfer distance. None of them asks "does this thing collide when it moves" or "is the clearance really 0.4 mm".
 
-这个仓库里已经有一个真实的几何验证器（`src/lib/assembly/`、`src/lib/geometry/`），这个 benchmark 是把它从产品里**解耦**出来、换成模型无关的提交接口之后的产物。
+The repository already contains a real geometry verifier (`src/lib/assembly/`, `src/lib/geometry/`). This benchmark is that verifier with the product coupling removed and a model-agnostic submission interface on top.
 
-## 两条设计规则
+## Two design rules
 
-**任务拥有几何契约，提交只拥有几何。**
-模型从不声明自己的关节、间隙带宽或运动范围，所以它无法把验收窗口放宽成它画出来的东西。任务 JSON 决定一切；模型的输出就是一个 `.scad` 文件。
+**The task owns the geometry contract; the submission owns geometry only.**
+A model never declares its own joint, clearance band or motion range, so it cannot widen the acceptance window into whatever it happened to draw. The task JSON decides everything; the model's output is one `.scad` file.
 
-**证据分级，`NOT_RUN` 永不等于通过。**
-每条结论带 `PASS | FAIL | SKIP | ERROR | NOT_RUN`。渲染失败是 `ERROR` 不是 `FAIL`——没有候选可测。没测到的项目保持 `NOT_RUN` 并让整体 gate 失败。
+**Evidence is graded, and `NOT_RUN` is never a pass.**
+Every verdict is tagged `PASS | FAIL | SKIP | ERROR | NOT_RUN`. A render failure is `ERROR`, not `FAIL` — there was no candidate to measure. Anything not measured stays `NOT_RUN` and fails the gate.
 
-## 跑起来
+## Running it
 
 ```bash
-bun run bench:assembly            # 跑全矩阵，写出 report.json
-bun run bench:assembly:check      # 自检：参考解必须全过，作弊解必须全被拦
+bun run bench:assembly            # full matrix, writes report.json
+bun run bench:assembly:check      # self-check: references must pass, cheats must be caught
+bun run bench:baseline            # generate submissions from a model, then score them
 bun run bench:assembly --task hinge-45-loose --submission reference --verbose
 ```
 
-依赖本机 `openscad`（原生）或设置 `AGENTSCAD_OPENSCAD_BACKEND=wasm` 使用固定校验和的 WASM 运行时。
+Requires a local `openscad`, or set `AGENTSCAD_OPENSCAD_BACKEND=wasm` to use the checksum-pinned WASM runtime.
 
-## 提交格式
+## Submission format
 
-一个任务对应一个目录，每个提交一个 `.scad` 文件：
+One directory per task, one `.scad` file per submission:
 
 ```
 submissions/<task-id>/<submission>.scad
 ```
 
-文件名决定预期结果，这是自检的依据：
+The filename states the expected outcome, and that is what the self-check reads:
 
-| 文件名 | 预期 | 含义 |
+| Filename | Expected | Meaning |
 |---|---|---|
-| `reference.scad` | 必须 PASS | 参考解，证明任务可解 |
-| `adversarial-*.scad` | 必须不 PASS | 作弊样例，证明判据有牙 |
+| `reference.scad` | must PASS | the reference solution, proving the task is solvable |
+| `adversarial-*.scad` | must not PASS | a cheat, proving the checks have teeth |
+| `model-*.scad` | no expectation | a recorded model attempt (`unscored`) |
 
-SCAD 文件必须用变量 `agentscad_part` 选择要导出的零件。评测器分别以 `-D agentscad_part=fixed` 和 `-D agentscad_part=moving` 渲染两次，两次结果必须在**同一个装配坐标系**里。
+A submission selects parts with the `agentscad_part` variable. The harness renders it twice, with `-D agentscad_part=fixed` and `-D agentscad_part=moving`, and both results must live in **the same assembly coordinate system**.
 
 ```scad
 agentscad_part = "all";
 $fn = 64;
 
-module fixed_leaf() { /* 带销的固定件 */ }
-module moving_leaf() { /* 带轴套的活动件 */ }
+module fixed_leaf() { /* fixed part with the pin */ }
+module moving_leaf() { /* moving part with the bore */ }
 
 module generated_part() {
   if (agentscad_part == "all" || agentscad_part == "fixed") fixed_leaf();
@@ -66,164 +68,166 @@ module generated_part() {
 generated_part();
 ```
 
-`-D` 会覆盖文件内的赋值，所以文件顶部写 `"all"` 是安全默认值。
+`-D` overrides in-file assignments, so declaring `"all"` at the top is a safe default.
 
-## 任务格式
+## Task format
 
-见 [`tasks/hinge-45-loose.json`](tasks/hinge-45-loose.json)。任务声明：
+See [`tasks/hinge-45-loose.json`](tasks/hinge-45-loose.json). A task declares:
 
-- `parts[]` —— 零件 id 与选择器
-- `joint` —— 关节类型、轴原点、轴方向、哪个零件带孔
-- `requirements[]` —— 冻结的验收契约（`equals` / `range` / `atLeast`）
-- `motion` —— 角度范围与采样数
-- `disassembly` —— 抽开距离与采样数
+- `parts[]` — part ids and their selectors
+- `joint` — joint type, axis origin, axis direction, which part carries the bore, which part moves
+- `requirements[]` — the frozen acceptance contract (`equals` / `range` / `atLeast`)
+- `motion` — an angle range for a revolute joint, or a stroke for a prismatic one, plus the sample count
+- `disassembly` — withdrawal distance and sample count
+- `pose` (optional) — the SCAD variable the submission must honour, the values to re-render at, and the tolerance
+- `retention` (optional) — the pull distance that must be **blocked**
 
-目前只支持 `revolute + 圆孔/圆销`。要加 `prismatic` 需要新的观测器，`src/lib/assembly/fit-measurement.ts` 已经支持 `prismatic` 的配合测量，缺的是运动与拆卸的对应采样。
+Two joint types are covered. The fit is measured by the benchmark itself with `measureCylindricalFeature`, not by the product's fit check, because that check is revolute-only and borrowing it would narrow the benchmark and bind it to a module the product keeps refactoring.
 
-## 当前任务集
+## Current task set
 
-| 任务 | 家族 | 轴孔带宽 (mm) | 运动 |
+| Task | Family | Clearance band (mm) | Motion |
 |---|---|---|---|
-| `hinge-45-loose` | 转动副 | 0.35 – 0.45 | ±45° |
-| `hinge-90-tight` | 转动副 | 0.20 – 0.30 | ±90° |
-| `hinge-60-wide` | 转动副 | 0.40 – 0.55 | ±60° |
-| `piston-bore-30` | 移动副 | 0.35 – 0.45 | 行程 30 mm |
-| `piston-bore-45` | 移动副 | 0.20 – 0.30 | 行程 45 mm |
-| `hinge-captured-45` | 转动副 + 轴向保持 | 0.35 – 0.45 | ±45°，拉拔 2 mm 被挡住 |
+| `hinge-45-loose` | revolute | 0.35 – 0.45 | ±45° |
+| `hinge-90-tight` | revolute | 0.20 – 0.30 | ±90° |
+| `hinge-60-wide` | revolute | 0.40 – 0.55 | ±60° |
+| `piston-bore-30` | prismatic | 0.35 – 0.45 | 30 mm stroke |
+| `piston-bore-45` | prismatic | 0.20 – 0.30 | 45 mm stroke |
+| `hinge-captured-45` | revolute + axial retention | 0.35 – 0.45 | ±45°, 2 mm pull blocked |
 
-两个家族对应 V8 机构的两种基本关节：铰链是转动副，活塞-缸筒是移动副。同家族内只有公差和行程不同——它们测的是**是否命中指定公差**，不是"能不能画出一个铰链形状"。
+The two families are the two basic joints of a V8. Within a family only the tolerance and the travel change — these tasks measure **whether the specified tolerance is hit**, not "can a hinge shape be drawn".
 
-家族之间的差别不是参数而是**语义**：铰链里带孔的零件在转（`borePartId == movingPartId`），活塞里带孔的零件固定不动（`borePartId != movingPartId`）。`joint.movingPartId` 就是为了让同一个判分器覆盖这两种情况而不预设"带孔的就是活动件"。
+What separates the families is not a parameter but a **semantic**: in a hinge the bore-carrying part is the one that turns (`borePartId == movingPartId`), in a piston it is the one that stays put (`borePartId != movingPartId`). `joint.movingPartId` exists so one scorer can cover both without assuming "the one with the hole is the one that moves".
 
-## 当前结果
+## Current results
 
 ```
 task              submission                    status  cover   parts  clearance      motion  disasm
 hinge-45-loose    adversarial-floating          ERROR   4/6     PASS   —              PASS    PASS
 hinge-45-loose    adversarial-fused-bore        ERROR   2/6     PASS   —              FAIL    FAIL
-hinge-45-loose    adversarial-solid-blob        ERROR   1/6     FAIL   —              FAIL    FAIL
+hinge-45-loose    adversarial-solid-blob        ERROR   1/6     FAIL   -8.284-8.284   FAIL    FAIL
 hinge-45-loose    adversarial-static-pose       FAIL    5/6     PASS   0.400-0.415    PASS    PASS
 hinge-45-loose    adversarial-tight-bore        FAIL    5/6     PASS   0.050-0.065    PASS    PASS
 hinge-45-loose    adversarial-whole-rotation    FAIL    5/6     PASS   0.400-0.415    PASS    PASS
+hinge-45-loose    model-deepseek-v4-flash       PASS    6/6     PASS   0.392-0.407    PASS    PASS
 hinge-45-loose    reference                     PASS    6/6     PASS   0.400-0.415    PASS    PASS
+hinge-60-wide     model-deepseek-v4-flash       PASS    6/6     PASS   0.492-0.507    PASS    PASS
 hinge-60-wide     reference                     PASS    6/6     PASS   0.450-0.465    PASS    PASS
+hinge-90-tight    model-deepseek-v4-flash       PASS    6/6     PASS   0.247-0.253    PASS    PASS
 hinge-90-tight    reference                     PASS    6/6     PASS   0.250-0.265    PASS    PASS
 hinge-captured-45 adversarial-no-cap            FAIL    5/6     PASS   0.400-0.415    PASS    —
+hinge-captured-45 model-deepseek-v4-flash       PASS    6/6     PASS   0.397-0.403    PASS    —
 hinge-captured-45 reference                     PASS    6/6     PASS   0.400-0.415    PASS    —
 piston-bore-30    adversarial-tight-bore        FAIL    5/6     PASS   0.100-0.124    PASS    PASS
-piston-bore-30    reference                     PASS    6/6     PASS   0.400-0.425    PASS    PASS
-piston-bore-45    reference                     PASS    6/6     PASS   0.250-0.274    PASS    PASS
-hinge-45-loose    model-deepseek-v4-flash       PASS    6/6     PASS   0.392-0.407    PASS    PASS
-hinge-60-wide     model-deepseek-v4-flash       PASS    6/6     PASS   0.492-0.507    PASS    PASS
-hinge-90-tight    model-deepseek-v4-flash       PASS    6/6     PASS   0.247-0.253    PASS    PASS
-hinge-captured-45 model-deepseek-v4-flash       PASS    6/6     PASS   0.397-0.403    PASS    —
 piston-bore-30    model-deepseek-v4-flash       PASS    6/6     PASS   0.387-0.412    PASS    PASS
+piston-bore-30    reference                     PASS    6/6     PASS   0.400-0.425    PASS    PASS
 piston-bore-45    model-deepseek-v4-flash       PASS    6/6     PASS   0.247-0.253    PASS    PASS
+piston-bore-45    reference                     PASS    6/6     PASS   0.250-0.274    PASS    PASS
 ```
 
-`model-*` 行来自 `main` 分支的**已记录模型产物**（`bench/assembly/submissions/*/model-deepseek-v4-flash.scad`，PR #64 的 6 次 DeepSeek v4 flash 输出），在本分支原样复制并重评分；这是**replay**，不是新一轮模型调用。
+Measured clearance matches the analytic value (6.40 mm inscribed bore − 6.00 mm circumscribed pin = 0.400 mm; 10.40 − 10.00 = 0.400 mm), so the measurement chain has no systematic bias.
 
-实测间隙与解析值一致（6.40 mm 内切孔 − 6.00 mm 外接销 = 0.400 mm；10.40 − 10.00 = 0.400 mm），说明测量链没有系统性偏差。
+`model-*` submissions are **the artefacts being scored**: the self-check neither rewards nor punishes them (`expectedOutcome` returns `unscored`). They are produced by `bun run bench:baseline`; see [bench/README.md](../README.md).
 
-### 这组作弊样例证明了什么
+### What the adversarial set proves
 
-四个 adversarial 各自只打一个点：
+Each cheat targets exactly one check:
 
-| 提交 | 打中的判据 | 结果 |
+| Submission | What it exploits | Result |
 |---|---|---|
-| `adversarial-solid-blob` | 同一实体穿两个名字 | `distinct-exported-parts` FAIL |
-| `adversarial-fused-bore` | 有孔的形状但没有孔 | 配合 ERROR + 运动 FAIL |
-| `adversarial-tight-bore` | 形状完全正确，只有间隙差 0.35 mm | 仅 `diametral-clearance` FAIL |
-| `adversarial-floating` | 两块彼此不接触的实体 | 配合 ERROR |
-| `adversarial-static-pose` | 源码声明了位姿参数但不用 | `source-motion` FAIL |
-| `adversarial-whole-rotation` | 位姿作用在整机而不是活动件 | `source-motion` FAIL |
-| `adversarial-no-cap` | 铰链没有销头，能被直接抽走 | `axial-retention` FAIL |
+| `adversarial-solid-blob` | one solid wearing two selectors | `distinct-exported-parts` FAIL |
+| `adversarial-fused-bore` | a bore-shaped part with no bore | fit ERROR + motion FAIL |
+| `adversarial-tight-bore` | perfectly correct shape, clearance off by 0.35 mm | only `diametral-clearance` FAIL |
+| `adversarial-floating` | two solids that never touch | fit ERROR |
+| `adversarial-static-pose` | declares a pose parameter and ignores it | `source-motion` FAIL |
+| `adversarial-whole-rotation` | the pose acts on the whole assembly | `source-motion` FAIL |
+| `adversarial-no-cap` | no pin head, so the leaf slides straight off | `axial-retention` FAIL |
+| piston `adversarial-tight-bore` | the same clearance failure on the prismatic family | only `diametral-clearance` FAIL |
 
-**`adversarial-floating` 是这组里最重要的一条。** 它的零件数、运动、拆卸全部 PASS，因为它确实不干涉、也确实能抽开——它只是从来没形成过关节。只有配合测量拦住了它。这说明：**任何单一判据都不够，删掉配合测量这个 benchmark 就形同虚设。**
+**`adversarial-floating` is the most important row.** Part count, motion and disassembly all PASS, because the two solids genuinely do not interfere and genuinely do separate — they simply never form a joint. Only the fit measurement stops it. The lesson: **no single check is sufficient, and deleting the fit check would make this benchmark decorative.**
 
-`adversarial-tight-bore` 同样重要：它证明判据能分辨"画出了铰链"和"画出了所要求的铰链"。
+`adversarial-tight-bore` matters for a different reason: it shows the checks can tell "a hinge was drawn" from "the requested hinge was drawn".
 
-## 覆盖度 ≠ 数量
+## Coverage is not case count
 
-这两件事经常被混为一谈，但成本曲线完全不同：
+These are routinely conflated, but the cost curves are completely different:
 
-| 扩什么 | 边际成本 | 得到什么 |
+| What you add | Marginal cost | What you get |
 |---|---|---|
-| 同家族加 case（换公差/行程） | 1 个 JSON + 1 个 SCAD，约 10 分钟 | 统计自由度，不增加覆盖 |
-| 加一个家族（移动副） | 1 个关节类型 + 1 个运动采样分支 | 真正的覆盖增量 |
-| 加一个闭环机构（曲柄滑块） | 多关节运动学 + 闭环约束求解 | 覆盖 V8 级别的机构 |
-| 加一个自由形状（叶轮、壳体） | 全新判据：曲面相似度、壁厚、流道 | 换一个评测维度 |
+| another case in a family (new tolerance/travel) | one JSON + one SCAD, ~10 minutes | degrees of freedom, no coverage |
+| another family (prismatic) | one joint type + one motion sampler | real coverage |
+| a closed-loop mechanism (slider-crank) | multi-joint kinematics + loop closure | V8-class mechanisms |
+| a free-form part (impeller, housing) | an entirely new check: surface similarity, wall thickness, flow path | a different evaluation axis |
 
-所以"100 个 case"和"100 种能力"不是一回事。这个 benchmark 现在有 5 个 case / 2 种能力，它成立的理由是判据，不是行数。
+So "100 cases" and "100 capabilities" are not the same thing. This benchmark has 6 cases and 2 capabilities, and what makes it worth anything is the checks, not the row count.
 
-## 层覆盖
+## Layer coverage
 
-每个 case 除了 `status`（交付门槛）还报一个 `cover`：
+Besides `status` (the delivery gate), every case reports `cover`:
 
 ```
 task              submission                status  cover   parts  clearance      motion  disasm
-hinge-45-loose    adversarial-floating      ERROR   3/4     PASS   —              PASS    PASS
-hinge-45-loose    reference                 PASS    4/4     PASS   0.400-0.415    PASS    PASS
+hinge-45-loose    adversarial-floating      ERROR   4/6     PASS   —              PASS    PASS
+hinge-45-loose    reference                 PASS    6/6     PASS   0.400-0.415    PASS    PASS
 ```
 
-`status` 是"这个 case 能不能交付"，`cover` 是"在已经看得到的层里过了几层"。`adversarial-floating` 就是两者分离的例子：3/4 层通过，但没通过的那层正是它作弊的地方，所以 gate 仍然失败。
+`status` answers "can this case be delivered"; `cover` answers "of the layers we can see, how many passed". `adversarial-floating` is the case where the two separate: 4 of 6 layers pass, but the layer it fails is exactly where it cheats, so the gate still fails.
 
-分母是**本 case 有证据的层数**，未观测的层列在 `report.json` 的 `layers.coverage.unobserved` 里，不进分母也不进分子。完整的层清单、缺口诊断和跨批次报告见 [`bench/README.md`](../README.md)。
+The denominator is **the number of layers this case produced evidence for**. Unobserved layers are listed in `report.json` under `layers.coverage.unobserved` and enter neither numerator nor denominator. The full layer list, the gap diagnosis and the cross-batch report are in [`bench/README.md`](../README.md).
 
-## 两个容易做成空壳的检查
+## Two checks that are easy to build as shells
 
-这两个层在历史试验里长期是 `NOT_RUN`，补的时候各踩了一个坑。
+Both of these layers sat at `NOT_RUN` for a long time in the trial history, and each one had a trap.
 
-### `source-motion`：源码自己会不会动
+### `source-motion`: does the source itself move?
 
-之前的运动检查是**由评测器旋转网格**——这只能证明几何摆在那儿不打架，证明不了模型的源码是参数化的。`source-motion` 改成用任务声明的位姿参数（`hinge_angle` / `piston_stroke`）**重新渲染提交的 SCAD**，再比对。
+The original motion check rotated the mesh **in the evaluator**, which proves only that the geometry does not collide — not that the model's source is parameterised. `source-motion` re-renders the submitted SCAD through the task's pose parameter (`hinge_angle` / `piston_stroke`) and compares.
 
-第一版用质心比对，结果直接失效：铰链的活动件按顶点数算大部分是轴套，质心几乎在轴上，转 45° 只挪 0.42 mm——比容差还小。改成**双向 Hausdorff**：把参考位姿的点集按期望刚体变换过去，量最大最近邻偏差。刚体应该给出 ~1e-6 mm，静止源码给出 ~10 mm。
+The first version used a centroid comparison and was useless: weight a hinge's moving leaf by vertex count and it is mostly knuckle, so its centroid sits near the axis and a 45° rotation moves it by 0.42 mm — smaller than the tolerance. It now uses a **bidirectional Hausdorff distance**: transform the reference pose's point set by the expected rigid motion and measure the worst nearest-neighbour deviation. A rigid part gives ~1e-6 mm; a static source gives ~10 mm.
 
-还有两个防空过：
+Two guards against a vacuous pass:
 
-- 如果声明的位姿根本移动不了这个零件（最大位移 ≤ 容差），判 `NOT_RUN` 而不是通过——否则"会动的源码"和"不会动的源码"测出来一模一样。
-- 固定件的哈希在首末位姿之间必须不变，否则说明位姿作用在整机。`adversarial-whole-rotation` 就是这一条。
+- if the declared poses cannot move the part further than the tolerance, the result is `NOT_RUN`, not a pass — otherwise "a moving source" and "a static source" measure identically.
+- the grounded part's geometry must be unchanged between the first and last pose, otherwise the pose is acting on the whole assembly. `adversarial-whole-rotation` is exactly that case.
 
-### `axial-retention`：被挡住才算通过
+### `axial-retention`: blocked counts as pass
 
-语义是**拉拔被阻止**，不是"拉得动"。测量方式：组装位姿先确认两件分离，再沿轴平移 2 mm，相交即保持件生效。
+The semantic is **the pull is blocked**, not "the part can be pulled". The measurement confirms the parts are separate at the assembled pose, then translates 2 mm along the axis; interference means the retention feature is doing its job.
 
-这里有个结构性取舍必须写进任务：**保持件和可抽出是互斥的。** 所以 `hinge-captured-45` 没有 `disassembly-path` 要求，schema 也会拒绝同时声明两者的任务——否则就是一个永远无法满足的 case。
+There is a structural trade-off the task has to state: **retention and withdrawability are mutually exclusive.** That is why `hinge-captured-45` has no `disassembly-path` requirement, and why the schema refuses a task that declares both — such a task could never be satisfied.
 
-`adversarial-no-cap` 是这条检查的存在理由：它零件数对、配合对、运动对、源码能摆位姿，唯独没有销头。没有这一层，"叶片能被直接拽下来"会被判成成功。
+`adversarial-no-cap` is the reason this check exists: correct part count, correct fit, correct motion, a source that poses itself, and no pin head. Without this layer, "the leaf can be pulled straight off" would score as a success.
 
-## 已知边界（不要过度宣称）
+## Known boundaries (do not overclaim)
 
-- **样本是网格采样的**，采样点之间的位姿不覆盖。`motion.steps` 和 `disassembly.steps` 决定覆盖面。
-- **不是物理真实性证明**：没有打印公差、材料、载荷、疲劳。
-- **`disassembly-path` 只证明沿轴平移不干涉**，不证明存在有效的装配顺序（那需要 `rigid-pose-path` 那套更重的序列求解）。
-- **单关节、两零件**：每个任务只有一对配合面、一个关节。真实的 V8 是 8 组活塞-连杆、多根轴、闭环运动链——那需要多关节运动学，不是加参数能得到的。
-- **`source-motion` 只验证位姿参数下的刚体一致性**，不验证参数是否覆盖了完整行程，也不验证运动是"机构的"还是"每件单独写死角度"的——后者需要多关节约束。
-- **`axial-retention` 只测一个拉拔距离**，不测拉脱力、疲劳或锁舌的旋出路径。
-- **移动副的行程与拆卸同向**：活塞的行程和抽出都沿 +Z，两条判据在方向上不独立。
-- **隐藏集 harness 已有，独立隐藏集仍无**：`bench/assembly/hidden-run.ts` 要求 external-only 路径、frozen task-set hash 和聚合-only 报告，`bench:hidden:freeze` 负责生成 manifest；manifest 的 `family` 支持 assembly/gear/slider/l4/twin/vtwin/declaration/v8/planetary/planetary3/product/thread，运行器按 family 分派 scorer；但仓库里没有任何独立隐藏任务，dev 副本只验证 harness 行为。
-- **模型 baseline 只有 recorded replay**：6 条 DeepSeek v4 flash 产物在本地六任务上 6/6 PASS，但没有新鲜外部模型采样或独立隐藏集结果。
-- **与产品代码耦合**：`score.ts` 直接 import `src/lib/assembly/*`。真正的公开发布需要把验证器抽成独立包。
-- **`adversarial-*` 只覆盖每个家族的 1 个任务**，其余任务目前只有参考解。
+- **The samples are a grid.** Poses between samples are not covered; `motion.steps` and `disassembly.steps` define the coverage.
+- **This is not a physical-realism proof**: no print tolerance, material, load or fatigue.
+- **`disassembly-path` proves only that translation along the axis does not interfere.** It does not prove a valid assembly sequence exists (that needs the heavier `rigid-pose-path` sequence solver).
+- **One joint, two parts per task.** A real V8 is eight piston/rod groups, several shafts and closed kinematic chains — that needs multi-joint kinematics, not more parameters.
+- **`source-motion` verifies rigid consistency under the pose parameter only.** It does not verify the parameter covers the full travel, and it does not verify the motion is *mechanism* motion rather than every part having its own hardcoded angle — the latter needs multi-joint constraints.
+- **`axial-retention` tests one pull distance.** It does not test pull-out force, fatigue, or a latch's release path.
+- **A prismatic joint's stroke and withdrawal share a direction**: the piston's stroke and its extraction are both along +Z, so the two checks are not independent in direction.
+- **No hidden split**: tasks and reference solutions are both in the repository. Becoming a publishable benchmark requires an unpublished split and external baselines.
+- **Coupled to product geometry code**: `score.ts` imports `src/lib/geometry/*` and `src/lib/assembly/*` primitives. A real public release needs the verifier extracted into a standalone package.
+- **`adversarial-*` covers one task per family.** The other tasks currently have a reference only.
 
-## 变成正式 benchmark 还缺什么
+## What is still missing to be a real benchmark
 
-1. 任务集从 6 条扩到 100+，并让**没看过判据的人**写参考解（防止判据被参考解反向调参）。
-2. 用已实现的 hidden harness 运行**独立维护者**提供的外部任务集；目前只有 dev 副本，`independentHiddenEvaluation` 仍是 NOT_RUN。
-3. 跑 6–8 个模型 × 多次采样，出新鲜 baseline 表；当前只有 6 条 recorded replay，不能替代新采样。
-4. 把 `src/lib/assembly/` 抽成独立包，切断对产品内部模块的依赖。
-5. 对抗集扩到 20+ 条并公开——一个能被刷的 benchmark 比没有 benchmark 更伤信誉。
+1. Grow the task set from 6 to 100+, and have **people who have not read the checks** write the reference solutions (otherwise the checks get tuned against the references).
+2. Carve out a hidden split and publish only the scorer and the submission format.
+3. Run 6–8 models with multiple samples and publish the table. One model is a baseline row, not a comparison.
+4. Extract `src/lib/assembly/` into a standalone package and cut the dependency on product internals.
+5. Grow the adversarial set to 20+ and publish it — a benchmark that can be gamed is worse for your credibility than no benchmark.
 
-## 文件
+## Files
 
-| 文件 | 职责 |
+| File | Responsibility |
 |---|---|
-| [`bench.ts`](bench.ts) | 任务格式、校验、加载、状态聚合 |
-| [`score.ts`](score.ts) | 渲染 → 配合测量 → 运动采样 → 拆卸采样 → 判分 |
-| [`run.ts`](run.ts) | CLI、矩阵输出、`--self-check` |
-| `tasks/*.json` | 冻结任务集 |
-| `submissions/*/*.scad` | 参考解与作弊解 |
-| `report.json` | 生成的证据记录（已 gitignore） |
+| [`bench.ts`](bench.ts) | task format, validation, loading, status aggregation |
+| [`score.ts`](score.ts) | render → fit → motion sampling → disassembly sampling → verdicts |
+| [`run.ts`](run.ts) | CLI, matrix output, `--self-check` |
+| `tasks/*.json` | the frozen task set |
+| `submissions/*/*.scad` | reference solutions, cheats and model artefacts |
+| `report.json` | generated evidence record (gitignored) |
 
-`report.json` 里每条 case 都带 `provenance`（OpenSCAD 版本、后端、平台、运行时间）、`sourceSha256`、逐条 `reason` 和 `unknowns`。这些字段存在的理由和代码里的注释一样：一个不知道方法是什么的分数不是分数。
+Every case in `report.json` carries `provenance` (OpenSCAD version, backend, platform, runtime), `sourceSha256`, a per-check `reason` and `unknowns`. Those fields exist for the same reason as the comments in the code: a score whose method is unknown is not a score.

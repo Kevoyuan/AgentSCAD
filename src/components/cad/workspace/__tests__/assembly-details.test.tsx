@@ -3,7 +3,8 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nContext } from '@/components/i18n-provider'
 import { createTranslator } from '@/lib/i18n'
-import { AssemblyDetails, AssemblyRevisions, fetchAssemblyBundle, fetchAssemblyPart, parseAssemblyDraft, saveAssemblyDraft } from '../AssemblyDetails'
+import { CollisionReplayAction } from '../CollisionReplayAction'
+import { CollisionReplayDetails, AssemblyDetails, AssemblyRevisions, fetchAssemblyBundle, fetchAssemblyLayout, fetchAssemblyEvidence, fetchAssemblyEvidenceHistory, recordAssemblyEvidenceSnapshot, fetchAssemblyPart, parseAssemblyDraft, saveAssemblyDraft } from '../AssemblyDetails'
 
 const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 const spec = {
@@ -26,6 +27,47 @@ test('shows independent instances, connections and unexecuted evidence without i
   expect(html).toContain('Material not specified')
   expect(html).toContain('A part decision does not confirm acceptance of this assembly description.')
   expect(html).not.toContain('Download')
+})
+
+test('replay matrices show original measured coordinates, not fabricated viewer camera focus', () => {
+  const witness = {
+    frame: 'right-handed-mm-row-major-4x4/v1',
+    movingWorldFromLocal: [1, 0, 0, 12, 0, 1, 0, 3, 0, 0, 1, -1, 0, 0, 0, 1],
+    obstacleWorldFromLocal: identity,
+    movingMeshSha256: 'a'.repeat(64),
+    obstacleMeshSha256: 'b'.repeat(64),
+  }
+  const html = renderToStaticMarkup(<I18nContext.Provider value={{ locale: 'en', setLocale() {}, t: createTranslator('en') }}><CollisionReplayDetails replay={witness} /></I18nContext.Provider>)
+  expect(html).toContain('Replay sampled collision pose')
+  expect(html).toContain('right-handed-mm-row-major-4x4/v1')
+  expect(html).toContain('a'.repeat(64))
+  expect(html).toContain('b'.repeat(64))
+  expect(html).toContain('12')
+  expect(html).toContain('3')
+  expect(html).toContain('single-STL viewport')
+  expect(html).not.toContain('Exact contact point')
+})
+test('a collision witness offers an explicit, lazy 3D replay without claiming continuous or physical clearance', () => {
+  const target = {
+    movingInstanceId: 'pin1', obstacleInstanceId: 'base1',
+    collision: 'INTERSECT' as const, poseIndex: 7,
+    frame: {
+      frame: 'right-handed-mm-row-major-4x4/v1' as const,
+      movingWorldFromLocal: identity, obstacleWorldFromLocal: identity,
+      movingMeshSha256: 'a'.repeat(64), obstacleMeshSha256: 'b'.repeat(64),
+    },
+    witnessCentroidPointMm: [1, 2, 3],
+  }
+  const html = renderToStaticMarkup(
+    <I18nContext.Provider value={{ locale: 'en', setLocale() {}, t: createTranslator('en') }}>
+      <CollisionReplayAction jobId="job" sourceSha256={'a'.repeat(64)} specSha256={'b'.repeat(64)}
+        evidenceArchiveSha256={'c'.repeat(64)} target={target} />
+    </I18nContext.Provider>,
+  )
+  expect(html).toContain('View collision pair in 3D')
+  expect(html).toContain('on demand')
+  expect(html).not.toContain('<canvas')
+  expect(html).not.toContain('Collision pair 3D replay —')
 })
 
 test('stale evidence cannot appear current; Chinese labels are available', () => {
@@ -125,6 +167,118 @@ test('the archive download appears only for a current source and refuses ignored
   expect(conflict.error).toContain('changed')
   const invalid = await fetchAssemblyBundle('job', '', 'c'.repeat(64), request)
   expect(invalid.error).toContain('unavailable')
+})
+
+test('layout download is shown only for a current fully generated assembly', () => {
+  const sha = 'a'.repeat(64)
+  const data = { spec: { ...spec, parts: spec.parts.filter(part => part.source === 'generated'), instances: spec.instances.filter(instance => instance.partId === 'base'), connections: [] }, stale: false, sourceSha256: sha, currentSourceSha256: sha, specSha256: 'c'.repeat(64), evidence }
+  expect(render(data, 'en', 'job')).toContain('Download assembly layout (STL)')
+  expect(render(data, 'en', 'job')).toContain('not a printable union or proof of fit')
+  expect(render({ ...data, stale: true }, 'en', 'job')).not.toContain('Download assembly layout (STL)')
+  expect(render(data, 'en', 'job', false)).not.toContain('Download assembly layout (STL)')
+  expect(render({ ...data, specSha256: undefined }, 'en', 'job')).not.toContain('Download assembly layout (STL)')
+  const missingPurchased = render({ ...data, spec }, 'en', 'job')
+  expect(missingPurchased).toContain('Layout STL unavailable: purchased instances have no geometry')
+  expect(missingPurchased).not.toContain('Download assembly layout (STL)')
+  expect(missingPurchased).toContain('Download all parts (ZIP)')
+})
+
+test('layout request preserves hashes and reports conflicts and incomplete geometry', async () => {
+  let url = ''
+  let credentials: RequestCredentials | undefined
+  const request = async (input: RequestInfo | URL, init?: RequestInit) => {
+    url = String(input); credentials = init?.credentials
+    return new Response('stl data')
+  }
+  const result = await fetchAssemblyLayout('job id', 'b'.repeat(64), 'c'.repeat(64), request)
+  const expected = '/api/jobs/job%20id/assembly/layout?sourceSha256=' + 'b'.repeat(64) + '&specSha256=' + 'c'.repeat(64) + '&download=1'
+  expect(url).toBe(expected)
+  expect(credentials).toBe('include')
+  expect(result.blob?.size).toBe(8)
+  const missing = await fetchAssemblyLayout('job', 'b'.repeat(64), 'c'.repeat(64), async () => new Response('', { status: 422 }))
+  expect(missing.error).toContain('missing')
+  const stale = await fetchAssemblyLayout('job', 'b'.repeat(64), 'c'.repeat(64), async () => new Response('', { status: 409 }))
+  expect(stale.error).toContain('changed')
+  const invalid = await fetchAssemblyLayout('job', '', 'c'.repeat(64), request)
+  expect(invalid.error).toContain('unavailable')
+})
+
+test('user-triggered evidence check appears only when source and spec are current', () => {
+  const h = 'a'.repeat(64)
+  const data = { spec, stale: false, sourceSha256: h, currentSourceSha256: h, specSha256: 'c'.repeat(64), evidence }
+  const html = render(data, 'en', 'job')
+  expect(html).toContain('Run assembly geometry checks')
+  expect(html).toContain('one-time snapshot')
+  expect(html).not.toContain('Measurement snapshot')
+  expect(render({ ...data, stale: true }, 'en', 'job')).not.toContain('Run assembly geometry checks')
+  expect(render(data, 'en', 'job', false)).not.toContain('Run assembly geometry checks')
+})
+
+test('evidence request is version-bound and refuses a mismatched report', async () => {
+  const sourceSha256 = 'b'.repeat(64)
+  const specSha256 = 'c'.repeat(64)
+  const report = { reportSchemaVersion: 1, sourceSha256, specificationSha256: specSha256 }
+  let requestedUrl = ''
+  let requestedCredentials: RequestCredentials | undefined
+  const request = async (input: RequestInfo | URL, init?: RequestInit) => {
+    requestedUrl = String(input)
+    requestedCredentials = init?.credentials
+    return Response.json(report)
+  }
+  const success = await fetchAssemblyEvidence('job id', sourceSha256, specSha256, request)
+  expect(success.report?.sourceSha256).toBe(sourceSha256)
+  expect(requestedCredentials).toBe('include')
+  expect(requestedUrl).toBe('/api/jobs/job%20id/assembly/evidence?sourceSha256=' + sourceSha256 + '&specSha256=' + specSha256)
+  const bad = await fetchAssemblyEvidence('job', sourceSha256, specSha256, async () => Response.json({ ...report, sourceSha256: 'd'.repeat(64) }))
+  expect(bad.error).toContain('does not match')
+  const conflict = await fetchAssemblyEvidence('job', sourceSha256, specSha256, async () => new Response('', { status: 409 }))
+  expect(conflict.error).toContain('changed')
+  const invalid = await fetchAssemblyEvidence('job', '', specSha256, request)
+  expect(invalid.error).toContain('unavailable')
+})
+
+test('evidence archive actions are explicit and do not claim verified functionality on page load', () => {
+  const sha = 'a'.repeat(64)
+  const data = { spec, stale: false, sourceSha256: sha, currentSourceSha256: sha, specSha256: 'c'.repeat(64), evidence }
+  const html = render(data, 'en', 'job')
+  expect(html).toContain('Save new evidence snapshot')
+  expect(html).toContain('View saved evidence')
+  expect(html).not.toContain('Matches current versions')
+  expect(html).toContain('re-runs the measurements on the server')
+  expect(render({ ...data, stale: true }, 'en', 'job')).not.toContain('Save new evidence snapshot')
+  expect(render(data, 'en', 'job', false)).not.toContain('View saved evidence')
+})
+
+test('snapshot history loading and saving are authenticated and reject mismatched artifacts', async () => {
+  const sourceSha256 = 'b'.repeat(64), specSha256 = 'c'.repeat(64)
+  const urls: string[] = []
+  const calls: Array<{ method?: string; credentials?: RequestCredentials }> = []
+  const snapshot = {
+    schemaVersion: 1, checkedAt: '2026-11-13T12:00:00.000Z',
+    checkerVersion: 'assembly-evidence/v1', snapshotSha256: 'e'.repeat(64),
+    report: { sourceSha256, specificationSha256: specSha256 },
+  }
+  const request = async (input: RequestInfo | URL, init?: RequestInit) => {
+    urls.push(String(input)); calls.push({ method: init?.method, credentials: init?.credentials })
+    if (init?.method === 'POST') return Response.json({ id: 'stored-1', snapshot }, { status: 201 })
+    return Response.json({ snapshots: [] })
+  }
+  const saved = await recordAssemblyEvidenceSnapshot('job id', sourceSha256, specSha256, request)
+  expect(saved.id).toBe('stored-1')
+  expect(calls[0]).toEqual({ method: 'POST', credentials: 'include' })
+  expect(urls[0]).toBe('/api/jobs/job%20id/assembly/evidence/snapshots?sourceSha256=' + sourceSha256 + '&specSha256=' + specSha256)
+  const history = await fetchAssemblyEvidenceHistory('job id', request)
+  expect(history.snapshots).toEqual([])
+  expect(urls[1]).toBe('/api/jobs/job%20id/assembly/evidence/snapshots')
+  expect(calls[1].credentials).toBe('include')
+  const mismatch = await recordAssemblyEvidenceSnapshot('job', sourceSha256, specSha256,
+    async () => Response.json({ id: 'stored-2', snapshot: { ...snapshot, report: { ...snapshot.report, sourceSha256: 'd'.repeat(64) } } }, { status: 201 }))
+  expect(mismatch.error).toContain('does not match')
+  const conflict = await recordAssemblyEvidenceSnapshot('job', sourceSha256, specSha256,
+    async () => new Response('', { status: 409 }))
+  expect(conflict.error).toContain('changed')
+  const missing = await fetchAssemblyEvidenceHistory('job', async () => Response.json({ snapshots: null }))
+  expect(missing.error).toContain('could not be loaded')
 })
 
 test('saved versions distinguish the current declaration from an earlier source', () => {

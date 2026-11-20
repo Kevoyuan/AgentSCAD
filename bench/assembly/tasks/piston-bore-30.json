@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "piston-bore-30",
-  "prompt": "Build a two-part piston-and-cylinder linear mechanism: the cylinder is a blind cup and the piston travels 30 mm along the axis inside the bore. The two parts must export as separate solids, the piston must fully withdraw along the axis, and the piston must not interfere with the cylinder anywhere in the stroke. The axis is Z through the origin, the piston diameter is 10 mm, and the diametral bore-to-piston clearance must be between 0.35 and 0.45 mm. Units are mm; the parts must be directly 3D printable.",
+  "prompt": "Build a two-piece piston-and-barrel linear mechanism: the barrel is a blind-bottom cup, and the piston travels a 30 mm stroke inside the bore. The two parts must export as separate solids, the piston must be withdrawable along the axis, and it must not interfere with the barrel anywhere over the stroke. The axis is Z through the origin; piston diameter 10 mm; the diametral clearance between the bore and the piston must be between 0.35 and 0.45 mm. Units mm; directly 3D printable.",
   "parts": [
     {
       "id": "barrel",
@@ -95,7 +95,7 @@
   "notes": [
     "Here the bore part is stationary and the shaft part moves, which is why joint.movingPartId is separate from joint.borePartId.",
     "For a prismatic joint the stroke and the withdrawal share a direction; the withdrawal is still a longer, separate sampling, not an independent axis.",
-    "The submitted source must accept pose.parameter as its pose: the evaluator re-renders at that parameter, compares the moving part centroid and rigid transform, and confirms the fixed part does not move with the parameter."
+    "The submission source must accept pose.parameter and use it as its pose: the harness re-renders at that parameter, compares the moving part against a rigid transform, and checks the grounded part does not change."
   ],
   "pose": {
     "parameter": "piston_stroke",

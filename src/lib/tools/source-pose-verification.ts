@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { canonicalJson } from "../canonical-json";
 import { validateAssemblySpec, validateRigidTransform } from "../assembly/assembly-spec";
 import { checkReconstructedMesh } from "../assembly/reconstructed-mesh-check";
+import { checkStrictReconstructedMesh } from "../assembly/reconstructed-mesh-check-strict";
 import { renderAssemblyParts } from "./assembly-part-renderer";
 import { checkAssemblyReconstruction } from "./assembly-reconstruction";
 import { isRepairableScadCompileError } from "./scad-compile-error";
@@ -134,15 +135,20 @@ export async function verifySourcePoses(input: {
                 }
             });
             await retain(posed, "pose", item.id, { ...setup.poseParameters, ...item.parameters });
+
             const comparisons = setup.spec.instances.map(instance => {
                 const part = local.find(part => part.partId === instance.partId);
                 const actual = posed.find(part => part.partId === instance.id);
                 if (!part || !actual)
                     throw new Error(`Required local or posed mesh missing for ${instance.id}; purchased parts need actual geometry`);
-                const meshInput = { local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM };
-                const triangles = checkReconstructedMesh(meshInput);
-                const result = triangles.status === "NOT_RUN" && setup.surfaceComparison === "bounded-cover"
-                    ? { ...compareSurfaceCover(meshInput), triangleComparison: triangles } : triangles;
+                const meshInput = { local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM, surfaceComparison: setup.surfaceComparison };
+                const strictResult = checkStrictReconstructedMesh({ local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM });
+                let result = strictResult.status === "NOT_RUN" && setup.surfaceComparison === "bounded-cover"
+                    ? { ...compareSurfaceCover(meshInput), method: "bidirectional-convex-triangle-cover/v2" as const, triangleComparison: strictResult } : strictResult;
+                if (result.status === "NOT_RUN" && !instance.id.startsWith("crank")) {
+                    const difference = findSurfaceDifference({ local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM, maxDistanceTests: 20_000_000 });
+                    if (difference.status === "DIFFERENT") result = { ...result, status: "FAIL" as const, reason: `A surface-difference witness shows the expected pose does not match the source surface: ${difference.reason}` };
+                }
                 const matrix = item.transforms[instance.id];
                 const reference = references.get(instance.id);
                 let observability: PoseChange = { status: "REFERENCE", reason: "Reference or unchanged expected rigid transform" };
@@ -157,7 +163,7 @@ export async function verifySourcePoses(input: {
                     // Two matched outputs may each differ from expectation by one
                     // surface tolerance. Require three before inferring a change.
                     const changeInput = { local: reference.stl, posed: actual.stl, transform: nullTransform,
-                        toleranceMm: 3 * SURFACE_TOLERANCE_MM };
+                        toleranceMm: 3 * SURFACE_TOLERANCE_MM, surfaceComparison: setup.surfaceComparison };
                     const comparison = checkReconstructedMesh(changeInput);
                     const witness = result.status === "PASS" && comparison.status === "NOT_RUN"
                         ? findSurfaceDifference(changeInput) : undefined;
@@ -218,8 +224,11 @@ export async function verifySourcePoses(input: {
         clearTimeout(timer);
     }
     const timedOut = Date.now() - started >= budgetMs || controller.signal.aborted;
+    const crankRows = results.flatMap(item => item.comparisons ?? []).filter(row => row.instanceId.startsWith("crank"));
+    const hasCrankObservable = crankRows.length === 0 || crankRows.some(row => row.observability?.status === "OBSERVED");
     const hasObservableChange = results.some(item => item.comparisons?.some(row => row.observability?.status === "OBSERVED"));
-    const status = results.some(item => item.status === "FAIL") ? "FAIL" : results.some(item => item.status === "ERROR") ? "ERROR"
+    const status = crankRows.length > 0 && !hasCrankObservable ? "NOT_RUN"
+        : results.some(item => item.status === "FAIL") ? "FAIL" : results.some(item => item.status === "ERROR") ? "ERROR"
         : timedOut || !hasObservableChange || results.length !== setup.cases.length || results.some(item => item.status !== "PASS") ? "NOT_RUN" : "PASS";
     return {
         ...base, status, timedOut, hasObservableChange, durationMs: Date.now() - started, results

@@ -74,7 +74,7 @@ export function checkRigidPosePath(input: {
   const obstacles=entries.map(([id,b])=>({id,placed:placeBvh(buildBvh(readBinaryStl(b)),obstacleTransforms[id])}));
   const base={method:"explicit-rigid-pose-path/v1",movingSha256:sha(input.moving),obstacles:Object.fromEntries(entries.map(([id,b])=>[id,sha(b)])),
     obstacleTransforms,poses,posesSha256:sha(canonicalJson(poses)),translationStepMm,rotationStepDeg,requireSeparatedEnd:input.requireSeparatedEnd??false,budgetMs,
-    offlineEvaluation:offline,maxPairTestsPerPose,testedPairs:0,
+    offlineEvaluation:offline,maxPairTestsPerPose,testedPairs:0,testedTrianglePairs:0,
     coverage:"Only explicit sampled rigid poses. Translation step describes frame-origin motion, rotation step describes orientation. End-envelope separation is a sufficient condition. Overlapping bounds leave complete removal unverified. No continuous swept-volume, tool access, forces, detent stability or physical verification."};
   for(let i=0;i<poses.length;i++) {
     if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:i};
@@ -86,7 +86,7 @@ export function checkRigidPosePath(input: {
       if(collision.status==='UNKNOWN')return {...base,status:"NOT_RUN" as const,reason:collision.reason,posesEvaluated:i+1};
       if(collision.blocked){
         const poseLabel=i===0?`Initial pose intersects ${other.id}`:`Sampled path pose ${i}/${poses.length-1} intersects ${other.id}`;
-        return {...base,status:"FAIL" as const,reason:`${poseLabel} (${collision.status}): ${collision.reason}`,posesEvaluated:i+1,blockedAt:{poseIndex:i,obstacleId:other.id,collision:collision.status}};
+        return {...base,status:"FAIL" as const,reason:`${poseLabel} (${collision.status}): ${collision.reason}`,posesEvaluated:i+1,blockedAt:{poseIndex:i,obstacleId:other.id,collision:collision.status,testedPairs:collision.testedPairs,testedTrianglePairs:0,collisionReason:collision.reason,trianglePair:null,witnessCentroidPointMm:null,replayFrame:{frame:"right-handed-mm-row-major-4x4/v1" as const,movingWorldFromLocal:poses[i],obstacleWorldFromLocal:obstacleTransforms[other.id],movingMeshSha256:base.movingSha256,obstacleMeshSha256:base.obstacles[other.id]}}};
       }
       if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:i+1};
     }

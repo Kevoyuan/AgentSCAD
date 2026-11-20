@@ -171,10 +171,10 @@ export function buildLadderReport(runs: ScoredRun[]): LadderReport {
   // rather than leaving a reader to assume the series is comparable.
   const taskSets = new Set(runs.map((run) => run.taskSetSha256).filter((value): value is string => value !== null));
   if (taskSets.size > 1) {
-    warnings.push(`跨 ${taskSets.size} 个任务集版本聚合：只可看形状，不可比高低。`);
+    warnings.push(`Aggregated across ${taskSets.size} task-set versions: read the shape, not the levels.`);
   }
   if (runs.some((run) => run.tasks.some((task) => task.storedGateAgrees === false))) {
-    warnings.push("有批次的 measuredCorePassed 与按证据重算的 gate 不一致，需检查产出方。");
+    warnings.push("A stored measuredCorePassed disagrees with the gate recomputed from evidence; check the producer.");
   }
   const unmapped = new Map<string, number>();
   for (const task of allTasks) for (const id of task.unmappedEvidence) unmapped.set(id, (unmapped.get(id) ?? 0) + 1);
@@ -182,7 +182,7 @@ export function buildLadderReport(runs: ScoredRun[]): LadderReport {
     const listed = [...unmapped.entries()].sort((a, b) => b[1] - a[1]).map(([id, count]) => `${id}×${count}`).join(", ");
     // These are not lost: they still feed the gate, they just do not earn
     // coverage. Naming them stops a reader assuming the layer table is complete.
-    warnings.push(`未归层的证据（只影响 gate，不计入覆盖）：${listed}。`);
+    warnings.push(`Evidence outside every layer (affects the gate only, earns no coverage): ${listed}.`);
   }
 
   return {

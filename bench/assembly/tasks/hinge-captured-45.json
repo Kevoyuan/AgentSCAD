@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "hinge-captured-45",
-  "prompt": "Build a two-part hinge with axial retention: a fixed part with a pin and a pin head, and a moving leaf with a bore, with +/-45 degrees of rotation. The pin head must block the moving leaf so that a 2 mm axial pull cannot extract it (this is the removability-versus-retention tradeoff: this task requires retention, not axial withdrawal). The two parts must export as separate solids. The source must accept the pose parameter hinge_angle and place the moving leaf accordingly. The pin axis is Z through the origin, the pin diameter is 6 mm, and the diametral bore-to-pin clearance must be between 0.35 and 0.45 mm. Units are mm.",
+  "prompt": "Build a two-piece hinge with axial retention: the fixed part carries the pin and a pin head, the moving leaf carries the bore, and the moving part must turn ±45° about the pin. The pin head must block the bore so that pulling the moving part 2 mm along the axis is prevented and it cannot come off (this is the trade-off between retention and disassembly: this part has to retain, not to be axially withdrawable). The two parts must export as separate solids. The source must accept the pose parameter hinge_angle and pose the moving part with it. The pin axis is Z through the origin; pin diameter 6 mm; the diametral clearance between the bore and the pin must be between 0.35 and 0.45 mm. Units mm.",
   "parts": [
     {
       "id": "fixed",
