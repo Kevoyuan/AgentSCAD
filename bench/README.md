@@ -55,11 +55,14 @@ Aligned with the milestones in [`FUNCTIONAL_ASSEMBLY_PLAN.md`](../docs/FUNCTIONA
 
 | Rung | Task | Mechanism | Milestone | Status |
 |---|---|---|---|---|
-| L1 | two-part revolute (hinge, loose/tight) | 1 joint, 2 parts | M3 | in `bench/assembly` |
-| L2 | two-part prismatic (piston in a barrel) | 1 joint, 2 parts | M3 | in `bench/assembly` |
-| L3 | single-cylinder slider-crank | 4-joint loop, 6 parts | M4 | tool-level verified, not wired into the benchmark |
-| L4 | multi-joint with retention | 4 joints, 7 parts / 9 instances | M4 | original fixture exists, A001 PASS (researcher-assisted) |
-| L5 | V8 cross-section (two cylinders) → full V8 | 8 kinematic chains | M6 | not started |
+| L1 | two-part revolute (hinge, loose/tight) | 1 joint, 2 parts | M3 | in `bench/assembly`: 6 tasks |
+| L2 | two-part prismatic (piston in a barrel) | 1 joint, 2 parts | M3 | in `bench/assembly`: 6 tasks |
+| L3 | single-cylinder slider-crank | 4-joint loop, 4-6 parts | M4 | in `bench/slider`: 3 tasks, reference + 14 adversarial |
+| L4 | multi-joint with retention | 4 joints, 7 parts / 9 instances | M4 | in `bench/l4`: declaration-bound, reference + 4 adversarial |
+| L4.5 | inline twin / 90° V-twin cross-section | 2 cylinders, one crank | M5 | in `bench/twin` and `bench/vtwin` |
+| L5a | planetary stage | fixed ring, sun/planet/carrier | M5 | in `bench/planetary` and `bench/planetary3` |
+| L5b | V8 phase/packaging carrier | 8 kinematic chains, 18 instances | M6 | in `bench/v8`: four shared pins, **disconnected** crank discs; reference + 6 adversarial |
+| L5c | full V8 with a connected crankshaft | 8 chains plus webs/journals/block | M6 | **open**: a 2026-11-19 connected-web layout still hit 2-5 rods at the sampled angles; no candidate passed |
 
 **Why a ladder:** failing L5 does not mean L3 does not exist. With rungs, a score can say which layer is stuck even when the top fails.
 
@@ -127,6 +130,7 @@ V8 is still the **destination**. It cannot be the **scale**.
 ## 4. What runs today
 
 ```bash
+bun run bench:all             # the 13-family native gate; writes bench/matrix.json
 bun run bench:ladder          # score recorded trial reports (no model, no render, no spend)
 bun run bench:ladder --json out.json
 bun run bench:assembly        # the geometry benchmark over all submissions
@@ -134,6 +138,54 @@ bun run bench:assembly:check  # self-check: references pass, cheats are caught
 bun run bench:baseline        # generate submissions from a model and score them
 bun test bench/               # layer model and task-format tests
 ```
+
+Individual families also run and self-check on their own, for example
+`bun run bench:slider:check`, `bun run bench:l4:check`, `bun run bench:v8:check`,
+`bun run bench:product:check`, `bun run bench:thread:check` and `bun run bench:cam:check`.
+`bun run bench:all` runs every family's `--self-check` and writes one aggregate
+matrix; it is a real native-render gate, because each family runner rewrites its
+report before the matrix reads it.
+
+External hidden sets are frozen and run separately: `bun run bench:hidden:freeze`
+copies a task/submission set into an external directory, hashes it and records a
+manifest; `bun run bench:hidden` scores it from that external directory. A
+development copy of each family exists, but no copy has an independent maintainer,
+so `independentHiddenEvaluation` stays `NOT_RUN`, not `PASS`.
+
+### The thirteen-family gate
+
+The public self-check gate re-runs every family on the same native OpenSCAD backend.
+The matrix below is a real run on the integrated `main` tree (commit `6e54984` plus the
+documentation restoration that records it), native OpenSCAD 2021.01, **no model calls**.
+Family self-check time was about **89 minutes** on this machine; wall time is not a
+performance claim.
+
+```
+family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers
+assembly     OK         20     6     8     6         12    8     0        104/120
+gear         OK         6      1     5     0         1     4     1        7/12
+slider       OK         17     3     14    0         3     14    0        51/77
+l4           OK         5      1     4     0         1     4     0        14/25
+twin         OK         6      1     5     0         1     5     0        11/24
+vtwin        OK         5      1     4     0         1     4     0        11/20
+declaration  OK         4      1     3     0         1     3     0        7/20
+v8           OK         7      1     6     0         1     6     0        17/28
+planetary    OK         4      1     3     0         1     3     0        4/8
+planetary3   OK         4      1     3     0         1     3     0        4/8
+product      OK         6      1     5     0         1     5     0        25/42
+thread       OK         6      2     4     0         2     3     1        13/20
+cam          OK         4      1     3     0         1     3     0        5/8
+```
+
+`overall: PASS`; **94 cases** — 21 reference, 67 adversarial, 6 unscored; 27 PASS /
+65 FAIL-or-ERROR / 2 NOT_RUN; **273/412** observed layer entries. The six assembly
+`unscored` rows are recorded model replays, not new model samples. The gear and thread
+`NOT_RUN` rows are adversarial cases rejected by their self-checks; they are not
+promoted. `layers` is the sum of observed layers across cases, not a pass rate.
+
+This is a public self-check gate, not independent hidden evaluation, model ability,
+physical function or user acceptance. A connected-crankshaft V8, full A001 contract
+pass, an independent hidden set and a fresh funded product trial remain open.
 
 ### The layer table over recorded history
 
@@ -161,7 +213,7 @@ What this says is not "the model is bad":
 
 Best real candidate: `guided-gated-hinge-v1`, **8/9 layers**, gate not passed (the only gap is `retention: NOT_RUN`). That is the progress the "measured-core = 0" line hid.
 
-> This table is built from **product trial records**, which is a different chain from `bench/assembly`. The benchmark can now measure `retention` and `source-motion`, but until the product's judge emits those evidence ids the historical `NOT_RUN` will not disappear. **What moves a metric is wiring, not documentation.**
+> This table is built from **product trial records**, which is a different chain from `bench/assembly`. `scripts/eval/judge-assembly.ts` now emits `source-motion` and `axial-retention` (and the unresolved-requirement ids) through the trial attribution gate, but every batch in this table was recorded **before** that wiring, so its `NOT_RUN` cells are historical facts, not current gaps. Wiring does not rewrite history: the table moves only when a fresh funded trial produces new records, and no such trial has been run. **What moves a metric is wiring plus a measured run; documentation alone moves neither.**
 
 ### The first real baseline
 
@@ -204,12 +256,14 @@ One earlier failure was a harness limit rather than a model failure: the first p
 - [x] **layer counting in `bench/assembly`**: every case reports `cover 6/6`, sharing one `scoreEvidence`
 - [x] **`retention` and `source-motion` observers**: the capture pull in `hinge-captured-45`, and pose re-rendering across all tasks
 - [x] **first model baseline**: DeepSeek v4 flash, 6 tasks, 6/6 — saturated, so the next rung is L3
-- [ ] **wire both checks into the product's judge**: the benchmark being able to measure is not the same as the trial emitting those ids. Until `judge-assembly` is wired, the historical layer table keeps its `NOT_RUN`s
-- [ ] **L3 slider-crank** (1–2 weeks): multi-joint kinematics and a closed loop — the real threshold
-- [ ] **hidden split + external model baselines** (1 week): without these it is a self-test tool
-- [ ] **L5 two-cylinder cross-section** (2–3 weeks): proves the ladder extends to V8 without rewriting the checks
+- [x] **wire both checks into the product's judge**: `scripts/eval/judge-assembly.ts` now emits `source-motion` and `axial-retention` (with unresolved-requirement ids) under the explicit trial-attribution gate. The historical layer table is unchanged because those batches predate the wiring; moving it needs a fresh funded trial, not a documentation edit
+- [x] **L3 slider-crank**: `bench/slider` has 3 tasks (plain, keyed, guided), 4-6 parts and a closed four-joint loop
+- [x] **hidden split harness**: 13 family dispatchers, external freeze/run and manifest hashing. Development copies only; **independent hidden evaluation is still `NOT_RUN`** because no independent maintainer exists
+- [x] **L5 cross-section rungs**: inline twin, 90° V-twin, planetary / three-planet and the 18-instance V8 shared-pin packaging carrier
+- [ ] **connected-crankshaft V8**: a 2026-11-19 layout with webs at ±13 mm still collided with 2-5 rods at the sampled angles. The current `bench/v8` reference has disconnected crank discs and says so
+- [ ] **external model baselines on the 13-family set**: needs an explicitly approved paid-model ceiling; the recorded baseline is the 6-task assembly set only
 
-The self-check is **not a CI gate**, by decision. It needs a real OpenSCAD renderer and renders every submission, so it is run on demand: `bun run bench:assembly:check`.
+The self-check is **not a CI gate**, by decision. It needs a real OpenSCAD renderer and renders every submission, so it is run on demand: `bun run bench:assembly:check`, or `bun run bench:all` for all thirteen families.
 
 ## 6. Anti-degradation
 

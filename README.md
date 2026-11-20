@@ -67,7 +67,7 @@ You can then nudge the extracted dimensions with the parameter steppers and rebu
 Most text-to-CAD demos stop at "the shape looks right". The interesting part of CAD is what can be measured afterwards, so that is where the effort went:
 
 - A **deterministic verifier** measures the rendered mesh: the clearance between a bore and a shaft, collision across a sampled motion sweep, whether a part can actually be withdrawn.
-- A **public benchmark** for functional assemblies — six tasks, eleven evidence layers, and eight adversarial submissions that each try to game one check. It fails if a cheat starts passing.
+- A **public benchmark** for functional assemblies — thirteen native families (hinges, slider-cranks, inline twin and 90° V-twin, V8 packaging, planetary trains, threads, cam), eleven evidence layers, and adversarial submissions in every family. The self-check fails if a cheat starts passing.
   → [`bench/`](./bench/README.md)
 
 ## Documentation
@@ -85,7 +85,7 @@ Most text-to-CAD demos stop at "the shape looks right". The interesting part of 
 | Dev server | `bun run dev` |
 | Production build | `bun run build` |
 | Unit tests | `bun run test` |
-| Assembly benchmark self-check | `bun run bench:assembly:check` |
+| Assembly benchmark self-check (13 families) | `bun run bench:all` |
 | Reset database | `bun run db:reset` |
 
 More in [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md). In the app, `⌘K` opens the command palette and `Space` hides every panel for a clean 3D view.

@@ -58,6 +58,19 @@ benchmark-results.txt
 generation-trial-report.json
 benchmark-render-results.json
 bench/assembly/report.json
+bench/gear/report.json
+bench/slider/report.json
+bench/l4/report.json
+bench/twin/report.json
+bench/vtwin/report.json
+bench/declaration/report.json
+bench/v8/report.json
+bench/planetary/report.json
+bench/planetary3/report.json
+bench/product/report.json
+bench/thread/report.json
+bench/cam/report.json
+bench/matrix.json
 bench/ladder-report.json
 
 # agent/IDE context directories

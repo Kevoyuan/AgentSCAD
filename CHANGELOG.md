@@ -9,10 +9,58 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Public functional-assembly benchmark under `bench/`: six frozen tasks across revolute and prismatic joints, eleven evidence layers, eight adversarial submissions, and a self-check that fails when a reference stops passing or a cheat starts passing
 - Cross-batch ladder report (`bun run bench:ladder`) that scores recorded trial reports on layer coverage and gap kind instead of the all-or-nothing delivery gate
 - Measure an original 12/24 external gear pair and a 12/12/36 fixed-ring planetary stage from regenerated meshes: tooth count, tip/root/pitch estimates, bore axis and centre, marker ratio, centre distance and both input directions, with same-direction, wrong-ratio, static-pose, missing-marker and non-closing-ring negative cases (`bun run cad:eval:gear`)
+- Add a separate gear-pair benchmark family under `bench/gear`: a 12/24 external pair, measured tooth count/pitch/centre distance/marker ratio, one reference and five adversarial submissions, and a self-check that rejects every tampered source (`bun run bench:gear:check`)
+- Add a separate slider-crank L3 benchmark family under `bench/slider`: four measured parts, crank-circle/rod-length/pin-axis checks from re-rendered meshes, full-mesh collision at five input angles, one reference and seven adversarial submissions (`bun run bench:slider:check`)
+- Add a keyed five-part slider-crank task with a frozen correct and wrong removal order: the eccentric retention key must block the wrong order, and the `adversarial-key-out-of-way` case fails only that layer while motion and collision still pass
+- Import the six recorded DeepSeek v4 flash model submissions from the public bench history and score them on the local six-task set as a clearly labelled replay (all 6 PASS); no new model calls or spend
+- Add an external-only hidden-split harness: frozen task-set hash, path guard, aggregate-only report, and `--require-independent` fail-closed; a dev copy verifies the plumbing but no independent hidden tasks are published
+- Add `bench:hidden:freeze` to validate an external hidden set, freeze its task-set hash into `hidden.json`, and refuse accidental re-freezes without `--force`
+- Add a declaration-bound L4 benchmark family under `bench/l4`: seven parts, nine instances, eight quarter-turn removal operations, nine-instance motion/collision and a frozen wrong-order check that the guide locks must block
+- Block a tampered L4 declaration before rendering and report the changed frozen sections (`motions` in the adversarial case) instead of measuring a different mechanism
+- Add an L4.5 inline twin-piston family under `bench/twin`: six instances, one shared Y-axis crank, 180° phase, five-angle slider-position checks and 75 pairwise collision checks; it is explicitly not the V8 V-angle cross-section
+- Add the six-part guided/retained A08 slider task under `bench/slider`: nine input angles, 15 pairwise collisions and a frozen wrong order that must be blocked by the front guide
+- Add the L5a 90-degree V-twin cross-section under `bench/vtwin`: two banks at ±45 degrees sharing one crankpin, nine angles, 135 pairwise collisions and shared-pin slider-closure checks; it is explicitly not a complete V8
+- Add `bench:all`, a unified gate that runs every public family self-check (now seven families including contract-bound declarations) and aggregates cases, references, adversarial submissions and layer coverage into `bench/matrix.json`
+- Add the L4.1 contract-bound declaration family: a renamed six-part declaration passes, while missing-guide and wrong-order declarations are rejected before rendering
+- Make the contract-bound declaration family usable in external hidden sets (family `declaration`); a dev copy verifies loading and scoring without claiming independence
+- Add the L5b V8 phase/packaging carrier: eight cylinders in four 90-degree phase groups with one independent crankpin per cylinder, 18 instances and 765 pairwise collision checks; it is explicitly not a shared-crankshaft V8
+- Add the V8 phase carrier to external hidden sets (family `v8`) and the unified eight-family gate
+- Upgrade the V8 carrier to four shared crankpins with two rods per pin, while retaining the explicit no-main-shaft/not-a-complete-crankshaft boundary
+- Add the epicyclic/planetary gear-train family under `bench/planetary`: fixed ring, sun input, carrier output, positive/negative poses and measured carrier/planet ratios
+- Add the planetary family to external hidden sets (family `planetary`) and the unified nine-family gate
+- Add a three-planet epicyclic family under `bench/planetary3`: three 120-degree planets, six parts, independent coupling checks and measured residuals
+- Add the three-planet family to external hidden sets (family `planetary3`) and the unified ten-family gate
+- Add a product-path bench family that calls `prepareContractAssembly` on the six-part guided declaration and scores part identity, topology, reconstruction and disassembly
+- Add the product-path family to external hidden sets (family `product`) and the unified eleven-family gate
+- Add a scoped eccentric-revolute fit layer to the product-path family, with a pin-clearance adversarial; main-shaft/wrist fit stations remain NOT_RUN
+- Add a declared assembly-path layer to the product-path family, measured as the reverse of the declared removal sequence
+- Add measured joint-frame evidence for the product eccentric fit, without promoting unmeasured joints
+- Translate all public bench task prompts and notes to English; new logs, prompts and commit messages use English
+- Add a product joint-offset adversarial where fit still passes but measured joint frames fail
+- Lock the A001 confirmed-contract boundary with a native regression test for a multi-joint source
+- Translate the product-path and threaded-fastener family documentation to English
+- Serialize the native OpenSCAD suite and include the A001 contract regression test
+- Refresh the twelve-family gate with the sixth product adversarial and the seven-layer product row
+- Translate the planetary, three-planet and V8 family documentation to English
+- Add a threaded full-withdrawal exit task and short-thread adversarial
+- Refresh the twelve-family gate with the threaded exit task
+- Verify the hidden thread family with both geometry and exit tasks
+- Record that thread coaxiality remains NOT_RUN because the cylindrical probe rejects threaded/hex sections
+- Record a passing Next.js production build on the phase branch
+- Add an eccentric disk cam with a flat translating follower bench family
+- Include the cam family in the external hidden split
+- Refresh the full gate to thirteen families including cam
+- Add a square-profile threaded-fastener family under `bench/thread`: two parts, measured pitch/hand/diameters and lead/advance over nine turns
+- Add the threaded-fastener family to external hidden sets (family `thread`) and the unified twelve-family gate
+- Make the external hidden-split harness family-aware (`assembly`/`gear`/`slider`/`l4`), with family-specific freezing, hashing, scoring and external L4 spec loading; dev copies verify all four dispatches without claiming independence
+- Record every returned A07 repair proposal — including a no-op identical source, an invariant-violating candidate, an unrenderable source and an oversized reply — as an append-only attempt with exact source up to 256 KiB, byte count, SHA-256 and actual model usage; stale history keeps the digest and redacts the replayable text (issue #63)
+- Reject a stored repair candidate whose bytes do not match its claimed SHA-256 or byte length, even when the event envelope hash is recomputed
 
 ### Fixed
 - State six benchmark tasks in the front page and evaluation docs, matching the task set and the recorded matrix, which had said seven
 - Remove a duplicated baseline section from `bench/README.md`; the two copies disagreed (5/6 versus 6/6), and the surviving copy now labels run 3 and its 0.391 CNY spend instead of run 1's 0.564 CNY
+- Bind repair-proposal replay to the current Job source; a changed Job source now redacts stale candidate text instead of continuing to serve it from the saved declaration's older source hash
+- Restore the integrated assembly evidence log, thirteen-family gate records, benchmark report ignore rules and unreleased changelog entries that the compatibility merge resolved to the older side
 
 ## [0.6.0.0] - 2026-10-12
 

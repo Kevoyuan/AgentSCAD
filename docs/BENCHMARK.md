@@ -91,10 +91,13 @@ The commands above answer "did the pipeline produce something". `bench/` answers
 See [`bench/README.md`](../bench/README.md) for the layer model and the cross-batch scoring, and [`bench/assembly/README.md`](../bench/assembly/README.md) for the task and submission formats.
 
 ```bash
+bun run bench:all             # the 13-family native gate; writes bench/matrix.json
 bun run bench:assembly        # six tasks, references, cheats and recorded model output
 bun run bench:assembly:check  # self-check: references pass AND cheats are caught
 bun run bench:ladder          # score recorded trial reports; no model, no render, no spend
 bun run bench:baseline        # generate submissions from a model and score them
 ```
 
-The self-check is the part that makes it usable: it fails if a reference stops passing **or if a cheat starts passing**, so a weakened check breaks the benchmark instead of silently inflating a score. It is not wired into CI, by decision; run it on demand with `bun run bench:assembly:check`.
+The thirteen families are `assembly`, `gear`, `slider`, `l4`, `twin`, `vtwin`, `declaration`, `v8`, `planetary`, `planetary3`, `product`, `thread` and `cam`. Each family has its own reference and adversarial submissions; `bench:all` runs every family self-check and writes one aggregate gate matrix. An external hidden split exists for all thirteen families, but every development copy has `independentHiddenEvaluation = NOT_RUN` until an independent maintainer exists. The gate is not independent hidden evaluation, model ability, physical function, or user acceptance.
+
+The self-check is the part that makes it usable: it fails if a reference stops passing **or if a cheat starts passing**, so a weakened check breaks the benchmark instead of silently inflating a score. It is not wired into CI, by decision; run it on demand with `bun run bench:all` or one family's `:check` command.
