@@ -139,10 +139,11 @@ export async function verifySourcePoses(input: {
                 const actual = posed.find(part => part.partId === instance.id);
                 if (!part || !actual)
                     throw new Error(`Required local or posed mesh missing for ${instance.id}; purchased parts need actual geometry`);
-                const meshInput = { local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM };
-                const triangles = checkReconstructedMesh(meshInput);
-                const result = triangles.status === "NOT_RUN" && setup.surfaceComparison === "bounded-cover"
-                    ? { ...compareSurfaceCover(meshInput), triangleComparison: triangles } : triangles;
+                const meshInput = { local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM, surfaceComparison: setup.surfaceComparison };
+                const strictInput = { ...meshInput, surfaceComparison: "triangles" as const };
+                const triangles = checkReconstructedMesh(strictInput);
+                const result = setup.surfaceComparison === "bounded-cover"
+                    ? { ...compareSurfaceCover(meshInput), method: "bidirectional-convex-triangle-cover/v2" as const, triangleComparison: triangles } : triangles;
                 const matrix = item.transforms[instance.id];
                 const reference = references.get(instance.id);
                 let observability: PoseChange = { status: "REFERENCE", reason: "Reference or unchanged expected rigid transform" };
@@ -157,7 +158,7 @@ export async function verifySourcePoses(input: {
                     // Two matched outputs may each differ from expectation by one
                     // surface tolerance. Require three before inferring a change.
                     const changeInput = { local: reference.stl, posed: actual.stl, transform: nullTransform,
-                        toleranceMm: 3 * SURFACE_TOLERANCE_MM };
+                        toleranceMm: 3 * SURFACE_TOLERANCE_MM, surfaceComparison: setup.surfaceComparison };
                     const comparison = checkReconstructedMesh(changeInput);
                     const witness = result.status === "PASS" && comparison.status === "NOT_RUN"
                         ? findSurfaceDifference(changeInput) : undefined;

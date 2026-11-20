@@ -49,3 +49,28 @@ export function toFitRequirements(
     diametralClearanceMm: { min: clearance.expected.min, max: clearance.expected.max },
   }];
 }
+
+/**
+ * Compatibility: bind a contract clearance to one unambiguous revolute joint.
+ * READY means only that candidate geometry can be measured; feature identity
+ * remains unverified.
+ */
+export function resolveContractFitRequirements(contract: RequirementContract, spec: unknown): {
+  status: "READY" | "NOT_RUN";
+  required: boolean;
+  reason: string;
+  requirements: AssemblyFitRequirement[];
+  featureIdentityStatus: "NOT_RUN";
+} {
+  const clearance = requirementsInScope(contract).find(item =>
+    item.id === "diametral-clearance" && item.required && item.applicable);
+  if (!clearance) {
+    return { status: "NOT_RUN", required: false, reason: "No applicable required diametral-clearance assertion was stated.", requirements: [], featureIdentityStatus: "NOT_RUN" };
+  }
+  try {
+    const requirements = toFitRequirements(contract, spec);
+    return { status: "READY", required: true, reason: "A declared revolute connection and bore instance are available for candidate mesh measurement. Bore/shaft feature identity remains unverified.", requirements, featureIdentityStatus: "NOT_RUN" };
+  } catch (error) {
+    return { status: "NOT_RUN", required: true, reason: "The required clearance cannot be bound to an unambiguous declared joint and bore instance: " + (error instanceof Error ? error.message : "invalid feature declaration"), requirements: [], featureIdentityStatus: "NOT_RUN" };
+  }
+}

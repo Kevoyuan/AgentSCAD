@@ -24,6 +24,17 @@ export interface FitSide {
   seedOffsetMm: number | null;
 }
 
+export interface SampledRadialEnclosure {
+  method: string;
+  status: "OBSERVED" | "NOT_RUN";
+  reason: string;
+  stations: Array<{ stationMm: number; centerOffsetMm: number; conservativeMarginMm: number }>;
+  minimumMarginMm: number | null;
+  maximumCenterOffsetMm: number | null;
+  safetyReserveMm: number;
+  coverage: string;
+}
+
 export interface RevoluteFitMeasurement {
   status: "MEASURED" | "ERROR" | "NOT_RUN";
   reason: string;
@@ -33,7 +44,7 @@ export interface RevoluteFitMeasurement {
   /** Diametral clearance interval implied by the tessellated polygons. */
   clearanceMm: { min: number; max: number } | null;
   /** Compatibility field for the newer product readers; null when not measured. */
-  radialEnclosure?: { status: string; reason: string; stations?: unknown[] } | null;
+  radialEnclosure?: SampledRadialEnclosure | null;
   /** Alignment of the two measured axes in the assembly frame. */
   axis: { offsetMm: number; angleDeg: number } | null;
   stationsMm: number[];
@@ -231,7 +242,12 @@ export function measureRevoluteFit(input: {
     bore,
     shaft,
     clearanceMm,
-    radialEnclosure: null,
+    radialEnclosure: {
+      method: "sampled-mesh-radial-enclosure/v1",
+      status: "NOT_RUN",
+      reason: "The phase compatibility layer does not compute radial enclosure.",
+      stations: [], minimumMarginMm: null, maximumCenterOffsetMm: null, safetyReserveMm: 0, coverage: "Not measured.",
+    },
     axis,
     stationsMm: stations,
     stationSource: base.stationSource,

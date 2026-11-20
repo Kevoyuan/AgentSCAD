@@ -367,7 +367,7 @@ export function AssemblyDetails({ data, jobId, canExport = false }: { data: Asse
                     target={{
                       movingInstanceId: op.instanceId,
                       obstacleInstanceId: op.path.blockedAt.obstacleId,
-                      collision: op.path.blockedAt.collision,
+                      collision: op.path.blockedAt.collision as "INTERSECT" | "CONTAINED" | "UNKNOWN",
                       poseIndex: op.path.blockedAt.poseIndex,
                       frame: op.path.blockedAt.replayFrame,
                       witnessCentroidPointMm: op.path.blockedAt.witnessCentroidPointMm,

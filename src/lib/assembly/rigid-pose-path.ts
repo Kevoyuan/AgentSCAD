@@ -15,6 +15,7 @@ export function checkRigidPosePath(input: {
   poses: number[][];
   maxTranslationStepMm: number;
   maxRotationStepDeg: number;
+  /** Use separated end bounds to establish complete removal. Overlap leaves removal unverified. */
   requireSeparatedEnd?: boolean;
   /**
    * Result deadline measured from entry, including mesh parsing and BVH
@@ -22,12 +23,27 @@ export function checkRigidPosePath(input: {
    * result becomes NOT_RUN once control returns to a deadline check.
    */
   budgetMs?: number;
+  /**
+   * Triangle-pair ceiling for each pose/obstacle collision query. Declaring a
+   * larger value is allowed, but the report has to carry the number so the CPU
+   * cost is auditable. The product default is unchanged at 200000.
+   */
+  maxPairTestsPerPose?: number;
+  /**
+   * Product callers leave this unset. Offline evaluation may declare a longer
+   * wall-clock deadline, which the result records alongside measured cost. This
+   * relaxes no geometric threshold: an UNKNOWN collision still blocks.
+   */
+  offlineEvaluation?: boolean;
 }) {
   const started=performance.now();
   if (!Array.isArray(input.poses) || input.poses.length < 2 || input.poses.length > 4096) throw new Error("Expected 2–4096 explicit poses");
   if (![input.maxTranslationStepMm,input.maxRotationStepDeg].every(n=>Number.isFinite(n)&&n>0) || input.maxRotationStepDeg>180) throw new Error("Invalid pose sampling bounds");
   const budgetMs=input.budgetMs??5000;
-  if(!Number.isFinite(budgetMs)||budgetMs<=0||budgetMs>60000)throw new Error("Invalid evaluation budget");
+  const offline=input.offlineEvaluation===true;
+  const maxPairTestsPerPose=input.maxPairTestsPerPose??200000;
+  if(!Number.isInteger(maxPairTestsPerPose)||maxPairTestsPerPose<1||maxPairTestsPerPose>20_000_000)throw new Error("Invalid per-pose collision budget");
+  if(!Number.isFinite(budgetMs)||budgetMs<=0||budgetMs>(offline?900000:60000))throw new Error("Invalid evaluation budget");
   const poses=input.poses.map(p=>{
     const result=validateRigidTransform(p);
     if(!result.success)throw new Error("Pose must be a finite right-handed rigid transform");
@@ -40,7 +56,7 @@ export function checkRigidPosePath(input: {
     const trace=[0,1,2,4,5,6,8,9,10].reduce((sum,k)=>sum+a[k]*b[k],0);
     rotationStepDeg=Math.max(rotationStepDeg,Math.acos(Math.max(-1,Math.min(1,(trace-1)/2)))*180/Math.PI);
   }
-  if(translationStepMm>input.maxTranslationStepMm+1e-8 || rotationStepDeg>input.maxRotationStepDeg+1e-6)throw new Error("Pose gap exceeds declared sampling bounds");
+  if(translationStepMm>input.maxTranslationStepMm+1e-8 || rotationStepDeg>input.maxRotationStepDeg+1e-6)throw new Error(`Pose gap exceeds declared sampling bounds: maximum frame-origin translation ${translationStepMm.toFixed(6)} mm (limit ${input.maxTranslationStepMm} mm), maximum rotation ${rotationStepDeg.toFixed(6)} deg (limit ${input.maxRotationStepDeg} deg). Supply sufficiently dense explicit poses; do not increase the verifier limits to make this path pass.`);
   if(!poses.some(p=>p.some((v,k)=>Math.abs(v-poses[0][k])>1e-10)))throw new Error("A repeated static pose is not a motion path");
   const entries=Object.entries(input.obstacles);
   if(!entries.length || entries.length>32 || entries.length*poses.length>100_000)throw new Error("Invalid obstacle or sampling budget");
@@ -58,50 +74,37 @@ export function checkRigidPosePath(input: {
   const obstacles=entries.map(([id,b])=>({id,placed:placeBvh(buildBvh(readBinaryStl(b)),obstacleTransforms[id])}));
   const base={method:"explicit-rigid-pose-path/v1",movingSha256:sha(input.moving),obstacles:Object.fromEntries(entries.map(([id,b])=>[id,sha(b)])),
     obstacleTransforms,poses,posesSha256:sha(canonicalJson(poses)),translationStepMm,rotationStepDeg,requireSeparatedEnd:input.requireSeparatedEnd??false,budgetMs,
-    coverage:"Only explicit sampled rigid poses; translation step describes frame-origin motion, rotation step describes orientation. No continuous swept-volume, tool access, forces, detent stability or physical verification."};
-  let testedTrianglePairs = 0;
+    offlineEvaluation:offline,maxPairTestsPerPose,testedPairs:0,testedTrianglePairs:0,
+    coverage:"Only explicit sampled rigid poses. Translation step describes frame-origin motion, rotation step describes orientation. End-envelope separation is a sufficient condition. Overlapping bounds leave complete removal unverified. No continuous swept-volume, tool access, forces, detent stability or physical verification."};
   for(let i=0;i<poses.length;i++) {
-    if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:i,testedTrianglePairs};
+    if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:i};
     const placed=placeBvh(moving,poses[i]);
     for(const other of obstacles) {
-      const collision=bvhIntersects(placed,other.placed);
-      testedTrianglePairs += collision.testedPairs;
-      if(collision.status==="UNKNOWN")return {
-        ...base,status:"NOT_RUN" as const,reason:collision.reason,posesEvaluated:i+1,testedTrianglePairs,
-        undecidedAt:{poseIndex:i,obstacleId:other.id,collision:collision.status,testedPairs:collision.testedPairs,budgetExhausted:collision.budgetExhausted,reason:collision.reason,
-          replayFrame:{
-            frame:"right-handed-mm-row-major-4x4/v1" as const,
-            movingWorldFromLocal:poses[i],
-            obstacleWorldFromLocal:obstacleTransforms[other.id],
-            movingMeshSha256:base.movingSha256,
-            obstacleMeshSha256:base.obstacles[other.id],
-          },
-        },
-      };
-      if(collision.blocked)return {
-        ...base,status:"FAIL" as const,reason:i===0?"Initial pose intersects":"A sampled path pose intersects",posesEvaluated:i+1,testedTrianglePairs,
-        blockedAt:{poseIndex:i,obstacleId:other.id,collision:collision.status,testedPairs:collision.testedPairs,collisionReason:collision.reason,
-          replayFrame:{
-            frame:"right-handed-mm-row-major-4x4/v1" as const,
-            movingWorldFromLocal:poses[i],
-            obstacleWorldFromLocal:obstacleTransforms[other.id],
-            movingMeshSha256:base.movingSha256,
-            obstacleMeshSha256:base.obstacles[other.id],
-          },
-          trianglePair:collision.pair ? {movingTriangleIndex:collision.pair.a,obstacleTriangleIndex:collision.pair.b} : null,
-          // The BVH point is a midpoint of triangle centroids, not an exact surface contact point.
-          witnessCentroidPointMm:collision.point,
-        },
-      };
-      if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:i+1,testedTrianglePairs};
+      const collision=bvhIntersects(placed,other.placed,{maxPairTests:maxPairTestsPerPose});
+      // Accumulated in place so every early return carries the real CPU cost.
+      base.testedPairs+=collision.testedPairs;
+      if(collision.status==='UNKNOWN')return {...base,status:"NOT_RUN" as const,reason:collision.reason,posesEvaluated:i+1};
+      if(collision.blocked){
+        const poseLabel=i===0?`Initial pose intersects ${other.id}`:`Sampled path pose ${i}/${poses.length-1} intersects ${other.id}`;
+        return {...base,status:"FAIL" as const,reason:`${poseLabel} (${collision.status}): ${collision.reason}`,posesEvaluated:i+1,blockedAt:{poseIndex:i,obstacleId:other.id,collision:collision.status,testedPairs:collision.testedPairs,testedTrianglePairs:0,collisionReason:collision.reason,trianglePair:null,witnessCentroidPointMm:null,replayFrame:{frame:"right-handed-mm-row-major-4x4/v1" as const,movingWorldFromLocal:poses[i],obstacleWorldFromLocal:obstacleTransforms[other.id],movingMeshSha256:base.movingSha256,obstacleMeshSha256:base.obstacles[other.id]}}};
+      }
+      if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:i+1};
     }
     if(i===poses.length-1 && input.requireSeparatedEnd) {
       const envelope=[Infinity,Infinity,Infinity,-Infinity,-Infinity,-Infinity];
       for(const o of obstacles)for(let k=0;k<3;k++){envelope[k]=Math.min(envelope[k],o.placed.worldBounds[k]);envelope[k+3]=Math.max(envelope[k+3],o.placed.worldBounds[k+3]);}
       const b=placed.worldBounds;
-      if(![0,1,2].some(k=>b[k+3]<envelope[k]-1e-6 || b[k]>envelope[k+3]+1e-6))return {...base,status:"FAIL" as const,reason:"Final pose has not left the obstacle envelope",posesEvaluated:i+1,testedTrianglePairs};
+      const outsideEnvelope = [0, 1, 2].some(k => b[k+3] < envelope[k]-1e-6 || b[k] > envelope[k+3]+1e-6);
+      if (!outsideEnvelope) {
+        return {
+          ...base,
+          status: "NOT_RUN" as const,
+          reason: "Complete removal is unverified because the final pose bounds overlap the obstacle envelope. All sampled poses were collision-free.",
+          posesEvaluated: i+1,
+        };
+      }
     }
   }
-  if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:poses.length,testedTrianglePairs};
-  return {...base,status:"PASS" as const,reason:"Every listed pose is clear within the stated sampling coverage",posesEvaluated:poses.length,testedTrianglePairs};
+  if(performance.now()-started>budgetMs)return {...base,status:"NOT_RUN" as const,reason:`Path exceeded its ${budgetMs} ms evaluation budget`,posesEvaluated:poses.length};
+  return {...base,status:"PASS" as const,reason:"Every listed pose is clear within the stated sampling coverage",posesEvaluated:poses.length};
 }

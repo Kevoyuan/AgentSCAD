@@ -1,12 +1,15 @@
 import { createHash } from "crypto";
 import { readBinaryStl, type Vec3 } from "../geometry/stl-mesh";
 import { transformPoint } from "../geometry/mesh-collision";
+import { comparePlanarSurfaceCoverage } from "./planar-surface-coverage";
 
-/** Conservative certificate for equal tessellated surfaces after placement.
- * A different triangulation is NOT_RUN, not proof of different CAD geometry.
- * Winding, watertightness, intended identity and physical function are not checked.
+/** Conservative per-pose tessellated surface comparison.
+ * Identical triangles get fast exact correspondence; re-triangulated planar
+ * faces require independent bidirectional area coverage to earn PASS.
+ * Missing evidence never becomes PASS. No volume/topology/motion claims.
  */
-export function checkReconstructedMesh(input: { local: Buffer; posed: Buffer; transform: number[]; toleranceMm?: number }) {
+export function checkReconstructedMesh(input: { local: Buffer; posed: Buffer; transform: number[]; toleranceMm?: number; surfaceComparison?: "triangles" | "bounded-cover" }) {
+  const strict = input.surfaceComparison === "triangles";
   const tolerance = input.toleranceMm ?? 1e-4;
   const m = [...input.transform];
   if (!(tolerance >= 1e-6 && tolerance <= 0.1) || m.length !== 16 || m.some(x => !Number.isFinite(x))) throw new Error("Invalid reconstruction transform/tolerance");
@@ -43,7 +46,24 @@ export function checkReconstructedMesh(input: { local: Buffer; posed: Buffer; tr
   const ab=bounds(a),bb=bounds(b);
   const bboxErrorMm=Math.max(...ab.map((v,i)=>Math.abs(v-bb[i])));
   if(bboxErrorMm>tolerance) return {...base,status:"FAIL",reason:"Placed export and rendered pose have different bounds",bboxErrorMm};
-  if(a.length!==b.length) return {...base,status:"NOT_RUN",reason:"Triangulations differ; surface-distance comparison is required",bboxErrorMm};
+  const planarFallback = (strictReason: string) => {
+    if (strict) return { ...base, status: "NOT_RUN" as const, reason: strictReason, bboxErrorMm };
+    const coverage = comparePlanarSurfaceCoverage(a, b, tolerance);
+    return {
+      ...base,
+      method: coverage.method,
+      status: coverage.status,
+      reason: coverage.status === "PASS"
+        ? "Re-triangulated surfaces have matching bidirectional planar area coverage within tolerance"
+        : strictReason + " " + coverage.reason,
+      bboxErrorMm, testedPairs: coverage.testedPairs,
+      trianglesChecked: coverage.trianglesChecked,
+      maximumAreaMismatchMm2: coverage.maximumAreaMismatchMm2,
+      maximumAreaBudgetMm2: coverage.maximumAreaBudgetMm2,
+      coverage: coverage.coverage,
+    };
+  };
+  if(a.length!==b.length) return planarFallback("Triangulations differ.");
   const cell=(t:Vec3[])=>[0,1,2].map(k=>Math.floor((t[0][k]+t[1][k]+t[2][k])/3/tolerance));
   const grid=new Map<string,number[]>();
   b.forEach((t,i)=>{const key=cell(t).join(',');const bucket=grid.get(key)??[];bucket.push(i);grid.set(key,bucket);});
@@ -61,7 +81,7 @@ export function checkReconstructedMesh(input: { local: Buffer; posed: Buffer; tr
         }
       }
     }
-    if(match<0)return {...base,status:"NOT_RUN",reason:"No triangle correspondence; different tessellation or geometry needs independent surface comparison",bboxErrorMm};
+    if(match<0)return planarFallback("No triangle correspondence.");
     used.add(match);maxVertexErrorMm=Math.max(maxVertexErrorMm,error);
   }
   return {...base,status:"PASS",reason:"Every transformed exported triangle matches one rendered-pose triangle within tolerance",matchedTriangles:used.size,maxVertexErrorMm,bboxErrorMm};

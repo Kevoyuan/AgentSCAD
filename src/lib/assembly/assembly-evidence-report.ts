@@ -21,7 +21,7 @@ export function summarizeAssemblyEvidence(bundle: Bundle) {
     return [layer, { status: item.status, reason: item.reason }];
   })) as Record<typeof LAYERS[number], { status: string; reason: string }>;
   const operations = declared.results.slice(0, 64).map(operation => {
-    const path = operation.path;
+    const path = operation.path as any;
     const blockedAt = path && "blockedAt" in path ? path.blockedAt : null;
     const undecidedAt = path && "undecidedAt" in path ? path.undecidedAt : null;
     return {
