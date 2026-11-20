@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { canonicalJson } from "../canonical-json";
 import { validateAssemblySpec, validateRigidTransform } from "../assembly/assembly-spec";
 import { checkReconstructedMesh } from "../assembly/reconstructed-mesh-check";
+import { checkStrictReconstructedMesh } from "../assembly/reconstructed-mesh-check-strict";
 import { renderAssemblyParts } from "./assembly-part-renderer";
 import { checkAssemblyReconstruction } from "./assembly-reconstruction";
 import { isRepairableScadCompileError } from "./scad-compile-error";
@@ -140,10 +141,9 @@ export async function verifySourcePoses(input: {
                 if (!part || !actual)
                     throw new Error(`Required local or posed mesh missing for ${instance.id}; purchased parts need actual geometry`);
                 const meshInput = { local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM, surfaceComparison: setup.surfaceComparison };
-                const strictInput = { ...meshInput, surfaceComparison: "triangles" as const };
-                const triangles = checkReconstructedMesh(strictInput);
+                const strictResult = checkStrictReconstructedMesh({ local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM });
                 const result = setup.surfaceComparison === "bounded-cover"
-                    ? { ...compareSurfaceCover(meshInput), method: "bidirectional-convex-triangle-cover/v2" as const, triangleComparison: triangles } : triangles;
+                    ? { ...compareSurfaceCover(meshInput), method: "bidirectional-convex-triangle-cover/v2" as const, triangleComparison: strictResult } : strictResult;
                 const matrix = item.transforms[instance.id];
                 const reference = references.get(instance.id);
                 let observability: PoseChange = { status: "REFERENCE", reason: "Reference or unchanged expected rigid transform" };
