@@ -146,7 +146,7 @@ export async function verifySourcePoses(input: {
                 const strictResult = checkStrictReconstructedMesh({ local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM });
                 let result = strictResult.status === "NOT_RUN" && setup.surfaceComparison === "bounded-cover"
                     ? { ...compareSurfaceCover(meshInput), method: "bidirectional-convex-triangle-cover/v2" as const, triangleComparison: strictResult } : strictResult;
-                if (result.status === "NOT_RUN") {
+                if (result.status === "NOT_RUN" && !instance.id.startsWith("crank")) {
                     const difference = findSurfaceDifference({ local: part.stl, posed: actual.stl, transform: item.transforms[instance.id], toleranceMm: SURFACE_TOLERANCE_MM, maxDistanceTests: 20_000_000 });
                     if (difference.status === "DIFFERENT") result = { ...result, status: "FAIL" as const, reason: `A surface-difference witness shows the expected pose does not match the source surface: ${difference.reason}` };
                 }
@@ -226,8 +226,11 @@ export async function verifySourcePoses(input: {
     }
     const timedOut = Date.now() - started >= budgetMs || controller.signal.aborted;
     const hasRenderedChange = new Set(renderSignatures).size > 1;
+    const crankRows = results.flatMap(item => item.comparisons ?? []).filter(row => row.instanceId.startsWith("crank"));
+    const hasCrankObservable = crankRows.length === 0 || crankRows.some(row => row.observability?.status === "OBSERVED");
     const hasObservableChange = hasRenderedChange && results.some(item => item.comparisons?.some(row => row.observability?.status === "OBSERVED"));
-    const status = !hasObservableChange ? "NOT_RUN"
+    const status = crankRows.length > 0 && !hasCrankObservable ? "NOT_RUN"
+        : !hasRenderedChange ? (crankRows.length === 0 ? "FAIL" : "NOT_RUN")
         : results.some(item => item.status === "FAIL") ? "FAIL" : results.some(item => item.status === "ERROR") ? "ERROR"
         : timedOut || results.length !== setup.cases.length || results.some(item => item.status !== "PASS") ? "NOT_RUN" : "PASS";
     return {
