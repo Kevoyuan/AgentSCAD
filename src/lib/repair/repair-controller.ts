@@ -1,3 +1,4 @@
+import { assertAssemblySourcePreserved } from "./assembly-preservation";
 // ---------------------------------------------------------------------------
 // Repair Controller — orchestrates validation-driven LLM repair
 //
@@ -7,7 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { createHash } from "crypto";
-import { loadSkill, skillInstructions } from "@/lib/skill-resolver";
+import { assemblyContractGuidance, loadSkill, skillInstructions } from "@/lib/skill-resolver";
 import { buildScadLibraryPrompt } from "@/lib/tools/scad-library-resolver";
 import {
   createChatCompletionDetailed,
@@ -24,6 +25,7 @@ import type { StructuredGenerationResult, CadValidationTargets } from "@/lib/har
 import type { ValidationResult } from "@/lib/mesh-validator";
 import { getValidationEvidenceStatus } from "@/lib/validation/evidence-status";
 import { ASSEMBLY_REPAIR_INVARIANTS, renderAssemblyFindings, type AssemblyFinding } from "@/lib/assembly/repair-findings";
+import { deriveRequirementContract } from "@/lib/requirements/extract-requirements";
 
 export interface RepairInput {
   originalRequest: string;
@@ -38,6 +40,8 @@ export interface RepairInput {
     validation_targets?: CadValidationTargets;
   };
   requestedModel?: string | null;
+  /** Exact current human-confirmed requirements; these are constraints, not evidence. */
+  confirmedRequirementsContext?: string;
   signal?: AbortSignal;
   /**
    * "simplify" is selected when the generated source was rejected by the compile
@@ -47,7 +51,7 @@ export interface RepairInput {
   repairStrategy?: "compile" | "simplify";
   /**
    * Measured assembly failures (fit, disassembly path, motion) from the previous
-   * attempt. These are numbers a validator cannot produce, so they are carried
+   * attempt. These are numbers produced by a validator, so they are carried
    * into the prompt verbatim; the same invariants that guard the assembly repair
    * are stated here, because a model told only "clearance is wrong" will
    * sometimes delete the bore.
@@ -90,7 +94,11 @@ function emptyStructuredDefaults() {
 export function buildRepairPrompt(input: RepairInput): string {
   const failedRules = input.validationResults
     .filter((r) => getValidationEvidenceStatus(r) === "FAIL")
-    .map((r) => `- ${r.rule_id} ${r.rule_name} (${r.is_critical ? "CRITICAL" : "non-critical"}): ${r.message}`)
+    .map((r) => {
+      const message = `- ${r.rule_id} ${r.rule_name} (${r.is_critical ? "CRITICAL" : "non-critical"}): ${r.message}`;
+      const witness = r.rule_id === "R001" ? r.details?.minWallWitness : undefined;
+      return witness ? `${message}\nMeasured wall ray data ${JSON.stringify({ meshSha256: r.details?.meshSha256, witness }).slice(0, 2000)}` : message;
+    })
     .join("\n");
 
   const passedRules = input.validationResults
@@ -117,6 +125,7 @@ export function buildRepairPrompt(input: RepairInput): string {
     "## Original Request",
     input.originalRequest,
     "",
+    ...(input.confirmedRequirementsContext ? [input.confirmedRequirementsContext, ""] : []),
     "## Part Family",
     input.partFamily,
     "",
@@ -128,6 +137,8 @@ export function buildRepairPrompt(input: RepairInput): string {
     input.currentScadCode,
     "```",
     "",
+    "## Preserve the existing assembly",
+    "Keep every valid embedded assembly declaration and its required parts, joints, ranges, grounded instance and operation identities during repair.",
     "## Validation Results",
     "### Failed Rules",
     failedRules || "(none — all passed)",
@@ -146,7 +157,7 @@ export function buildRepairPrompt(input: RepairInput): string {
           "",
           "These were measured on the rendered geometry, not inferred from the source. Repairing them means changing dimensions or shapes, and the numbers above are the target.",
           "",
-          "Invariants — a reply that breaks any of these is rejected, not reviewed:",
+          "Preserve these invariants. When the original declaration is valid, its identities are checked before persistence; geometry and function require revalidation:",
           ...ASSEMBLY_REPAIR_INVARIANTS.map((rule) => `- ${rule}`),
           "",
         ]
@@ -170,6 +181,7 @@ export function buildRepairPrompt(input: RepairInput): string {
           "Fix ONLY the failed validation checks listed above.",
           "Do NOT change dimensions or features that already pass validation.",
           "Preserve all required features from the CAD intent.",
+          "Preserve user-confirmed requirements even when their verification is unavailable; never claim they passed without evidence.",
           "Use AgentSCAD standard library modules (include <agentscad_std.scad>) when possible.",
           "Keep parameters as top-level assignments.",
         ]),
@@ -230,22 +242,33 @@ export function assertRepairCompletionUsable(completion: ModelCompletionResponse
  * Loads the scad-repair skill, builds a repair context from validation failures,
  * calls the LLM once, and returns the repaired result.
  */
-export async function runRepair(input: RepairInput): Promise<{
+export async function runRepair(input: RepairInput, dependencies?: {
+  /** Optional bounded transport adapter for isolated evaluation; production uses the router directly. */
+  complete?: typeof createChatCompletionDetailed;
+}): Promise<{
   generationResult: StructuredGenerationResult;
   repairMeta: RepairResult;
 }> {
-  const [skillContent, libraryPrompt] = await Promise.all([
+  const requiresAssembly = input.validationResults.some(result => result.rule_id === "A001")
+    || input.currentScadCode.includes("AGENTSCAD_ASSEMBLY_V1")
+    || deriveRequirementContract({ request: input.originalRequest }).requirements.some(requirement =>
+      requirement.id === "assembly-path" || requirement.id === "disassembly-path"
+      || (requirement.id === "distinct-exported-parts" && requirement.expected.kind === "equals"
+        && Number(requirement.expected.value) > 1));
+  const [skillContent, libraryPrompt, codingSkill] = await Promise.all([
     loadSkill("scad-repair"),
     buildScadLibraryPrompt(),
+    requiresAssembly ? loadSkill("scad-coding") : Promise.resolve(null),
   ]);
+  const assemblyGuidance = codingSkill ? assemblyContractGuidance(codingSkill) : null;
   const systemPrompt = skillContent
-    ? [skillInstructions(skillContent), libraryPrompt].filter(Boolean).join("\n\n")
-    : "You are a CAD repair engineer. Fix the SCAD code to pass all validation checks.";
+    ? [skillInstructions(skillContent), assemblyGuidance, libraryPrompt].filter(Boolean).join("\n\n")
+    : ["You are a CAD repair engineer. Fix the SCAD code to pass all validation checks.", assemblyGuidance].filter(Boolean).join("\n\n");
 
   const userPrompt = buildRepairPrompt(input);
 
   const modelStartedAt = Date.now();
-  const completion = await createChatCompletionDetailed({
+  const completion = await (dependencies?.complete ?? createChatCompletionDetailed)({
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
@@ -276,6 +299,11 @@ export async function runRepair(input: RepairInput): Promise<{
   }
 
   const sanitizedScadSource = sanitizeGeneratedScadSource(generationResult.scad_source);
+  assertAssemblySourcePreserved({
+    originalSource: input.currentScadCode,
+    proposedSource: sanitizedScadSource,
+    originalRequest: input.originalRequest,
+  });
   // A repair can rewrite the whole artifact. Re-extract the editable controls from
   // the repaired source so callers persist the real parameters instead of the
   // stale generation-era schema.

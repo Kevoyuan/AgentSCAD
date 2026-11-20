@@ -71,3 +71,11 @@ describe("visual repair evidence", () => {
     expect(hasImageInput([{ role: "user", content: "text only" }])).toBe(false);
   });
 });
+
+
+test("a visually passing repair still requires unresolved assembly evidence review", () => {
+  const result = resolvePostRepairOutcome([], "PASS", true);
+  expect(result.nextState).toBe("HUMAN_REVIEW");
+  expect(result.repaired).toBe(false);
+  expect(result.reviewReasons).toContain("A001_UNRESOLVED");
+});

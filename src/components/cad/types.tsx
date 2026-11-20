@@ -2,20 +2,8 @@ import { Box, Code2, Shield, CheckCircle2 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export interface ParameterDef {
-  key: string
-  label: string
-  kind: string
-  unit: string
-  value: number
-  min: number
-  max: number
-  step: number
-  source: string
-  editable: boolean
-  description: string
-  group: string
-}
+export type { ParameterDef, ParameterValue, ParameterValues } from '@/lib/harness/types'
+import type { ParameterDef } from '@/lib/harness/types'
 
 /**
  * The outcome ledger, mirrored for the client.

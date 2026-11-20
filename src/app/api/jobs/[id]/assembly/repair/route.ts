@@ -114,11 +114,11 @@ export async function POST(request:NextRequest,{params}:Context) {
     await lease.verifyUnchanged();
     const hasCandidate=result.finalScadSha256!==sourceSha256 &&
       result.findings.length===0 && ["no-findings","incomplete-evidence"].includes(result.stoppedBecause);
-    const candidate=hasCandidate?result.finalScad:null;
+    const candidate=hasCandidate?(result.finalScad ?? null):null;
     const terminal=await persist("FINISHED",{terminal:{
       stoppedBecause:result.stoppedBecause,reason:result.reason,
-      finalScadSha256:result.finalScadSha256,
-      evidenceComplete:result.evidenceComplete,
+      finalScadSha256:result.finalScadSha256!,
+      evidenceComplete:result.evidenceComplete!,
       reviewCandidateScad:candidate,
     }});
     return NextResponse.json({
@@ -130,7 +130,7 @@ export async function POST(request:NextRequest,{params}:Context) {
       attempts:result.attempts,
       findings:result.findings,
       stoppedBecause:result.stoppedBecause,
-      reason:result.reason,evidenceComplete:result.evidenceComplete,
+      reason:result.reason,evidenceComplete:result.evidenceComplete!,
       verifiedCandidate:hasCandidate?{
         scadSource:candidate,scadSha256:result.finalScadSha256,
         allRepairFindingsClosed:true,

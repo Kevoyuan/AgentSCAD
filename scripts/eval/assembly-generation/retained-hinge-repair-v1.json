@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "frozenAt": "2026-11-06",
+  "taskSetSha256": "234e74cc3330d00c72bf59b88af63f1b1c8e60e2187c1a1957004d8a82c90bf4",
+  "tasks": [
+    {
+      "id": "hinge-explicit-assembly-45",
+      "prompt": "做一个两件式铰链，直径间隙 0.35 到 0.45 mm，能转 ±45°，两个独立零件可以分别导出、组装和拆卸，3D 打印。请给出完整的装配顺序和拆卸路径；不能依靠没有列出的销或其他零件。明确使用中如何保持连接，以及尚未验证的制造和功能条件。",
+      "intentKind": "revolute-hinge",
+      "maxRepairs": 0,
+      "failureMode": "缺完整装拆操作；插入撞销；拔出不完全；漏掉保持条件；声明轴与实物孔轴不一致"
+    }
+  ]
+}

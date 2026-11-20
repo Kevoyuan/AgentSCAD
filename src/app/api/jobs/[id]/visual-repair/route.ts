@@ -1,3 +1,9 @@
+import { claimAssemblyExport } from "@/lib/pipeline/assembly-export-lock";
+import { readRequirementContract } from "@/lib/requirements/requirement-contract-record";
+import { confirmedRequirementContext } from "@/lib/requirements/confirmed-context";
+import { JobExecutionConflict } from "@/lib/pipeline/job-execution";
+import { hasUnresolvedAssemblyEvidence } from "@/lib/validation/evidence-status";
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { appendMotionEvidence } from "@/lib/validation/motion-contract";
 import { db } from "@/lib/db";
@@ -52,6 +58,9 @@ async function handleVisualRepair(
   { params }: RouteParams
 ) {
   let activeJobId: string | null = null;
+  let execution: Awaited<ReturnType<typeof claimAssemblyExport>> | null = null;
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
+  let repairClaimLog: string | null = null;
   let existingExecutionLogs: string | null = null;
   try {
     const access = await getJobAccessScope(request);
@@ -59,7 +68,6 @@ async function handleVisualRepair(
       return NextResponse.json({ error: "Browser session required" }, { status: 401 });
     }
     const { id } = await params;
-    activeJobId = id;
     const job = await db.job.findFirst({
       where: { id, ...jobAccessFilter(access) },
     });
@@ -86,6 +94,12 @@ async function handleVisualRepair(
       );
     }
 
+    // Share the generation/export mutex so requirement confirmations cannot race this run.
+    execution = await claimAssemblyExport(job);
+    heartbeat = setInterval(() => {
+      void execution?.heartbeat().catch(() => undefined);
+    }, 20_000);
+
     // Get the preview image path
     const preview = await materializeStoredArtifact(
       id,
@@ -102,19 +116,19 @@ async function handleVisualRepair(
 
     // Atomically claim the job before any paid model call or render. A second
     // click/request receives 409 instead of racing artifacts and database state.
+    repairClaimLog = appendLog(job.executionLogs, "VISUAL_REPAIRING",
+      `User triggered visual repair [${randomUUID()}]`);
+    await execution.heartbeat();
     const claim = await db.job.updateMany({
       where: {
         id,
         ...jobAccessFilter(access),
+        updatedAt: job.updatedAt,
         state: { in: ["HUMAN_REVIEW", "DELIVERED"] },
       },
       data: {
         state: "REPAIRING",
-        executionLogs: appendLog(
-          job.executionLogs,
-          "VISUAL_REPAIRING",
-          "User triggered visual repair — running VLM analysis..."
-        ),
+        executionLogs: repairClaimLog,
       },
     });
     if (claim.count !== 1) {
@@ -125,10 +139,13 @@ async function handleVisualRepair(
       );
     }
 
+    activeJobId = id;
     let visualRepairResult: Awaited<ReturnType<typeof runVisualRepair>>;
     try {
+      const confirmedRequirements = confirmedRequirementContext(await readRequirementContract(id, job.inputRequest));
       visualRepairResult = await runVisualRepair({
         originalRequest: job.inputRequest,
+        confirmedRequirementsContext: confirmedRequirements?.text,
         partFamily: job.partFamily,
         scadSource: job.scadSource,
         previewImagePath: preview.filePath,
@@ -166,7 +183,7 @@ async function handleVisualRepair(
         ],
       });
       await db.job.updateMany({
-        where: { id, state: "REPAIRING" },
+        where: { id, state: "REPAIRING", executionLogs: repairClaimLog },
         data: {
           state: "GEOMETRY_FAILED",
           scadSource: repairedScad,
@@ -249,6 +266,7 @@ async function handleVisualRepair(
     const { nextState, repaired, reviewReasons } = resolvePostRepairOutcome(
       criticalFailures.map((rule) => rule.rule_id),
       visualValidationResult.status,
+      hasUnresolvedAssemblyEvidence(validationResults),
     );
     const quality = buildJobQuality({
       state: nextState,
@@ -258,9 +276,10 @@ async function handleVisualRepair(
       validationResults,
     });
 
+    await execution.heartbeat();
     // Update job with repaired result
     const committed = await db.job.updateMany({
-      where: { id, state: "REPAIRING" },
+      where: { id, state: "REPAIRING", executionLogs: repairClaimLog },
       data: {
         state: nextState,
         scadSource: repairedScad,
@@ -274,7 +293,6 @@ async function handleVisualRepair(
         qualityScore: quality.qualityScore,
         validationReportJson: quality.validationReportJson,
         completedAt: nextState === "DELIVERED" ? new Date() : null,
-        llmCallCount: { increment: llmCallsThisRun() },
         executionLogs: appendLog(
           job.executionLogs,
           nextState === "DELIVERED" ? "DELIVERED" : "HUMAN_REVIEW",
@@ -301,15 +319,16 @@ async function handleVisualRepair(
     console.error("Visual repair failed", {
       name: error instanceof Error ? error.name : "UnknownError",
     });
+    if (error instanceof JobExecutionConflict) {
+      return NextResponse.json({error:"This job is processing. Retry after its current operation finishes."},{status:409});
+    }
     if (activeJobId) {
       try {
         await db.job.updateMany({
-          where: { id: activeJobId, state: "REPAIRING" },
+          where: { id: activeJobId, state: "REPAIRING", executionLogs: repairClaimLog },
           data: {
             state: "HUMAN_REVIEW",
             completedAt: null,
-            // The calls happened even though the repair did not land.
-            llmCallCount: { increment: llmCallsThisRun() },
             executionLogs: appendLog(
               existingExecutionLogs,
               "HUMAN_REVIEW",
@@ -325,5 +344,21 @@ async function handleVisualRepair(
       { error: "Visual repair unavailable; retry or review the job manually" },
       { status: 500 }
     );
+  } finally {
+    if (heartbeat) clearInterval(heartbeat);
+    const calls = llmCallsThisRun();
+    if (activeJobId && calls > 0) {
+      try {
+        await db.job.updateMany({
+          where: { id: activeJobId },
+          data: { llmCallCount: { increment: calls } },
+        });
+      } catch (error) {
+        console.error("Visual repair call accounting failed", {
+          name: error instanceof Error ? error.name : "UnknownError",
+        });
+      }
+    }
+    if (execution) await execution.release();
   }
 }

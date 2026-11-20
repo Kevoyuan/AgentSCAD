@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "frozenAt": "2026-11-16",
+  "taskSetSha256": "e00fa75101b0d786c3c186f2d3601506010ed4862158d01a79fa74e3a0c9ad57",
+  "tasks": [
+    {
+      "id": "hinge-retention-45",
+      "prompt": "做一个两件式铰链，直径间隙 0.35 到 0.45 mm，能转 ±45°，可组装可拆卸，工作姿态必须有轴向防脱，独立释放后才能拆下；两件要能分别导出。",
+      "intentKind": "revolute-hinge",
+      "maxRepairs": 1,
+      "failureMode": "没有内嵌装配声明或声明的轴向防脱探针/源码绑定缺失，或保持几何在网格上被直接拔出"
+    },
+    {
+      "id": "hinge-retention-tight-30",
+      "prompt": "做一个两件式铰链，直径间隙 0.2 到 0.3 mm，能转 ±30°，可组装可拆卸，工作姿态必须有轴向防脱，独立释放后才能拆下；两件要能分别导出。",
+      "intentKind": "revolute-hinge",
+      "maxRepairs": 1,
+      "failureMode": "紧配合被做成过盈、内嵌声明缺失、或只有单侧轴向阻挡"
+    }
+  ]
+}

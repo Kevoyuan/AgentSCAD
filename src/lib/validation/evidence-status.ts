@@ -38,3 +38,8 @@ export function isValidationActionable(result: ValidationEvidenceLike): boolean 
 export function isValidationUnresolved(result: ValidationEvidenceLike): boolean {
   return ["SKIP", "ERROR", "NOT_RUN"].includes(getValidationEvidenceStatus(result));
 }
+
+/** Assembly review also covers unavailable checks and missing confirmation. */
+export function hasUnresolvedAssemblyEvidence(results: Array<ValidationEvidenceLike & { rule_id: string }>): boolean {
+  return results.some(result => result.rule_id === "A001" && getValidationEvidenceStatus(result) !== "PASS");
+}

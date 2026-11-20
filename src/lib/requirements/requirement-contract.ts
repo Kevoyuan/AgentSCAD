@@ -105,6 +105,25 @@ export function requirementsInScope(contract: RequirementContract): ContractRequ
   return contract.requirements.filter((requirement) => DIGITAL_LAYERS.has(requirement.layer));
 }
 
+/** Unknowns are not observations, but they must prevent an in-scope success claim. */
+export function unknownsInScope(contract: RequirementContract): RequirementContract["unknowns"] {
+  return contract.targetLevel === "physical"
+    ? contract.unknowns
+    : contract.unknowns.filter((unknown) => unknown.affects.some((layer) => DIGITAL_LAYERS.has(layer)));
+}
+
+/** Recover unresolved derived conditions omitted by an older confirmed record. */
+export function withDerivedUnknowns(contract: RequirementContract, derived: RequirementContract): RequirementContract {
+  const submittedUnknowns = new Set(contract.unknowns.map(item => item.id));
+  const answered = new Map(contract.requirements.map(item => [item.id, item]));
+  const derivedIds = new Set(derived.unknowns.map(item => item.id));
+  return { ...contract, unknowns: [
+    ...contract.unknowns.filter(item => !derivedIds.has(item.id)),
+    ...derived.unknowns.filter(item => submittedUnknowns.has(item.id)
+      || !answered.has(item.id) || !item.affects.includes(answered.get(item.id)!.layer)),
+  ] };
+}
+
 /**
  * A contract is stale when the request it was frozen against is no longer the
  * current request. Evidence produced under a stale contract must not be shown
@@ -156,6 +175,23 @@ export function normalizeConfirmedContract(submitted: RequirementContract, deriv
     throw new RequirementContractError(
       `Requirement "${original.id}" is required by the request. To drop it, keep it in the contract with required=false or applicable=false so the waiver is recorded.`,
     );
+  }
+
+  const submittedUnknownIds = new Set(submitted.unknowns.map((unknown) => unknown.id));
+  for (const unknown of derived.unknowns) {
+    if (!submittedUnknownIds.has(unknown.id) && !submittedIds.has(unknown.id)) {
+      throw new RequirementContractError(
+        `Unknown "${unknown.id}" cannot disappear without an explicit matching requirement or waiver.`,
+      );
+    }
+    const retained = submitted.unknowns.find(item => item.id === unknown.id);
+    if (retained && canonicalJson(retained) !== canonicalJson(unknown)) {
+      throw new RequirementContractError(`Unknown "${unknown.id}" cannot be changed silently; record an explicit requirement or waiver.`, 409);
+    }
+    const replacement = submitted.requirements.find(item => item.id === unknown.id);
+    if (!retained && replacement && !unknown.affects.includes(replacement.layer)) {
+      throw new RequirementContractError(`Unknown "${unknown.id}" cannot be resolved in an unrelated layer.`, 409);
+    }
   }
 
   const requirements = submitted.requirements.map((requirement) => {

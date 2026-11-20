@@ -11,6 +11,9 @@
  * - Touching surfaces count as intersecting. The test cannot distinguish
  *   "resting in contact" from "penetrating by a micron", so a caller that wants
  *   contact tolerance has to declare it rather than have it silently assumed.
+ * - Containment treats a multi-shell mesh as the UNION of its closed shells.
+ *   Overlapping shell bounds are decidable; open or non-manifold meshes are not.
+ *   Nested shells are read as solid, not as cavities (conservative: it blocks).
  *
  * The BVH is built once per mesh in local coordinates. A pose only transforms
  * the node bounds (conservatively: the box of the transformed box) and the
@@ -396,9 +399,64 @@ const PROBE_DIRECTIONS: Vec3[] = [
   [0.6904132217, 0.7021356043, 0.1739107731],
 ];
 
+/**
+ * Whole-mesh even-odd parity against every triangle. This is a low-level ray
+ * probe, not a solid-membership test: two overlapping closed shells cancel and
+ * their intersection reads OUTSIDE. Solid membership for containment is
+ * answered by `classifyPointInSolid` below.
+ */
 export function classifyPoint(point: Vec3, placed: PlacedBvh): "INSIDE" | "OUTSIDE" | "AMBIGUOUS" {
   const votes: boolean[] = [];
   for (const direction of PROBE_DIRECTIONS) votes.push(countRayCrossings(point, placed, direction) % 2 === 1);
+  if (votes.every((vote) => vote)) return "INSIDE";
+  if (votes.every((vote) => !vote)) return "OUTSIDE";
+  return "AMBIGUOUS";
+}
+
+/**
+ * Crossing parity accumulated separately for each closed shell, using the same
+ * BVH-pruned ray traversal as `countRayCrossings`.
+ *
+ * Reading shells separately is what makes a compound of overlapping solids
+ * decidable. Whole-mesh parity would see an even number of crossings in the
+ * region where two shells overlap and call that region exterior; here each
+ * shell keeps its own parity, so the caller can take their union.
+ */
+function shellParities(point: Vec3, placed: PlacedBvh, direction: Vec3, shells: ShellDecomposition): Uint8Array {
+  const parity = new Uint8Array(shells.samples.length);
+  const { bvh, worldBounds, matrix } = placed;
+  if (bvh.mesh.triangleCount === 0) return parity;
+  const stack: number[] = [0];
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    if (!rayHitsBox(point, direction, worldBounds, node * 6)) continue;
+    if (bvh.count[node] === 0) {
+      stack.push(bvh.start[node], bvh.right[node]);
+      continue;
+    }
+    const start = bvh.start[node], count = bvh.count[node];
+    for (let i = 0; i < count; i++) {
+      const triangle = bvh.order[start + i];
+      if (isDegenerate(bvh.mesh.coordinates, triangle)) continue;
+      const [a, b, c] = readTriangle(bvh.mesh.coordinates, triangle, matrix);
+      if (rayTriangleDistance(point, direction, a, b, c) !== null) parity[shells.shellOf[triangle]] ^= 1;
+    }
+  }
+  return parity;
+}
+
+/**
+ * Union-of-shells solid membership. A point is inside the compound solid when
+ * it is inside ANY closed shell. Compared with whole-mesh parity this can only
+ * turn an apparent exterior into an interior, never the reverse, so it cannot
+ * manufacture clearance: it is strictly the more conservative verdict.
+ *
+ * A cavity represented by a nested, inward-wound shell is therefore treated as
+ * solid rather than as a void. That is conservative (it blocks) and must be
+ * modelled explicitly if hole semantics are required.
+ */
+function classifyPointInSolid(point: Vec3, placed: PlacedBvh, shells: ShellDecomposition): "INSIDE" | "OUTSIDE" | "AMBIGUOUS" {
+  const votes = PROBE_DIRECTIONS.map((direction) => shellParities(point, placed, direction, shells).some((value) => value === 1));
   if (votes.every((vote) => vote)) return "INSIDE";
   if (votes.every((vote) => !vote)) return "OUTSIDE";
   return "AMBIGUOUS";
@@ -417,12 +475,24 @@ function reduceProbes(verdicts: Array<"INSIDE" | "OUTSIDE" | "AMBIGUOUS">): "ALL
   return clear.every((verdict) => verdict === "INSIDE") ? "ALL_INSIDE" : "ALL_OUTSIDE";
 }
 
-/** A cache of edge-connected closed shells. A multi-shell STL needs probes on
+interface ShellDecomposition {
+  /** Up to four spatially distinct vertex-bearing triangles per shell, used as probe points. */
+  samples: number[][];
+  /** Index of the edge-connected shell owning each triangle, in original triangle order. */
+  shellOf: Int32Array;
+}
+
+/** Cache of edge-connected closed shells. A multi-shell STL needs probes on
  * every shell: whole-mesh sampling can miss an embedded small component.
- * Exact STL vertex equality is intentional; gaps are not silently welded. */
-const closedShellCache = new WeakMap<Bvh, number[][] | null>();
-function closedShellSamples(bvh: Bvh): number[][] | null {
-  if (closedShellCache.has(bvh)) return closedShellCache.get(bvh)!;
+ * Exact STL vertex equality is intentional; gaps are not silently welded.
+ *
+ * Overlapping shell bounds are NO LONGER rejected. Each shell is classified on
+ * its own (see `shellParities`), so bounds overlap does not make a compound
+ * solid ambiguous. Open, non-manifold or degenerate triangle soup is still
+ * rejected, and the 128-shell ceiling still bounds the work. */
+const shellCache = new WeakMap<Bvh, ShellDecomposition | null>();
+function closedShells(bvh: Bvh): ShellDecomposition | null {
+  if (shellCache.has(bvh)) return shellCache.get(bvh)!;
   const count = bvh.mesh.triangleCount;
   const parent = Int32Array.from({ length: count }, (_, i) => i);
   const find = (initial: number): number => {
@@ -451,53 +521,57 @@ function closedShellSamples(bvh: Bvh): number[][] | null {
     }
   }
   if (valid) valid = [...edges.values()].every(edge => edge.count === 2);
-  if (!valid) { closedShellCache.set(bvh, null); return null; }
-  const groups = new Map<number, number[]>();
-  const shellBounds = new Map<number, number[]>();
+  if (!valid) { shellCache.set(bvh, null); return null; }
+  const rootToShell = new Map<number, number>();
+  const samples: number[][] = [];
+  const shellOf = new Int32Array(count);
   for (let i = 0; i < count; i++) {
     const root = find(i);
-    const group = groups.get(root) ?? [];
-    const bounds = shellBounds.get(root) ?? [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
-    for (let v = 0; v < 3; v++) for (let k = 0; k < 3; k++) {
-      const value = c[i * 9 + v * 3 + k];
-      bounds[k] = Math.min(bounds[k], value); bounds[k + 3] = Math.max(bounds[k + 3], value);
+    let shell = rootToShell.get(root);
+    if (shell === undefined) {
+      shell = samples.length;
+      if (shell >= 128) { shellCache.set(bvh, null); return null; }
+      rootToShell.set(root, shell);
+      samples.push([]);
     }
-    shellBounds.set(root, bounds);
+    shellOf[i] = shell;
+    const group = samples[shell];
     if (group.length < 4 && !group.some(previous => {
       const a = previous * 9, b = i * 9;
       return c[a] === c[b] && c[a + 1] === c[b + 1] && c[a + 2] === c[b + 2];
     })) group.push(i);
-    groups.set(root, group);
-    if (groups.size > 128) { closedShellCache.set(bvh, null); return null; }
   }
-  // Overlapping shell bounds may indicate self-intersecting or nested shells.
-  // Parity on the whole mesh cannot tell their intended solid semantics, so
-  // do not call their apparent exterior clear without an independent check.
-  const boxes = [...shellBounds.values()];
-  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
-    if ([0, 1, 2].every(k => boxes[i][k] <= boxes[j][k + 3] && boxes[j][k] <= boxes[i][k + 3])) {
-      closedShellCache.set(bvh, null); return null;
-    }
-  }
-  const result = [...groups.values()];
-  closedShellCache.set(bvh, result);
+  const result = { samples, shellOf };
+  shellCache.set(bvh, result);
   return result;
 }
 
+/** Closed edge-manifold shells interpreted as a union of solids. Invalid
+ * topology withholds membership. Nested shells are filled conservatively.
+ * Closure alone does not check self-intersection or establish feature identity.
+ */
+export function classifyClosedSolidPoint(point: Vec3, placed: PlacedBvh): "INSIDE" | "OUTSIDE" | "AMBIGUOUS" {
+  if (!point.every(Number.isFinite)) throw new Error("Point coordinates must be finite");
+  const shells = closedShells(placed.bvh);
+  if (!shells) return "AMBIGUOUS";
+  return classifyPointInSolid(point, placed, shells);
+}
+
 /** For each closed surface shell, classify vertices against the other mesh.
- * Clear inside evidence blocks; ambiguity cannot establish clearance. This
- * assumes each shell is a valid solid boundary: self-intersection is not tested. */
+ * Clear inside evidence blocks; ambiguity cannot establish clearance. Each
+ * shell must be a closed edge-manifold boundary: shell self-intersection is
+ * still not tested, and multi-shell solids use union semantics. */
 function classifyContainment(a: PlacedBvh, b: PlacedBvh): { status: CollisionStatus; reason: string; blocked: boolean } {
-  const shellsA = closedShellSamples(a.bvh), shellsB = closedShellSamples(b.bvh);
-  if (!shellsA || !shellsB) return { status: "UNKNOWN", blocked: true, reason: "A mesh has open or non-manifold edges, overlapping shell bounds, or exceeds the 128-shell budget; containment cannot establish separation." };
-  const check = (shells: number[][], source: PlacedBvh, other: PlacedBvh) => shells.map(shell => {
+  const shellsA = closedShells(a.bvh), shellsB = closedShells(b.bvh);
+  if (!shellsA || !shellsB) return { status: "UNKNOWN", blocked: true, reason: "A mesh has open or non-manifold edges or exceeds the 128-shell budget; containment cannot establish separation." };
+  const check = (samples: number[][], source: PlacedBvh, other: PlacedBvh, otherShells: ShellDecomposition) => samples.map(shell => {
     const coords = source.bvh.mesh.coordinates;
     return reduceProbes(shell.map(i => {
       const n = i * 9;
-      return classifyPoint(transformPoint(source.matrix, [coords[n], coords[n + 1], coords[n + 2]]), other);
+      return classifyPointInSolid(transformPoint(source.matrix, [coords[n], coords[n + 1], coords[n + 2]]), other, otherShells);
     }));
   });
-  const results = [...check(shellsA, a, b), ...check(shellsB, b, a)];
+  const results = [...check(shellsA.samples, a, b, shellsB), ...check(shellsB.samples, b, a, shellsA)];
   if (results.includes("ALL_INSIDE")) return { status: "CONTAINED", blocked: true, reason: "A closed shell lies inside the other mesh: the solids interfere." };
   if (results.some(v => v !== "ALL_OUTSIDE")) return { status: "UNKNOWN", blocked: true, reason: "Containment probes disagree or are inconclusive; separation is not proven." };
   return { status: "SEPARATED", blocked: false, reason: "" };

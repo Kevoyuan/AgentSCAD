@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "id": "threaded-fastener-1-5",
+  "prompt": "Build an M10-class square-profile threaded fastener demonstration: right-hand 1.5 mm pitch, bolt and nut, with the nut advancing 3 mm over two turns. Both the geometric pitch/diameters and the kinematic lead must be measured from real meshes.",
+  "selectors": {
+    "bolt": "bolt",
+    "nut": "nut"
+  },
+  "geometry": {
+    "external": {
+      "pitchMm": 1.5,
+      "hand": "right",
+      "majorDiameterMm": {
+        "min": 9.95,
+        "max": 10.05
+      },
+      "minorDiameterMm": {
+        "min": 8.15,
+        "max": 8.25
+      },
+      "toleranceMm": 0.01,
+      "searchRadiusMm": 6,
+      "threadRangeMm": {
+        "min": 0.05,
+        "max": 17.95
+      }
+    },
+    "internal": {
+      "pitchMm": 1.5,
+      "hand": "right",
+      "majorDiameterMm": {
+        "min": 10.25,
+        "max": 10.35
+      },
+      "minorDiameterMm": {
+        "min": 8.45,
+        "max": 8.55
+      },
+      "toleranceMm": 0.01,
+      "searchRadiusMm": 6,
+      "threadRangeMm": {
+        "min": 0.05,
+        "max": 5.95
+      }
+    }
+  },
+  "motion": {
+    "pitchMm": 1.5,
+    "hand": "right",
+    "toleranceMm": 0.005,
+    "orientationToleranceDeg": 0.5,
+    "minTurns": 2,
+    "cornerRadiusMm": 9.2
+  },
+  "turns": [
+    0,
+    90,
+    180,
+    270,
+    360,
+    450,
+    540,
+    630,
+    720
+  ],
+  "poseParameters": {
+    "agentscad_pose": true
+  },
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 2
+      }
+    },
+    {
+      "id": "measured-joint-frames",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "rigid-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "Square-profile helical thread, not an ISO metric profile; no torque, preload, strength, wear or self-locking claim.",
+    "Geometry and lead/advance are scored; the tool overall status can remain NOT_RUN for coaxiality/exit layers not in this task.",
+    "Only the nine listed turn angles are covered."
+  ]
+}

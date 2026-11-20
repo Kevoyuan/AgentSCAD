@@ -16,8 +16,10 @@ import { validateAssemblySpec, type AssemblySpec } from "./assembly-spec";
 import type { DisassemblyPathEvidence, MotionRangeEvidence } from "./path-and-motion";
 import type { RequirementContract } from "../requirements/requirement-contract";
 import type { AssemblyFitRequirement } from "./prepare-assembly";
+import { canonicalJson } from "../canonical-json";
+import type { verifySourcePoses } from "../tools/source-pose-verification";
 
-export type FindingKind = "identity" | "fit" | "path" | "motion";
+export type FindingKind = "connectivity" | "identity" | "reconstruction" | "joint-frame" | "fit" | "path" | "motion" | "translation-probe";
 
 export interface AssemblyFinding {
   kind: FindingKind;
@@ -55,6 +57,7 @@ const formatRange = (value: { min: number; max: number }, unit: string) => {
 export interface AssemblyEvidenceManifest {
   evidence: Record<string, { status: string; reason: string }>;
   contract?: { evidenceCurrent: boolean | null };
+  sourceMotion?: Pick<Awaited<ReturnType<typeof verifySourcePoses>>, "protocol" | "results"> | null;
   fits: Array<{
     connectionId: string;
     status: string;
@@ -63,7 +66,17 @@ export interface AssemblyEvidenceManifest {
     diametralClearanceMm: { min: number; max: number } | null;
     boreDiameterMm: { min: number; max: number } | null;
     shaftDiameterMm: { min: number; max: number } | null;
+    jointFrames?:{measuredStatus:string;measuredReason:string;limits:{maxOffsetMm:number;maxAngleDeg:number}};
   }>;
+  partConnectivity?: Array<{partId:string;status:string;reason:string;separator?:{axis:number;lower:number;upper:number}|null}>;
+  translationProbes?: { results: Array<{id:string;instanceId:string;status:string;reason:string;probe?:{translationMm:number[];samples:number;expected:string}}> };
+  declaredDisassembly?: DeclaredPathResults;
+  declaredAssembly?: { method: string; reversedEvaluation?: DeclaredPathResults };
+}
+
+interface DeclaredPathResults {
+  results: Array<{ operationId: string; instanceId: string; status: string; reason: string;
+    path?: { blockedAt?: { poseIndex: number; obstacleId: string }; poses: number[][] } }>;
 }
 
 /**
@@ -77,6 +90,78 @@ export function collectAssemblyFindings(input: {
   kinematics: { path: DisassemblyPathEvidence; motion: MotionRangeEvidence } | null;
 }): AssemblyFinding[] {
   const findings: AssemblyFinding[] = [];
+  const sourceMotion = input.manifest.evidence.sourceMotion;
+  if (sourceMotion?.status === "FAIL") {
+    const report = input.manifest.sourceMotion;
+    const failed = report?.results.find(result => result.status === "FAIL");
+    const pose = report?.protocol.cases.find(item => item.id === failed?.id);
+    const motions = report?.protocol.spec.motions.filter(motion => motion.sourceInput && pose
+      && Object.hasOwn(pose.parameters, motion.sourceInput.parameter)) ?? [];
+    const motion = motions.length === 1 ? motions[0] : undefined;
+    const value = motion?.sourceInput ? pose?.parameters[motion.sourceInput.parameter] : undefined;
+    const instances = failed?.comparisons?.filter(row => row.result.status === "FAIL") ?? [];
+    const detail = failed ? [
+      `source case ${failed.id}`,
+      pose ? `commanded inputs ${canonicalJson(pose.parameters)}` : "",
+      ...instances.map(row => `${row.instanceId} ${String(row.result.reason ?? "surface mismatch")}${
+        typeof row.result.bboxErrorMm === "number" && Number.isFinite(row.result.bboxErrorMm)
+          ? ` with bounds error ${row.result.bboxErrorMm.toPrecision(6)} mm` : ""}`),
+      instances.length ? "" : failed.reason,
+    ].filter(Boolean).join(". ") : sourceMotion.reason;
+    findings.push({
+      kind: "motion", layer: "motion", connectionId: motion?.inputConnectionId ?? null,
+      instanceIds: instances.map(row => row.instanceId), measured: detail,
+      required: "Source-driven instance surfaces and complete assembly must match the frozen expected poses at every listed input.",
+      atMm: null, atDeg: motion?.range.unit === "deg" && typeof value === "number" && Number.isFinite(value) ? value : null,
+      message: `Source-driven motion failed. ${detail} Preserve the source binding, instances, joint and required range during repair.`,
+    });
+  }
+  for (const probe of input.manifest.translationProbes?.results ?? []) {
+    const measured = `${probe.reason}${probe.probe ? ` World displacement [${probe.probe.translationMm.map(n=>n.toFixed(3)).join(", ")}] mm, ${probe.probe.samples} samples, expected ${probe.probe.expected}.` : ""}`;
+    if (probe.status === "FAIL") findings.push({kind:"translation-probe",layer:"assembly",connectionId:null,instanceIds:[probe.instanceId],
+      measured,required:"Preserve the declared start pose, direction, displacement, sampling and expected geometric outcome.",atMm:null,atDeg:null,
+      message:`Declared translation probe ${probe.id} failed for ${probe.instanceId}: ${measured} Repair geometry without deleting or weakening the experiment; this does not measure holding force.`});
+  }
+  for (const [layer, action, sequence] of [
+    ["assemblyPath", "insertion", input.manifest.declaredAssembly?.reversedEvaluation],
+    ["disassembly", "removal", input.manifest.declaredDisassembly],
+  ] as const) {
+    if (input.manifest.evidence[layer]?.status !== "FAIL") continue;
+    const failed = sequence?.results.find(result => result.status === "FAIL");
+    const blocked = failed?.path?.blockedAt;
+    const pose = blocked ? failed?.path?.poses[blocked.poseIndex] : undefined;
+    const where = blocked?.poseIndex === 0
+      ? ` The starting pose already intersects ${blocked.obstacleId}; repair the assembled geometry before changing waypoints.`
+      : blocked
+        ? ` The moving instance collides with ${blocked.obstacleId} at sampled pose ${blocked.poseIndex}; relieve the swept geometry or route so it clears without deleting the operation.`
+        : "";
+    findings.push({
+      kind: "path", layer: "assembly", connectionId: null,
+      instanceIds: failed ? [failed.instanceId, ...(blocked ? [blocked.obstacleId] : [])] : [],
+      measured: failed ? `operation ${failed.operationId}${blocked ? `, evaluated pose ${blocked.poseIndex}` : ""}${pose ? `, world origin [${[3,7,11].map(index => pose[index].toFixed(3)).join(", ")}] mm` : ""}` : null,
+      required: "Every required instance must follow a complete clear declared operation sequence.",
+      atMm: null, atDeg: null,
+      message: `Declared ${action} failed${failed ? ` for ${failed.instanceId} in ${failed.operationId}` : ""}: ${failed?.reason ?? input.manifest.evidence[layer].reason}${where}${action === "insertion" ? " The reported poses were checked in reverse assembly order." : ""}`,
+    });
+  }
+  const reconstruction = input.manifest.evidence.reconstruction;
+  if (reconstruction?.status === "FAIL") findings.push({
+    kind:"reconstruction",layer:"assembly",connectionId:null,instanceIds:[],
+    measured:reconstruction.reason,required:"The union of all exported instances placed by the manifest must match the complete delivered assembly at the same pose.",atMm:null,atDeg:null,
+    message:`Exported parts do not reconstruct the delivered assembly: ${reconstruction.reason} Correct the local meshes, instance transforms, or all view consistently without deleting required parts.`,
+  });
+  for (const part of input.manifest.partConnectivity ?? []) {
+    if (part.status !== "FAIL") continue;
+    const slab = part.separator;
+    const measured = slab
+      ? `Part-local ${["X", "Y", "Z"][slab.axis]} empty slab ${slab.lower.toFixed(6)} to ${slab.upper.toFixed(6)} mm, width ${(slab.upper-slab.lower).toFixed(6)} mm. ${part.reason}`
+      : part.reason;
+    findings.push({
+      kind: "connectivity", layer: "assembly", connectionId: null, instanceIds: [],
+      measured, required: "Each declared manufactured part must be a connected body", atMm: null, atDeg: null,
+      message: `Part ${part.partId} contains separated pieces: ${measured} Connect the required features while preserving mating voids, part inventory and assembly access.`,
+    });
+  }
   const identity = input.manifest.evidence.identity;
   if (identity?.status === "FAIL") {
     findings.push({
@@ -98,6 +183,12 @@ export function collectAssemblyFindings(input: {
     ? " The requirement band is not from a confirmed contract; treat it as provisional."
     : "";
   for (const fit of input.manifest.fits) {
+    if(fit.jointFrames?.measuredStatus==="FAIL") findings.push({
+      kind:"joint-frame",layer:"assembly",connectionId:fit.connectionId,instanceIds:[],
+      measured:fit.jointFrames.measuredReason,
+      required:`Digital joint-frame consistency within ${fit.jointFrames.limits.maxOffsetMm} mm / ${fit.jointFrames.limits.maxAngleDeg}°; this is not a manufacturing tolerance`,
+      atMm:null,atDeg:null,message:`The measured mating features do not implement the declared joint frame: ${fit.jointFrames.measuredReason} Correct the feature geometry or its frame consistently; keep the required joint and motion.`,
+    });
     if (fit.measuredStatus !== "FAIL") continue;
     const requirement = requirementById.get(fit.connectionId);
     const measured = fit.diametralClearanceMm ? formatRange(fit.diametralClearanceMm, "mm") : null;
@@ -112,20 +203,9 @@ export function collectAssemblyFindings(input: {
     });
   }
 
-  if (input.kinematics?.path.status === "FAIL") {
-    const blocked = input.kinematics.path.blockedAt;
-    const pair = blocked?.blocking[0];
-    findings.push({
-      kind: "path", layer: "assembly", connectionId: input.kinematics.path.connectionId,
-      instanceIds: pair ? [pair.movingInstanceId, pair.otherInstanceId] : [],
-      measured: blocked ? `blocked at ${blocked.offsetMm.toFixed(3)} mm along the axis` : null,
-      required: "an unobstructed straight path along the joint axis",
-      atMm: blocked?.offsetMm ?? null, atDeg: null,
-      message: pair
-        ? `Sliding the moving part out along the joint axis is blocked at ${blocked!.offsetMm.toFixed(3)} mm: ${pair.movingInstanceId} interferes with ${pair.otherInstanceId}. ${pair.reason}`
-        : input.kinematics.path.reason,
-    });
-  }
+  // The automatic axis probe is diagnostic. A blocked straight translation
+  // does not require a geometry repair when a different declared route or
+  // removal order can work. Only declared sequence failures above are findings.
 
   if (input.kinematics?.motion.status === "FAIL") {
     const blocked = input.kinematics.motion.blockedAt;
@@ -151,7 +231,11 @@ export function collectAssemblyFindings(input: {
 export const ASSEMBLY_REPAIR_INVARIANTS: readonly string[] = [
   "Keep every part, instance and connection listed above. Do not merge two parts into one, do not drop a joint, do not rename an instance.",
   "Do not change the declared motion range to a smaller one.",
+  "Keep each motion's input connection, parameter and set of instance pose-selector keys. A selector's view implementation may be corrected (for example, use the posed view that honors agentscad_pose=true), because the source verifier re-measures every listed input; do not remove the binding or change its parameter.",
   "Do not change which instance carries the bore.",
+  "Keep each connection's frameA, frameB and declared fitStationsMm unchanged. Changing the measurement scope is not a repair; if the geometry cannot accommodate them, state the limitation and leave the declaration unchanged.",
+  "Keep the grounded instance and every declared operation's ID, action and instance. Paths and order may be corrected but must be measured again; deleting a failed operation is not a repair.",
+  "Keep every declared translation probe unchanged, including its start pose, displacement, samples and expected result. It is a geometric experiment, not force evidence.",
   "Do not change the requirement. The requirement belongs to the user; only the geometry may change.",
   "If a failure cannot be fixed without breaking an invariant, say so and leave the source unchanged. A wrong part that reports its own defect is better than a part that hides it.",
 ];
@@ -208,7 +292,7 @@ export function buildAssemblyRepairPrompt(input: {
 }
 
 export interface RepairViolation {
-  code: "part-removed" | "instance-removed" | "connection-removed" | "connection-changed" | "range-shrunk" | "bore-changed" | "invalid" | "requirement-relaxed";
+  code: "part-removed" | "instance-removed" | "connection-removed" | "connection-changed" | "range-shrunk" | "bore-changed" | "ground-changed" | "operation-removed" | "operation-changed" | "probe-changed" | "invalid" | "requirement-relaxed";
   message: string;
 }
 
@@ -227,6 +311,39 @@ export function assertRepairPreservesAssembly(input: {
   const after = validateAssemblySpec(input.after);
   if (!before.success) return { ok: false, violations: [{ code: "invalid", message: `The original declaration is invalid: ${before.error.issues[0]?.message ?? "unknown"}` }] };
   if (!after.success) return { ok: false, violations: [{ code: "invalid", message: `The repaired declaration is invalid: ${after.error.issues[0]?.message ?? "unknown"}` }] };
+
+  if (before.data.groundedInstanceId !== after.data.groundedInstanceId) violations.push({ code: "ground-changed", message: "The grounded instance changed." });
+  for (const motion of before.data.motions) {
+    if (!motion.sourceInput) continue;
+    const repairedMotion = after.data.motions.find(item => item.id === motion.id);
+    const repairedInput = repairedMotion?.sourceInput;
+    if (!repairedInput) {
+      violations.push({ code: "requirement-relaxed", message: `Motion "${motion.id}" removed its source input binding. Preserve the parameter and the set of instance views during geometry repair.` });
+      continue;
+    }
+    if (repairedInput.parameter !== motion.sourceInput.parameter) {
+      violations.push({ code: "requirement-relaxed", message: `Motion "${motion.id}" changed its source input parameter. Preserve the parameter and the set of instance views during geometry repair.` });
+      continue;
+    }
+    const beforeKeys = Object.keys(motion.sourceInput.poseSelectors).sort();
+    const afterKeys = Object.keys(repairedInput.poseSelectors).sort();
+    if (canonicalJson(beforeKeys) !== canonicalJson(afterKeys)) {
+      violations.push({ code: "requirement-relaxed", message: `Motion "${motion.id}" changed the set of instance pose selectors. Preserve the parameter and the set of instance views during geometry repair.` });
+    }
+    // Selector values may change: a wrong local/posed view is a real defect, and
+    // the source verifier re-measures every listed input against the expected
+    // poses, so a mistaken selector cannot become a passing claim.
+  }
+  const afterOperations = new Map(after.data.operations.map(operation => [operation.id, operation]));
+  const afterProbes = new Map((after.data.translationProbes ?? []).map(probe => [probe.id,probe]));
+  for (const probe of before.data.translationProbes ?? []) {
+    if (canonicalJson(probe) !== canonicalJson(afterProbes.get(probe.id) ?? null)) violations.push({code:"probe-changed",message:`Translation probe "${probe.id}" was removed or changed.`});
+  }
+  for (const operation of before.data.operations) {
+    const repaired = afterOperations.get(operation.id);
+    if (!repaired) violations.push({ code: "operation-removed", message: `Operation "${operation.id}" was removed.` });
+    else if (repaired.action !== operation.action || repaired.instanceId !== operation.instanceId) violations.push({ code: "operation-changed", message: `Operation "${operation.id}" changed its action or instance.` });
+  }
 
   const afterParts = new Set(after.data.parts.map((part) => part.id));
   for (const part of before.data.parts) {
@@ -256,6 +373,10 @@ export function assertRepairPreservesAssembly(input: {
     }
     if ((connection.boreInstanceId ?? null) !== (repaired.boreInstanceId ?? null)) {
       violations.push({ code: "bore-changed", message: `Connection "${connection.id}" changed which instance carries the bore.` });
+    }
+    if (connection.fitStationsMm && canonicalJson({ stations: connection.fitStationsMm, frame: connection.frameA })
+      !== canonicalJson({ stations: repaired.fitStationsMm ?? null, frame: repaired.frameA })) {
+      violations.push({ code: "requirement-relaxed", message: `Connection "${connection.id}" removed or changed its declared fit measurement stations or frameA. Preserve the measurement scope during geometry repair.` });
     }
   }
 

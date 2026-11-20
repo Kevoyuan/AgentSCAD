@@ -16,6 +16,7 @@ import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { sha256Hex } from "../canonical-json";
 import { deriveRequirementContract } from "./extract-requirements";
+import { staleAssemblyValidation } from "./validation-staleness";
 import {
   isContractStale,
   normalizeConfirmedContract,
@@ -208,6 +209,13 @@ export async function saveRequirementContract(input: SaveRequirementContractInpu
     const previousSha256 = previousRecord ? requirementContractHash(previousRecord.contract) : null;
     if (previousSha256 !== input.expectedContractSha256) {
       throw new RequirementContractError("The confirmed contract changed; refresh before confirming.");
+    }
+    if (previousSha256 !== contractSha256) {
+      const currentJob = await tx.job.findUnique({ where: { id: input.job.id }, select: { validationResults: true } });
+      const stale = staleAssemblyValidation(currentJob?.validationResults ?? null, contractSha256);
+      if (stale !== null) await tx.job.update({ where: { id: input.job.id }, data: {
+        validationResults: stale, validationReportJson: null, qualityScore: null,
+      } });
     }
 
     const latest = await tx.jobVersion.findFirst({

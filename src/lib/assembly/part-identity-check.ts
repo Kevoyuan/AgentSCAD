@@ -8,6 +8,9 @@
  * the triangles are the part the user meant. Nothing here measures fit, motion,
  * manufacture or physical function.
  */
+import { validateRigidTransform } from "./assembly-spec";
+import { transformPoint } from "../geometry/mesh-collision";
+
 export type IdentityStatus = "PASS" | "FAIL" | "NOT_RUN";
 
 export interface SelectedPartMesh {
@@ -31,7 +34,7 @@ const DEFAULT_TOLERANCE_MM = 1e-3;
 const QUANTUM_PER_MM = 10_000;
 const MAX_TRIANGLES = 2_000_000;
 
-function readFacts(stl: Buffer): MeshFacts {
+function readFacts(stl: Buffer, transform?: number[]): MeshFacts {
   if (!Buffer.isBuffer(stl) || stl.length < 84) throw new Error("Invalid binary STL header");
   const triangleCount = stl.readUInt32LE(80);
   if (!triangleCount || triangleCount > MAX_TRIANGLES || 84 + 50 * triangleCount !== stl.length) {
@@ -49,9 +52,11 @@ function readFacts(stl: Buffer): MeshFacts {
     let t1 = 0x811c9dc5 >>> 0;
     let t2 = 0x9e3779b9 >>> 0;
     for (let v = 0; v < 3; v++) {
+      const raw = [0,1,2].map(k=>stl.readFloatLE(start+v*12+k*4)) as [number,number,number];
+      const placed = transform ? transformPoint(transform,raw) : raw;
       const corner = corners[v];
       for (let k = 0; k < 3; k++) {
-        const value = stl.readFloatLE(start + v * 12 + k * 4);
+        const value = placed[k];
         if (!Number.isFinite(value)) throw new Error("Non-finite STL vertex");
         if (value < min[k]) min[k] = value;
         if (value > max[k]) max[k] = value;
@@ -93,6 +98,8 @@ export interface PartIdentityEvidence {
 export function checkPartIdentity(input: {
   parts: SelectedPartMesh[];
   assemblyMesh?: { stl: Buffer; sha256?: string } | null;
+  /** Compare in the assembly frame; local manufacturing bounds are not world bounds. */
+  instances?: Array<{id:string;partId:string;transform:number[]}>;
   toleranceMm?: number;
 }): PartIdentityEvidence {
   const tolerance = input.toleranceMm ?? DEFAULT_TOLERANCE_MM;
@@ -104,6 +111,7 @@ export function checkPartIdentity(input: {
   }
 
   const parts = input.parts.map((part) => ({ partId: part.partId, selector: part.selector, sha256: part.sha256, triangleCount: part.triangleCount, facts: readFacts(part.stl) }));
+  for(const instance of input.instances??[]) if(!validateRigidTransform(instance.transform).success) throw new Error("Invalid instance transform for selector containment");
 
   // Byte equality and geometry equality are reported separately: different bytes
   // can still be the same triangles in a different order.
@@ -134,16 +142,24 @@ export function checkPartIdentity(input: {
   } else {
     const facts = readFacts(input.assemblyMesh.stl);
     assembly = { sha256: input.assemblyMesh.sha256 ?? "", triangleCount: facts.triangleCount, facts };
-    for (const part of parts) {
+    const placed = input.instances
+      ? input.instances.flatMap(instance=>{
+          const original=input.parts.find(part=>part.partId===instance.partId);
+          return original?[{partId:instance.partId,facts:readFacts(original.stl,instance.transform)}]:[];
+        })
+      : parts;
+    for (const part of placed) {
       // Triangle counts are deliberately not compared: a CGAL union can remove
       // internal faces, so one part may legitimately carry more triangles than
       // the assembled result. Only equality and envelope violations are proofs.
-      if (part.sha256 === assembly.sha256 || (part.facts.fingerprint === facts.fingerprint && part.facts.triangleCount === facts.triangleCount)) offenders.push(part.partId);
+      if (part.facts.fingerprint === facts.fingerprint && part.facts.triangleCount === facts.triangleCount) offenders.push(part.partId);
       else if (!within(part.facts.min, part.facts.max, facts.min, facts.max, tolerance)) offenders.push(part.partId);
     }
     containment = offenders.length > 0
       ? { status: "FAIL", reason: "A selected part equals or exceeds the complete assembly, so its selector did not isolate that part.", offenders }
-      : { status: "PASS", reason: "Every selected mesh is smaller than the complete assembly and inside its envelope at this pose.", offenders: [] };
+      : input.instances && parts.some(part=>!input.instances!.some(instance=>instance.partId===part.partId))
+      ? { status: "NOT_RUN", reason: "Some generated parts have no declared instance; their assembly envelope was not checked.", offenders:[] }
+      : { status: "PASS", reason: "Every selected mesh placed by its declared instances is smaller than the complete assembly and inside its envelope at this pose. This envelope check does not establish reconstruction equality.", offenders: [] };
   }
 
   const status: IdentityStatus = distinctness.status === "FAIL" || containment.status === "FAIL"

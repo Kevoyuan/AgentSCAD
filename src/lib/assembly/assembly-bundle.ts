@@ -4,7 +4,11 @@ import { prepareAssembly, type AssemblyFitRequirement } from "./prepare-assembly
 import type { RenderedAssemblyPart } from "../tools/assembly-part-renderer";
 import type { ScadExecutionOptions } from "../tools/scad-renderer";
 import type { AssemblySpec } from "./assembly-spec";
+import { collectOpenScadWarnings } from "../tools/scad-renderer";
 import { canonicalJson } from "../canonical-json";
+import { prepareContractAssembly } from "./prepare-contract-assembly";
+import type { checkDeclaredPoseDisassembly } from "./declared-pose-disassembly";
+import { createSourcePoseArchive } from "./source-pose-archive";
 
 /** Exporting N identical files labelled as different parts would be a lie, so it is refused. */
 export class AssemblyIdentityError extends Error {
@@ -20,7 +24,8 @@ type Renderer = (source: string, spec: AssemblySpec, options?: ScadExecutionOpti
  * evidence, coverage and verdict. A timed-out run is still NOT_RUN: under load
  * a different verdict legitimately produces different archive bytes.
  */
-function stableDisassemblyRecord(record: Awaited<ReturnType<typeof prepareAssembly>>["manifest"]["declaredDisassembly"]) {
+type RemovalResult = ReturnType<typeof checkDeclaredPoseDisassembly>["results"][number];
+function stableDisassemblyRecord<T extends { results: RemovalResult[]; elapsedMs?: number }>(record: T) {
   const { elapsedMs: _elapsedMs, ...stable } = record as typeof record & { elapsedMs?: number };
   const stableReason = (reason: string) => /^Path exceeded its [0-9.eE+-]+ ms evaluation budget$/.test(reason)
     ? "Path exceeded its remaining sequence evaluation budget"
@@ -35,6 +40,32 @@ function stableDisassemblyRecord(record: Awaited<ReturnType<typeof prepareAssemb
   };
 }
 
+function stableAssemblyRecord(record: Awaited<ReturnType<typeof prepareAssembly>>["manifest"]["declaredAssembly"]) {
+  const { elapsedMs: _elapsedMs, ...stable } = record as typeof record & { elapsedMs?: number };
+  return "reversedEvaluation" in stable
+    ? { ...stable, reversedEvaluation: stableDisassemblyRecord(stable.reversedEvaluation) }
+    : stable;
+}
+
+function stableSourceMotionRecord(record: Awaited<ReturnType<typeof prepareAssembly>>["manifest"]["sourceMotion"]) {
+  if (!record) return null;
+  const { durationMs: _durationMs, ...stable } = record;
+  return { ...stable, results: record.results.map(result => ({ ...result,
+    ...(result.assembly ? { assembly: { ...result.assembly,
+      diagnostics: collectOpenScadWarnings(result.assembly.diagnostics).join("\n") } } : {})
+  })) };
+}
+
+/** Lines a reader can use without opening manifest.json. */
+export function mechanismDimensionLines(dimensions?: { status: string; crankRadiusMm: number | null; rodLengthMm: number | null } | null): string[] {
+  if (!dimensions || dimensions.status !== "MEASURED" || dimensions.crankRadiusMm === null || dimensions.rodLengthMm === null) return [];
+  return [
+    "Measured mechanism dimensions (digital mesh sections; not a manufacturing tolerance):",
+    `- crank radius: ${dimensions.crankRadiusMm.toFixed(3)} mm`,
+    `- rod length: ${dimensions.rodLengthMm.toFixed(3)} mm`,
+  ];
+}
+
 /**
  * The README is derived from the evidence actually recorded for this build.
  * Fixed claims would go stale as soon as a layer starts being measured.
@@ -46,10 +77,12 @@ function readme(
     specificationSha256: string;
     contract?: { evidenceCurrent: boolean | null; reason: string; binding?: { sha256: string; revision: number; requestSha256: string } | null };
     evidence: Record<string, { status: string; reason?: string }>;
+    sourcePoseArchive?: { status: string; reason: string; files?: Array<{ path: string }> };
+    mechanismDimensions?: { status: string; crankRadiusMm: number | null; rodLengthMm: number | null };
   },
   parts: RenderedAssemblyPart[],
 ): string {
-  const layers = ["identity", "assembly", "disassembly", "motion", "physical"];
+  const layers = ["requirements", "identity", "geometry", "topology", "reconstruction", "jointFrames", "assembly", "assemblyPath", "disassembly", "rigidMotion", "sourceMotion", "motion", "physical"];
   const contract = manifest.contract;
   const standing = contract === undefined || contract.evidenceCurrent === null
     ? "confirmation not evaluated"
@@ -64,6 +97,8 @@ function readme(
     "Quantities from declared assembly instances:",
     ...manifest.parts.map(part => `- ${part.id}: ${part.quantity} (${part.source})`),
     "One STL represents one part design; manufacture the stated quantity.",
+    "Root-level part STLs are the manufacturing files. Evidence meshes retain validation poses.",
+    ...mechanismDimensionLines(manifest.mechanismDimensions),
     "",
     "Requirement contract:",
     `- ${standing}`,
@@ -80,9 +115,16 @@ function readme(
       return `- ${layer}: ${item?.status ?? "NOT_RUN"} — ${item?.reason ?? "not recorded"}`;
     }),
     "",
-    "A PASS is limited to the method and coverage stated above. No layer in this",
-    "archive proves that a part is the intended part, that the assembly can be",
-    "assembled, that it moves, or that it works when printed.",
+    "Each PASS covers its recorded method and sampled conditions.",
+    "Continuous motion, complete functional requirements and physical operation",
+    "require their own recorded checks.",
+    "Digital evidence only: a PASS does not establish user acceptance, physical operation,",
+    "manufacturing tolerance or that the assembly was built.",
+    "The reconstruction timeout is an execution budget, not evidence; changing it does",
+    "not change any PASS/FAIL conclusion.",
+    ...(manifest.sourcePoseArchive ? ["", `Source-pose mesh archive ${manifest.sourcePoseArchive.status}`,
+      manifest.sourcePoseArchive.reason,
+      ...(manifest.sourcePoseArchive.files?.length ? ["Captured meshes, inputs and hashes are indexed in evidence/source-poses.json."] : [])] : []),
     "",
     `sourceSha256: ${manifest.sourceSha256}`,
     `specificationSha256: ${manifest.specificationSha256}`,
@@ -103,13 +145,23 @@ export async function buildAssemblyBundle(input: {
   assemblyMesh?: { stl: Buffer; sha256?: string } | null;
   /** Frozen fit requirements; without them the assembly layer stays NOT_RUN. */
   fitRequirements?: AssemblyFitRequirement[];
+  kinematics?:Parameters<typeof prepareAssembly>[0]["kinematics"];
   /** Confirmation state of the contract the results are judged against. */
   contractGate?: { evidenceCurrent: boolean; reason?: string | null };
   contractSnapshot?: Parameters<typeof prepareAssembly>[0]["contractSnapshot"];
+  sourceSamplingSeed?: string;
+  /** Optional reconstruction timeout for complex assemblies; measurement semantics unchanged. */
+  reconstructionBudgetMs?: number;
   /** Fixes archive timestamps; identical evidence produces identical bytes. */
   modifiedAt?: Date;
+  /** Runs before selector refusal so a failed check can still be recorded. */
+  onPrepared?:(prepared:Awaited<ReturnType<typeof prepareAssembly>>)=>Promise<void|{id:string;reportSha256:string}>;
 }) {
-  const prepared = await prepareAssembly(input);
+  const scadSource = input.scadSource;
+  const contractSnapshot = input.contractSnapshot ? structuredClone(input.contractSnapshot) : undefined;
+  const archive = createSourcePoseArchive();
+  const prepared = await prepareContractAssembly({ ...input, scadSource, contractSnapshot, onSourcePoseArtifact: archive.collect });
+  const verificationRecord=await input.onPrepared?.(prepared);
   if (prepared.identity.distinctness.status === "FAIL") {
     throw new AssemblyIdentityError(prepared.identity.distinctness.reason);
   }
@@ -117,6 +169,26 @@ export async function buildAssemblyBundle(input: {
   // ZIP stores a 1980-based DOS timestamp; anything outside that range is unrepresentable.
   if (!Number.isFinite(mtime.getTime()) || mtime.getUTCFullYear() < 1980 || mtime.getUTCFullYear() > 2099) throw new Error("Archive timestamp must be between 1980 and 2099");
   const files: Zippable = {};
+  const motion = prepared.manifest.sourceMotion;
+  const expected = motion ? [
+    ...motion.protocol.spec.parts.filter(part => part.source === "generated")
+      .map(part => ({ phase: "manufacturing" as const, caseId: null, partId: part.id })),
+    ...motion.protocol.cases.flatMap(item => [
+      ...motion.protocol.spec.instances.map(instance => ({ phase: "pose" as const, caseId: item.id, partId: instance.id })),
+      { phase: "assembly" as const, caseId: item.id, partId: "assembly" },
+    ]),
+  ] : [];
+  const retained = archive.finish(expected);
+  for (const [i, artifact] of retained.metadata.files.entries()) {
+    files[artifact.path] = [new Uint8Array(retained.meshes[i]), { level: 0, mtime }];
+  }
+  if (retained.metadata.files.length) {
+    files["evidence/source.scad"] = [strToU8(scadSource), { level: 6, mtime }];
+    if (contractSnapshot) files["evidence/requirements.json"] = [strToU8(JSON.stringify(contractSnapshot, null, 2)), { level: 6, mtime }];
+    files["evidence/source-poses.json"] = [strToU8(JSON.stringify({ ...retained.metadata,
+      sourceSha256: prepared.manifest.sourceSha256, protocolSha256: motion?.protocolSha256,
+      protocol: motion?.protocol, report: stableSourceMotionRecord(motion) }, null, 2)), { level: 6, mtime }];
+  }
   for (const part of prepared.parts) {
     // STL is already dense; storing avoids spending CPU to save a few percent.
     files[`${part.partId}.stl`] = [new Uint8Array(part.stl), { level: 0, mtime }];
@@ -124,7 +196,14 @@ export async function buildAssemblyBundle(input: {
   const triangles = new Map(prepared.parts.map((part) => [part.partId, part.triangleCount]));
   const manifest = {
     ...prepared.manifest,
+    ...(verificationRecord?{verificationRecord}:{}),
+    // Raw render timing remains in the prepared result; it must not change
+    // archive bytes when the measured geometry and verdict are identical.
+    reconstruction: {...prepared.manifest.reconstruction,diagnostics:collectOpenScadWarnings(prepared.manifest.reconstruction.diagnostics).join("\n")},
+    sourceMotion: stableSourceMotionRecord(prepared.manifest.sourceMotion),
+    sourcePoseArchive: retained.metadata,
     declaredDisassembly: stableDisassemblyRecord(prepared.manifest.declaredDisassembly),
+    declaredAssembly: stableAssemblyRecord(prepared.manifest.declaredAssembly),
     bundleSchemaVersion: 1 as const,
     parts: prepared.manifest.parts.map((part) => ({
       ...part,

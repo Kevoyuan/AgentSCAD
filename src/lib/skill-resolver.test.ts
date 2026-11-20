@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildScadCodingPrompt,
   buildScadPrompt,
+  assemblyContractGuidance,
   isExperimentalMemoryPromptEnabled,
   loadSkill,
   skillInstructions,
@@ -12,6 +13,16 @@ describe("skill resolver containment", () => {
   test("keeps routing metadata out of the model instruction body", () => {
     expect(skillInstructions("---\nname: scad-coding\nversion: 1\n---\n# Instructions"))
       .toBe("# Instructions");
+  });
+  test("assembly guidance has one bounded section without the coding output format", async () => {
+    const coding = await loadSkill("scad-coding");
+    const guidance = assemblyContractGuidance(coding ?? "");
+    expect(guidance).toContain("AGENTSCAD_ASSEMBLY_V1");
+    expect(guidance).toContain("boreInstanceId");
+    expect(guidance).toContain("agentscad_part");
+    expect(guidance).not.toContain("Return only one");
+    expect(assemblyContractGuidance("missing markers")).toBeNull();
+    expect(assemblyContractGuidance(`${coding}\n${coding}`)).toBeNull();
   });
   test("injects web research evidence into the generation prompt", async () => {
     const evidence = [
@@ -84,7 +95,10 @@ describe("skill resolver containment", () => {
     for (const prompt of [planned, direct]) {
       expect(prompt?.systemPrompt).toContain("AGENTSCAD_ASSEMBLY_V1");
       expect(prompt?.systemPrompt).toContain("agentscad_part");
+      expect(prompt?.systemPrompt).toContain("boreInstanceId");
       expect(prompt?.systemPrompt).toContain("local");
+      expect(prompt?.systemPrompt).toContain("nonempty release interval");
+      expect(prompt?.systemPrompt).toContain("blocking the unreleased route");
     }
     expect(repair).toContain("never merge required separate parts or substitute representative blocks");
     expect(repair).toContain("A motion parameter or animation is not proof of correct motion");

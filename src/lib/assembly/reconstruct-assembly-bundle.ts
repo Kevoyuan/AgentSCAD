@@ -153,13 +153,13 @@ export function reconstructAssemblyBundle(input: {
         ? result.status : "ERROR";
       reference.reason = result.reason;
       reference.method = result.method;
-      if ("bboxErrorMm" in result) reference.bboxErrorMm = result.bboxErrorMm;
-      if ("maxVertexErrorMm" in result) reference.maxVertexErrorMm = result.maxVertexErrorMm;
-      if ("matchedTriangles" in result) reference.matchedTriangles = result.matchedTriangles;
-      if ("testedPairs" in result) reference.testedPairs = result.testedPairs;
-      if ("trianglesChecked" in result) reference.trianglesChecked = result.trianglesChecked;
-      if ("maximumAreaMismatchMm2" in result) reference.maximumAreaMismatchMm2 = result.maximumAreaMismatchMm2;
-      if ("maximumAreaBudgetMm2" in result) reference.maximumAreaBudgetMm2 = result.maximumAreaBudgetMm2;
+      if ("bboxErrorMm" in result) reference.bboxErrorMm = result.bboxErrorMm as number;
+      if ("maxVertexErrorMm" in result) reference.maxVertexErrorMm = result.maxVertexErrorMm as number;
+      if ("matchedTriangles" in result) reference.matchedTriangles = result.matchedTriangles as number;
+      if ("testedPairs" in result) reference.testedPairs = result.testedPairs as number;
+      if ("trianglesChecked" in result) reference.trianglesChecked = result.trianglesChecked as number;
+      if ("maximumAreaMismatchMm2" in result) reference.maximumAreaMismatchMm2 = result.maximumAreaMismatchMm2 as number;
+      if ("maximumAreaBudgetMm2" in result) reference.maximumAreaBudgetMm2 = result.maximumAreaBudgetMm2 as number;
     } catch (error) {
       reference.status = "ERROR";
       reference.reason = error instanceof Error ? error.message : "Reference comparison failed";

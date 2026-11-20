@@ -35,3 +35,11 @@ describe("C002 connected components", () => {
     expect(result.is_critical).toBe(true);
   });
 });
+
+test("whole assembly surfaces defer integrity to selected part checks while preserving explicit counts", () => {
+  const result = checkComponents(mesh({componentCount:2}), undefined, true);
+  expect(result.status).toBe("NOT_RUN");
+  expect(result.passed).toBe(false);
+  expect(result.message).toContain("A001");
+  expect(checkComponents(mesh({componentCount:2}), {expected_component_count:3}, true).status).toBe("FAIL");
+});

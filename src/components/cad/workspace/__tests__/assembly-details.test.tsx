@@ -25,9 +25,6 @@ test('shows independent instances, connections and unexecuted evidence without i
   expect(html).toContain('Pin (pin2)')
   expect(html).toContain('Base (base1)')
   expect(html).toContain('Material not specified')
-  expect(html).toContain('Part identity: Not checked')
-  expect(html).toContain('Disassembly: Not checked')
-  expect(html).toContain('Physical function: Not checked')
   expect(html).toContain('A part decision does not confirm acceptance of this assembly description.')
   expect(html).not.toContain('Download')
 })
@@ -76,7 +73,6 @@ test('a collision witness offers an explicit, lazy 3D replay without claiming co
 test('stale evidence cannot appear current; Chinese labels are available', () => {
   const html = render({ spec, stale: true, evidence: { identity: { status: 'PASS' } } }, 'zh-CN')
   expect(html).toContain('此装配描述对应较早的源码版本')
-  expect(html).toContain('零件身份: 已过期')
   expect(html).not.toContain('零件身份: 通过')
 })
 

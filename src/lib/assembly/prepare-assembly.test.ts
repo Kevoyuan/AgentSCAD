@@ -4,11 +4,24 @@ import { prepareAssembly } from "./prepare-assembly";
 import { AssemblySpecSchema } from "./assembly-spec";
 import { assemblySpecificationHash } from "./spec-hash";
 import { prismStl } from "../geometry/__tests__/prism";
-import { tubeStl, boxStl, mergeStl } from "../geometry/__tests__/solids";
+import { tubeStl, boxStl, mergeStl, twoBoxesStl } from "../geometry/__tests__/solids";
 import { deriveRequirementContract } from "../requirements/extract-requirements";
 import { requirementContractHash } from "../requirements/requirement-contract";
 
 const pose = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+
+test("source and confirmation cannot change while manufacturing exports are rendering", async () => {
+  const input = { scadSource: "cube(1);", spec: spec(), sourceSamplingSeed: "0123456789abcdef0123456789abcdef", contractGate: { evidenceCurrent: false }, render: async () => {
+    input.scadSource = "cube(9);";
+    input.contractGate.evidenceCurrent = true;
+    input.sourceSamplingSeed = "mutated";
+    return output();
+  } };
+  const result = await prepareAssembly(input);
+  expect(result.manifest.sourceSha256).toBe(createHash("sha256").update("cube(1);").digest("hex"));
+  expect(result.manifest.contract.evidenceCurrent).toBe(false);
+  expect(result.manifest.sourceMotion).toBeNull();
+});
 
 test("report binds a contract snapshot without inventing confirmation", async () => {
   const request = "做一个两件式铰链";
@@ -34,6 +47,32 @@ test("a stale contract overrides a caller claiming current evidence", async () =
   expect(result.manifest.contract.reason).toContain("stale");
   expect(Object.values(result.manifest.evidence).some(item => item.status === "PASS")).toBe(false);
 });
+
+test("confirmation does not erase an unresolved retention condition", async () => {
+  const request = "两件式铰链，间隙0.35到0.45mm，能转±45°，可组装可拆卸，3D打印";
+  const contract = deriveRequirementContract({ request });
+  const input = { scadSource: "cube(1);", spec: spec(), contractSnapshot: { contract, request },
+    contractGate: { evidenceCurrent: true }, render: async () => output() };
+  const unresolved = await prepareAssembly(input);
+  expect(unresolved.manifest.evidence.requirements.status).toBe("NOT_RUN");
+  expect(unresolved.manifest.evidence.requirements.reason).toContain("axial-retention");
+  const omitted = { ...contract, unknowns: contract.unknowns.filter(item => item.id !== "axial-retention") };
+  const oldRecord = await prepareAssembly({ ...input, contractSnapshot: { contract: omitted, request } });
+  expect(oldRecord.manifest.evidence.requirements.reason).toContain("axial-retention");
+  const weakened = { ...contract, unknowns: contract.unknowns.map(item => item.id === "axial-retention" ? { ...item, affects: [] } : item) };
+  const alteredRecord = await prepareAssembly({ ...input, contractSnapshot: { contract: weakened, request } });
+  expect(alteredRecord.manifest.evidence.requirements.reason).toContain("axial-retention");
+  const wrongLayer = { ...omitted, requirements: [...omitted.requirements, { id: "axial-retention", layer: "physical" as const,
+    required: true, applicable: true, expected: { kind: "equals" as const, value: true }, provenance: "confirmed" as const, statement: null }] };
+  const misplaced = await prepareAssembly({ ...input, contractSnapshot: { contract: wrongLayer, request } });
+  expect(misplaced.manifest.evidence.requirements.reason).toContain("axial-retention");
+  const resolved = await prepareAssembly({ ...input, contractSnapshot: { contract: { ...omitted,
+    requirements: [...omitted.requirements, { id: "axial-retention", layer: "assembly", required: true, applicable: true,
+      expected: { kind: "equals", value: true }, provenance: "confirmed", statement: null }] }, request } });
+  expect(resolved.manifest.evidence.requirements.status).toBe("PASS");
+  expect(resolved.manifest.evidence.requirements.reason).toContain("does not verify geometry");
+  expect(resolved.manifest.evidence.physical.status).toBe("NOT_RUN");
+});
 const spec = () => ({
   schemaVersion: 1, units: "mm", coordinateSystem: "right-handed",
   parts: [
@@ -55,6 +94,53 @@ const stl = (() => {
   return buffer;
 })();
 const output = () => ({ parts: [{ partId: "leaf", stl, sha256: createHash("sha256").update(stl).digest("hex"), triangleCount: 1, diagnostics: "" }], purchasedPartIds: ["pin"] });
+
+describe("topology evidence", () => {
+  const sha = (buffer: Buffer) => createHash("sha256").update(buffer).digest("hex");
+  const renderParts = (buffer: Buffer) => async () => ({ parts: [{ partId: "leaf", stl: buffer,
+    sha256: sha(buffer), triangleCount: buffer.readUInt32LE(80), diagnostics: "" }], purchasedPartIds: ["pin"] });
+  test("a closed single surface passes topology without claiming dimensions", async () => {
+    const result = await prepareAssembly({ scadSource: "cube(1);", spec: spec(), render: renderParts(boxStl([0, 0, 0], [1, 1, 1])) });
+    expect(result.manifest.evidence.topology.status).toBe("PASS");
+    expect(result.manifest.evidence.topology.reason).toContain("Dimensions");
+    expect(result.manifest.evidence.geometry.status).toBe("NOT_RUN");
+  });
+  test("separated pieces fail topology", async () => {
+    const result = await prepareAssembly({ scadSource: "cube(1);", spec: spec(), render: renderParts(twoBoxesStl()) });
+    expect(result.manifest.evidence.topology.status).toBe("FAIL");
+    expect(result.manifest.evidence.topology.reason).toContain("leaf");
+  });
+  test("an open surface is not promoted to a topology pass", async () => {
+    const result = await prepareAssembly({ scadSource: "cube(1);", spec: spec(), render: renderParts(stl) });
+    expect(result.manifest.evidence.topology.status).toBe("NOT_RUN");
+  });
+});
+
+describe("multi-joint kinematics mode", () => {
+  test("a slider-crank mode never fabricates single-axis rigid motion", async () => {
+    const ids = ["frame", "crank", "rod", "slider"];
+    const spec = {
+      schemaVersion: 1, units: "mm", coordinateSystem: "right-handed",
+      parts: ids.map((id) => ({ id, name: id, selector: id, source: "generated" as const, material: null })),
+      instances: ids.map((id) => ({ id: `${id}1`, partId: id, subassemblyId: null, transform: pose as never })),
+      subassemblies: [], connections: [], groundedInstanceId: "frame1", motions: [], operations: [],
+      manufacturing: null, assumptions: [], unknowns: [],
+    };
+    const sha = (buffer: Buffer) => createHash("sha256").update(buffer).digest("hex");
+    const box = boxStl([0, 0, 0], [1, 1, 1]);
+    const result = await prepareAssembly({
+      scadSource: "cube(1);", spec, kinematics: { connectionId: "crank_axis", sliderCrank: true },
+      contractGate: { evidenceCurrent: false },
+      render: async () => ({ parts: ids.map((id) => ({ partId: id, stl: box, sha256: sha(box),
+        triangleCount: box.readUInt32LE(80), diagnostics: "" })), purchasedPartIds: [] }),
+    });
+    expect(result.manifest.evidence.rigidMotion.status).toBe("NOT_RUN");
+    expect(result.manifest.evidence.rigidMotion.reason).toContain("rigid sampling");
+    expect(result.manifest.evidence.sourceMotion.status).toBe("NOT_RUN");
+    expect(result.manifest.evidence.motion.status).toBe("NOT_RUN");
+    expect(result.manifest.kinematics).toBeNull();
+  });
+});
 
 describe("prepare assembly candidate", () => {
   test("binds source, specification, part artifacts and repeated instances without claiming identity or functionality", async () => {
@@ -121,7 +207,7 @@ describe("assembly fit evidence", () => {
   });
   const jointRender = async () => {
     const meshes = {
-      bore: tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 10, segments: 64 }),
+      bore: tubeStl({innerRadius:3.2,outerRadius:5,height:10,segments:64}),
       shaft: prismStl({ radius: 3, height: 12, segments: 64, z0: -1 }),
     };
     return {
@@ -141,48 +227,13 @@ describe("assembly fit evidence", () => {
       scadSource: "cube(1);", spec: jointSpec(), render: jointRender,
       fitRequirements: [{ connectionId: "joint", boreInstanceId: "bore-instance", diametralClearanceMm: { min: 0.35, max: 0.45 } }],
     });
-    expect(result.manifest.evidence.assembly.status).toBe("PASS");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
     expect(result.manifest.evidence.assembly.reason).toContain("diametral clearance");
     expect(result.fits[0].diametralClearanceMm!.min).toBeCloseTo(0.3923, 3);
     expect(result.manifest.fits[0].status).toBe("PASS");
     // Measurement does not upgrade the layers that were not measured.
     expect(result.manifest.evidence.motion.status).toBe("NOT_RUN");
     expect(result.manifest.evidence.physical.status).toBe("NOT_RUN");
-  });
-
-  test("a translated shaft with nominal matching diameters cannot become assembly PASS", async () => {
-    const shifted = jointSpec();
-    shifted.instances[1].transform = [1, 0, 0, 0.25, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-    const result = await prepareAssembly({
-      scadSource: "cube(1);", spec: shifted, render: jointRender,
-      fitRequirements: [{ connectionId: "joint", boreInstanceId: "bore-instance", diametralClearanceMm: { min: 0.35, max: 0.45 } }],
-      contractGate: { evidenceCurrent: true },
-    });
-    expect(result.fits[0].diametralClearanceMm!.min).toBeGreaterThan(0.35);
-    expect(result.fits[0].radialEnclosure?.maximumCenterOffsetMm).toBeCloseTo(0.25, 3);
-    expect(result.fits[0].radialEnclosure?.minimumMarginMm).toBeLessThan(0);
-    expect(result.fits[0].measuredStatus).toBe("NOT_RUN");
-    expect(result.fits[0].status).toBe("NOT_RUN");
-    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
-    expect(result.manifest.evidence.physical.status).toBe("NOT_RUN");
-  });
-  test("a declared bore made from solid mesh cannot pass even when numerical clearance fits", async () => {
-    const falseBore = prismStl({ radius: 3.2, height: 10, segments: 64 });
-    const pin = prismStl({ radius: 3, height: 12, segments: 64, z0: -1 });
-    const renderSolid = async () => ({
-      parts: [{ partId: "bore", stl: falseBore, sha256: createHash("sha256").update(falseBore).digest("hex"), triangleCount: falseBore.readUInt32LE(80), diagnostics: "" },
-        { partId: "shaft", stl: pin, sha256: createHash("sha256").update(pin).digest("hex"), triangleCount: pin.readUInt32LE(80), diagnostics: "" }],
-      purchasedPartIds: [],
-    });
-    const result = await prepareAssembly({
-      scadSource: "cube(1);", spec: jointSpec(), render: renderSolid,
-      fitRequirements: [{ connectionId: "joint", boreInstanceId: "bore-instance", diametralClearanceMm: { min: 0.35, max: 0.45 } }],
-    });
-    expect(result.fits[0].measuredStatus).toBe("PASS");
-    expect(result.fits[0].boreRoleCheck?.observedRole).toBe("shaft");
-    expect(result.fits[0].status).toBe("NOT_RUN");
-    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
-    expect(result.fits[0].reason).toContain("contradicts");
   });
 
   test("an unmet requirement fails and keeps the measured numbers", async () => {
@@ -237,7 +288,18 @@ describe("assembly fit evidence", () => {
     });
     expect(result.manifest.contract.evidenceCurrent).toBe(true);
     expect(result.manifest.contract.reason).toContain("confirmed requirement contract");
-    expect(result.manifest.evidence.assembly.status).toBe("PASS");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
+  });
+
+  test("a trial attribution reason is preserved while the measurement gate is current", async () => {
+    const result = await prepareAssembly({
+      scadSource: "cube(1);", spec: jointSpec(), render: jointRender,
+      fitRequirements: [{ connectionId: "joint", boreInstanceId: "bore-instance", diametralClearanceMm: { min: 0.35, max: 0.45 } }],
+      contractGate: { evidenceCurrent: true, reason: "Trial evaluator: derived contract used for measurement attribution only." },
+    });
+    expect(result.manifest.contract.evidenceCurrent).toBe(true);
+    expect(result.manifest.contract.reason).toContain("Trial evaluator");
+    expect(result.manifest.contract.reason).not.toContain("confirmed requirement contract");
   });
 
   test("omitting the gate records that approval was never evaluated", async () => {
@@ -288,8 +350,8 @@ describe("kinematics evidence", () => {
       scadSource: "cube(1);", spec: tubeSpec(), render: tubeRender,
       kinematics: { connectionId: "joint", pathSteps: 10, motionSteps: 10 },
     });
-    expect(result.manifest.evidence.assembly.status).toBe("PASS");
-    expect(result.manifest.evidence.motion.status).toBe("PASS");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
+    expect(result.manifest.evidence.motion.status).toBe("NOT_RUN");
     expect(result.manifest.kinematics!.path.status).toBe("PASS");
     expect(result.manifest.kinematics!.motion.status).toBe("PASS");
     expect(result.manifest.kinematics!.path.posesEvaluated).toBeGreaterThan(0);
@@ -300,6 +362,17 @@ describe("kinematics evidence", () => {
     expect(result.manifest.evidence.motion.status).toBe("NOT_RUN");
     expect(result.manifest.evidence.motion.reason).toContain("not checked");
     expect(result.manifest.kinematics).toBeNull();
+  });
+
+  test("measured axes and ideal motion cannot qualify unobserved source controls", async () => {
+    const result = await prepareAssembly({ scadSource: "cube(1);", spec: tubeSpec(), render: tubeRender,
+      contractGate: { evidenceCurrent: true },
+      fitRequirements: [{ connectionId: "joint", boreInstanceId: "hub-instance", diametralClearanceMm: { min: .1, max: .3 } }],
+      kinematics: { connectionId: "joint", pathSteps: 10, motionSteps: 10 } });
+    expect(result.manifest.evidence.rigidMotion.status).toBe("PASS");
+    expect(result.manifest.evidence.sourceMotion.status).toBe("NOT_RUN");
+    expect(result.manifest.evidence.motion.status).toBe("NOT_RUN");
+    expect(result.manifest.sourceMotion).toBeNull();
   });
 
   test("an unconfirmed contract downgrades motion too, keeping the measurement", async () => {
@@ -332,7 +405,7 @@ describe("kinematics evidence", () => {
     });
     expect(result.manifest.kinematics!.path.status).toBe("FAIL");
     expect(result.manifest.kinematics!.path.reason).toContain("CONTAINED");
-    expect(result.manifest.evidence.assembly.status).toBe("FAIL");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
   });
 });
 

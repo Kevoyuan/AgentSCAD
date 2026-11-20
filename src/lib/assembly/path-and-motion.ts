@@ -13,8 +13,9 @@
  * - The path distance and the step count are reported, because "the path is
  *   clear" means nothing without them. A gap narrower than the step can hide
  *   between samples, and the coverage string says so.
- * - Tolerated contacts (`allowedContact`) are counted and named. A pass that
- *   depends on them is not the same as a pass without them.
+ * - Textual pair-level contact claims never authorize penetration. Without a
+ *   measured contact region they leave intersections unresolved; containment
+ *   still blocks. The legacy tolerated-contact counter stays zero.
  */
 import { validateAssemblySpec, type AssemblySpec } from "./assembly-spec";
 import { buildBvh, placeBvh, bvhIntersects, transformPoint, type Bvh, type CollisionStatus, type Mat4 } from "../geometry/mesh-collision";
@@ -105,6 +106,8 @@ export interface PosePairResult {
   testedPairs: number;
   reason: string;
   tolerated: boolean;
+  /** Textual pair claims lack measured contact regions and never authorize penetration. */
+  contactClaimed?: boolean;
 }
 
 export interface PathSample {
@@ -113,6 +116,17 @@ export interface PathSample {
   direction: 1 | -1;
   worst: "CLEAR" | "BLOCKED" | "UNDECIDED";
   blocking: PosePairResult[];
+  /** Compatibility fields for the newer replay UI; unset means unavailable. */
+  poseIndex?: number;
+  obstacleId?: string;
+  collision?: CollisionStatus | "SEPARATED";
+  testedPairs?: number;
+  collisionReason?: string;
+  budgetExhausted?: boolean;
+  trianglePair?: { movingTriangleIndex: number; obstacleTriangleIndex: number } | null;
+  witnessCentroidPointMm?: [number, number, number] | null;
+  replayFrame?: unknown;
+  reason?: string;
 }
 
 export interface DisassemblyPathEvidence {
@@ -130,6 +144,8 @@ export interface DisassemblyPathEvidence {
   toleratedContacts: number;
   /** First pose that blocked, with the pairs responsible. */
   blockedAt: PathSample | null;
+  undecidedAt?: PathSample | null;
+  testedTrianglePairs?: number;
   coverage: string;
   unknowns: string[];
 }
@@ -220,8 +236,8 @@ function loadMeshes(spec: AssemblySpec, buffers: Record<string, Buffer>, instanc
   return { meshes: byInstance };
 }
 
-/** Pairs whose two parts both appear in `allowedContact` do not block. */
-function isTolerated(spec: AssemblySpec, allowedContact: string[], a: string, b: string): boolean {
+/** Legacy pair names are unverified contact claims, never a geometric exemption. */
+function hasPairContactClaim(spec: AssemblySpec, allowedContact: string[], a: string, b: string): boolean {
   if (allowedContact.length === 0) return false;
   const partOf = (instanceId: string) => spec.instances.find((item) => item.id === instanceId)?.partId;
   const partA = partOf(a), partB = partOf(b);
@@ -250,7 +266,7 @@ function evaluatePose(options: {
   for (const [instanceId, bvh] of options.meshes) placed.set(instanceId, placeBvh(bvh, options.matrices.get(instanceId) ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]));
   const pairs: PosePairResult[] = [];
   let tests = 0;
-  let tolerated = 0;
+  const tolerated = 0;
   for (const movingId of options.movingInstanceIds) {
     const moving = placed.get(movingId);
     if (!moving) continue;
@@ -259,22 +275,22 @@ function evaluatePose(options: {
       if (!other) continue;
       const result = bvhIntersects(moving, other, { epsilonMm: options.epsilonMm, maxPairTests: options.maxPairTests });
       tests += result.testedPairs;
-      const toleratedPair = result.status !== "UNKNOWN" && result.blocked && isTolerated(options.spec, options.allowedContact, movingId, otherId);
-      if (toleratedPair) tolerated++;
+      const contactClaimed = result.status === "INTERSECT" && hasPairContactClaim(options.spec, options.allowedContact, movingId, otherId);
       pairs.push({
         movingInstanceId: movingId,
         otherInstanceId: otherId,
         status: result.status,
-        blocked: result.blocked && !toleratedPair,
+        blocked: result.blocked,
         testedPairs: result.testedPairs,
-        reason: result.reason,
-        tolerated: toleratedPair,
+        reason: contactClaimed ? `${result.reason} The pair has a textual contact claim, but no verified contact region or penetration bound.` : result.reason,
+        tolerated: false,
+        contactClaimed,
       });
     }
   }
   const blocking = pairs.filter((pair) => pair.blocked);
   const worst = blocking.length > 0
-    ? (blocking.some((pair) => pair.status === "INTERSECT" || pair.status === "CONTAINED") ? "BLOCKED" : "UNDECIDED")
+    ? (blocking.some((pair) => pair.status === "CONTAINED" || (pair.status === "INTERSECT" && !pair.contactClaimed)) ? "BLOCKED" : "UNDECIDED")
     : "CLEAR";
   return { pairs, worst, tests, tolerated };
 }
@@ -383,7 +399,7 @@ export function checkDisassemblyPath(input: {
       return {
         ...base, status: undecided ? "NOT_RUN" : "PASS",
         reason: undecided
-          ? `The path along direction ${direction} was free at every sampled offset, but at least one pose could not be decided, so the path is not proven clear.${note}`
+          ? `At least one pose along direction ${direction} could not be decided (collision evidence or unverified contact claim), so the path is not proven clear.${note}`
           : `Every sampled offset along direction ${direction} was free of interference.${note}`,
         axis: joint.axis, clearDirection: direction, steps, distanceMm: distance, stepMm: step,
         posesEvaluated, collisionTests, toleratedContacts, blockedAt: null, coverage,
@@ -483,7 +499,7 @@ export function checkMotionRange(input: {
   return {
     ...base, status: undecided ? "NOT_RUN" : "PASS",
     reason: undecided
-      ? "Every sampled angle was free, but at least one pose could not be decided, so the range is not proven clear."
+      ? "At least one sampled angle could not be decided (collision evidence or unverified contact claim), so the range is not proven clear."
       : `Every sampled angle between ${range.min}° and ${range.max}° was free of interference.${note}`,
     rangeDeg, steps, stepDeg: Math.abs(stepDeg), posesEvaluated, collisionTests, toleratedContacts, blockedAt: null, coverage,
   };

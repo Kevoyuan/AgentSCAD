@@ -48,6 +48,18 @@ const part = z.object({
   material: text.nullable(),
 }).strict();
 const instance = z.object({ id, partId: id, subassemblyId: id.nullable(), transform }).strict();
+/** Rendering subset only. Passing it never validates connections or operations. */
+export const AssemblyDiagnosticLayoutSchema = z.object({
+  schemaVersion:z.literal(1),units:z.literal("mm"),coordinateSystem:z.literal("right-handed"),
+  parts:z.array(part).min(1).max(8),instances:z.array(instance).min(2).max(8),
+}).strip().superRefine((layout,ctx)=>{
+  const error=(message:string)=>ctx.addIssue({code:"custom",message});
+  for(const [label,values] of [["part",layout.parts.map(p=>p.id)],["selector",layout.parts.map(p=>p.selector)],["instance",layout.instances.map(i=>i.id)]] as const)
+    if(new Set(values).size!==values.length)error(`Duplicate diagnostic ${label}`);
+  const ids=new Set(layout.parts.map(p=>p.id));
+  if(layout.instances.some(i=>!ids.has(i.partId)))error("Unknown diagnostic part reference");
+});
+export type AssemblyDiagnosticLayout = z.infer<typeof AssemblyDiagnosticLayoutSchema>;
 const subassembly = z.object({ id, name: text, parentId: id.nullable() }).strict();
 const connection = z.object({
   id,
@@ -64,13 +76,37 @@ const connection = z.object({
    * their exact hash; without it a fit measurement must be told the role.
    */
   boreInstanceId: id.optional(),
+  /** Signed millimetre offsets along frameA's axis, not world Z or frameB.
+   * Proposed measurement scope, never proof of the whole mating surface. */
+  fitStationsMm: z.array(finite).min(2).max(16)
+    .refine(values => values.every((value, index) => index === 0 || value > values[index - 1]),
+      "Fit stations must be strictly increasing").optional(),
   allowedContact: z.array(text).max(100),
 }).strict();
-const motion = z.object({ id, inputConnectionId: id, range }).strict();
+const motion = z.object({
+  id, inputConnectionId: id, range,
+  /** Proposed source binding. Zero degrees denotes the declared assembly pose.
+   * The verifier measures the source outputs before accepting this claim. */
+  sourceInput: z.object({
+    parameter: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/)
+      .refine(value => !["agentscad_part", "agentscad_pose"].includes(value), "Reserved source control"),
+    poseSelectors: z.record(id, id).refine(value => Object.keys(value).length <= 8, "Too many pose selectors"),
+  }).strict().optional(),
+}).strict();
 const manufacturing = z.object({
   process: text.nullable(), material: text.nullable(), machine: text.nullable(),
   notes: z.array(text).max(100),
 }).strict();
+export const RigidTrajectorySchema=z.object({
+  /** Stages always describe removal starting at the assembled instance pose.
+   * Insertion explicitly requests their geometric reverse. */
+  traversal:z.enum(["forward","reverse"]),
+  stages:z.array(z.discriminatedUnion("type",[
+    z.object({type:z.literal("translate"),deltaMm:axis}).strict(),
+    z.object({type:z.literal("rotate"),axis:frame,angleDeg:finite.refine(n=>Math.abs(n)>1e-9,"Rotation must be nonzero")}).strict(),
+  ])).min(1).max(32),
+}).strict();
+export type RigidTrajectory=z.infer<typeof RigidTrajectorySchema>;
 const operation = z.object({
   id, action: z.enum(["assemble", "disassemble"]), instanceId: id,
   /** Waypoints are poses in the assembly frame, not an automatic collision proof. */
@@ -81,12 +117,23 @@ const operation = z.object({
     axis: frame, hand: z.enum(["right", "left"]), leadMm: finite.positive(),
     startAngleDeg: finite, endAngleDeg: finite,
   }).strict().optional(),
+  rigidTrajectory:RigidTrajectorySchema.optional(),
 }).strict().superRefine((value, ctx) => {
   if (value.screwTrajectory && value.waypoints.length !== 0)
     ctx.addIssue({ code: "custom", path: ["waypoints"], message: "Screw trajectories require an empty waypoint array" });
   if (value.screwTrajectory && value.screwTrajectory.startAngleDeg === value.screwTrajectory.endAngleDeg)
     ctx.addIssue({ code: "custom", path: ["screwTrajectory"], message: "Screw trajectory must have nonzero travel" });
+  if(value.rigidTrajectory){
+    if(value.waypoints.length||value.screwTrajectory)ctx.addIssue({code:"custom",path:["rigidTrajectory"],message:"Rigid trajectories require empty waypoints and no screw trajectory"});
+    if(value.rigidTrajectory.traversal!==(value.action==="disassemble"?"forward":"reverse"))ctx.addIssue({code:"custom",path:["rigidTrajectory","traversal"],message:"Removal uses forward stages from the assembled pose; insertion explicitly uses reverse"});
+  }
 });
+
+const translationProbe = z.object({
+  id, instanceId: id, startTransform: transform,
+  translationMm: axis, samples: z.number().int().min(2).max(65),
+  expected: z.enum(["blocked", "clear"]),
+}).strict();
 
 export const AssemblySpecSchema = z.object({
   schemaVersion: z.literal(1),
@@ -99,6 +146,8 @@ export const AssemblySpecSchema = z.object({
   groundedInstanceId: id.nullable(),
   motions: z.array(motion).max(100),
   operations: z.array(operation).max(1000),
+  /** Optional declared geometric experiments, never load or physical qualification. */
+  translationProbes: z.array(translationProbe).max(64).optional(),
   manufacturing: manufacturing.nullable(),
   assumptions: z.array(text).max(100),
   unknowns: z.array(text).max(100),
@@ -118,6 +167,7 @@ export const AssemblySpecSchema = z.object({
   const connections = checkUnique(spec.connections, "connections");
   checkUnique(spec.motions, "motions");
   checkUnique(spec.operations, "operations");
+  checkUnique(spec.translationProbes ?? [], "translationProbes");
   const selectors = new Set<string>();
   spec.parts.forEach((p, i) => {
     if (selectors.has(p.selector)) issue(["parts", i, "selector"], `Duplicate selector: ${p.selector}`);
@@ -148,9 +198,29 @@ export const AssemblySpecSchema = z.object({
   });
   spec.motions.forEach((m, i) => {
     if (!connections.has(m.inputConnectionId)) issue(["motions", i, "inputConnectionId"], "Unknown input connection ID");
+    if (m.sourceInput) {
+      const selectors = m.sourceInput.poseSelectors;
+      const expectedInstances = [...instances].sort();
+      const actualInstances = Object.keys(selectors).sort();
+      const missingInstances = expectedInstances.filter((id) => !actualInstances.includes(id));
+      const unknownInstances = actualInstances.filter((id) => !expectedInstances.includes(id));
+      if (missingInstances.length || unknownInstances.length) {
+        const details = [
+          missingInstances.length ? `Missing: ${missingInstances.join(", ")}.` : "",
+          unknownInstances.length ? `Unknown: ${unknownInstances.join(", ")}.` : "",
+        ].filter(Boolean).join(" ");
+        issue(["motions", i, "sourceInput", "poseSelectors"], `Every instance needs a pose selector. ${details}`.trim());
+      }
+      if (new Set(Object.values(selectors)).size !== Object.values(selectors).length || Object.values(selectors).includes("all"))
+        issue(["motions", i, "sourceInput", "poseSelectors"], "Pose selectors must be distinct and cannot select all");
+    }
   });
   spec.operations.forEach((o, i) => {
     if (!instances.has(o.instanceId)) issue(["operations", i, "instanceId"], "Unknown instance ID");
+  });
+  spec.translationProbes?.forEach((probe, i) => {
+    if (!instances.has(probe.instanceId)) issue(["translationProbes", i, "instanceId"], "Unknown instance ID");
+    if (probe.instanceId === spec.groundedInstanceId) issue(["translationProbes", i, "instanceId"], "Cannot probe the grounded instance as moving");
   });
 });
 

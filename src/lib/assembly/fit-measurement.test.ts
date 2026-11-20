@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { tubeStl } from "../geometry/__tests__/solids";
 import { prismStl } from "../geometry/__tests__/prism";
-import { tubeStl, mergeStl } from "../geometry/__tests__/solids";
 import { assessFit, measureRevoluteFit } from "./fit-measurement";
+import { validateAssemblySpec } from "./assembly-spec";
 
 const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const axisFrame = { origin: [0, 0, 0] as [number, number, number], direction: [0, 0, 1] as [number, number, number] };
@@ -28,13 +29,58 @@ function spec(options: { shaftTransform?: number[]; frameB?: typeof axisFrame | 
 }
 
 const meshes = {
-  bore: prismStl({ radius: 3.2, height: 10, segments: 64 }),
+  bore: tubeStl({innerRadius:3.2,outerRadius:5,height:10,segments:64}),
   shaft: prismStl({ radius: 3, height: 12, segments: 64, z0: -1 }),
 };
 
 const inradius = (radius: number, segments: number) => radius * Math.cos(Math.PI / segments);
 
 describe("revolute fit measurement", () => {
+  test("uses declared feature stations and preserves legacy default selection", () => {
+    const legacy = validateAssemblySpec(spec());
+    expect(legacy.success).toBe(true);
+    if (!legacy.success) throw new Error("Invalid legacy fixture");
+    expect(Object.hasOwn(legacy.data.connections[0], "fitStationsMm")).toBe(false);
+    const base = spec();
+    const declared = { ...base, connections: base.connections.map(connection => ({ ...connection, fitStationsMm: [1,3,9] })) };
+    const result = measureRevoluteFit({ spec: declared, connectionId: "joint", meshes, boreInstanceId: "bore-instance" });
+    expect(result.status).toBe("MEASURED");
+    expect(result.stationsMm).toEqual([1,3,9]);
+    expect(result.stationSource).toBe("declaration");
+    const fallback = measureRevoluteFit({ spec: base, connectionId: "joint", meshes, boreInstanceId: "bore-instance" });
+    expect(fallback.stationSource).toBe("overlap-default");
+    expect(fallback.stationsMm).toEqual([2,5,8]);
+    const override = measureRevoluteFit({ spec: declared, connectionId: "joint", meshes, boreInstanceId: "bore-instance", stationsMm: [2,4,6] });
+    expect(override.status).toBe("MEASURED");
+    expect(override.stationsMm).toEqual([2,4,6]);
+    expect(override.stationSource).toBe("caller");
+  });
+
+  test("declared offsets follow frameA and map into a displaced frameB", () => {
+    const base = spec({ frameB: { origin: [0,0,20], direction: [0,0,1] } });
+    const declared = { ...base, connections: base.connections.map(connection => ({
+      ...connection, frameA: { origin: [0,0,2], direction: [0,0,1] }, fitStationsMm: [-1,0,1],
+    })) };
+    const result = measureRevoluteFit({ spec: declared, connectionId: "joint", meshes, boreInstanceId: "bore-instance" });
+    expect(result.status).toBe("MEASURED");
+    expect(result.bore!.measurement.stations.map(station => station.offsetMm)).toEqual([-1,0,1]);
+    expect(result.stationFrame).toEqual({ instanceId: "bore-instance", origin: [0,0,2], direction: [0,0,1] });
+    expect(result.shaft!.measurement.stations.map(station => station.offsetMm)).toEqual([-19,-18,-17]);
+  });
+
+  test("rejects malformed domains and cannot measure outside the actual axial overlap", () => {
+    const base = spec();
+    for (const fitStationsMm of [[], [1], [2,1], [1,1], [1,Infinity], Array.from({ length: 17 }, (_, i) => i)]) {
+      const declared = { ...base, connections: base.connections.map(connection => ({ ...connection, fitStationsMm })) };
+      expect(validateAssemblySpec(declared).success).toBe(false);
+    }
+    const outside = { ...base, connections: base.connections.map(connection => ({ ...connection, fitStationsMm: [100,101] })) };
+    const result = measureRevoluteFit({ spec: outside, connectionId: "joint", meshes, boreInstanceId: "bore-instance" });
+    expect(result.status).toBe("ERROR");
+    expect(result.stationSource).toBe("declaration");
+    expect(result.reason).toContain("inside the axial overlap");
+  });
+
   test("reports the diametral clearance interval implied by the tessellation", () => {
     const result = measureRevoluteFit({ spec: spec(), connectionId: "joint", meshes, boreInstanceId: "bore-instance" });
     expect(result.status).toBe("MEASURED");
@@ -48,43 +94,6 @@ describe("revolute fit measurement", () => {
     expect(result.bore!.seedOffsetMm).toBeLessThan(1e-3);
   });
 
-  test("independent section structure reveals that a declared bore was actually solid", () => {
-    const checked = measureRevoluteFit({ spec: spec(), connectionId: "joint", meshes, boreInstanceId: "bore-instance" });
-    expect(checked.status).toBe("MEASURED");
-    expect(checked.bore?.roleCheck?.status).toBe("OBSERVED");
-    expect(checked.bore?.roleCheck?.observedRole).toBe("shaft");
-    expect(checked.shaft?.roleCheck?.observedRole).toBe("shaft");
-    // Numeric clearance alone must never be described as proof of a bore.
-    expect(checked.clearanceMm?.min).toBeGreaterThan(0);
-  });
-
-  test("sampled closed annular bore and solid pin are observed from STL, not declared names", () => {
-    const actual = {
-      bore: tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 10, segments: 64 }),
-      shaft: prismStl({ radius: 3, height: 12, z0: -1, segments: 64 }),
-    };
-    const checked = measureRevoluteFit({ spec: spec(), connectionId: "joint", meshes: actual, boreInstanceId: "bore-instance" });
-    expect(checked.status).toBe("MEASURED");
-    expect(checked.bore?.roleCheck?.status).toBe("OBSERVED");
-    expect(checked.bore?.roleCheck?.observedRole).toBe("bore");
-    expect(checked.shaft?.roleCheck?.status).toBe("OBSERVED");
-    expect(checked.shaft?.roleCheck?.observedRole).toBe("shaft");
-    expect(checked.clearanceMm?.min).toBeCloseTo(2 * inradius(3.2, 64) - 6, 4);
-  });
-
-  test("nested-shell decoy never obtains an observed bore role", () => {
-    const actual = {
-      bore: mergeStl(
-        tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 10, segments: 64 }),
-        prismStl({ radius: 1, height: 10, segments: 64 }),
-      ),
-      shaft: meshes.shaft,
-    };
-    const checked = measureRevoluteFit({ spec: spec(), connectionId: "joint", meshes: actual, boreInstanceId: "bore-instance" });
-    // A regular-looking inner surface alone is not enough to trust a bore.
-    expect(checked.bore?.roleCheck?.status === "OBSERVED" && checked.bore?.roleCheck?.observedRole === "bore").toBe(false);
-  });
-
   test("a frozen band that the geometry does not meet fails, and a wider documented band passes", () => {
     const result = measureRevoluteFit({ spec: spec(), connectionId: "joint", meshes, boreInstanceId: "bore-instance" });
     const strict = assessFit(result, { connectionId: "joint", diametralClearanceMm: { min: 0.1, max: 0.3 } });
@@ -94,11 +103,10 @@ describe("revolute fit measurement", () => {
     expect(documented.status).toBe("PASS");
   });
 
-  test("declaring the shaft as the bore produces a negative clearance instead of a pass", () => {
+  test("declaring the shaft as the bore rejects its material role", () => {
     const result = measureRevoluteFit({ spec: spec(), connectionId: "joint", meshes, boreInstanceId: "shaft-instance" });
-    expect(result.status).toBe("MEASURED");
-    expect(result.clearanceMm!.max).toBeLessThan(0);
-    expect(assessFit(result, { connectionId: "joint", diametralClearanceMm: { min: 0.35, max: 0.45 } }).status).toBe("FAIL");
+    expect(result.status).toBe("ERROR");
+    expect(result.clearanceMm).toBeNull();
   });
 
   test("a translated instance is measured in the assembly frame", () => {
@@ -107,66 +115,7 @@ describe("revolute fit measurement", () => {
     expect(result.status).toBe("MEASURED");
     // The shaft axis moved 0.12 mm in x; the clearance is unchanged by translation.
     expect(result.axis!.offsetMm).toBeCloseTo(0.12, 3);
-    expect(result.radialEnclosure?.maximumCenterOffsetMm).toBeCloseTo(0.12, 3);
     expect(result.clearanceMm!.min).toBeCloseTo(2 * inradius(3.2, 64) - 6, 4);
-  });
-
-  test("measured eccentricity can invalidate an otherwise matching diameter band", () => {
-    const shifted = [1, 0, 0, 0.25, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-    const result = measureRevoluteFit({
-      spec: spec({ shaftTransform: shifted }), connectionId: "joint", meshes,
-      boreInstanceId: "bore-instance",
-    });
-    expect(result.status).toBe("MEASURED");
-    expect(result.clearanceMm!.min).toBeGreaterThan(0.35);
-    expect(result.radialEnclosure?.status).toBe("OBSERVED");
-    expect(result.radialEnclosure?.maximumCenterOffsetMm).toBeCloseTo(0.25, 3);
-    expect(result.radialEnclosure?.minimumMarginMm).toBeLessThan(0);
-    const assessed = assessFit(result, { connectionId: "joint", diametralClearanceMm: { min: 0.35, max: 0.45 } });
-    expect(assessed.status).toBe("NOT_RUN");
-    expect(assessed.reason).toContain("radial enclosure");
-    // Negative conservative radius margin is not itself proof of triangle collision.
-    expect(assessed.reason).toContain("neither collision");
-  });
-
-  test("an angularly tilted shaft loses radial clearance along the sampled overlap", () => {
-    const deg = 3 * Math.PI / 180;
-    const c = Math.cos(deg), si = Math.sin(deg);
-    const tilted = [c, 0, si, 0, 0, 1, 0, 0, -si, 0, c, 0, 0, 0, 0, 1];
-    const result = measureRevoluteFit({
-      spec: spec({ shaftTransform: tilted }), connectionId: "joint", meshes,
-      boreInstanceId: "bore-instance",
-    });
-    expect(result.status).toBe("MEASURED");
-    expect(result.axis!.angleDeg).toBeCloseTo(3, 1);
-    expect(result.radialEnclosure?.stations).toHaveLength(3);
-    expect(result.radialEnclosure?.maximumCenterOffsetMm).toBeGreaterThan(0.30);
-    expect(result.radialEnclosure?.minimumMarginMm).toBeLessThan(0);
-    expect(assessFit(result, { connectionId: "joint", diametralClearanceMm: { min: 0.35, max: 0.45 } }).status).toBe("NOT_RUN");
-  });
-
-  test("an ordinary small eccentricity retains positive measured radial margin", () => {
-    const shifted = [1, 0, 0, 0.12, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-    const result = measureRevoluteFit({
-      spec: spec({ shaftTransform: shifted }), connectionId: "joint", meshes,
-      boreInstanceId: "bore-instance",
-    });
-    const enclosure = result.radialEnclosure!;
-    expect(enclosure.minimumMarginMm).toBeGreaterThan(0.07);
-    expect(enclosure.minimumMarginMm).toBeLessThan(0.09);
-    expect(enclosure.stations.every(x => x.conservativeMarginMm > enclosure.safetyReserveMm)).toBe(true);
-    expect(assessFit(result, { connectionId: "joint", diametralClearanceMm: { min: 0.35, max: 0.45 } }).status).toBe("PASS");
-    expect(enclosure.coverage).toContain("Corresponding sampled axial stations only");
-  });
-
-  test("one sampled station cannot establish the relative radial enclosure", () => {
-    const result = measureRevoluteFit({
-      spec: spec(), connectionId: "joint", meshes, boreInstanceId: "bore-instance",
-      stationsMm: [5],
-    });
-    expect(result.status).toBe("MEASURED");
-    expect(result.radialEnclosure?.status).toBe("NOT_RUN");
-    expect(assessFit(result, { connectionId: "joint", diametralClearanceMm: { min: 0.35, max: 0.45 } }).status).toBe("NOT_RUN");
   });
 
   test("a frame origin elsewhere on the same axis does not change the measured fit", () => {

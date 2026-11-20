@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "frozenAt": "2026-11-16",
+  "taskSetSha256": "ad4c2daca02217fd8341bdba1fd335ed4f2cd4167c0ed221f0ac83a8732a8cc8",
+  "tasks": [
+    {
+      "id": "hinge-retention-45",
+      "prompt": "做一个两件式铰链，直径间隙 0.35 到 0.45 mm，能转 ±45°，可组装可拆卸，工作姿态必须有轴向防脱，独立释放后才能拆下；两件要能分别导出。",
+      "intentKind": "revolute-hinge",
+      "maxRepairs": 0,
+      "failureMode": "没有声明轴向防脱探针或源码参数/姿态绑定，或保持几何在网格上被直接拔出"
+    }
+  ]
+}

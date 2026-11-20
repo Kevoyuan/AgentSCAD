@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "purpose": "Independent original mesh construction for a finite digital axis-reference study. Ramped helical bore profile with flat crest/root arcs, not an ISO or manufacturing reference.",
+  "geometry": { "minorRadiusMm": 4.25, "majorRadiusMm": 5.15, "outerRadiusMm": 9.8, "heightMm": 6, "pitchMm": 1.5, "centerMm": [0.37, -0.22] },
+  "angularMultipliers": [1, 2, 4],
+  "layersPerMm": [8, 16, 32],
+  "phaseDeg": [0, 37],
+  "stationsMm": [[0.6, 1.6, 3.6], [0.63, 1.63, 3.63]],
+  "profile": "At theta modulo 360, radius is minor for 0..90 degrees, rises linearly to major for 90..108, stays major for 108..342, then falls linearly to minor for 342..360. Sample at 20*angularMultiplier nodes and rotate each axial ring by phase + 360*z/pitch. Triangulate corresponding inner and outer rings and annular end caps using indexed shared vertices.",
+  "truth": "The independent parametric construction has axis x=0.37,y=-0.22, direction +Z. This is the construction axis of the reference surface, not a physically calibrated axis or a universal best-fit axis of a coarse tessellation.",
+  "decision": "Record all 36 measurement attempts, including absent estimates, errors relative to construction axis, and raw meshes. Compare axial/angular sampling and station effects without fitting or relaxing acceptance thresholds. Actual coaxiality and calibrated general uncertainty remain NOT_RUN."
+}

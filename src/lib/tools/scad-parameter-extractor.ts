@@ -28,8 +28,10 @@ interface ParsedRange {
 export function extractParameterDefsFromScad(scadSource: string): ParameterDef[] {
   const parameters = new Map<string, ParameterDef>();
   let group = "Parameters";
+  const maskedLines = scadSource.replace(/\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|"(?:\\[\s\S]|[^"\\])*"/g,
+    match => match.replace(/[^\r\n]/g, " ")).split(/\r?\n/);
 
-  for (const rawLine of scadSource.split(/\r?\n/)) {
+  for (const [index, rawLine] of scadSource.split(/\r?\n/).entries()) {
     const line = rawLine.trim();
     if (!line) continue;
 
@@ -44,10 +46,11 @@ export function extractParameterDefsFromScad(scadSource: string): ParameterDef[]
       group = toLabel(commentGroup[1]);
       continue;
     }
+    if (!maskedLines[index].trim()) continue;
 
     const match = line.match(ASSIGNMENT_RE);
     if (!match) {
-      if (GEOMETRY_START_RE.test(line)) {
+      if (GEOMETRY_START_RE.test(maskedLines[index])) {
         break;
       }
       continue;
@@ -56,29 +59,73 @@ export function extractParameterDefsFromScad(scadSource: string): ParameterDef[]
     const key = match[1];
     if (RESERVED_PARAMETER_NAMES.has(key)) continue;
 
-    const numericValue = parseNumericLiteral(match[2]);
+    const literal = match[2].trim();
+    if (literal === "true" || literal === "false") {
+      parameters.set(key, {
+        key, label: toLabel(key), kind: "boolean", unit: "", value: literal === "true",
+        min: 0, max: 1, step: 1, source: "artifact", editable: true,
+        description: match[3]?.trim() || `Boolean parsed from top-level OpenSCAD assignment ${key}`,
+        group,
+      });
+      continue;
+    }
+    const numericValue = parseNumericLiteral(literal);
     if (numericValue === null) continue;
 
-    const range = parseRangeComment(match[3] ?? "", numericValue);
-    const kind = Number.isInteger(numericValue) ? "integer" : "float";
+    const range = parseRangeComment(match[3] ?? "");
+    // SCAD numeric literals do not declare an integer-only domain.
+    const kind = "float";
+    const { description, ...numericConstraints } = range;
 
     parameters.set(key, {
       key,
       label: toLabel(key),
       kind,
-      unit: inferUnit(key, range.description),
+      unit: inferUnit(key, description),
       value: numericValue,
       min: range.min ?? defaultMinFor(key, numericValue),
       max: range.max ?? defaultMaxFor(key, numericValue),
       step: range.step ?? defaultStepFor(kind, numericValue),
+      numericConstraints,
       source: "artifact",
       editable: true,
-      description: range.description || `Parameter parsed from top-level OpenSCAD assignment ${key}`,
+      description: description || `Parameter parsed from top-level OpenSCAD assignment ${key}`,
       group,
     });
   }
 
   return Array.from(parameters.values());
+}
+
+/** Backfill boolean controls and upgrade identifiable legacy extractor defaults.
+ * User-authored or customized numeric limits retain their original semantics. */
+export function withSourceParameterMetadata<T extends {
+  key?: unknown; kind?: unknown; value?: unknown; source?: unknown; description?: unknown;
+  min?: unknown; max?: unknown; step?: unknown; numericConstraints?: unknown;
+}>(
+  parameters: T[], scadSource: string,
+): Array<T | ParameterDef> {
+  const extracted = extractParameterDefsFromScad(scadSource);
+  const byKey = new Map(extracted.map(parameter => [parameter.key, parameter]));
+  const upgraded = parameters.map(prior => {
+    const current = byKey.get(String(prior.key));
+    if (!current?.numericConstraints || prior.numericConstraints !== undefined || prior.source !== "artifact"
+      || typeof prior.value !== "number" || !Number.isFinite(prior.value) || prior.description !== current.description) return prior;
+    const legacyKind = Number.isInteger(prior.value) ? "integer" : "float";
+    const plainComment = Object.keys(current.numericConstraints).length === 0
+      && current.description !== `Parameter parsed from top-level OpenSCAD assignment ${current.key}`;
+    const hintKey = plainComment ? "" : current.key;
+    const legacyMin = current.numericConstraints.min ?? defaultMinFor(hintKey, prior.value);
+    const legacyMax = current.numericConstraints.max ?? defaultMaxFor(hintKey, prior.value);
+    const legacyStep = current.numericConstraints.step ?? defaultStepFor(legacyKind, prior.value);
+    if (prior.kind !== legacyKind || prior.min !== legacyMin || prior.max !== legacyMax || prior.step !== legacyStep) return prior;
+    return { ...prior, kind: current.kind, min: current.min, max: current.max, step: current.step,
+      numericConstraints: current.numericConstraints };
+  });
+  const missing = extracted.filter(parameter => parameter.kind === "boolean"
+    && !parameters.some(prior => prior.key === parameter.key && prior.kind === "boolean" && typeof prior.value === "boolean"));
+  const replacedKeys = new Set(missing.map(parameter => parameter.key));
+  return [...upgraded.filter(parameter => !replacedKeys.has(String(parameter.key))), ...missing];
 }
 
 export function mergeExtractedParameters(
@@ -91,13 +138,17 @@ export function mergeExtractedParameters(
   return extracted.map((parameter) => {
     const prior = fallbackByKey.get(parameter.key);
     if (!prior) return parameter;
+    const keepUserLimits = prior.source === "user" && parameter.numericConstraints
+      && Object.keys(parameter.numericConstraints).length === 0;
 
     return {
       ...parameter,
-      unit: parameter.unit || prior.unit,
-      min: Number.isFinite(parameter.min) ? parameter.min : prior.min,
-      max: Number.isFinite(parameter.max) ? parameter.max : prior.max,
-      step: Number.isFinite(parameter.step) ? parameter.step : prior.step,
+      kind: keepUserLimits ? prior.kind : parameter.kind,
+      unit: parameter.kind === "boolean" ? "" : parameter.unit || prior.unit,
+      min: keepUserLimits ? prior.min : parameter.min,
+      max: keepUserLimits ? prior.max : parameter.max,
+      step: keepUserLimits ? prior.step : parameter.step,
+      numericConstraints: keepUserLimits ? prior.numericConstraints : parameter.numericConstraints,
       source: prior.source === "user" ? "user" : parameter.source,
       description:
         parameter.description &&
@@ -116,7 +167,7 @@ function parseNumericLiteral(rawValue: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-function parseRangeComment(comment: string, value: number): ParsedRange {
+function parseRangeComment(comment: string): ParsedRange {
   const trimmed = comment.trim();
   if (!trimmed) return { description: "" };
 
@@ -150,15 +201,7 @@ function parseRangeComment(comment: string, value: number): ParsedRange {
   if (maxMatch?.[1]) parsed.max = Number(maxMatch[1]);
   if (stepMatch?.[1]) parsed.step = Number(stepMatch[1]);
 
-  if (parsed.min !== undefined || parsed.max !== undefined || parsed.step !== undefined) {
-    return parsed;
-  }
-
-  return {
-    description: trimmed,
-    min: defaultMinFor("", value),
-    max: defaultMaxFor("", value),
-  };
+  return parsed;
 }
 
 function defaultMinFor(key: string, value: number): number {

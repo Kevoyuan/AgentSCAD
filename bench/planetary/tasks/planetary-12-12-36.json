@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "id": "planetary-12-12-36",
+  "prompt": "Build a 12/12/36 epicyclic gear train with a fixed internal ring, sun input and carrier output: a positive sun input turns the carrier at half speed in the same direction, and the planets rotate in the opposite absolute direction. All four parts must export separately, and both input signs must be covered.",
+  "selectors": {
+    "sun": "sun_pose",
+    "planet": "planet_pose",
+    "ring": "ring",
+    "carrier": "carrier_pose"
+  },
+  "sunTeeth": 12,
+  "planetTeeth": 12,
+  "ringTeeth": 36,
+  "moduleMm": 2,
+  "carrierRadiusMm": 24,
+  "poses": [
+    0,
+    120,
+    240,
+    -120,
+    -240
+  ],
+  "angleToleranceDeg": 0.5,
+  "ratioTolerance": 0.005,
+  "centerDistanceToleranceMm": 0.25,
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 4
+      }
+    },
+    {
+      "id": "rigid-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "Epicyclic coupling is measured from rendered sun/planet/ring profiles and carrier/sun/planet marker slopes.",
+    "Straight-sided full-depth teeth; pitch radius is estimated from tip/root radii, not involute metrology.",
+    "Only the five listed input poses are covered; tooth contact, backlash, load, efficiency and physical manufacture are not claimed."
+  ]
+}

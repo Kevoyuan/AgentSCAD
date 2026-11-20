@@ -8,7 +8,8 @@ import { comparePlanarSurfaceCoverage } from "./planar-surface-coverage";
  * faces require independent bidirectional area coverage to earn PASS.
  * Missing evidence never becomes PASS. No volume/topology/motion claims.
  */
-export function checkReconstructedMesh(input: { local: Buffer; posed: Buffer; transform: number[]; toleranceMm?: number }) {
+export function checkReconstructedMesh(input: { local: Buffer; posed: Buffer; transform: number[]; toleranceMm?: number; surfaceComparison?: "triangles" | "bounded-cover" }) {
+  const strict = input.surfaceComparison === "triangles";
   const tolerance = input.toleranceMm ?? 1e-4;
   const m = [...input.transform];
   if (!(tolerance >= 1e-6 && tolerance <= 0.1) || m.length !== 16 || m.some(x => !Number.isFinite(x))) throw new Error("Invalid reconstruction transform/tolerance");
@@ -46,6 +47,7 @@ export function checkReconstructedMesh(input: { local: Buffer; posed: Buffer; tr
   const bboxErrorMm=Math.max(...ab.map((v,i)=>Math.abs(v-bb[i])));
   if(bboxErrorMm>tolerance) return {...base,status:"FAIL",reason:"Placed export and rendered pose have different bounds",bboxErrorMm};
   const planarFallback = (strictReason: string) => {
+    if (strict) return { ...base, status: "NOT_RUN" as const, reason: strictReason, bboxErrorMm };
     const coverage = comparePlanarSurfaceCoverage(a, b, tolerance);
     return {
       ...base,

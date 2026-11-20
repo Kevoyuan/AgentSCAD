@@ -13,6 +13,7 @@ import { parseJsonObject } from "@/lib/harness/structured-output";
 import {
   createProviderChatCompletion,
   findProviderForModel,
+  type ProviderConfig,
 } from "@/lib/provider-settings";
 import {
   readOpenAiCompatibleStream,
@@ -34,6 +35,10 @@ export interface ModelRouterRequest {
   stream?: boolean;
   preferMimo?: boolean;
   signal?: AbortSignal;
+  /** Explicit ephemeral provider for bounded local trials, never persisted. */
+  providerOverride?: ProviderConfig;
+  maxOutputTokens?: number;
+  reasoningEffort?: "none" | "low" | "high" | "max";
 }
 
 export interface ModelCompletionResponse {
@@ -416,7 +421,13 @@ export async function createChatCompletionDetailed({
   stream = false,
   preferMimo = true,
   signal,
+  providerOverride,
+  maxOutputTokens,
+  reasoningEffort,
 }: ModelRouterRequest): Promise<ModelCompletionResponse> {
+  if (maxOutputTokens !== undefined && (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 1 || maxOutputTokens > 393216)) {
+    throw new Error("maxOutputTokens must be an integer between 1 and 393216");
+  }
   // Single accounting point for `Job.llmCallCount`. Every model call in the
   // product reaches this function, so counting here keeps the metric complete
   // without threading counters through five different return types.
@@ -428,7 +439,9 @@ export async function createChatCompletionDetailed({
   let requestedProvider: string | undefined;
 
   try {
-    const configuredProvider = await findProviderForModel(model);
+    const configuredProvider = providerOverride
+      ? { provider: providerOverride, model: model || providerOverride.defaultModel }
+      : await findProviderForModel(model);
     if (configuredProvider) {
       requestedProvider = configuredProvider.provider.name;
       requestedModel = configuredProvider.model;
@@ -438,14 +451,24 @@ export async function createChatCompletionDetailed({
         messages,
         stream,
         signal: requestSignal,
+        maxOutputTokens,
+        reasoningEffort,
       });
-      return readModelCompletionResponse(providerResponse, {
+      const completion = await readModelCompletionResponse(providerResponse, {
         stream,
         providerLabel: configuredProvider.provider.name,
         fallbackModel: configuredProvider.model,
         signal: requestSignal,
       });
+      if (maxOutputTokens !== undefined && completion.finishReason === "length") {
+        throw new ModelRequestError("LLM_OUTPUT_TRUNCATED", "Bounded model response exhausted its output limit; partial reasoning or code is not a complete artifact.", false, {
+          evidence: { model: completion.model, provider: completion.provider, finishReason: completion.finishReason, usage: completion.usage, responseLength: completion.responseLength },
+        });
+      }
+      return completion;
     }
+
+    if (maxOutputTokens !== undefined || reasoningEffort !== undefined) throw new Error("A bounded or effort-controlled completion requires a configured or explicit provider");
 
     if (isOpenRouterModel(model)) {
       const openRouterResponse = await createOpenRouterChatCompletion({

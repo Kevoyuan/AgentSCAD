@@ -30,6 +30,7 @@ import {
   type OpenScadTimeoutStage,
 } from "@/lib/tools/scad-timeout";
 import openScadPolicy from "../../../config/openscad-wasm-runtime.json";
+import {annotateScadCompileError} from "./scad-compile-error";
 import type { RenderedArtifacts, RenderLog } from "@/lib/harness/types";
 
 const execFileAsync = promisify(execFile);
@@ -179,7 +180,7 @@ export async function validateGeneratedScadSource(scadSource: string, options: S
       await prepareScadForWasm(scadSource);
       cacheValidatedStl(scadSource, await renderScadToStlWasm(scadSource, undefined, options.signal));
     } catch (error) {
-      throw wrapWasmRenderTimeout(error, "validation", startedAt);
+      throw annotateScadCompileError(wrapWasmRenderTimeout(error, "validation", startedAt),scadSource);
     }
     return;
   }
@@ -197,6 +198,8 @@ export async function validateGeneratedScadSource(scadSource: string, options: S
     );
     // Reuse this STL in the render step instead of paying for a second compile.
     cacheValidatedStl(scadSource, await fs.readFile(tempStlPath), `${stdout}\n${stderr}`);
+  } catch (error) {
+    throw annotateScadCompileError(error,scadSource);
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }
@@ -219,7 +222,7 @@ export async function renderStl(
         (hasDefinitions ? null : takeValidatedStl(source)?.stl) ??
         (await renderScadToStlWasm(source, definitions, options.signal));
     } catch (error) {
-      throw wrapWasmRenderTimeout(error, "render", startedAt);
+      throw annotateScadCompileError(wrapWasmRenderTimeout(error, "render", startedAt),source);
     }
     await fs.writeFile(stlFilePath, stl);
     return "";
@@ -238,7 +241,10 @@ export async function renderStl(
     "render",
     "OpenSCAD STL render failed",
     options,
-  );
+  ).catch(async error => {
+    const source = await fs.readFile(scadFilePath,"utf8").catch(()=>"");
+    throw annotateScadCompileError(error,source);
+  });
   return `${stdout}\n${stderr}`;
 }
 

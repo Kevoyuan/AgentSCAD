@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { buildGenerationPlan, restoreGenerationPlan } from "./generation-plan";
+import { buildGenerationPlan, generationPlanFingerprint, restoreGenerationPlan } from "./generation-plan";
 import type { RequestIntelligenceV1 } from "@/lib/intake/request-intelligence";
 
 const intelligence: RequestIntelligenceV1 = {
@@ -27,6 +27,13 @@ const intelligence: RequestIntelligenceV1 = {
 };
 
 describe("generation plan checkpoint", () => {
+  test("a changed confirmed requirement invalidates the generation checkpoint", () => {
+    const base = { request: intelligence.rawRequest, family: "phone_case" as const, parameterValues: {}, parameterSchema: [], intelligence };
+    const first = buildGenerationPlan({ ...base, requirementContractSha256: "a".repeat(64) });
+    expect(first.fingerprint).toBe(generationPlanFingerprint(base.request, base.family, {}, intelligence, "a".repeat(64)));
+    expect(restoreGenerationPlan(JSON.stringify({ generation_plan: first }), generationPlanFingerprint(base.request, base.family, {}, intelligence, "b".repeat(64)))).toBeNull();
+    expect(first.fingerprint).not.toBe(generationPlanFingerprint(base.request, base.family, {}, intelligence));
+  });
   test("builds a compact plan and restores it only for the same inputs", () => {
     const checkpoint = buildGenerationPlan({
       request: intelligence.rawRequest,

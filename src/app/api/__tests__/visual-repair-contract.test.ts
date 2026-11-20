@@ -12,7 +12,7 @@ describe("visual repair route contract", () => {
     expect(source).toContain("const claim = await db.job.updateMany");
     expect(source).toContain('state: { in: ["HUMAN_REVIEW", "DELIVERED"] }');
     expect(source).toContain("if (claim.count !== 1)");
-    expect(source).toContain('where: { id, state: "REPAIRING" }');
+    expect(source).toContain('where: { id, state: "REPAIRING", executionLogs: repairClaimLog }');
     expect(source).toContain("if (committed.count !== 1)");
     // A VLM repair rewrites the artifact; the editable parameter contract must be
     // re-derived from the repaired source rather than kept from generation.

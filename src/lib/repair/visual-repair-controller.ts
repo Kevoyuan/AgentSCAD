@@ -1,3 +1,4 @@
+import { assertAssemblySourcePreserved } from "./assembly-preservation";
 // ---------------------------------------------------------------------------
 // Visual Repair Controller — user-triggered VLM-based repair
 //
@@ -118,13 +119,15 @@ export function visualRepairReportToValidationResult(report: VisualRepairReport)
 export function resolvePostRepairOutcome(
   criticalFailureRuleIds: string[],
   visualStatus: ValidationResult["status"],
+  assemblyUnresolved = false,
 ): { nextState: "DELIVERED" | "HUMAN_REVIEW"; repaired: boolean; reviewReasons: string[] } {
   const visualEvaluationErrored = visualStatus === "ERROR";
   const reviewReasons = [
     ...criticalFailureRuleIds,
     ...(visualEvaluationErrored ? ["V001_ERROR"] : []),
+    ...(assemblyUnresolved ? ["A001_UNRESOLVED"] : []),
   ];
-  const repaired = criticalFailureRuleIds.length === 0 && !visualEvaluationErrored;
+  const repaired = criticalFailureRuleIds.length === 0 && !visualEvaluationErrored && !assemblyUnresolved;
   return {
     nextState: repaired ? "DELIVERED" : "HUMAN_REVIEW",
     repaired,
@@ -206,6 +209,7 @@ export async function runVisualAnalysis(input: {
  */
 export async function runVisualRepair(input: {
   originalRequest: string;
+  confirmedRequirementsContext?: string;
   partFamily: string | null;
   scadSource: string;
   previewImagePath: string;
@@ -238,6 +242,7 @@ export async function runVisualRepair(input: {
     "## Original Request",
     input.originalRequest,
     "",
+    ...(input.confirmedRequirementsContext ? [input.confirmedRequirementsContext, ""] : []),
     "## Current SCAD Code",
     "```scad",
     input.scadSource,
@@ -253,6 +258,7 @@ export async function runVisualRepair(input: {
     "",
     "## Task",
     "Fix the SCAD code to address ALL visual issues listed above.",
+    "Preserve user-confirmed requirements, including nonvisual requirements; visual inspection does not verify them.",
     "Preserve features and dimensions that are visually correct.",
     "Use AgentSCAD standard library modules when possible.",
     "Return structured JSON with updated scad_source, then the SCAD code in a fence.",
@@ -280,6 +286,11 @@ export async function runVisualRepair(input: {
   );
 
   const repairedScad = sanitizeGeneratedScadSource(generationResult.scad_source);
+  assertAssemblySourcePreserved({
+    originalSource: input.scadSource,
+    proposedSource: repairedScad,
+    originalRequest: input.originalRequest,
+  });
 
   return {
     repairedScad,

@@ -19,7 +19,7 @@ export function toEvidenceRequirements(contract: RequirementContract) {
 export function toFitRequirements(
   contract: RequirementContract,
   spec: unknown,
-  options: { boreInstanceId?: string; connectionId?: string } = {},
+  options: { boreInstanceId?: string; connectionId?: string; allowPrismatic?: boolean } = {},
 ): AssemblyFitRequirement[] {
   const clearance = contract.requirements.find((requirement) => requirement.id === "diametral-clearance");
   if (!clearance) return [];
@@ -28,7 +28,8 @@ export function toFitRequirements(
 
   const parsed = validateAssemblySpec(spec);
   if (!parsed.success) throw new Error("Invalid assembly specification.");
-  const revolute = parsed.data.connections.filter((connection) => connection.type === "revolute");
+  const revolute = parsed.data.connections.filter((connection) =>
+    connection.type === "revolute" || (options.allowPrismatic === true && connection.type === "prismatic"));
   const connection = options.connectionId
     ? revolute.find((item) => item.id === options.connectionId)
     : revolute.length === 1 ? revolute[0] : undefined;
@@ -49,15 +50,10 @@ export function toFitRequirements(
   }];
 }
 
-
 /**
- * Product-safe binding of a confirmed/frozen contract to candidate mesh checks.
- * A joint that does not name its bore is ambiguous: never guess the role by
- * comparing diameters (that would manufacture positive clearance).
- *
- * IMPORTANT: READY means only that *candidate* geometry can be measured.
- * It does not mean the declaration's bore/shaft role was independently
- * identified. The caller must retain that uncertainty in the final verdict.
+ * Compatibility: bind a contract clearance to one unambiguous revolute joint.
+ * READY means only that candidate geometry can be measured; feature identity
+ * remains unverified.
  */
 export function resolveContractFitRequirements(contract: RequirementContract, spec: unknown): {
   status: "READY" | "NOT_RUN";
@@ -69,25 +65,12 @@ export function resolveContractFitRequirements(contract: RequirementContract, sp
   const clearance = requirementsInScope(contract).find(item =>
     item.id === "diametral-clearance" && item.required && item.applicable);
   if (!clearance) {
-    return {
-      status: "NOT_RUN", required: false,
-      reason: "No applicable required diametral-clearance assertion was stated.",
-      requirements: [], featureIdentityStatus: "NOT_RUN",
-    };
+    return { status: "NOT_RUN", required: false, reason: "No applicable required diametral-clearance assertion was stated.", requirements: [], featureIdentityStatus: "NOT_RUN" };
   }
   try {
     const requirements = toFitRequirements(contract, spec);
-    return {
-      status: "READY", required: true,
-      reason: "A declared revolute connection and bore instance are available for candidate mesh measurement. Bore/shaft feature identity remains unverified.",
-      requirements, featureIdentityStatus: "NOT_RUN",
-    };
+    return { status: "READY", required: true, reason: "A declared revolute connection and bore instance are available for candidate mesh measurement. Bore/shaft feature identity remains unverified.", requirements, featureIdentityStatus: "NOT_RUN" };
   } catch (error) {
-    return {
-      status: "NOT_RUN", required: true,
-      reason: "The required clearance cannot be bound to an unambiguous declared joint and bore instance: " +
-        (error instanceof Error ? error.message : "invalid feature declaration"),
-      requirements: [], featureIdentityStatus: "NOT_RUN",
-    };
+    return { status: "NOT_RUN", required: true, reason: "The required clearance cannot be bound to an unambiguous declared joint and bore instance: " + (error instanceof Error ? error.message : "invalid feature declaration"), requirements: [], featureIdentityStatus: "NOT_RUN" };
   }
 }

@@ -45,7 +45,7 @@ export function DimensionsModule({
   onReset,
 }: {
   job: Job
-  values: Record<string, number>
+  values: Record<string, number | boolean>
   /**
    * Keys whose draft differs from the values this part was built with.
    *
@@ -58,7 +58,7 @@ export function DimensionsModule({
    */
   changedKeys: Set<string>
   isProcessing: boolean
-  onDraft: (key: string, value: number) => void
+  onDraft: (key: string, value: number | boolean) => void
   onReset: () => void
 }) {
   const { t } = useI18n()
@@ -133,7 +133,7 @@ export function DimensionsModule({
   const changedLabels = schema.parameters.filter(p => changed.has(p.key)).map(p => p.label)
 
   const row = (param: (typeof schema.parameters)[number]) => {
-    const value = typeof values[param.key] === 'number' ? values[param.key] : param.value
+    const value = typeof values[param.key] === typeof param.value ? values[param.key] : param.value
     const isChanged = changed.has(param.key)
     // At 1024 the label column truncates ("Camera Clearan…"). The row title always
     // starts with the label so hover reveals what the column cannot, and only appends
@@ -163,17 +163,27 @@ export function DimensionsModule({
         >
           {param.label}
         </span>
-        <Stepper
+        {typeof value === 'boolean' ? (
+          <input
+            type="checkbox"
+            aria-label={param.label}
+            checked={value}
+            disabled={isProcessing || param.editable === false}
+            onChange={event => onDraft(param.key, event.target.checked)}
+            className="h-7 w-7 justify-self-end accent-[var(--shell-signal-soft)]"
+          />
+        ) : <Stepper
           label={param.label}
           value={value}
           min={param.min}
           max={param.max}
           step={param.step}
           kind={param.kind}
+          numericConstraints={param.numericConstraints}
           disabled={isProcessing || param.editable === false}
           changed={isChanged}
           onDraft={next => onDraft(param.key, next)}
-        />
+        />}
         <span
           className={cn(
             'text-right font-mono text-[10px] tabular-nums',

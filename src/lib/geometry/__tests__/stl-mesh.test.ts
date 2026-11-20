@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import {tubeStl,boxStl,mergeStl} from "./solids";
 import { prismStl } from "./prism";
 import { analyzeProfile, castRadialProfile, extentAlongAxis, readBinaryStl, refineProfileCenter, sectionMesh } from "../stl-mesh";
 import { measureCylindricalFeature } from "../cylindrical-feature";
@@ -127,4 +128,16 @@ describe("cylindrical feature measurement", () => {
     expect(result.status).toBe("ERROR");
     expect(result.reason).toMatch(/disagree on the diameter|not a cylindrical section/);
   });
+});
+
+
+test("a bridge filling the middle of a bore is rejected even when end sections measure", () => {
+  const stl = mergeStl(tubeStl({innerRadius:3.2,outerRadius:5,height:10,segments:64}), boxStl([-4,-4,4.5],[4,4,5.5]));
+  const ends = measureCylindricalFeature({stl,axis,role:"bore",stationsMm:[2,8]});
+  expect(ends.status).toBe("MEASURED");
+  const includingMiddle = measureCylindricalFeature({stl,axis,role:"bore",stationsMm:[2,5,8]});
+  expect(includingMiddle.status).toBe("ERROR");
+  expect(includingMiddle.diameterMm).toBeNull();
+  expect(includingMiddle.reason).toContain("5.000");
+  expect(includingMiddle.reason).toContain("INSIDE");
 });

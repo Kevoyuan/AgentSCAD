@@ -1,9 +1,10 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { createHash } from "crypto";
 import { strFromU8, unzipSync } from "fflate";
-import { AssemblyIdentityError, buildAssemblyBundle } from "./assembly-bundle";
+import { AssemblyIdentityError, buildAssemblyBundle, mechanismDimensionLines } from "./assembly-bundle";
 import { prismStl } from "../geometry/__tests__/prism";
 import { boxStl as solidBox, mergeStl, tubeStl } from "../geometry/__tests__/solids";
+import { deriveRequirementContract } from "../requirements/extract-requirements";
 
 const pose = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
@@ -39,6 +40,22 @@ const renderWith = (meshes: Record<string, Buffer>) => async () => ({
 });
 
 describe("assembly part bundle", () => {
+  test("automatic hinge checks require a current confirmed contract and one explicitly role-bound joint",async()=>{
+    const request="两件式铰链，直径间隙 0.35 到 0.45 mm，能转 ±45°，可拆";
+    const contract=deriveRequirementContract({request});
+    const joint={id:"joint",type:"revolute",a:"bore-1",b:"shaft-1",frameA:{origin:[0,0,0],direction:[0,0,1]},frameB:{origin:[0,0,0],direction:[0,0,1]},range:{min:-45,max:45,unit:"deg"},pitchMm:null,ratio:null,allowedContact:[],boreInstanceId:"bore-1"};
+    const declaration={...spec([{id:"bore",selector:"bore",source:"generated"},{id:"shaft",selector:"shaft",source:"generated"}]),connections:[joint]};
+    const parts={bore:tubeStl({innerRadius:3.2,outerRadius:5,height:10,segments:64}),shaft:prismStl({radius:3,height:12,z0:-1,segments:64})};
+    const run=(currentSpec:unknown,confirmed:boolean,currentRequest=request)=>buildAssemblyBundle({scadSource:"cube(1);",spec:currentSpec,render:renderWith(parts),contractSnapshot:{contract,request:currentRequest},contractGate:{evidenceCurrent:confirmed}});
+    expect((await run(declaration,true)).manifest.fits).toHaveLength(1);
+    expect((await run(declaration,false)).manifest.fits).toHaveLength(0);
+    expect((await run(declaration,true,"a different request")).manifest.fits).toHaveLength(0);
+    const missingRole=structuredClone(declaration) as {connections:Array<{boreInstanceId?:string}>};
+    delete missingRole.connections[0].boreInstanceId;
+    expect((await run(missingRole,true)).manifest.fits).toHaveLength(0);
+    const several={...declaration,connections:[joint,{...joint,id:"second"}]};
+    expect((await run(several,true)).manifest.fits).toHaveLength(0);
+  });
   const meshes = { base: boxStl([10, 10, 2]), lid: boxStl([10, 10, 2], [0, 0, 4]) };
 
   test("archives every generated part with a manifest that binds the exact bytes", async () => {
@@ -65,8 +82,12 @@ describe("assembly part bundle", () => {
     const readme = strFromU8(entries["README.txt"]);
     expect(readme).toContain("- identity: NOT_RUN");
     expect(readme).toContain("- assembly: NOT_RUN");
-    expect(readme).toContain("No layer in this");
-    expect(readme).toContain("works when printed");
+    expect(readme).toContain("Each PASS covers its recorded method and sampled conditions");
+    expect(readme).toContain("physical operation");
+    expect(readme).toContain("Digital evidence only");
+    expect(readme).toContain("reconstruction timeout is an execution budget");
+    expect(readme).toContain("- sourceMotion: NOT_RUN");
+    expect(readme).toContain("- rigidMotion: NOT_RUN");
     // No contract was supplied, so the archive says so rather than implying approval.
     expect(readme).toContain("confirmation not evaluated");
     expect(readme).toContain("contract binding: unavailable");
@@ -113,7 +134,7 @@ describe("assembly part bundle", () => {
       }],
     };
     const meshes = {
-      bore: tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 10, segments: 64 }),
+      bore: tubeStl({ innerRadius:3.2,outerRadius:5,height:10,segments:64 }),
       shaft: prismStl({ radius: 3, height: 12, segments: 64, z0: -1 }),
     };
     const bundle = await buildAssemblyBundle({
@@ -123,7 +144,9 @@ describe("assembly part bundle", () => {
     });
     const entries = unzipSync(new Uint8Array(bundle.zip));
     const readme = strFromU8(entries["README.txt"]);
-    expect(readme).toContain("- assembly: PASS");
+    expect(readme).toContain("- assembly: NOT_RUN");
+    expect(readme).toContain("- reconstruction: NOT_RUN");
+    expect(bundle.manifest.fits[0].measuredStatus).toBe("PASS");
     expect(readme).toContain("diametral clearance");
     expect(readme).toContain("- motion: NOT_RUN");
     expect(bundle.manifest.fits[0].status).toBe("PASS");
@@ -267,5 +290,17 @@ describe("declared disassembly in the archive", () => {
     const manifest = JSON.parse(strFromU8(entries["manifest.json"]));
     expect(manifest.evidence.disassembly.status).toBe("FAIL");
     expect(strFromU8(entries["README.txt"])).toContain("- disassembly: FAIL");
+  });
+});
+
+
+describe("bundle README mechanism dimensions", () => {
+  test("prints only measured dimensions and labels the digital basis", () => {
+    expect(mechanismDimensionLines(undefined)).toEqual([]);
+    expect(mechanismDimensionLines({ status: "NOT_RUN", crankRadiusMm: null, rodLengthMm: null })).toEqual([]);
+    const lines = mechanismDimensionLines({ status: "MEASURED", crankRadiusMm: 8, rodLengthMm: 28 });
+    expect(lines[0]).toContain("digital mesh sections");
+    expect(lines[1]).toBe("- crank radius: 8.000 mm");
+    expect(lines[2]).toBe("- rod length: 28.000 mm");
   });
 });

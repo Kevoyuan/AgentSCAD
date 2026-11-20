@@ -1,0 +1,31 @@
+# 达到数字壁厚阈值的研究者尺寸对照
+
+同名SCAD保存2026-11-11研究者调整后的原创铰链，SHA-256为48df6641bb8d7abf40b2d39daee4ad709c75b000666da28830e02b4a16fad37b。它从此前人工方案辅助的仓库候选调整尺寸，模型调用次数为0。模型自主生成、修复成功率和真实用户验收继续使用各自证据。
+
+## 条件和实际结果
+
+两件各自连通，保护原有零件和实例ID、关节帧、配合截面、±45度工作范围、源码输入、装拆操作及七项平移探测。孔轴直径间隙实际测得约0.399–0.401mm，位于0.35–0.45mm冻结要求内。连接帧、参考装配重构、采样工作运动、声明插入和移除及七项探测均PASS。
+
+两个独立制造网格R001的minWallWidth均为1.4mm，samplesMissing均为0，达到本次数字断言至少1.2mm。原规则把接近阈值的测量保留为WARN，原始WARN继续保留。独立标准库程序在原始STL中复测两条材料射线，均约1.3999996185302734mm，同时检查有向边与连通性，每件得到一个表面连通组。
+
+正常prepareContractAssembly在研究者模拟确认合同下执行六组源码输入。运动件各姿态的完整表面对照、同输入总装重构及综合运动均PASS，20份源码验证网格保留。独立Python标准库对归档文件逐个核对hash，并按矩阵重算12个实例姿态的边界，最大误差约1.17e-7mm。这个独立实现仍由同一研究者运行。完整表面及路径结论来自主检查器，独立工程师隐藏测试和连续路径证书继续等待执行。
+
+## 对照过程
+
+第一份尺寸对照的止挡最高Z=7.5mm，冻结抽出终点的轴底Z=7mm，现有终点包围盒分离判据FAIL，原始结果保留在`.agentscad/experiments/thick-hinge-control-2026-11-11`。该判据提供保守充分条件，包围盒仍重叠时不能仅凭它推断真实干涉。
+
+第一份实验的本地脚本错误地要求R001字面PASS，冻结目标实际为测量值至少1.2mm。gate-audit.json记录更正并保留原文件。第二份协议在运行前单独冻结，保持数值目标和原始WARN，降低两个止挡上表面到Z=6.9mm后重新执行所有检查。同名SCAD保存第二份对照的原字节，原始实验位于`.agentscad/experiments/thick-hinge-control2-2026-11-11`。
+
+## 复现入口和证据范围
+
+在仓库根目录准备现有OpenSCAD与受管理网格验证依赖。使用renderAssemblySpecParts读取同名SCAD及extractEmbeddedAssemblySpec得到的规格，分别导出supportA与rotorB。每件通过validateStl检查，核对R001的meshSha256、minWallWidth、samplesMissing及原始status。网格规则本身保留1.2mm软件默认，具体材料或打印机的适用性需要另行验证。
+
+使用prepareContractAssembly，输入同一SCAD及规格，绑定原功能请求及deriveRequirementContract结果。工具试验显式传contractGate.evidenceCurrent=true和sourceSamplingSeed=11223344556677889900aabbccddeeff。这个参数仅用于复现本研究者模拟确认的数字执行，真实产品确认应由正常用户流程产生。检查manifest中的fits、partConnectivity、translationProbes、declaredAssembly、declaredDisassembly、sourceMotion及evidence逐项状态。源姿态协议和全部实际参数保存在sourceMotion.protocol中。
+
+制造条件、负载、保持条件、防意外释放、寿命、完整意图覆盖与物理功能继续等待验收。数字检查使用有限离散姿态和局部射线。近阈值WARN、原始未知项及要求确认缺口都随候选保留。
+
+随后按预先保存的三输入协议实际执行参考、90度/Z=-0.9mm释放及90度/Z=10mm完全抽出，完整表面和同输入总装核对均PASS，耗时29.05秒，11份原始STL保留在result/release。另一独立标准库审计验证这些文件的hash与6个实例边界，最大差异约9.54e-8mm。该补查覆盖列出的实际源码输入，声明路径其余位置仍由前述刚体采样提供证据。
+
+后续修正了终点证据分类。包围盒重叠且所有采样无碰撞时，完整移除现在为NOT_RUN。保留的第一份网格重新通过正常声明装拆入口得到NOT_RUN，第二份仍PASS，真实模型穿透反例仍FAIL。前述第一次FAIL是当时工具的历史结果。
+
+当前修正后的工具另通过正常buildAssemblyBundle生成真实研究装配包，20份验证网格完整归档。最终ZIP的SHA-256为6ffe9e605d1f4d5dd3521ed2452b6ba92a306551870775febe0147501155e139。原始包及逐件制造报告分别位于同实验的bundle-final/hinge-digital-research.zip与manufacturing.json，制造报告与包内实际文件的hash绑定。独立Python直接打开ZIP复核内容与12个姿态边界，工具代码前后hash一致。此装配包使用研究者模拟确认合同，保持其未验收项。

@@ -35,7 +35,23 @@ test("repair prompt separates failed geometry from unavailable evidence and reta
   expect(prompt).toContain("two separate moving parts");
 });
 
+test("repair receives the current confirmed condition without claiming it passed", () => {
+  const prompt = buildRepairPrompt({ originalRequest: "hinge", partFamily: "unknown", currentScadCode: "cube(1);", validationResults: [],
+    confirmedRequirementsContext: "## User-confirmed requirement contract\n{\"statement\":\"resist 10 N\"}" });
+  expect(prompt).toContain("resist 10 N");
+  expect(prompt).toContain("never claim they passed without evidence");
+});
+
 describe("repair completion guard", () => {
+  test("wall repair feedback retains the measured location and mesh binding", () => {
+    const prompt = buildRepairPrompt({ originalRequest: "hinge", partFamily: "unknown", currentScadCode: "cube(1);",
+      validationResults: [{ rule_id: "R001", rule_name: "Wall", level: "ENGINEERING", passed: false,
+        is_critical: true, status: "FAIL", message: "Width 0.69 mm",
+        details: { meshSha256: "a".repeat(64), minWallWitness: { origin: [4.177, 5.987, 3.933], distanceMm: 0.69 } } }] });
+    expect(prompt).toContain("a".repeat(64));
+    expect(prompt).toContain('"origin":[4.177,5.987,3.933]');
+    expect(prompt).toContain('"distanceMm":0.69');
+  });
   test("accepts a complete repair reply", () => {
     expect(() => assertRepairCompletionUsable(completion())).not.toThrow();
   });

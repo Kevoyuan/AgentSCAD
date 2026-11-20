@@ -223,7 +223,7 @@ export function MainWorkspace() {
    * design is only rebuilt when the composer's action is pressed, which is what
    * keeps "preview" and "built artifact" distinguishable (DESIGN.md section 5).
    */
-  const [paramDraft, setParamDraft] = useState<Record<string, number> | null>(null)
+  const [paramDraft, setParamDraft] = useState<Record<string, number | boolean> | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   /** The 源码 / 记录 sheet: everything that is not a canvas module (section 6). */
   const [showDetails, setShowDetails] = useState(false)
@@ -265,9 +265,9 @@ export function MainWorkspace() {
         const next = paramDraft[p.key]
         const from = baselineValues[p.key]
         return (
-          typeof next === 'number' &&
-          typeof from === 'number' &&
-          Math.abs(next - from) > 1e-9
+          typeof next === 'number' && typeof from === 'number'
+            ? Math.abs(next - from) > 1e-9
+            : typeof next === 'boolean' && next !== from
         )
       })
       .map(p => ({ key: p.key, label: p.label, from: baselineValues[p.key], to: paramDraft[p.key] }))
@@ -275,7 +275,7 @@ export function MainWorkspace() {
   const hasDraftChanges = changes.length > 0
   const changedKeys = new Set(changes.map(change => change.key))
 
-  const handleParamDraft = useCallback((key: string, value: number) => {
+  const handleParamDraft = useCallback((key: string, value: number | boolean) => {
     setParamDraft(prev => ({ ...(prev ?? {}), [key]: value }))
   }, [])
 

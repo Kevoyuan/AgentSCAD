@@ -70,3 +70,35 @@ describe("assembly specification", () => {
     expect(validateAssemblySpec(value).success).toBe(false);
   });
 });
+
+
+describe("motion source selectors", () => {
+  test("names the instances that are missing a pose selector", () => {
+    const value = fixture();
+    (value.motions[0] as unknown as { sourceInput: unknown }).sourceInput = {
+      parameter: "drive_angle",
+      poseSelectors: { block: "block", crank: "crank", rod: "rod" },
+    };
+    const result = validateAssemblySpec(value);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const message = result.error.issues.map((issue) => issue.message).join(" ");
+      expect(message).toContain("Missing: piston.");
+      expect(message).not.toContain("Unknown:");
+    }
+  });
+
+  test("names an extra pose selector", () => {
+    const value = fixture();
+    (value.motions[0] as unknown as { sourceInput: unknown }).sourceInput = {
+      parameter: "drive_angle",
+      poseSelectors: { block: "block", crank: "crank", rod: "rod", piston: "piston", ghost: "ghost" },
+    };
+    const result = validateAssemblySpec(value);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const message = result.error.issues.map((issue) => issue.message).join(" ");
+      expect(message).toContain("Unknown: ghost.");
+    }
+  });
+});
