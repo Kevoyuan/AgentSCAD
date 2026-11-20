@@ -34,6 +34,10 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 | **UX baseline (states, acceptance, wait, cost, abandoned runs)** | `bun run ux:baseline [--stale-hours 2]` |
 | Clear metric columns after a definition change | `bun run metrics:reset` (dry run) · `bun run metrics:reset -- --yes` (applies) |
 
+## Development rules
+
+Follow [`docs/DEVELOPMENT_RULES.md`](docs/DEVELOPMENT_RULES.md). It defines the required merge gate, evidence semantics, branch and worktree rules, benchmark rules, and the planned-run workflow for multi-step agent work.
+
 ## Functional assembly task tracker
 
 Use [`docs/ASSEMBLY_EXECUTION_BACKLOG.md`](docs/ASSEMBLY_EXECUTION_BACKLOG.md) as the ordered A01–A14 execution ledger. Do not equate source completion with mechanical validation; update the ledger after CI and evidence checkpoints. The on-demand assembly inspection route is `/api/jobs/{id}/assembly/evidence` (source/spec hashes required), triggered only from the Assembly panel. It renders and measures; do not add it to background polling or implicitly mark the job accepted. The read-only result contains both current contract-gated verdicts and unapproved raw measured statuses.

@@ -4,6 +4,8 @@ This document holds the longer setup, testing, and CI notes that would otherwise
 
 For setup failures and common runtime issues, see [Troubleshooting](./TROUBLESHOOTING.md).
 
+For the normative workflow rules (merge gate, evidence semantics, branch cleanup, and planned agent runs), see [Development Rules](./DEVELOPMENT_RULES.md).
+
 ## Local Commands
 
 | Task | Command |
