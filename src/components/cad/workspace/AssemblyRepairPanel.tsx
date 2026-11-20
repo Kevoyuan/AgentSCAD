@@ -6,6 +6,8 @@ import { useI18n } from '@/components/i18n-provider'
 type AttemptView = {
   attempt:number
   scadSha256:string
+  candidateScadSource?:string
+  candidateByteLength?:number
   accepted:boolean
   phase?:string
   reason?:string
@@ -164,7 +166,21 @@ export function AssemblyRepairPanel({jobId,sourceSha256,specSha256}:{
         <span>{item.event?.state??'CORRUPT'} · {item.integrity} · {item.bindingCurrent?t('Current'):t('Earlier source')}</span>
         {item.event?.attempt&&<span> · {t('Attempt')} {item.event.attempt.attempt}: {item.event.attempt.phase??'measured'}</span>}
         {item.event?.terminal&&<span> · {item.event.terminal.stoppedBecause}</span>}
+        {item.event?.attempt?.candidateScadSource!==undefined&&item.bindingCurrent&&
+          <details className="mt-1">
+            <summary>{t('Replay recorded repair proposal')} · {item.event.attempt.candidateByteLength} B</summary>
+            <p className="break-all">{t('Source SHA-256')}: {item.event.attempt.scadSha256}</p>
+            <textarea readOnly value={item.event.attempt.candidateScadSource} rows={6}
+              className="mt-1 w-full rounded border border-[color:var(--shell-hairline)] bg-transparent p-1 font-mono text-xs"/>
+            <button type="button" className="rounded border border-[color:var(--shell-hairline)] px-2 py-1"
+              onClick={()=>void navigator.clipboard.writeText(item.event!.attempt!.candidateScadSource!)
+                .then(()=>setCopyFeedback(t('Copied candidate source')))
+                .catch(()=>setCopyFeedback(t('Copy failed; select the source manually')))}>
+              {t('Copy recorded proposal')}
+            </button>
+          </details>}
       </li>)}</ul>
+      {copyFeedback&&<p role="status" className="mt-1">{copyFeedback}</p>}
     </details>}
   </section>
 }

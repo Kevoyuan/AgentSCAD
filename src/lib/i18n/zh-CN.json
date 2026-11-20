@@ -1203,6 +1203,8 @@
   "Copy failed; select the source manually": "复制失败，请手动选择源码",
   "Measured repair is not independent physical functionality, manufacturing acceptance or approval to overwrite the original.": "实测修复不能替代实物功能、制造验收，也不等于允许覆盖原始版本。",
   "Recorded repair history": "修复历史记录",
+  "Replay recorded repair proposal": "重放已记录的修复候选",
+  "Copy recorded proposal": "复制已记录候选",
   "Measured repair candidate — not applied": "已实测修复候选（尚未应用）",
   "Some geometry checks remain NOT_RUN; this is a review candidate, not verified complete functionality.": "部分几何验证仍为 NOT_RUN。此结果仅供审核，不代表完整功能已通过。"
 }

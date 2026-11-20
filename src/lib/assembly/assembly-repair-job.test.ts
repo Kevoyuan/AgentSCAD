@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { validateAssemblySpec } from "./assembly-spec";
 import { runProductionAssemblyRepair } from "./assembly-repair-job";
@@ -63,6 +64,87 @@ describe("A07 production closure with frozen original user requirements",()=>{
     expect(result.evidenceComplete).toBe(true);
     expect(result.finalScad).toBe(revised);
     expect(events).toEqual(["measured","measured"]);
+    // The accepted candidate is replayable from its exact returned bytes.
+    expect(result.attempts[1].candidateScadSource).toBe(revised);
+    expect(result.attempts[1].candidateByteLength).toBe(Buffer.byteLength(revised,"utf8"));
+  });
+
+  test("an identical no-op paid proposal is recorded with exact source and model usage",async()=>{
+    const f=await fixture();
+    const usage={model:"test-model",provider:"unit",latencyMs:35,promptTokens:120,completionTokens:6};
+    const phases:string[]=[];
+    let measurements=0;
+    const result=await runProductionAssemblyRepair({
+      originalRequest:userRequest,scadSource:f.source,spec:f.spec,contract:f.contract,
+      maxAttempts:1,signal:new AbortController().signal,
+      modelProposal:async context=>({scad:context.currentScad,modelExecution:usage}),
+      measureOverride:async()=>{
+        measurements++;
+        return {spec:f.spec,manifest:evidence("FAIL"),kinematics:null,fitRequirements:frozenFit};
+      },
+      onAttempt:item=>{phases.push(item.phase??"");},
+    });
+    // The proposal made no progress, but the paid call is still an immutable attempt.
+    expect(result.stoppedBecause).toBe("no-progress");
+    expect(measurements).toBe(1);
+    expect(phases).toEqual(["measured","no-progress"]);
+    expect(result.attempts[1].phase).toBe("no-progress");
+    expect(result.attempts[1].candidateScadSource).toBe(f.source);
+    expect(result.attempts[1].candidateByteLength).toBe(Buffer.byteLength(f.source,"utf8"));
+    expect(result.attempts[1].scadSha256).toBe(result.attempts[0].scadSha256);
+    expect(result.attempts[1].modelExecution).toEqual(usage);
+    expect(result.finalScad).toBe(f.source);
+  });
+
+  test("a returned proposal that cannot be rendered keeps its source, digest and usage",async()=>{
+    const f=await fixture();
+    const revised=f.scad(f.source.split("END_AGENTSCAD_ASSEMBLY */\n")[1]+"\n// repaired");
+    const usage={model:"test-model",provider:"unit",latencyMs:9,promptTokens:210,completionTokens:12};
+    let measurements=0;
+    const result=await runProductionAssemblyRepair({
+      originalRequest:userRequest,scadSource:f.source,spec:f.spec,contract:f.contract,
+      maxAttempts:1,signal:new AbortController().signal,
+      modelProposal:async()=>({scad:revised,modelExecution:usage}),
+      measureOverride:async source=>{
+        measurements++;
+        if(source===revised)throw new Error("native OpenSCAD render failed");
+        return {spec:f.spec,manifest:evidence("FAIL"),kinematics:null,fitRequirements:frozenFit};
+      },
+    });
+    expect(result.stoppedBecause).toBe("repair-failed");
+    expect(result.reason).toContain("could not be measured");
+    expect(result.finalScad).toBe(f.source);
+    expect(measurements).toBe(2);
+    expect(result.attempts[1].phase).toBe("measurement-error");
+    expect(result.attempts[1].candidateScadSource).toBe(revised);
+    expect(result.attempts[1].scadSha256).toBe(createHash("sha256").update(revised).digest("hex"));
+    expect(result.attempts[1].modelExecution).toEqual(usage);
+  });
+
+  test("an oversized returned proposal retains digest, byte count and usage but no text",async()=>{
+    const f=await fixture();
+    const oversized=f.scad(f.source.split("END_AGENTSCAD_ASSEMBLY */\n")[1])+"\n"+" ".repeat(270_000);
+    const usage={model:"test-model",provider:"unit",promptTokens:180,completionTokens:4};
+    let measurements=0;
+    const result=await runProductionAssemblyRepair({
+      originalRequest:userRequest,scadSource:f.source,spec:f.spec,contract:f.contract,
+      maxAttempts:1,signal:new AbortController().signal,
+      modelProposal:async()=>({scad:oversized,modelExecution:usage}),
+      measureOverride:async()=>{
+        measurements++;
+        return {spec:f.spec,manifest:evidence("FAIL"),kinematics:null,fitRequirements:frozenFit};
+      },
+    });
+    expect(result.stoppedBecause).toBe("repair-failed");
+    expect(result.reason).toContain("256 KiB");
+    // Only the original was measured: the oversized text was never rendered.
+    expect(measurements).toBe(1);
+    expect(result.finalScad).toBe(f.source);
+    expect(result.attempts[1].phase).toBe("proposal-error");
+    expect(result.attempts[1].candidateScadSource).toBeUndefined();
+    expect(result.attempts[1].candidateByteLength).toBe(Buffer.byteLength(oversized,"utf8"));
+    expect(result.attempts[1].scadSha256).toBe(createHash("sha256").update(oversized).digest("hex"));
+    expect(result.attempts[1].modelExecution).toEqual(usage);
   });
 
   test("source without the embedded frozen declaration cannot invoke the model or render",async()=>{
@@ -80,11 +162,13 @@ describe("A07 production closure with frozen original user requirements",()=>{
     const f=await fixture();
     const weakened=structuredClone(f.spec);
     weakened.connections[0].range={min:-5,max:5,unit:"deg"};
+    const weakenedSource=f.scad("cube(2);",weakened);
+    const usage={model:"test-model",provider:"unit",promptTokens:88};
     let measurements=0;
     const result=await runProductionAssemblyRepair({
       originalRequest:userRequest,scadSource:f.source,spec:f.spec,contract:f.contract,
       maxAttempts:1,signal:new AbortController().signal,
-      modelProposal:async()=>({scad:f.scad("cube(2);",weakened)}),
+      modelProposal:async()=>({scad:weakenedSource,modelExecution:usage}),
       measureOverride:async()=>{
         measurements++;
         return {spec:f.spec,manifest:evidence("FAIL"),kinematics:null,fitRequirements:frozenFit};
@@ -93,6 +177,9 @@ describe("A07 production closure with frozen original user requirements",()=>{
     expect(result.stoppedBecause).toBe("invariant-violated");
     expect(measurements).toBe(1);
     expect(result.finalScad).toBe(f.source);
+    expect(result.attempts[1].phase).toBe("invariant");
+    expect(result.attempts[1].candidateScadSource).toBe(weakenedSource);
+    expect(result.attempts[1].modelExecution).toEqual(usage);
   });
 
   test("an inconclusive measurement cannot cause any paid repair call",async()=>{

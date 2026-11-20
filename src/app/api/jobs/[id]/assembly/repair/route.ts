@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
 import { lockAssemblyExport, AssemblyExportRejection } from "@/lib/pipeline/assembly-export-guard";
 import { JobExecutionConflict, JobExecutionStopped } from "@/lib/pipeline/job-execution";
-import { readAssemblySpecification } from "@/lib/pipeline/assembly-spec-record";
+import { assemblySourceHash, readAssemblySpecification } from "@/lib/pipeline/assembly-spec-record";
 import { readRequirementContract } from "@/lib/requirements/requirement-contract-record";
 import { fingerprintRequirementState } from "@/lib/assembly/evidence-snapshot-record";
 import { runProductionAssemblyRepair, AssemblyRepairUnsupported } from "@/lib/assembly/assembly-repair-job";
@@ -174,8 +174,11 @@ export async function GET(request:NextRequest,{params}:Context){
   if(!job)return NextResponse.json({error:"Job not found"},{status:404});
   const spec=job.scadSource?await readAssemblySpecification(id,job.scadSource):null;
   const requirements=await readRequirementContract(id,job.inputRequest);
+  // The replayable candidate source is bound to the CURRENT Job source, not to
+  // whichever source hash the saved declaration still points at. A stale spec
+  // record must not keep an old proposal's text exposed after the Job changed.
   const history=await readRepairEvents(id,{
-    sourceSha256:spec?.sourceSha256??"",
+    sourceSha256:assemblySourceHash(job.scadSource)??"",
     specificationSha256:spec?.specSha256??"",
     contractSha256:requirements.contractSha256,
     requirementFingerprint:fingerprintRequirementState(requirements),
@@ -185,10 +188,14 @@ export async function GET(request:NextRequest,{params}:Context){
     events:history.map(item=>({
       ...item,
       // Only expose saved candidate source when bound to the current exact
-      // user-confirmed version; stale history remains inspectable by digest.
+      // user-confirmed version; stale history keeps its digests, byte counts,
+      // phases and reasons but loses the replayable text.
       event:item.event&&item.bindingCurrent?item.event:
-        item.event?{...item.event,terminal:item.event.terminal?
-          {...item.event.terminal,reviewCandidateScad:null}:null}:null,
+        item.event?{...item.event,
+          attempt:item.event.attempt?
+            {...item.event.attempt,candidateScadSource:undefined}:null,
+          terminal:item.event.terminal?
+            {...item.event.terminal,reviewCandidateScad:null}:null}:null,
     })),
   },{headers:{"Cache-Control":"no-store"}});
 }
