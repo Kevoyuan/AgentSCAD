@@ -224,8 +224,9 @@ export async function verifySourcePoses(input: {
     }
     const timedOut = Date.now() - started >= budgetMs || controller.signal.aborted;
     const hasObservableChange = results.some(item => item.comparisons?.some(row => row.observability?.status === "OBSERVED"));
-    const status = results.some(item => item.status === "FAIL") ? "FAIL" : results.some(item => item.status === "ERROR") ? "ERROR"
-        : timedOut || !hasObservableChange || results.length !== setup.cases.length || results.some(item => item.status !== "PASS") ? "NOT_RUN" : "PASS";
+    const status = !hasObservableChange ? "NOT_RUN"
+        : results.some(item => item.status === "FAIL") ? "FAIL" : results.some(item => item.status === "ERROR") ? "ERROR"
+        : timedOut || results.length !== setup.cases.length || results.some(item => item.status !== "PASS") ? "NOT_RUN" : "PASS";
     return {
         ...base, status, timedOut, hasObservableChange, durationMs: Date.now() - started, results
     };
