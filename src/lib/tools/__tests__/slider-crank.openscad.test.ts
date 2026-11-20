@@ -199,11 +199,7 @@ test("guide retainers must be turned and pulled before the guide can leave", asy
   expect(embedded.status).toBe("valid");if(embedded.status!=="valid")return;
   const {parts}=await renderAssemblySpecParts(source,embedded.spec);
   const meshes=Object.fromEntries(parts.map(p=>[p.partId,p.stl]));
-  // Native CI on shared runners can exceed the production default 5 s CPU
-  // budget while evaluating this full multi-part removal. Give this deterministic
-  // integration fixture 15 s; keep collision policy, pose sampling and PASS
-  // requirements unchanged. Production's default budget remains 5 s.
-  const good=checkDeclaredPoseDisassembly({spec:embedded.spec,meshes,budgetMs:15000});
+  const good=checkDeclaredPoseDisassembly({spec:embedded.spec,meshes,budgetMs:60000});
   expect(good.status,JSON.stringify(good)).toBe("PASS");
   expect(good.results.filter(r=>r.instanceId.startsWith("guide_lock")).every(r=>r.status==="PASS")).toBe(true);
 

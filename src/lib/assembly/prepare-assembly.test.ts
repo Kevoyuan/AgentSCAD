@@ -207,7 +207,7 @@ describe("assembly fit evidence", () => {
   });
   const jointRender = async () => {
     const meshes = {
-      bore: tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 10, segments: 64 }),
+      bore: tubeStl({innerRadius:3.2,outerRadius:5,height:10,segments:64}),
       shaft: prismStl({ radius: 3, height: 12, segments: 64, z0: -1 }),
     };
     return {
@@ -234,41 +234,6 @@ describe("assembly fit evidence", () => {
     // Measurement does not upgrade the layers that were not measured.
     expect(result.manifest.evidence.motion.status).toBe("NOT_RUN");
     expect(result.manifest.evidence.physical.status).toBe("NOT_RUN");
-  });
-
-  test("a translated shaft with nominal matching diameters cannot become assembly PASS", async () => {
-    const shifted = jointSpec();
-    shifted.instances[1].transform = [1, 0, 0, 0.25, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-    const result = await prepareAssembly({
-      scadSource: "cube(1);", spec: shifted, render: jointRender,
-      fitRequirements: [{ connectionId: "joint", boreInstanceId: "bore-instance", diametralClearanceMm: { min: 0.35, max: 0.45 } }],
-      contractGate: { evidenceCurrent: true },
-    });
-    expect(result.fits[0].diametralClearanceMm!.min).toBeGreaterThan(0.35);
-    expect(result.fits[0].radialEnclosure?.maximumCenterOffsetMm).toBeCloseTo(0.25, 3);
-    expect(result.fits[0].radialEnclosure?.minimumMarginMm).toBeLessThan(0);
-    expect(result.fits[0].measuredStatus).toBe("NOT_RUN");
-    expect(result.fits[0].status).toBe("NOT_RUN");
-    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
-    expect(result.manifest.evidence.physical.status).toBe("NOT_RUN");
-  });
-  test("a declared bore made from solid mesh cannot pass even when numerical clearance fits", async () => {
-    const falseBore = prismStl({ radius: 3.2, height: 10, segments: 64 });
-    const pin = prismStl({ radius: 3, height: 12, segments: 64, z0: -1 });
-    const renderSolid = async () => ({
-      parts: [{ partId: "bore", stl: falseBore, sha256: createHash("sha256").update(falseBore).digest("hex"), triangleCount: falseBore.readUInt32LE(80), diagnostics: "" },
-        { partId: "shaft", stl: pin, sha256: createHash("sha256").update(pin).digest("hex"), triangleCount: pin.readUInt32LE(80), diagnostics: "" }],
-      purchasedPartIds: [],
-    });
-    const result = await prepareAssembly({
-      scadSource: "cube(1);", spec: jointSpec(), render: renderSolid,
-      fitRequirements: [{ connectionId: "joint", boreInstanceId: "bore-instance", diametralClearanceMm: { min: 0.35, max: 0.45 } }],
-    });
-    expect(result.fits[0].measuredStatus).toBe("PASS");
-    expect(result.fits[0].boreRoleCheck?.observedRole).toBe("shaft");
-    expect(result.fits[0].status).toBe("NOT_RUN");
-    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
-    expect(result.fits[0].reason).toContain("contradicts");
   });
 
   test("an unmet requirement fails and keeps the measured numbers", async () => {

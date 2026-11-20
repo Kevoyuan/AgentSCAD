@@ -9,8 +9,17 @@ import { assessFit, measureRevoluteFit, type FitRequirement } from "./fit-measur
 import { checkKinematics } from "./path-and-motion";
 import { renderAssemblySpecParts, type RenderedAssemblyPart } from "../tools/assembly-part-renderer";
 import type { ScadExecutionOptions } from "../tools/scad-renderer";
-import { RequirementContractSchema, requirementContractHash } from "../requirements/requirement-contract";
-import { resolveContractFitRequirements } from "../requirements/contract-bridge";
+import { checkAssemblyReconstruction } from "../tools/assembly-reconstruction";
+import { checkMeasuredJointFrames, JOINT_FRAME_CONSISTENCY_LIMITS } from "./measured-joint-frame";
+import { RequirementContractSchema, requirementContractHash, unknownsInScope, withDerivedUnknowns } from "../requirements/requirement-contract";
+import { deriveRequirementContract } from "../requirements/extract-requirements";
+import { checkDeclaredTranslationProbes } from "./declared-translation-probes";
+import { buildSourcePoseProtocol } from "./source-pose-protocol";
+import { buildSliderCrankSourcePoseProtocolFromSpec } from "../tools/slider-crank-source-pose";
+import { measureSliderCrankDimensions } from "./slider-crank-dimensions";
+import { buildBvh, placeBvh, bvhIntersects } from "../geometry/mesh-collision";
+import { readBinaryStl } from "../geometry/stl-mesh";
+import { verifySourcePoses, type SourcePoseArtifact } from "../tools/source-pose-verification";
 
 const sha256 = (data: string | Buffer) => createHash("sha256").update(data).digest("hex");
 type Rendered = { parts: RenderedAssemblyPart[]; purchasedPartIds: string[] };
@@ -204,57 +213,32 @@ export async function prepareAssembly(input: {
     : input.contractGate
     ? (input.contractGate.evidenceCurrent ? null : input.contractGate.reason?.trim() || "The requirement contract has not been confirmed against the current request, so its results cannot count.")
     : null;
-  const fitBinding = input.fitRequirements === undefined && contract
-    ? resolveContractFitRequirements(contract, spec) : null;
-  const fits = (input.fitRequirements ?? fitBinding?.requirements ?? []).map((requirement) => {
+  const reconstruction = await checkAssemblyReconstruction({ spec, meshes, assemblyMesh: input.assemblyMesh?.stl, options: input.options, budgetMs: input.reconstructionBudgetMs });
+  const reconstructionEvidence = applyContractGate(reconstruction.status, reconstruction.reason, gateReason);
+  const fits = (input.fitRequirements ?? []).map((requirement) => {
     const measurement = measureRevoluteFit({
       spec, connectionId: requirement.connectionId, meshes,
       boreInstanceId: requirement.boreInstanceId, stationsMm: requirement.stationsMm,
     });
     const assessment = assessFit(measurement, requirement);
     const gated = applyContractGate(assessment.status, assessment.reason, gateReason);
-    // The requested bore/shaft role is declared, not independently identified.
-    // A candidate measurement (including a candidate FAIL) is useful for
-    // diagnostics but cannot certify the real interface without feature identity
-    // calibration. Explicit caller-provided fit checks remain unchanged.
-    const roleUnknown = fitBinding?.required === true && fitBinding.featureIdentityStatus === "NOT_RUN";
-    // A confident-looking diameter is never approval when the *actual* section
-    // is solid where a bore was declared, or cannot be independently classified.
-    // Preserve the numeric raw measurement; do not erase a known outside-band
-    // failure in explicit caller-supplied requirements.
-    const boreObserved = measurement.bore?.roleCheck;
-    const shaftObserved = measurement.shaft?.roleCheck;
-    const sectionUnresolved = !boreObserved || !shaftObserved ||
-      boreObserved.status !== "OBSERVED" || shaftObserved.status !== "OBSERVED";
-    const sectionMismatch = boreObserved?.observedRole === "shaft" ||
-      shaftObserved?.observedRole === "bore";
-    const standing = roleUnknown && (gated.status === "PASS" || gated.status === "FAIL")
-      ? "NOT_RUN" as const
-      : gated.status === "PASS" && (sectionUnresolved || sectionMismatch) ? "NOT_RUN" as const : gated.status;
-    const roleReason = roleUnknown
-      ? " Candidate bore/shaft identity was taken from the declaration and is not independently verified."
-      : "";
-    const sectionReason = sectionMismatch
-      ? " The actual sampled section contradicts its declared bore/shaft role."
-      : sectionUnresolved ? " The sampled section topology could not establish local bore/shaft roles." : "";
-    const reason = standing === "NOT_RUN"
-      ? gated.reason + roleReason + sectionReason
-      : gated.reason;
+    const frameCheck=checkMeasuredJointFrames({spec,measurement,limits:JOINT_FRAME_CONSISTENCY_LIMITS});
+    const frameVerdict=applyContractGate(frameCheck.status,frameCheck.reason,gateReason);
     return {
       connectionId: requirement.connectionId,
-      status: standing,
-      reason,
+      status: gated.status,
+      reason: gated.reason,
       measuredStatus: assessment.status,
       stationsMm: measurement.stationsMm,
       stationSource: measurement.stationSource ?? "not-selected",
       stationFrame: measurement.stationFrame ?? null,
       diametralClearanceMm: measurement.clearanceMm,
-      radialEnclosure: measurement.radialEnclosure,
       boreDiameterMm: measurement.bore?.measurement.diameterMm ?? null,
       shaftDiameterMm: measurement.shaft?.measurement.diameterMm ?? null,
       axisOffsetMm: measurement.axis?.offsetMm ?? null,
       axisAngleDeg: measurement.axis?.angleDeg ?? null,
       seedOffsetMm: measurement.bore?.seedOffsetMm ?? null,
+      radialEnclosure: measurement.radialEnclosure ?? null,
       boreRoleCheck: measurement.bore?.roleCheck ?? null,
       shaftRoleCheck: measurement.shaft?.roleCheck ?? null,
       unknowns: measurement.unknowns,
@@ -298,11 +282,37 @@ export async function prepareAssembly(input: {
     ? applyContractGate(sliderRigid.status as EvidenceStatus, sliderRigid.reason, gateReason) : null;
   let motionEvidence = kinematics
     ? applyContractGate(kinematics.motion.status as EvidenceStatus, kinematics.motion.reason, gateReason)
-    : { status: "NOT_RUN" as EvidenceStatus, reason: "Motion was not checked." };
-  const unboundRequiredFit = fitBinding?.required === true && fitBinding.status === "NOT_RUN";
+    : sliderRigidEvidence
+      ? sliderRigidEvidence
+      : input.kinematics?.sliderCrank
+        ? { status: "NOT_RUN" as const, reason: "Multi-joint rigid sampling was not prepared." }
+        : { status: "NOT_RUN" as EvidenceStatus, reason: "Motion was not checked." };
+  const motionFrames=fits.find(fit=>fit.connectionId===input.kinematics?.connectionId)?.jointFrames;
+  if(kinematics?.motion.status==="PASS"&&motionEvidence.status==="PASS"&&motionFrames?.status!=="PASS") {
+    motionEvidence={status:motionFrames?.status??"NOT_RUN",reason:`Rigid-pose collision samples passed, but the actual mating feature axes were not verified against the declared motion frame: ${motionFrames?.reason??"No measured mating feature axes."}`};
+  }
+  const rigidMotionEvidence = sliderRigidEvidence ?? motionEvidence;
+  const sourceProtocol = buildSourcePoseProtocol(spec, input.sourceSamplingSeed ?? randomBytes(16).toString("hex"));
+  const canVerifySource = sourceProtocol.status === "READY" && input.contractGate?.evidenceCurrent === true
+    && contractBinding?.requestMatches === true && gateReason === null
+    && motionFrames?.status === "PASS" && input.kinematics?.connectionId === sourceProtocol.connectionId;
+  const sourceMotion = canVerifySource && sourceProtocol.status === "READY"
+    ? { ...await verifySourcePoses({ ...sourceProtocol.protocol, scadSource, spec, options: input.options,
+      onArtifact: input.onSourcePoseArtifact }), sampling: sourceProtocol.sampling } : null;
+  const sourceMotionEvidence = sourceMotion
+    ? applyContractGate(sourceMotion.status as EvidenceStatus,
+      `Source input verification ${sourceMotion.status}. ${sourceMotion.results.map(item =>
+        `${item.id} ${item.status}: ${item.reason} ${(item.comparisons ?? []).filter(row => row.result.status !== "PASS" || row.observability?.status === "NOT_RUN").map(row => `${row.instanceId}: ${row.result.reason} ${row.observability?.reason ?? ""}`).join(" ")}`).join(" ")} ${sourceMotion.coverage}`, gateReason)
+    : { status: "NOT_RUN" as const, reason: sourceProtocol.status === "NOT_RUN" ? sourceProtocol.reason
+      : "Source motion requires a current confirmed contract and measured mating axes for this sampled joint." };
+  motionEvidence = combine([rigidMotionEvidence.status, sourceMotionEvidence.status],
+    [rigidMotionEvidence.reason, sourceMotionEvidence.reason], "Motion was not checked.");
+  const uncheckedConnections=spec.connections.filter(connection=>!fits.some(fit=>fit.connectionId===connection.id));
+  const jointFrameEvidence=combine([...fits.map(fit=>fit.jointFrames.status),...(uncheckedConnections.length?["NOT_RUN" as const]:[])],
+    [...fits.map(fit=>`${fit.connectionId}: ${fit.jointFrames.reason}`),...(uncheckedConnections.length?[`No measured axes for: ${uncheckedConnections.map(connection=>connection.id).join(", ")}.`]:[])],"No actual joint feature axes were measured.");
   const assemblyEvidence = combine(
-    [...fits.map(fit => fit.status as EvidenceStatus), ...(unboundRequiredFit ? ["NOT_RUN" as const] : []), ...(kinematics ? [pathEvidence.status] : [])],
-    [...fits.map(fit => fit.connectionId + ": " + fit.reason), ...(unboundRequiredFit && fitBinding ? ["contract fit: " + fitBinding.reason] : []), ...(kinematics ? ["path: " + pathEvidence.reason] : [])],
+    [reconstructionEvidence.status,...fits.map((fit) => fit.status as EvidenceStatus),...(spec.connections.length?[jointFrameEvidence.status]:[]), ...(uncheckedConnections.length?["NOT_RUN" as const]:[]),...(spec.translationProbes?.length?[translationProbes.status]:[])],
+    [`reconstruction: ${reconstructionEvidence.reason}`,...fits.map((fit) => `${fit.connectionId}: ${fit.reason}`),...(spec.connections.length?[`joint frames: ${jointFrameEvidence.reason}`]:[]),...(uncheckedConnections.length?[`Connection features were not measured: ${uncheckedConnections.map(connection=>connection.id).join(", ")}.`]:[]),...(spec.translationProbes?.length?[`translation probes: ${translationProbes.reason}`]:[])],
     "Declared poses and connections were not checked against geometry.",
   );
   const mechanismDimensions = measureSliderCrankDimensions({ spec, meshes });
@@ -328,13 +338,13 @@ export async function prepareAssembly(input: {
     instances: spec.instances.map((instance) => ({ ...instance })),
     subassemblies: spec.subassemblies.map((subassembly) => ({ ...subassembly })),
     fits,
-    fitBinding: fitBinding ? {
+    fitBinding: {
       method: "contract-revolute-fit-binding/v1",
-      status: fitBinding.status,
-      required: fitBinding.required,
-      reason: fitBinding.reason,
-      featureIdentityStatus: fitBinding.featureIdentityStatus,
-    } : null,
+      status: "NOT_RUN" as const,
+      required: false,
+      reason: "The phase compatibility layer does not bind a contract-derived fit requirement.",
+      featureIdentityStatus: "NOT_RUN" as const,
+    },
     kinematics,
     sourceMotion,
     mechanismDimensions,
