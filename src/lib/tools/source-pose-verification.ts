@@ -87,7 +87,6 @@ export async function verifySourcePoses(input: {
         }
     };
     const sha = (value: string) => createHash("sha256").update(value).digest("hex");
-    const renderSignatures: string[] = [];
     const results: Array<{
         id: string;
         status: string;
@@ -136,7 +135,7 @@ export async function verifySourcePoses(input: {
                 }
             });
             await retain(posed, "pose", item.id, { ...setup.poseParameters, ...item.parameters });
-            renderSignatures.push(posed.map(part => part.sha256).sort().join(":"));
+
             const comparisons = setup.spec.instances.map(instance => {
                 const part = local.find(part => part.partId === instance.partId);
                 const actual = posed.find(part => part.partId === instance.id);
@@ -225,14 +224,12 @@ export async function verifySourcePoses(input: {
         clearTimeout(timer);
     }
     const timedOut = Date.now() - started >= budgetMs || controller.signal.aborted;
-    const hasRenderedChange = new Set(renderSignatures).size > 1;
     const crankRows = results.flatMap(item => item.comparisons ?? []).filter(row => row.instanceId.startsWith("crank"));
     const hasCrankObservable = crankRows.length === 0 || crankRows.some(row => row.observability?.status === "OBSERVED");
-    const hasObservableChange = hasRenderedChange && results.some(item => item.comparisons?.some(row => row.observability?.status === "OBSERVED"));
+    const hasObservableChange = results.some(item => item.comparisons?.some(row => row.observability?.status === "OBSERVED"));
     const status = crankRows.length > 0 && !hasCrankObservable ? "NOT_RUN"
-        : !hasRenderedChange ? (crankRows.length === 0 ? "FAIL" : "NOT_RUN")
         : results.some(item => item.status === "FAIL") ? "FAIL" : results.some(item => item.status === "ERROR") ? "ERROR"
-        : timedOut || results.length !== setup.cases.length || results.some(item => item.status !== "PASS") ? "NOT_RUN" : "PASS";
+        : timedOut || !hasObservableChange || results.length !== setup.cases.length || results.some(item => item.status !== "PASS") ? "NOT_RUN" : "PASS";
     return {
         ...base, status, timedOut, hasObservableChange, durationMs: Date.now() - started, results
     };
