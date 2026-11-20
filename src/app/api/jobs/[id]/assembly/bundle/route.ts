@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AssemblyIdentityError, buildAssemblyBundle } from "@/lib/assembly/assembly-bundle";
+import { resolveAssemblyReconstructionBudgetMs } from "@/lib/assembly/reconstruction-budget";
 import { AssemblyExportRejection, artifactVersionForSource, lockAssemblyExport } from "@/lib/pipeline/assembly-export-guard";
 import { JobExecutionConflict, JobExecutionStopped } from "@/lib/pipeline/job-execution";
 import { recordJobOutcomeSafe } from "@/lib/outcome/job-outcome";
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest, { params }: Context) {
         scadSource: source, spec: lease.spec, options: { signal: lease.signal }, modifiedAt: lease.job.updatedAt,
         contractSnapshot: { contract: lease.requirements.contract, request: lease.job.inputRequest },
         contractGate: { evidenceCurrent: lease.requirements.evidenceCurrent, reason: lease.requirements.reason },
+        reconstructionBudgetMs: resolveAssemblyReconstructionBudgetMs(),
       });
     } catch (error) {
       if (error instanceof AssemblyIdentityError) return NextResponse.json({ error: error.message }, { status: 422 });

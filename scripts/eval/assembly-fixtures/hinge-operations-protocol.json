@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "scope": "Exposed original rigid hinge development reference, not hidden model or physical evaluation",
+  "inputs": {
+    "benchmarks/assembly/axial_hinge.scad": "70564e005a249c6d5b261ea37f1fc89ccf7c2528ee7f6f054916664fb2a19992",
+    "scripts/eval/assembly-fixtures/axial-hinge.spec.json": "0e8fd5942aaa9625b3549578829845d1475098c561928916bccfb11f87901acb",
+    "scripts/eval/assembly-fixtures/axial-hinge-operations-v2.spec.json": "dc6050ced1c5318e354c10ff8ed3e1374cb37cc5117a71ebc6cab5e3e4a37d00"
+  },
+  "request": "做一个两件式铰链，直径间隙 0.35 到 0.45 mm，能转 ±45°，可组装可拆，3D 打印",
+  "cases": [
+    {
+      "id": "explicit",
+      "assemblyPath": "PASS",
+      "disassembly": "PASS",
+      "judgePassed": true
+    },
+    {
+      "id": "absent",
+      "assemblyPath": "NOT_RUN",
+      "disassembly": "NOT_RUN",
+      "judgePassed": false
+    },
+    {
+      "id": "cross-insertion",
+      "assemblyPath": "FAIL",
+      "disassembly": "PASS",
+      "judgePassed": false
+    },
+    {
+      "id": "short-removal",
+      "assemblyPath": "PASS",
+      "disassembly": "FAIL",
+      "judgePassed": false
+    }
+  ]
+}

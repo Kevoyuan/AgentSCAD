@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { focusRepairFeedback } from "./generation-trial";
 import fs from "node:fs/promises";
 import {
   TrialRefused,
@@ -6,6 +7,7 @@ import {
   loadTaskSet,
   parseTrialArgs,
   planReport,
+  measuredCore,
   planTrial,
   runTrial,
   taskSetSha256,
@@ -233,5 +235,56 @@ describe("the command line", () => {
 
   test("two modes at once is a mistake worth naming", () => {
     expect(() => parseTrialArgs(["--plan", "--replay", "dir"], {})).toThrow(/Choose one of/);
+  });
+});
+
+
+describe("measured-core reporting", () => {
+  test("intent-preserved is excluded while any other non-PASS blocks the core", () => {
+    expect(measuredCore([{ id: "intent-preserved", status: "NOT_RUN" }, { id: "diametral-clearance", status: "PASS" }]).passed).toBe(true);
+    expect(measuredCore([{ id: "diametral-clearance", status: "FAIL" }]).passed).toBe(false);
+    expect(measuredCore([]).passed).toBeNull();
+    expect(measuredCore([{ id: "unresolved-axial-retention", status: "NOT_RUN" }]).passed).toBe(false);
+    expect(measuredCore([{ id: "intent-preserved", status: "NOT_RUN" }]).passed).toBeNull();
+  });
+
+  test("a task can fail acceptance while every measured non-intent assertion passes", async () => {
+    const plan = planTrial({ taskSet: taskSet([TASKS[0]]), pricePerCallUsd: 0.01, maxCalls: 5, maxUsd: 1 });
+    const report = await runTrial({
+      taskSet: taskSet([TASKS[0]]), plan, mode: "replay",
+      deps: {
+        generate: async () => ({ scad: "cube(1);", calls: 1, usd: 0.01 }),
+        judge: async () => ({
+          passed: false, contractSha256: "c".repeat(64),
+          evidence: [{ id: "intent-preserved", status: "NOT_RUN" }, { id: "diametral-clearance", status: "PASS" }],
+          findings: ["intent-preserved has no independent audit"],
+        }),
+      },
+    });
+    expect(report.tasks[0].status).toBe("FAIL");
+    expect(report.tasks[0].measuredCorePassed).toBe(true);
+    expect(report.summary.measuredCorePassed).toBe(1);
+    expect(report.summary.measuredCoreRate).toBe(1);
+    expect(formatTrial(report)).toContain("measured-core rate");
+  });
+});
+
+
+describe("repair focus", () => {
+  test("keeps the prerequisite connectivity defect ahead of motion and paths", () => {
+    const feedback = [
+      "Rotating through the declared range is blocked at -45.00°: leaf interferes with base.",
+      "Declared insertion failed for leaf in assemble_leaf: A sampled path pose intersects.",
+      "Part leaf contains separated pieces: Part-local X empty slab 5.6 to 9.0 mm.",
+      "Measurement attribution: trial only.",
+    ].join("\n");
+    const focused = focusRepairFeedback(feedback, 2);
+    expect(focused).toContain("contains separated pieces");
+    expect(focused).not.toContain("blocked at -45");
+    expect(focused).toContain("deferred");
+  });
+
+  test("falls back to the original feedback when nothing ranks", () => {
+    expect(focusRepairFeedback("No measurement available", 1)).toContain("No measurement available");
   });
 });

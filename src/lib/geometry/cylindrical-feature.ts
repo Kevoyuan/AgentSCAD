@@ -20,6 +20,7 @@ import {
   type TriangleMesh,
   type Vec3,
 } from "./stl-mesh";
+import { buildBvh, placeBvh, classifyClosedSolidPoint } from "./mesh-collision";
 
 export type FeatureRole = "bore" | "shaft";
 
@@ -32,6 +33,8 @@ export interface FeatureStation {
   formErrorMm: number;
   cylindrical: boolean;
   note: string;
+  /** Closed-solid classification actually executed at the fitted centre. */
+  materialState?:"INSIDE"|"OUTSIDE"|"AMBIGUOUS";
 }
 
 export interface CylindricalFeatureMeasurement {
@@ -63,7 +66,7 @@ export function measureCylindricalFeature(input: {
 }): CylindricalFeatureMeasurement {
   const assumptions = [
     "The declared axis seeds the search; the measured centre is refined from the mesh.",
-    `The feature is treated as a ${input.role}; the mesh cannot tell a bore from a shaft.`,
+    `The caller selects a ${input.role}; closed-solid membership checks the measured station centres, not the intended semantic identity.`,
     "Diameters are the inscribed and circumscribed bounds of the tessellated polygon, not a nominal size.",
   ];
   let mesh: TriangleMesh;
@@ -97,6 +100,7 @@ export function measureCylindricalFeature(input: {
   const { u, v } = planeBasis(direction);
   const stations: FeatureStation[] = [];
   const centres: Vec3[] = [];
+  const solid=placeBvh(buildBvh(mesh));
   let radiusMin = Infinity, radiusMax = -Infinity;
   let segmentCount: number | null = null;
   let maxFormError = 0;
@@ -143,6 +147,10 @@ export function measureCylindricalFeature(input: {
       planeOrigin[1] + u[1] * profile.center[0] + v[1] * profile.center[1],
       planeOrigin[2] + u[2] * profile.center[0] + v[2] * profile.center[1],
     ]);
+    const membership=classifyClosedSolidPoint(centres[centres.length-1],solid);
+    stations[stations.length-1].materialState=membership;
+    const expected=input.role==="bore"?"OUTSIDE":"INSIDE";
+    if(membership!==expected) return {status:"ERROR",reason:`Station ${offset.toFixed(3)} mm cannot verify the ${input.role} role: centre is ${membership}, expected ${expected} material.`,role:input.role,diameterMm:null,segmentCount:null,maxFormErrorMm:null,stations,axis:null,assumptions};
   }
 
   // One cylinder has the same diameter at every station. Without this, a step

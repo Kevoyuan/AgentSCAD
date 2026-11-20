@@ -4,6 +4,9 @@ import { assertRepairPreservesAssembly, buildAssemblyRepairPrompt, collectAssemb
 import { prepareAssembly } from "./prepare-assembly";
 import { prismStl } from "../geometry/__tests__/prism";
 import { boxStl, mergeStl, tubeStl } from "../geometry/__tests__/solids";
+import { AssemblySpecSchema } from "./assembly-spec";
+import { buildHingeSourceProtocol } from "./source-motion-protocol";
+import { canonicalJson } from "../canonical-json";
 
 const POSE = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
@@ -46,9 +49,9 @@ function boreAndShaft(clearanceBand = { min: 0.1, max: 0.3 }) {
 
 /**
  * A hub with a radial arm and a post at 180°, so a wide range drives the arm into
- * the post. The two shells in each part have disjoint bounds; overlapping shell
- * bounds make containment UNKNOWN and the motion evidence NOT_RUN, so this
- * fixture deliberately keeps the arm clear of the hub's outer radius.
+ * the post. The arm starts inside the hub's outer radius, so the two closed
+ * shells have overlapping bounds; containment now classifies shells separately
+ * and takes their union, which keeps the motion evidence decidable.
  */
 function rotor(range: { min: number; max: number; unit: string }) {
   const spec = {
@@ -71,19 +74,35 @@ function rotor(range: { min: number; max: number; unit: string }) {
   };
   const meshes = {
     fixed: mergeStl(tubeStl({ outerRadius: 3, innerRadius: 2.5, height: 4, segments: 48 }), boxStl([-10, -1, 0], [-8, 1, 4])),
-    moving: mergeStl(tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 4, segments: 48 }), boxStl([5.1, -1, 0], [10, 1, 4])),
+    moving: mergeStl(tubeStl({ outerRadius: 5, innerRadius: 3.2, height: 4, segments: 48 }), boxStl([4, -1, 0], [10, 1, 4])),
   };
   return { spec, meshes };
 }
 
 describe("collecting findings", () => {
-  test("a satisfied assembly produces nothing to repair", async () => {
+  test("measured frame disagreement carries its numbers and connection to the repair",async()=>{
+    const fixture=boreAndShaft({min:.35,max:.45});
+    for(const stl of Object.values(fixture.meshes)) for(let i=0;i<stl.readUInt32LE(80);i++)for(let v=0;v<3;v++) {const p=84+i*50+12+v*12;stl.writeFloatLE(stl.readFloatLE(p)+.1,p);}
+    const prepared=await prepareAssembly({scadSource:"cube(1);",spec:fixture.spec,render:render(fixture.meshes),fitRequirements:fixture.fitRequirements,contractGate:{evidenceCurrent:false}});
+    expect(prepared.manifest.evidence.jointFrames.status).toBe("FAIL");
+    const findings=collectAssemblyFindings({manifest:prepared.manifest,kinematics:prepared.kinematics});
+    expect(findings).toHaveLength(1);expect(findings[0].kind).toBe("joint-frame");expect(findings[0].connectionId).toBe("joint");
+    expect(findings[0].measured).toContain("0.100000");expect(findings[0].required).toContain("0.01 mm");
+  });
+  test("a reconstruction mismatch reaches repair without inventing a faulty joint",()=>{
+    const findings=collectAssemblyFindings({manifest:{evidence:{reconstruction:{status:"FAIL",reason:"Symmetric difference 12 mm³"}},fits:[]},kinematics:null});
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({kind:"reconstruction",layer:"assembly",connectionId:null});
+    expect(findings[0].message).toContain("12 mm³");
+  });
+  test("a satisfied fit with missing reconstruction produces no invented geometry repair", async () => {
     const fixture = boreAndShaft({ min: 0.35, max: 0.45 });
     const prepared = await prepareAssembly({
       scadSource: "cube(1);", spec: fixture.spec, render: render(fixture.meshes),
       fitRequirements: fixture.fitRequirements,
     });
-    expect(prepared.manifest.evidence.assembly.status).toBe("PASS");
+    expect(prepared.manifest.evidence.assembly.status).toBe("NOT_RUN");
+    expect(prepared.fits[0].measuredStatus).toBe("PASS");
     expect(prepared.kinematics).toBeNull();
     expect(collectAssemblyFindings({
       manifest: prepared.manifest, fitRequirements: fixture.fitRequirements, kinematics: prepared.kinematics,
@@ -187,11 +206,15 @@ describe("collecting findings", () => {
       scadSource: "cube(1);", spec: fixture.spec, render: render(fixture.meshes),
       kinematics: { connectionId: "joint" },
     });
-    expect(prepared.manifest.evidence.motion.status).toBe("PASS");
-    expect(collectAssemblyFindings({ manifest: prepared.manifest, kinematics: prepared.kinematics })).toEqual([]);
+    expect(prepared.manifest.evidence.motion.status).toBe("NOT_RUN");
+    expect(prepared.kinematics!.motion.status).toBe("PASS");
+    const findings=collectAssemblyFindings({ manifest: prepared.manifest, kinematics: prepared.kinematics });
+    expect(findings.filter(f=>f.kind==="motion")).toEqual([]);
+    expect(findings.some(f=>f.kind==="connectivity")).toBe(true);
+    expect(prepared.manifest.evidence.geometry.status).toBe("FAIL");
   });
 
-  test("a blocked path reports the distance at which it stopped", async () => {
+  test("a blocked axis probe stays diagnostic and a declared removal carries the actual blocked pose", async () => {
     const fixture = rotor({ min: -45, max: 45, unit: "deg" });
     // Caps above and below close both directions the moving part could leave in.
     const capped = {
@@ -208,13 +231,20 @@ describe("collecting findings", () => {
       scadSource: "cube(1);", spec: capped, render: render(meshes),
       kinematics: { connectionId: "joint", pathSteps: 16 },
     });
-    expect(prepared.manifest.evidence.assembly.status).toBe("FAIL");
-    const path = collectAssemblyFindings({ manifest: prepared.manifest, kinematics: prepared.kinematics })
-      .find((finding) => finding.kind === "path")!;
-    expect(path.atMm).toBeGreaterThan(0);
-    expect(path.measured).toBe(`blocked at ${path.atMm!.toFixed(3)} mm along the axis`);
-    expect(path.required).toContain("unobstructed straight path");
-    expect(path.message).toContain("interferes with");
+    expect(prepared.kinematics!.path.status).toBe("FAIL");
+    expect(prepared.manifest.evidence.assembly.status).toBe("NOT_RUN");
+    expect(collectAssemblyFindings({manifest:prepared.manifest,kinematics:prepared.kinematics}).some(finding=>finding.kind==='path')).toBe(false);
+    const declared={...capped,operations:capped.instances.filter(instance=>instance.id!==capped.groundedInstanceId).map(instance=>({
+      id:`remove_${instance.id}`,action:'disassemble',instanceId:instance.id,tools:[],
+      waypoints:[instance.transform,instance.transform.map((value,index)=>index===11?value+20:value)],
+    }))};
+    const measured=await prepareAssembly({scadSource:'cube(1);',spec:declared,render:render(meshes),kinematics:{connectionId:'joint',pathSteps:16}});
+    expect(measured.manifest.evidence.disassembly.status).toBe('FAIL');
+    const path=collectAssemblyFindings({manifest:measured.manifest,kinematics:measured.kinematics}).find(finding=>finding.kind==='path')!;
+    expect(path.instanceIds).toContain('moving-instance');
+    expect(path.measured).toContain('evaluated pose');
+    expect(path.measured).toContain('world origin');
+    expect(path.message).toContain('intersects');
   });
 });
 
@@ -336,6 +366,24 @@ describe("guarding a repair against a weakened declaration", () => {
     expect(codes(assertRepairPreservesAssembly({ before: base, after: moved }))).toEqual(["bore-changed"]);
   });
 
+  test("a geometry repair cannot discard or cherry-pick declared fit stations", () => {
+    const before = clone();
+    before.connections[0].fitStationsMm = [1,2,3];
+    expect(assertRepairPreservesAssembly({ before, after: structuredClone(before) }).ok).toBe(true);
+    for (const stations of [undefined, [2,3], [1,2,4]]) {
+      const after = structuredClone(before);
+      if (stations) after.connections[0].fitStationsMm = stations;
+      else delete after.connections[0].fitStationsMm;
+      const result = assertRepairPreservesAssembly({ before, after });
+      expect(codes(result)).toEqual(["requirement-relaxed"]);
+      expect(result.violations[0].message).toContain("measurement stations");
+    }
+    const shiftedFrame = structuredClone(before);
+    shiftedFrame.connections[0].frameA.origin[2] = 1;
+    expect(codes(assertRepairPreservesAssembly({ before, after: shiftedFrame }))).toEqual(["requirement-relaxed"]);
+    expect(assertRepairPreservesAssembly({ before: base, after: before }).ok).toBe(true);
+  });
+
   test("every weakening is reported, not just the first", () => {
     const gutted = clone();
     gutted.parts = gutted.parts.filter((part: { id: string }) => part.id !== "pin");
@@ -374,4 +422,106 @@ describe("guarding a repair against a weakened declaration", () => {
     wide.connections[0].range = { min: -90, max: 90, unit: "deg" };
     expect(assertRepairPreservesAssembly({ before: base, after: wide, contract }).ok).toBe(true);
   });
+});
+
+test("repair may correct a path or order but cannot erase an operation or change the ground",()=>{
+  const {spec}=boreAndShaft();
+  const before={...spec,operations:[{id:"insert-shaft",action:"assemble",instanceId:"shaft-instance",waypoints:[POSE],tools:[]}]};
+  expect(assertRepairPreservesAssembly({before,after:{...before,operations:[]}}).violations.some(v=>v.code==="operation-removed")).toBe(true);
+  const changed={...before,operations:[{...before.operations[0],action:"disassemble"}]};
+  expect(assertRepairPreservesAssembly({before,after:changed}).violations.some(v=>v.code==="operation-changed")).toBe(true);
+  expect(assertRepairPreservesAssembly({before,after:{...before,groundedInstanceId:"shaft-instance"}}).violations.some(v=>v.code==="ground-changed")).toBe(true);
+  const corrected={...before,operations:[{...before.operations[0],waypoints:[[...POSE.slice(0,11),12,...POSE.slice(12)],POSE]}]};
+  expect(assertRepairPreservesAssembly({before,after:corrected}).ok).toBe(true);
+});
+
+
+test("connectivity repair feedback retains the measured local separating interval", () => {
+  const findings = collectAssemblyFindings({manifest:{evidence:{},fits:[],partConnectivity:[{
+    partId:"leaf",status:"FAIL",reason:"Separate closed pieces",separator:{axis:0,lower:3.1,upper:4.3},
+  }]},kinematics:null});
+  expect(findings).toHaveLength(1);
+  expect(findings[0].kind).toBe("connectivity");
+  expect(findings[0].message).toContain("Part-local X");
+  expect(findings[0].message).toContain("3.100000 to 4.300000");
+  expect(findings[0].message).toContain("1.200000 mm");
+  expect(findings[0].message).toContain("preserving mating voids");
+});
+
+test("repairs retain source bindings and receive actual source motion failures", () => {
+  const { spec } = boreAndShaft();
+  const motion = { id: "drive", inputConnectionId: "joint", range: { min: -45, max: 45, unit: "deg" },
+    sourceInput: { parameter: "angle", poseSelectors: { "bore-instance": "bore", "shaft-instance": "shaft" } } };
+  const before = { ...spec, motions: [motion] };
+  const { sourceInput, ...without } = motion;
+  for (const after of [
+    { ...before, motions: [without] },
+    { ...before, motions: [{ ...motion, sourceInput: { ...sourceInput, parameter: "idle" } }] },
+  ]) expect(assertRepairPreservesAssembly({ before, after }).violations.some(item => item.code === "requirement-relaxed")).toBe(true);
+  // Dropping an instance selector also invalidates the declaration before the
+  // preservation comparison can run, so it is still rejected.
+  const missingSelector = assertRepairPreservesAssembly({ before, after: { ...before, motions: [{ ...motion,
+    sourceInput: { parameter: "angle", poseSelectors: { "bore-instance": "bore" } } }] } });
+  expect(missingSelector.ok).toBe(false);
+  expect(missingSelector.violations.length).toBeGreaterThan(0);
+  // A wrong local/posed view is a geometry defect the repair may fix; the source
+  // verifier re-measures the selector output, so this is not a relaxed claim.
+  const fixedView = { ...before, motions: [{ ...motion, sourceInput: { ...sourceInput,
+    poseSelectors: { "bore-instance": "bore", "shaft-instance": "shaft-posed" } } }] };
+  expect(assertRepairPreservesAssembly({ before, after: fixedView }).ok).toBe(true);
+  expect(assertRepairPreservesAssembly({ before, after: before }).ok).toBe(true);
+  const findings = collectAssemblyFindings({ manifest: { fits: [], evidence: {
+    sourceMotion: { status: "FAIL", reason: "angle-0 shaft-instance has different bounds" }
+  } }, kinematics: null });
+  expect(findings).toHaveLength(1);
+  expect(findings[0].message).toContain("angle-0 shaft-instance");
+  expect(findings[0].message).toContain("Preserve the source binding");
+});
+
+test("source repair findings retain the failed input, instance, joint and command angle", () => {
+  const { spec } = boreAndShaft();
+  const bound = AssemblySpecSchema.parse({ ...spec, motions: [{ id: "drive", inputConnectionId: "joint",
+    range: { min: -45, max: 45, unit: "deg" },
+    sourceInput: { parameter: "angle", poseSelectors: { "bore-instance": "bore", "shaft-instance": "shaft" } } }] });
+  const built = buildHingeSourceProtocol(bound, "0123456789abcdef0123456789abcdef");
+  if (built.status !== "READY") throw new Error("No protocol");
+  const pose = built.protocol.cases.find(item => item.challenge)!;
+  const report = { protocol: { ...built.protocol, spec: bound, surfaceComparison: "bounded-cover" as const },
+    results: [{ id: "execution", status: "ERROR", reason: "earlier infrastructure fault" },
+      { id: pose.id, status: "FAIL", reason: "No independent surface-difference witness was established", comparisons: [
+        { instanceId: "bore-instance", result: { status: "PASS" } },
+        { instanceId: "shaft-instance", result: { status: "FAIL", reason: "different bounds", bboxErrorMm: .125 } },
+      ] }] };
+  const manifest = { fits: [], sourceMotion: report, evidence: { sourceMotion: { status: "FAIL", reason: "aggregate" } } };
+  const [finding] = collectAssemblyFindings({ manifest, kinematics: null });
+  expect(finding.connectionId).toBe("joint");
+  expect(finding.instanceIds).toEqual(["shaft-instance"]);
+  expect(finding.atDeg).toBe(pose.parameters.angle as number);
+  expect(finding.message).toContain(canonicalJson(pose.parameters));
+  expect(finding.measured).toContain("bounds error 0.125000 mm");
+  expect(finding.message).not.toContain("earlier infrastructure fault");
+  expect(finding.message).not.toContain("No independent surface-difference witness");
+  const ambiguous = { ...report, protocol: { ...report.protocol, spec: { ...bound,
+    motions: [...bound.motions, { ...bound.motions[0], id: "second-drive" }] } } };
+  const [unbound] = collectAssemblyFindings({ manifest: { ...manifest, sourceMotion: ambiguous }, kinematics: null });
+  expect(unbound.connectionId).toBeNull();
+  expect(unbound.atDeg).toBeNull();
+  for (const status of ["NOT_RUN", "ERROR"]) {
+    expect(collectAssemblyFindings({ manifest: { ...manifest, evidence: { sourceMotion: { status, reason: "unavailable" } } }, kinematics: null })).toEqual([]);
+  }
+});
+
+
+test("declared path findings name the obstacle, sampled pose and start condition", () => {
+  const identity = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+  const moved = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,6,1];
+  const manifest = { evidence: { disassembly: { status: "FAIL", reason: "blocked" } }, fits: [],
+    declaredDisassembly: { results: [{ operationId: "remove_leaf", instanceId: "leaf1", status: "FAIL",
+      reason: "Initial pose intersects base1 (INTERSECT): triangles overlap",
+      path: { blockedAt: { poseIndex: 0, obstacleId: "base1" }, poses: [identity, moved] } }] } };
+  const findings = collectAssemblyFindings({ manifest: manifest as never, kinematics: null });
+  const path = findings.find(item => item.kind === "path");
+  expect(path).toBeDefined();
+  expect(path!.message).toContain("starting pose already intersects base1");
+  expect(path!.instanceIds).toContain("base1");
 });

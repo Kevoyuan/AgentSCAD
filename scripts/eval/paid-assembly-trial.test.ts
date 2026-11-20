@@ -1,0 +1,94 @@
+import {test,expect} from "bun:test";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import {loadTaskSet} from "./generation-trial";
+const runner="scripts/eval/paid-assembly-trial.ts";
+const tasks="scripts/eval/assembly-generation/operations-tasks-v1.json";
+async function dryRun(args:string[]) {
+  const proc=Bun.spawn([process.execPath,runner,...args],{stdout:"pipe",stderr:"pipe",
+    env:{...process.env,AGENTSCAD_ALLOW_PAID:"",AGENTSCAD_PAID_KEY_FILE:""}});
+  const [stdout,stderr,code]=await Promise.all([new Response(proc.stdout).text(),new Response(proc.stderr).text(),proc.exited]);
+  return {stdout,stderr,code};
+}
+test("explicit frozen operation trial plans two calls without credentials or changing the authorization",async()=>{
+  const ledger=".agentscad/experiments/deepseek-28cny-authorization-2026-11-05.json";
+  const before=await fs.readFile(ledger).catch(()=>null);
+  const frozen=loadTaskSet(JSON.parse(await fs.readFile(tasks,"utf8")));
+  const result=await dryRun(["--tasks",tasks,"--non-thinking"]);
+  expect(result.code).toBe(0);
+  const plan=JSON.parse(result.stdout);
+  expect(plan.taskSetSha256).toBe(frozen.taskSetSha256);
+  expect(plan.maxCalls).toBe(2);
+  expect(plan.worstCaseCny).toBe(1.448576);
+  expect(plan.reasoningEffort).toBe("none");
+  expect(plan.promptSkills.repair).toContain("scad-repair");
+  expect(await fs.readFile(ledger).catch(()=>null)).toEqual(before);
+});
+test("repair attempts route through retained repair guidance",async()=>{
+  const source=await fs.readFile(runner,"utf8");
+  expect(source).toContain('await loadSkill("scad-repair")');
+  expect(source).toContain('content:declarationMode?declarationSystem:old ? repairSystem : system');
+  expect(source).toContain('extractDeclarationComment');
+  expect(source).toContain('spliceDeclarationComment');
+  expect(source).toContain('"repair-system-prompt.txt"');
+});
+test("missing explicit task path fails before model admission",async()=>{
+  const result=await dryRun(["--tasks","--non-thinking"]);
+  expect(result.code).toBe(1);expect(result.stderr).toContain("--tasks requires");
+});
+test("legacy frozen task set remains the default",async()=>{
+  const result=await dryRun([]);expect(result.code).toBe(0);
+  expect(JSON.parse(result.stdout).taskPath).toBe("scripts/eval/assembly-generation/tasks.json");
+});
+
+test("continued dry run includes prior charges and rejects an exhausted authorization",async()=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),"agentscad-paid-plan-"));
+  try {
+    await fs.mkdir(path.join(dir,".agentscad/experiments"),{recursive:true});
+    const ledger=path.join(dir,".agentscad/experiments/deepseek-28cny-authorization-2026-11-05.json");
+    for(const cost of [1.649062,27]) {
+      await fs.writeFile(ledger,JSON.stringify({status:"TERMINAL",maxCny:28,model:"deepseek-v4-flash",calls:[{accountedCny:cost}]}));
+      const proc=Bun.spawn([process.execPath,path.resolve(runner),"--tasks",path.resolve(tasks),"--continue-authorized"],{cwd:dir,stdout:"pipe",stderr:"pipe"});
+      const [out,err,code]=await Promise.all([new Response(proc.stdout).text(),new Response(proc.stderr).text(),proc.exited]);
+      if(cost===27){expect(code).toBe(1);expect(err).toContain("Remaining authorization");}
+      else {expect(code).toBe(0);expect(JSON.parse(out).totalAuthorizationWorstCaseCny).toBeCloseTo(3.097638,6);}
+    }
+  } finally {await fs.rm(dir,{recursive:true,force:true});}
+});
+
+test("an explicit authorization path and cap are carried into the plan",async()=>{
+  const result=await dryRun(["--tasks",tasks,"--non-thinking","--max-cny","5","--authorization",".agentscad/experiments/test-ledger.json"]);
+  expect(result.code).toBe(0);
+  const plan=JSON.parse(result.stdout);
+  expect(plan.maxCny).toBe(5);
+  expect(plan.authorizationPath).toContain("test-ledger.json");
+},30000);
+test("a cap below the worst-case reservation is refused before admission",async()=>{
+  const result=await dryRun(["--tasks",tasks,"--non-thinking","--max-cny","0.5","--authorization",".agentscad/experiments/test-ledger.json"]);
+  expect(result.code).toBe(1);
+  expect(result.stderr).toContain("exceed authorization");
+},30000);
+
+test("explicit token bounds determine the per-call reservation",async()=>{
+  const retention="scripts/eval/assembly-generation/retention-tasks-v1.json";
+  const result=await dryRun(["--tasks",retention,"--non-thinking","--max-input-bound","30000","--max-output-tokens","16000","--max-cny","0.4","--authorization",".agentscad/experiments/test-ledger.json"]);
+  expect(result.code).toBe(0);
+  const plan=JSON.parse(result.stdout);
+  expect(plan.maxInputTokenBound).toBe(30000);
+  expect(plan.maxOutputTokens).toBe(16000);
+  expect(plan.perCallReservationCny).toBeCloseTo(0.188,6);
+  expect(plan.worstCaseCny).toBeCloseTo(0.188,6);
+},30000);
+
+
+test("an explicit stronger model carries its own prices into the plan",async()=>{
+  const result=await dryRun(["--tasks","scripts/eval/assembly-generation/retention-tasks-v3.json","--model","deepseek-v4-pro","--input-price","9","--output-price","27","--max-input-bound","60000","--max-output-tokens","20000","--max-cny","7","--non-thinking"]);
+  expect(result.code).toBe(0);
+  const plan=JSON.parse(result.stdout);
+  expect(plan.model).toBe("deepseek-v4-pro");
+  expect(plan.inputCnyPerMillion).toBe(9);
+  expect(plan.outputCnyPerMillion).toBe(27);
+  expect(plan.perCallReservationCny).toBeCloseTo(1.08, 6);
+  expect(plan.taskSetSha256).toBe("fbf5cd056b047953e763d9afefda79d63497e23496ec560f30bcf66caae85bf8");
+});

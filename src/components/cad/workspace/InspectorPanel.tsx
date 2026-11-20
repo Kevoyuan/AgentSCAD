@@ -72,7 +72,7 @@ export function InspectorPanel({
   onSetPrevTab: (tab: string) => void
   onSetTabDirection: (dir: number) => void
   onUpdate: () => void
-  onPreviewParameters: (job: Job, parameterValues: Record<string, number>) => void
+  onPreviewParameters: (job: Job, parameterValues: Record<string, number | boolean>) => void
   onApplyScad: (job: Job, scadSource: string) => Promise<void>
   onProcess: (job: Job) => void
   onRepair: (job: Job) => void

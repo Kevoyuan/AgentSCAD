@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "id": "guided-declaration-8-28",
+  "prompt": "Submit a six-part guided/retained single-cylinder slider-crank with a complete embedded assembly declaration. The declaration must contain the frame/crank/rod/slider/eccentric_key/guide_front roles, six instances, four working joints, and the key/guide releases. A correct removal takes the guide before the key; the wrong order must be blocked by the guide. The task checks the declaration contract, not byte-identical IDs or part order.",
+  "geometry": {
+    "selectors": {
+      "crank": "crank",
+      "rod": "rod",
+      "slider": "slider",
+      "frame": "frame"
+    },
+    "attachments": {
+      "eccentric_key": "eccentric_key",
+      "guide_front": "guide_front"
+    },
+    "motionParameter": "motion_angle",
+    "poseParameters": {
+      "agentscad_pose": true
+    },
+    "angles": [
+      0,
+      45,
+      90,
+      135,
+      180,
+      225,
+      270,
+      315,
+      360
+    ],
+    "contract": {
+      "crankRadiusMm": 8,
+      "rodLengthMm": 28,
+      "toleranceMm": 0.02,
+      "sectionYmm": 2.3,
+      "axisProbeMm": 1,
+      "pinRadiusMm": {
+        "min": 1.98,
+        "max": 2.02
+      },
+      "rodBoreRadiusMm": {
+        "min": 2.18,
+        "max": 2.22
+      }
+    }
+  },
+  "declaration": {
+    "parts": [
+      {
+        "role": "frame",
+        "selector": "frame",
+        "instances": 1
+      },
+      {
+        "role": "crank",
+        "selector": "crank",
+        "instances": 1
+      },
+      {
+        "role": "rod",
+        "selector": "rod",
+        "instances": 1
+      },
+      {
+        "role": "slider",
+        "selector": "slider",
+        "instances": 1
+      },
+      {
+        "role": "eccentric_key",
+        "selector": "eccentric_key",
+        "instances": 1
+      },
+      {
+        "role": "guide_front",
+        "selector": "guide_front",
+        "instances": 1
+      }
+    ],
+    "groundedSelector": "frame",
+    "connections": [
+      {
+        "type": "revolute",
+        "a": "frame",
+        "b": "crank"
+      },
+      {
+        "type": "revolute",
+        "a": "crank",
+        "b": "rod"
+      },
+      {
+        "type": "revolute",
+        "a": "rod",
+        "b": "slider"
+      },
+      {
+        "type": "prismatic",
+        "a": "frame",
+        "b": "slider"
+      },
+      {
+        "type": "other",
+        "a": "crank",
+        "b": "eccentric_key"
+      },
+      {
+        "type": "prismatic",
+        "a": "frame",
+        "b": "guide_front"
+      }
+    ],
+    "motionRange": {
+      "min": 0,
+      "max": 360
+    },
+    "operations": [
+      "guide_front",
+      "eccentric_key",
+      "slider",
+      "rod",
+      "crank"
+    ],
+    "wrongOrder": [
+      "eccentric_key",
+      "slider",
+      "guide_front",
+      "rod",
+      "crank"
+    ]
+  },
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 6
+      }
+    },
+    {
+      "id": "measured-joint-frames",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "sampled-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "source-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "disassembly-path",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "Contract-bound declaration: part IDs, instance IDs and part/connection order may vary; the six role selectors, instance counts, joint endpoints, motion range and removal order are frozen.",
+    "The reference declares renamed part/instance IDs to prove the contract does not require byte-identical declarations.",
+    "Only nine sampled angles and zero-pose removal plans are covered; no physical function, wear or tool access."
+  ]
+}

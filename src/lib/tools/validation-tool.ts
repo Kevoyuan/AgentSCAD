@@ -1,3 +1,5 @@
+import { extractEmbeddedAssemblySpec } from "../assembly/embedded-spec";
+import { validateAssemblyArtifact } from "../validation/assembly-validation";
 import {
   clearValidationCache,
   getLastMeshData,
@@ -36,6 +38,7 @@ export interface ValidateRenderedInput {
   };
   validationTargets?: CadValidationTargets;
   skipVisual?: boolean;
+  signal?: AbortSignal;
 }
 
 /**
@@ -94,7 +97,7 @@ async function runRenderedValidation(
     additionalChecks.push(
       checkBoundingBox(meshData, input.validationTargets?.expected_bbox)
     );
-    additionalChecks.push(checkComponents(meshData, input.validationTargets));
+    additionalChecks.push(checkComponents(meshData, input.validationTargets, extractEmbeddedAssemblySpec(input.scadSource).status === "valid"));
     additionalChecks.push(checkDegenerateGeometry(meshData));
 
     additionalChecks.push(checkHoleTargets(meshData, input.validationTargets));
@@ -111,7 +114,8 @@ async function runRenderedValidation(
     message: check.message,
   }));
 
-  return [...meshResults, ...visualResults, ...additionalResults];
+  const assemblyResults = await validateAssemblyArtifact(input);
+  return [...meshResults, ...visualResults, ...additionalResults, ...assemblyResults];
 }
 
 export function getCriticalValidationFailures(results: ValidationResult[]): ValidationResult[] {

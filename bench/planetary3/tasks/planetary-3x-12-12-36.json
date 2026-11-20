@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "id": "planetary-3x-12-12-36",
+  "prompt": "Build a 12/12/36 three-planet epicyclic gear train with a fixed internal ring, sun input and carrier output: three planets spaced 120 degrees apart, a positive sun input turns the carrier at half speed in the same direction, and the planets rotate in the opposite absolute direction. All six parts must export separately, and both input signs must be covered.",
+  "selectors": {
+    "sun": "sun_pose",
+    "ring": "ring",
+    "carrier": "carrier_pose",
+    "planets": [
+      "planet0_pose",
+      "planet1_pose",
+      "planet2_pose"
+    ]
+  },
+  "planetOffsetsDeg": [
+    0,
+    120,
+    240
+  ],
+  "sunTeeth": 12,
+  "planetTeeth": 12,
+  "ringTeeth": 36,
+  "moduleMm": 2,
+  "carrierRadiusMm": 24,
+  "poses": [
+    0,
+    120,
+    240,
+    -120,
+    -240
+  ],
+  "angleToleranceDeg": 0.5,
+  "ratioTolerance": 0.005,
+  "centerDistanceToleranceMm": 0.25,
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 6
+      }
+    },
+    {
+      "id": "rigid-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "Three planets at 120 degrees on one carrier and one fixed ring; each planet is measured independently.",
+    "Straight-sided full-depth teeth; pitch radius is estimated from tip/root radii, not involute metrology.",
+    "Only the five listed input poses are covered; multi-planet load sharing, tooth contact, backlash, efficiency and physical manufacture are not claimed."
+  ]
+}

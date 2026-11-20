@@ -40,6 +40,7 @@ import { cn } from '@/lib/utils'
 import { useArtifactSize, downloadArtifact } from './artifacts'
 import { JobAssemblyDetails } from './AssemblyDetails'
 import { JobRequirementContract } from './RequirementContract'
+import { staleAssemblyValidation } from '@/lib/requirements/validation-staleness'
 import {
   ActionButton,
   EmptyNote,
@@ -159,10 +160,16 @@ export function ChecksModule({
   onVisualRepair?: () => void
 }) {
   const { t } = useI18n()
+  const [requirementChange, setRequirementChange] = React.useState<{ jobId: string; validationResults: string | null; hash: string; revision: number } | null>(null)
+  const visibleJob = React.useMemo(() => {
+    if (!requirementChange || requirementChange.jobId !== job.id || requirementChange.validationResults !== (job.validationResults ?? null)) return job
+    const stale = staleAssemblyValidation(job.validationResults ?? null, requirementChange.hash)
+    return stale ? { ...job, validationResults: stale, validationReportJson: null, qualityScore: null } : job
+  }, [job, requirementChange])
 
   const results = React.useMemo(
-    () => parseJSON<ValidationResult[]>(job.validationResults, []),
-    [job.validationResults]
+    () => parseJSON<ValidationResult[]>(visibleJob.validationResults, []),
+    [visibleJob.validationResults]
   )
 
   const verdicts = React.useMemo(() => {
@@ -180,7 +187,7 @@ export function ChecksModule({
 
   /* The counts come from the same function the header badge uses, so the badge and
      the sentence below it can never disagree about how many checks ran. */
-  const { ran, passed, failed, warned, unrun } = React.useMemo(() => summarizeChecks(job), [job])
+  const { ran, passed, failed, warned, unrun } = React.useMemo(() => summarizeChecks(visibleJob), [visibleJob])
   const hasBlocker = failed > 0
   const stlSize = useArtifactSize(job.id, 'stl', Boolean(job.stlPath))
   const scadLines = React.useMemo(
@@ -405,9 +412,11 @@ export function ChecksModule({
         )}
       </div>
 
-      <JobRequirementContract key={`req-${job.id}`} jobId={job.id} revision={job.updatedAt ?? ''} />
+      <JobRequirementContract key={`req-${job.id}`} jobId={job.id} revision={job.updatedAt ?? ''} onConfirmed={(changed, hash) => {
+        if (changed) setRequirementChange(current => ({ jobId: job.id, validationResults: job.validationResults ?? null, hash, revision: (current?.revision ?? 0) + 1 }))
+      }} />
 
-      <JobAssemblyDetails key={job.id} jobId={job.id} revision={job.updatedAt ?? ''} canExport={job.state === 'DELIVERED' && !hasDraftChanges && !isProcessing} />
+      <JobAssemblyDetails canCheck={(job.state === 'DELIVERED' || job.state === 'HUMAN_REVIEW') && !isProcessing && !hasDraftChanges && !!job.scadSource} key={job.id} jobId={job.id} revision={`${job.updatedAt ?? ''}:${requirementChange?.jobId === job.id ? requirementChange.revision : 0}`} canExport={job.state === 'DELIVERED' && !hasDraftChanges && !isProcessing} />
 
       {/* ── Outputs: pinned footer ───────────────────────────────────────── */}
       {/* One row, three equal actions, no wrapping and no mid-button cut by the

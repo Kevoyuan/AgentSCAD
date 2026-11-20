@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "purpose": "Check seed dependence at the second retained thread phase, after the 90-degree contour experiment. This is visible development data from the same fixture, not an independent hidden set.",
+  "sampling": "enclosing-contour-endpoints",
+  "input": ".agentscad/experiments/threaded-fastener-jeYSbU/turn-270-nut.stl",
+  "inputSha256": "395ef2593271e550fbc6d84f36c7409ec5bf531b296d747ac6195c4bff9b6172",
+  "stationsMm": [0.6, 1.6, 3.6],
+  "seedsMm": [[0, 0], [0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5], [1, 0], [-1, 0]],
+  "decision": "Report all availability, candidate counts/hashes and relative axes, without an acceptance threshold. Identical results only address seed dependence on the selected loop. Actual coaxiality and calibrated uncertainty remain NOT_RUN."
+}

@@ -1,5 +1,7 @@
+import {checkPartConnectivity} from "./part-connectivity";
 import { checkDeclaredPoseDisassembly } from "./declared-pose-disassembly";
-import { createHash } from "crypto";
+import { checkDeclaredPoseAssembly } from "./declared-pose-assembly";
+import { createHash, randomBytes } from "crypto";
 import { validateAssemblySpec, type AssemblySpec } from "./assembly-spec";
 import { assemblySpecificationHash } from "./spec-hash";
 import { checkPartIdentity } from "./part-identity-check";
@@ -45,6 +47,65 @@ function applyContractGate(status: EvidenceStatus, reason: string, gateReason: s
   return { status: "NOT_RUN", reason: `${gateReason} The measurement itself passed: ${reason}` };
 }
 
+/** Rigid collision sampling at the canonical analytic slider-crank poses.
+ * Expectations come from the declared frames; the meshes remain the measured
+ * objects. Only listed sampled angles are covered. */
+function checkSliderCrankRigidMotion(input: {
+  spec: AssemblySpec; meshes: Record<string, Buffer>; connectionId: string; steps: number;
+}) {
+  const unknowns = [
+    "Only the listed sampled crank angles are covered; a narrow obstruction between samples can be missed.",
+    "The poses are ideal rigid transforms derived from declared frames; no load, friction, play or compliance is modelled.",
+    "No clearance to a hand, tool or printer is modelled.",
+  ];
+  const base = { status: "NOT_RUN" as EvidenceStatus, reason: "", connectionId: input.connectionId,
+    rangeDeg: null as { min: number; max: number } | null, steps: 0, stepDeg: 0, posesEvaluated: 0,
+    collisionTests: 0, toleratedContacts: 0, blockedAt: null as null | { angleDeg: number; worst: string; blocking: unknown[] },
+    coverage: "", unknowns };
+  const motion = input.spec.motions.find((item) => item.inputConnectionId === input.connectionId);
+  const range = motion?.range;
+  if (!range || range.unit !== "deg" || !Number.isFinite(range.min) || !Number.isFinite(range.max) || range.max <= range.min)
+    return { ...base, reason: "The driven motion has no usable angular range for rigid sampling." };
+  const steps = Math.max(2, Math.min(65, Number.isInteger(input.steps) ? input.steps : 9));
+  const angles = Array.from({ length: steps }, (_, index) => range.min + (range.max - range.min) * index / (steps - 1));
+  const built = buildSliderCrankSourcePoseProtocolFromSpec({ spec: input.spec, anglesDeg: angles, budgetMs: 120000 });
+  if (built.status !== "READY")
+    return { ...base, rangeDeg: { min: range.min, max: range.max }, reason: `Multi-joint rigid sampling could not prepare canonical poses: ${built.reason}` };
+  const meshes = new Map<string, ReturnType<typeof buildBvh>>();
+  for (const instance of input.spec.instances) {
+    const part = input.spec.parts.find((item) => item.id === instance.partId);
+    if (!part || part.source !== "generated" || !input.meshes[part.id])
+      return { ...base, rangeDeg: { min: range.min, max: range.max }, reason: `Multi-joint rigid sampling needs a generated mesh for ${instance.id}.` };
+    if (!meshes.has(part.id)) meshes.set(part.id, buildBvh(readBinaryStl(input.meshes[part.id])));
+  }
+  let collisionTests = 0, posesEvaluated = 0;
+  for (const item of built.protocol.cases) {
+    const angleDeg = angles[posesEvaluated];
+    const placed = input.spec.instances.map((instance) => {
+      const part = input.spec.parts.find((entry) => entry.id === instance.partId)!;
+      return { id: instance.id, partId: part.id, placed: placeBvh(meshes.get(part.id)!, item.transforms[instance.id]) };
+    });
+    for (let a = 0; a < placed.length; a++) for (let b = a + 1; b < placed.length; b++) {
+      if (placed[a].partId === placed[b].partId) continue;
+      const collision = bvhIntersects(placed[a].placed, placed[b].placed);
+      collisionTests += collision.testedPairs;
+      if (collision.status === "UNKNOWN")
+        return { ...base, rangeDeg: { min: range.min, max: range.max }, steps, stepDeg: (range.max - range.min) / (steps - 1),
+          posesEvaluated: posesEvaluated + 1, collisionTests, reason: `A sampled pose could not be decided: ${collision.reason}` };
+      if (collision.blocked)
+        return { ...base, status: "FAIL", rangeDeg: { min: range.min, max: range.max }, steps,
+          stepDeg: (range.max - range.min) / (steps - 1), posesEvaluated: posesEvaluated + 1, collisionTests,
+          blockedAt: { angleDeg, worst: "BLOCKED", blocking: [{ a: placed[a].id, b: placed[b].id, status: collision.status, reason: collision.reason }] },
+          reason: `Rigid slider-crank sampling is blocked at ${angleDeg.toFixed(2)}°: ${placed[a].id} interferes with ${placed[b].id} (${collision.status}).` };
+    }
+    posesEvaluated++;
+  }
+  return { ...base, status: "PASS" as EvidenceStatus, rangeDeg: { min: range.min, max: range.max },
+    steps, stepDeg: (range.max - range.min) / (steps - 1), posesEvaluated, collisionTests,
+    coverage: `${posesEvaluated} sampled crank angles covering ${range.min}° to ${range.max}° at ${((range.max - range.min) / (steps - 1)).toFixed(3)}° steps; all placed generated parts checked pairwise.`,
+    reason: `Every one of ${posesEvaluated} sampled crank angles was free of interference.` };
+}
+
 /**
  * Prepare an in-memory candidate. This publishes nothing and proves neither
  * part identity nor fit, motion, manufacturability or physical function.
@@ -69,6 +130,8 @@ export async function prepareAssembly(input: {
     movingInstanceIds?: string[];
     pathSteps?: number;
     motionSteps?: number;
+    /** Multi-joint source-driven evidence only; naive single-axis rigid sampling is not applied. */
+    sliderCrank?: boolean;
   };
   /**
    * Confirmation state of the requirement contract these results are judged
@@ -79,10 +142,22 @@ export async function prepareAssembly(input: {
   contractGate?: { evidenceCurrent: boolean; reason?: string | null };
   /** Exact contract and request used by the caller; binding does not attest user confirmation. */
   contractSnapshot?: { contract: unknown; request: string };
+  /** Replay a saved sampling protocol. HTTP adapters generate a fresh seed. */
+  sourceSamplingSeed?: string;
+  /** Optional reconstruction time budget for complex assemblies; default 15 s. */
+  reconstructionBudgetMs?: number;
+  onSourcePoseArtifact?: (artifact: SourcePoseArtifact) => void | Promise<void>;
   options?: ScadExecutionOptions;
   render?: Renderer;
 }) {
   if (!input.scadSource.trim()) throw new Error("Assembly source is empty");
+  const scadSource = input.scadSource;
+  input = { ...input,
+    contractGate: input.contractGate ? { ...input.contractGate } : undefined,
+    contractSnapshot: input.contractSnapshot ? structuredClone(input.contractSnapshot) : undefined,
+    fitRequirements: input.fitRequirements ? structuredClone(input.fitRequirements) : undefined,
+    kinematics: input.kinematics ? structuredClone(input.kinematics) : undefined,
+  };
   const checked = validateAssemblySpec(input.spec);
   if (!checked.success) throw new Error(`Invalid assembly specification: ${checked.error.message}`);
   const spec = checked.data;
@@ -96,7 +171,7 @@ export async function prepareAssembly(input: {
     requestMatches: contract.requestSha256 === sha256(input.contractSnapshot!.request.trim()),
   } : null;
   input.options?.signal?.throwIfAborted();
-  const result = await (input.render ?? renderAssemblySpecParts)(input.scadSource, spec, input.options);
+  const result = await (input.render ?? renderAssemblySpecParts)(scadSource, spec, input.options);
   input.options?.signal?.throwIfAborted();
 
   const generated = new Set(spec.parts.filter((p) => p.source === "generated").map((p) => p.id));
@@ -113,13 +188,17 @@ export async function prepareAssembly(input: {
     throw new Error("Purchased parts do not match the assembly specification");
   }
   // Hash the validated snapshot with the same canonical form used by the API.
-  const sourceSha256 = sha256(input.scadSource);
+  const sourceSha256 = sha256(scadSource);
   const specificationSha256 = assemblySpecificationHash(spec);
+  if(input.assemblyMesh?.sha256 && sha256(input.assemblyMesh.stl)!==input.assemblyMesh.sha256) throw new Error("Assembly artifact hash mismatch");
+  const partConnectivity = result.parts.map(part=>({partId:part.partId,sha256:part.sha256,...checkPartConnectivity(part.stl)}));
   const identity = checkPartIdentity({
     parts: result.parts.map((part) => ({ ...part, selector: spec.parts.find((item) => item.id === part.partId)!.selector })),
     assemblyMesh: input.assemblyMesh ?? null,
+    instances: spec.instances,
   });
   const meshes = Object.fromEntries(result.parts.map((part) => [part.partId, part.stl]));
+  const translationProbes = checkDeclaredTranslationProbes({ spec, meshes, signal: input.options?.signal });
   const gateReason = contractBinding?.requestMatches === false
     ? "The requirement contract belongs to a different request; its evidence is stale."
     : input.contractGate
@@ -167,6 +246,8 @@ export async function prepareAssembly(input: {
       reason,
       measuredStatus: assessment.status,
       stationsMm: measurement.stationsMm,
+      stationSource: measurement.stationSource ?? "not-selected",
+      stationFrame: measurement.stationFrame ?? null,
       diametralClearanceMm: measurement.clearanceMm,
       radialEnclosure: measurement.radialEnclosure,
       boreDiameterMm: measurement.bore?.measurement.diameterMm ?? null,
@@ -177,11 +258,12 @@ export async function prepareAssembly(input: {
       boreRoleCheck: measurement.bore?.roleCheck ?? null,
       shaftRoleCheck: measurement.shaft?.roleCheck ?? null,
       unknowns: measurement.unknowns,
+      jointFrames:{...frameCheck,...frameVerdict,measuredStatus:frameCheck.status,measuredReason:frameCheck.reason},
     };
   });
   // Kinematics runs after the gate is known so its own verdicts are downgraded
   // the same way as every other layer.
-  const kinematics = input.kinematics
+  const kinematics = input.kinematics && !input.kinematics.sliderCrank
     ? checkKinematics({
         spec,
         meshes,
@@ -192,6 +274,8 @@ export async function prepareAssembly(input: {
       })
     : null;
   const declaredDisassembly = checkDeclaredPoseDisassembly({ spec, meshes });
+  const declaredAssembly = checkDeclaredPoseAssembly({ spec, meshes });
+  const declaredAssemblyEvidence = applyContractGate(declaredAssembly.status, declaredAssembly.reason, gateReason);
   const declaredPathEvidence = applyContractGate(declaredDisassembly.status, declaredDisassembly.reason, gateReason);
   /**
    * The detailed record follows the same rule as `fits`: `status` is the
@@ -207,10 +291,12 @@ export async function prepareAssembly(input: {
     measuredStatus: declaredDisassembly.status,
     measuredReason: declaredDisassembly.reason,
   };
-  const pathEvidence = kinematics
-    ? applyContractGate(kinematics.path.status as EvidenceStatus, kinematics.path.reason, gateReason)
-    : { status: "NOT_RUN" as EvidenceStatus, reason: "Disassembly was not checked." };
-  const motionEvidence = kinematics
+  const sliderRigid = input.kinematics?.sliderCrank
+    ? checkSliderCrankRigidMotion({ spec, meshes, connectionId: input.kinematics.connectionId, steps: input.kinematics.motionSteps ?? 9 })
+    : null;
+  const sliderRigidEvidence = sliderRigid
+    ? applyContractGate(sliderRigid.status as EvidenceStatus, sliderRigid.reason, gateReason) : null;
+  let motionEvidence = kinematics
     ? applyContractGate(kinematics.motion.status as EvidenceStatus, kinematics.motion.reason, gateReason)
     : { status: "NOT_RUN" as EvidenceStatus, reason: "Motion was not checked." };
   const unboundRequiredFit = fitBinding?.required === true && fitBinding.status === "NOT_RUN";
@@ -219,7 +305,15 @@ export async function prepareAssembly(input: {
     [...fits.map(fit => fit.connectionId + ": " + fit.reason), ...(unboundRequiredFit && fitBinding ? ["contract fit: " + fitBinding.reason] : []), ...(kinematics ? ["path: " + pathEvidence.reason] : [])],
     "Declared poses and connections were not checked against geometry.",
   );
+  const mechanismDimensions = measureSliderCrankDimensions({ spec, meshes });
   const identityEvidence = applyContractGate(identity.status as EvidenceStatus, identity.reason, gateReason);
+  const missingRequirements = contract ? unknownsInScope(withDerivedUnknowns(contract,
+    deriveRequirementContract({ request: input.contractSnapshot!.request, targetLevel: contract.targetLevel }))) : [];
+  const requirementsEvidence = !contract || !input.contractGate?.evidenceCurrent || gateReason
+    ? { status: "NOT_RUN" as const, reason: gateReason ?? "A confirmed requirement contract was not supplied." }
+    : missingRequirements.length
+      ? { status: "NOT_RUN" as const, reason: missingRequirements.map(item => `${item.id}: ${item.question}`).join(" ") }
+      : { status: "PASS" as const, reason: "No in-scope requirement gaps are recorded. This does not verify geometry or physical function." };
   const manifest = {
     schemaVersion: 1 as const,
     sourceSha256,
@@ -242,7 +336,21 @@ export async function prepareAssembly(input: {
       featureIdentityStatus: fitBinding.featureIdentityStatus,
     } : null,
     kinematics,
+    sourceMotion,
+    mechanismDimensions,
+    sliderRigidMotion: sliderRigid,
+    reconstruction: { ...reconstruction, ...reconstructionEvidence, measuredStatus: reconstruction.status, measuredReason: reconstruction.reason },
+    partConnectivity,
+    translationProbes: { ...translationProbes, ...applyContractGate(translationProbes.status, translationProbes.reason, gateReason), measuredStatus: translationProbes.status, measuredReason: translationProbes.reason,
+      results: translationProbes.results.map(probe => ({...probe,...applyContractGate(probe.status as EvidenceStatus,probe.reason,gateReason),measuredStatus:probe.status,measuredReason:probe.reason})),
+    },
     declaredDisassembly: declaredDisassemblyRecord,
+    declaredAssembly: {
+      ...declaredAssembly,
+      ...declaredAssemblyEvidence,
+      measuredStatus: declaredAssembly.status,
+      measuredReason: declaredAssembly.reason,
+    },
     /**
      * `evidenceCurrent: null` means no contract was supplied, so the question
      * "is this the user's actual requirement" was never asked. It is not a
@@ -252,17 +360,34 @@ export async function prepareAssembly(input: {
       binding: contractBinding,
       evidenceCurrent: gateReason ? false : input.contractGate ? true : null,
       reason: gateReason ?? (input.contractGate
-        ? gateReason ?? "The results were judged against a confirmed requirement contract."
+        ? input.contractGate.reason?.trim() || "The results were judged against a confirmed requirement contract."
         : "Confirmation was not evaluated; a bound contract does not imply user approval."),
     },
     evidence: {
+      requirements: requirementsEvidence,
       identity: identityEvidence,
-      geometry: { status: "NOT_RUN" as const, reason: "Topology and dimensions were not independently checked." },
+      geometry: partConnectivity.some(p=>p.status==="FAIL")
+        ? {status:"FAIL" as const,reason:partConnectivity.filter(p=>p.status==="FAIL").map(p=>`${p.partId}: ${p.reason}`).join(" ")}
+        : { status: "NOT_RUN" as const, reason: "Full topology and dimensions were not independently checked; see partConnectivity for the limited surface check." },
+      topology: partConnectivity.length === 0
+        ? { status: "NOT_RUN" as const, reason: "No generated part meshes were available for a topology check." }
+        : partConnectivity.some(p=>p.status==="FAIL")
+          ? { status: "FAIL" as const, reason: partConnectivity.filter(p=>p.status==="FAIL").map(p=>`${p.partId}: ${p.reason}`).join(" ") }
+          : partConnectivity.some(p=>p.status==="ERROR")
+            ? { status: "ERROR" as const, reason: partConnectivity.filter(p=>p.status==="ERROR").map(p=>`${p.partId}: ${p.reason}`).join(" ") }
+            : partConnectivity.every(p=>p.status==="PASS")
+              ? { status: "PASS" as const, reason: "Every generated part is a single closed, consistently oriented, edge-connected surface. Dimensions, self-intersections, wall thickness, material, manufacture and physical function are not established by this topology check." }
+              : { status: "NOT_RUN" as const, reason: `Topology is not certified for: ${partConnectivity.filter(p=>p.status!=="PASS").map(p=>`${p.partId} ${p.status}: ${p.reason}`).join(" ")}` },
       assembly: assemblyEvidence,
+      assemblyPath: declaredAssemblyEvidence,
+      reconstruction: reconstructionEvidence,
+      jointFrames:jointFrameEvidence,
       disassembly: declaredPathEvidence,
       motion: motionEvidence,
+      rigidMotion: rigidMotionEvidence,
+      sourceMotion: sourceMotionEvidence,
       physical: { status: "NOT_RUN" as const, reason: "Physical manufacture and function were not tested." },
     },
   };
-  return { spec, manifest, parts: result.parts, purchasedPartIds: result.purchasedPartIds, identity, fits, kinematics };
+  return { spec, manifest, parts: result.parts, purchasedPartIds: result.purchasedPartIds, identity, fits, kinematics, reconstruction };
 }

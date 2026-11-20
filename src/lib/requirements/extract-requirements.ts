@@ -54,6 +54,23 @@ function firstMatch(text: string, patterns: RegExp[]): RegExpMatchArray | null {
   return null;
 }
 
+/** Capture an assertive condition in its original wording. Ambiguity stays a question. */
+function explicitAxialRetentionStatement(text: string): string | null {
+  const retention = /轴向(?:防脱|保持|锁止|限位)|\baxial(?:ly)?\s+(?:retention|retained|locking)\b|\bretained\s+axially\b|\bprevent\s+axial\s+(?:withdrawal|separation|removal)\b/i;
+  const directive = /必须|需要|要求|应当|应有|\b(?:must|shall|should|require[ds]?|needs?)\b/i;
+  const unresolved = /不(?:需要|要求|必|应|得)|没有|无需|无须|不要|未(?:说明|指定|确定)|尚未|待定|可选|是否|吗|\b(?:not|no|never|without|optional|unknown|unspecified|whether)\b|\?/i;
+  const statements = text.split(/[。！？\n]|\.(?=\s|$)/);
+  for (const raw of statements) {
+    const statement = raw.trim();
+    if (!statement || statement.length > 500) continue;
+    const clauses = statement.split(/[，,;；]/).filter(clause => retention.test(clause));
+    if (clauses.some(clause => directive.test(clause)) && clauses.every(clause => !unresolved.test(clause))) {
+      return statement;
+    }
+  }
+  return null;
+}
+
 function normalizeNumber(raw: string): number {
   return Number(raw.replace(/[−–—]/g, "-").replace(/^\+/, ""));
 }
@@ -111,22 +128,41 @@ export function deriveRequirementContract(input: {
     draft.requirements.push(requirement("distinct-exported-parts", "parts", { kind: "equals", value: partCount }, "request", partMatch![0].trim()));
   }
 
+  // --- explicit assembly paths ----------------------------------------------
+  // "disassemble" must not match "assemble", and a noun such as "assembly"
+  // alone does not assert that a complete insertion route has been supplied.
+  const forbidsAssembly = /不可(?:以)?(?:组装|装配|装拆)|不能(?:组装|装配|装拆)|not\s+assemblable/i.test(normalized);
+  const assemblyStatement = firstMatch(normalized, [
+    /可(?:以)?(?:组装|装配|装拆)|能(?:组装|装配)|可装(?:可拆|可卸|上)|装上|(?:安装|装配|组装)(?:路径|顺序)/,
+    /\bassemblable\b|\b(?:can\s+be|can|must\s+be)\s+assembled\b|\bassembly\s+(?:path|sequence)\b|\breassembl\w*/i,
+  ]);
+  if (!forbidsAssembly && assemblyStatement) {
+    draft.requirements.push(requirement("assembly-path", "assembly", { kind: "equals", value: true }, "request", assemblyStatement[0].trim()));
+  }
+
   // --- disassembly ----------------------------------------------------------
-  const forbidsDisassembly = /不可拆|不可拆卸|不能拆|non-?removable|not\s+removable|permanent(?:ly)?\s+(?:fixed|joined)/i.test(normalized);
-  const wantsDisassembly = !forbidsDisassembly && /可拆|可拆卸|拆下|拆卸|抽离|拔出|取出|removab|disassembl|detach|pull(?:ed)?\s*out|take\s+apart/i.test(normalized);
+  const forbidsDisassembly = /不可(?:以)?(?:拆|装拆)|不能(?:拆|装拆)|non-?removable|not\s+removable|permanent(?:ly)?\s+(?:fixed|joined)/i.test(normalized);
+  const wantsDisassembly = !forbidsDisassembly && /可(?:以)?拆(?:开|卸)?|可(?:以)?装拆|能拆(?:开|卸)?|拆下|拆卸|抽离|拔出|取出|removab|disassembl|detach|pull(?:ed)?\s*out|take\s+apart/i.test(normalized);
   if (wantsDisassembly) {
-    const statement = firstMatch(normalized, [/可拆|可拆卸|拆下|拆卸|抽离|拔出|取出/i, /removab\w*|disassembl\w*|detach\w*|pull(?:ed)?\s*out|take\s+apart/i]);
+    const statement = firstMatch(normalized, [/可(?:以)?拆(?:开|卸)?|可(?:以)?装拆|能拆(?:开|卸)?|拆下|拆卸|抽离|拔出|取出/i, /removab\w*|disassembl\w*|detach\w*|pull(?:ed)?\s*out|take\s+apart/i]);
     draft.requirements.push(requirement("disassembly-path", "assembly", { kind: "equals", value: true }, "request", statement?.[0].trim() ?? null));
   }
 
   // --- motion ---------------------------------------------------------------
   const motionWord = firstMatch(normalized, [/转动|旋转|回转|能转|转起来|rotate|rotat\w*|turn|spin|swivel/i]);
   const rangeMatch = firstMatch(normalized, [
-    /(-?\d+(?:\.\d+)?)\s*(?:°|度|deg(?:rees)?)?\s*(?:到|至|~|～|to|through)\s*(\+?\d+(?:\.\d+)?)\s*(?:°|度|deg(?:rees)?)/i,
+    /(-?\d+(?:\.\d+)?)\s*(?:°|度|deg(?:rees)?)?\s*(?:到|至|~|～|to|through)\s*([+-]?\d+(?:\.\d+)?)\s*(?:°|度|deg(?:rees)?)/i,
     /(?:±|\+\/-)\s*(\d+(?:\.\d+)?)\s*(?:°|度|deg(?:rees)?)?/,
   ]);
+  // A crank-slider that can make a full turn states a reach rather than a
+  // signed hinge interval; "360°" is not a two-endpoint hinge range.
+  const fullTurnMatch = intentKind === "crank-slider" && !rangeMatch
+    ? firstMatch(normalized, [/能?转\s*(?:满|一整圈|一圈|360\s*(?:°|度|deg(?:rees)?))|(?:full|complete)\s+(?:turn|rotation)|360\s*(?:°|度|deg(?:rees)?)/i])
+    : null;
   let motionRange: { min: number; max: number } | null = null;
-  if (rangeMatch) {
+  if (fullTurnMatch) {
+    motionRange = { min: 0, max: 360 };
+  } else if (rangeMatch) {
     if (rangeMatch.length === 3) {
       const a = normalizeNumber(rangeMatch[1]);
       const b = normalizeNumber(rangeMatch[2]);
@@ -145,7 +181,12 @@ export function deriveRequirementContract(input: {
     // turns further fail for turning further, which is the opposite of what the
     // request asks for. The magnitude of the largest reach is the assertion.
     const reach = Math.max(Math.abs(motionRange.min), Math.abs(motionRange.max));
-    draft.requirements.push(requirement("motion-range-deg", "motion", { kind: "atLeast", min: reach, unit: "deg" }, "request", rangeMatch![0].trim()));
+    const rangeStatement = (rangeMatch ?? fullTurnMatch)![0].trim();
+    draft.requirements.push(requirement("motion-range-deg", "motion", { kind: "atLeast", min: reach, unit: "deg" }, "request", rangeStatement));
+    // Encode both signed endpoints using the existing lower-bound comparator.
+    // Negating the minimum expresses actual.min <= requested.min.
+    draft.requirements.push(requirement("motion-range-negative-end", "motion", { kind: "atLeast", min: -motionRange.min, unit: "deg" }, "request", rangeStatement));
+    draft.requirements.push(requirement("motion-range-positive-end", "motion", { kind: "atLeast", min: motionRange.max, unit: "deg" }, "request", rangeStatement));
   } else if (motionWord) {
     addUnknown("motion-range", "转动范围未给出：需要明确角度上下限才能验收运动。", ["motion"]);
   }
@@ -210,12 +251,60 @@ export function deriveRequirementContract(input: {
 
   // --- intent-specific gaps ------------------------------------------------
   if (intentKind === "revolute-hinge") {
-    if (wantsDisassembly) addUnknown("axial-retention", "轴向保持方式未说明：可抽离与自保持在功能上是不同合同。", ["assembly", "motion"]);
+    const retentionStatement = explicitAxialRetentionStatement(text);
+    if (retentionStatement) {
+      draft.requirements.push(requirement("axial-retention", "assembly", { kind: "equals", value: true }, "request", retentionStatement));
+    } else if (wantsDisassembly) {
+      addUnknown("axial-retention", "轴向保持方式未说明：可抽离与自保持在功能上是不同合同。", ["assembly", "motion"]);
+    }
     if (!clearanceRange && !toleranceMatch) addUnknown("hinge-fit", "孔与轴的直径及配合公差未给出。", ["assembly"]);
+  }
+  if (intentKind === "crank-slider" && draft.requirements.some((item) => item.id === "diametral-clearance")) {
+    draft.assumptions.push("间隙要求按声明中所有带 boreInstanceId 的可测 revolute 配合应用；未测连接仍需保持 NOT_RUN。");
   }
   if (intentKind === "threaded") addUnknown("thread-geometry", "螺距、旋向、公差等级未给出。", ["assembly"]);
   if (intentKind === "gear-train") addUnknown("gear-geometry", "模数、齿数、压力角与侧隙未给出。", ["assembly", "motion"]);
-  if (intentKind === "crank-slider") addUnknown("crank-geometry", "曲柄半径、连杆长度与行程未给出。", ["motion"]);
+  if (intentKind === "crank-slider") {
+    // "8 ± 0.02 mm" states a design tolerance; a bare "8 mm" only states a
+    // nominal and gets a documented 0.001 mm digital mesh band instead.
+    const crankWithTolerance = firstMatch(normalized, [
+      /曲柄半径\s*(?:为|是|:|：)?\s*(\d+(?:\.\d+)?)\s*(?:mm|毫米)?\s*±\s*(\d+(?:\.\d+)?)\s*(?:mm|毫米)?/i,
+      /crank\s+radius\s*(?:of\s*)?(\d+(?:\.\d+)?)\s*(?:mm)?\s*±\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+    ]);
+    const crankRadius = crankWithTolerance ?? firstMatch(normalized, [
+      /曲柄半径\s*(?:为|是|:|：)?\s*(\d+(?:\.\d+)?)\s*(?:mm|毫米)?/i,
+      /crank\s+radius\s*(?:of\s*)?(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+    ]);
+    const rodWithTolerance = firstMatch(normalized, [
+      /连杆(?:长度|长)\s*(?:为|是|:|：)?\s*(\d+(?:\.\d+)?)\s*(?:mm|毫米)?\s*±\s*(\d+(?:\.\d+)?)\s*(?:mm|毫米)?/i,
+      /(?:connecting\s+)?rod\s+length\s*(?:of\s*)?(\d+(?:\.\d+)?)\s*(?:mm)?\s*±\s*(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+    ]);
+    const rodLength = rodWithTolerance ?? firstMatch(normalized, [
+      /连杆(?:长度|长)\s*(?:为|是|:|：)?\s*(\d+(?:\.\d+)?)\s*(?:mm|毫米)?/i,
+      /(?:connecting\s+)?rod\s+length\s*(?:of\s*)?(\d+(?:\.\d+)?)\s*(?:mm)?/i,
+    ]);
+    const toleranceFor = (match: RegExpMatchArray | null, explicit: boolean) =>
+      explicit ? normalizeNumber(match![2]) : 0.001;
+    const crankBand = toleranceFor(crankWithTolerance, crankWithTolerance !== null);
+    const rodBand = toleranceFor(rodWithTolerance, rodWithTolerance !== null);
+    if (crankRadius) {
+      const value = normalizeNumber(crankRadius[1]);
+      draft.requirements.push(requirement("crank-radius", "motion",
+        { kind: "range", min: value - crankBand, max: value + crankBand, unit: "mm" }, "request", crankRadius[0].trim()));
+    }
+    if (rodLength) {
+      const value = normalizeNumber(rodLength[1]);
+      draft.requirements.push(requirement("rod-length", "motion",
+        { kind: "range", min: value - rodBand, max: value + rodBand, unit: "mm" }, "request", rodLength[0].trim()));
+    }
+    if (!crankRadius || !rodLength) {
+      addUnknown("crank-geometry", "曲柄半径或连杆长度未给出：需要明确数值才能验收机构尺寸。", ["motion"]);
+    } else if (crankWithTolerance || rodWithTolerance) {
+      draft.assumptions.push("用户给出的曲柄/连杆尺寸公差带用于数字尺寸比较；网格测量不能证明制造过程符合该公差。");
+    } else {
+      draft.assumptions.push("曲柄半径与连杆长度按请求的名义值建立 ±0.001 mm 数字测量带；制造公差仍未给出。");
+    }
+  }
   if (intentKind === "multi-cylinder") {
     addUnknown("cylinder-layout", "缸数、V 角、缸心距与曲柄相位未定义；点火顺序不等于机械相位。", ["motion", "assembly"]);
     addUnknown("cylinder-parts", "每个气缸的活塞、连杆、销轴数量与布置未给出。", ["parts", "motion"]);

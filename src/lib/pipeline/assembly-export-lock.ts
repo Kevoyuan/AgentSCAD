@@ -19,6 +19,7 @@ export async function claimAssemblyExport(job: Job) {
     throw error;
   }
   return {
+    token,
     async heartbeat() {
       const renewed = await db.jobVersion.updateMany({ where: { id, newValue: token, createdAt: { gte: new Date(Date.now() - EXECUTION_TTL_MS) } }, data: { createdAt: new Date() } });
       if (renewed.count !== 1) throw new JobExecutionStopped();

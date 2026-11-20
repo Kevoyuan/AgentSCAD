@@ -1,3 +1,5 @@
+import { deriveRequirementContract } from "@/lib/requirements/extract-requirements";
+import { requirementContractHash } from "@/lib/requirements/requirement-contract";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getJobAccessScope, jobAccessFilter } from "@/lib/job-session";
@@ -71,7 +73,10 @@ export async function PUT(request: NextRequest, { params }: Context) {
     if (!canProcessJobState(job.state)) return NextResponse.json({ error: "Job is processing; refresh before confirming" }, { status: 409 });
 
     const saved = await saveRequirementContract({ job, contract: body.contract, expectedContractSha256: expected });
+    const derived = deriveRequirementContract({request:job.inputRequest});
     return NextResponse.json({
+      derived,
+      derivedSha256: requirementContractHash(derived),
       contract: saved.contract,
       contractSha256: saved.contractSha256,
       confirmedContractSha256: saved.contractSha256,

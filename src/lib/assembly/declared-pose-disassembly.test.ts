@@ -20,6 +20,7 @@ test("parsing an existing declaration preserves its original canonical hash",()=
   if (!parsed.success) throw new Error("Fixture invalid");
   expect(assemblySpecificationHash(parsed.data)).toBe(assemblySpecificationHash(original as unknown as typeof parsed.data));
   expect("screwTrajectory" in parsed.data.operations[0]).toBe(false);
+  expect("rigidTrajectory" in parsed.data.operations[0]).toBe(false);
 });
 test("one local mesh is placed separately for each instance during declared removal",()=>{
   const good=checkDeclaredPoseDisassembly({spec:fixture(),meshes:{shared:mesh}});

@@ -58,6 +58,10 @@ export interface RevoluteFitMeasurement {
   /** Alignment of the two measured axes in the assembly frame. */
   axis: { offsetMm: number; angleDeg: number } | null;
   stationsMm: number[];
+  /** Absent in older archived reports. Declaration scope is untrusted input. */
+  stationSource?: "not-selected" | "caller" | "declaration" | "overlap-default";
+  /** Declared part-local reference for station offsets, separate from measured axes. */
+  stationFrame?: { instanceId: string; origin: Vec3; direction: Vec3 };
   unknowns: string[];
 }
 
@@ -121,7 +125,11 @@ export function measureRevoluteFit(input: {
   const spec = parsed.data;
   const connection = spec.connections.find((item) => item.id === input.connectionId);
   if (!connection) return { ...base, status: "ERROR", reason: "Unknown connection." };
-  if (connection.type !== "revolute") return { ...base, status: "NOT_RUN", reason: `Connection type "${connection.type}" is not measured by this check.` };
+  // A cylindrical prismatic pair (piston in a bore) is measured with the same
+  // bore/shaft section method; block guides have no boreInstanceId and are
+  // rejected by the caller before this point.
+  if (connection.type !== "revolute" && connection.type !== "prismatic")
+    return { ...base, status: "NOT_RUN", reason: `Connection type "${connection.type}" is not measured by this check.` };
   if (!connection.frameA || !connection.frameB) return { ...base, status: "ERROR", reason: "A revolute joint needs a frame on both instances." };
   if (input.boreInstanceId !== connection.a && input.boreInstanceId !== connection.b) {
     return { ...base, status: "ERROR", reason: "The bore instance must be one of the connection's two instances." };
@@ -169,17 +177,22 @@ export function measureRevoluteFit(input: {
   const delta = [originA[0] - originB[0], originA[1] - originB[1], originA[2] - originB[2]];
   const c = delta[0] * directionB[0] + delta[1] * directionB[1] + delta[2] * directionB[2];
 
-  const overlapMin = Math.max(extentA.min, (extentB.min - c) / k);
-  const overlapMax = Math.min(extentA.max, (extentB.max - c) / k);
+  const mappedB=[(extentB.min-c)/k,(extentB.max-c)/k];
+  const overlapMin = Math.max(extentA.min, Math.min(...mappedB));
+  const overlapMax = Math.min(extentA.max, Math.max(...mappedB));
   if (!(overlapMax > overlapMin)) {
     return { ...base, status: "ERROR", reason: "The two features do not overlap along the declared axis, so they cannot form a joint." };
   }
-  const stations = input.stationsMm ?? [0.2, 0.5, 0.8].map((fraction) => overlapMin + (overlapMax - overlapMin) * fraction);
+  const stations = input.stationsMm ?? connection.fitStationsMm
+    ?? [0.2, 0.5, 0.8].map((fraction) => overlapMin + (overlapMax - overlapMin) * fraction);
+  base.stationSource = input.stationsMm !== undefined ? "caller"
+    : connection.fitStationsMm !== undefined ? "declaration" : "overlap-default";
+  base.stationFrame = { instanceId: connection.a, ...connection.frameA };
   if (stations.some((value) => !Number.isFinite(value) || value < overlapMin || value > overlapMax)) {
     return { ...base, status: "ERROR", reason: "Every station must lie inside the axial overlap of the two features." };
   }
   const stationsA = stations;
-  const stationsB = stations.map((value) => c + k * value);
+  const stationsB = stations.map((value) => c + k * value).sort((a,b)=>a-b);
 
   const measure = (side: typeof instanceA, partId: string, stl: Buffer, frame: { origin: Vec3; direction: Vec3 }, role: "bore" | "shaft", localStations: number[]): FitSide => {
     const measurement = measureCylindricalFeature({ stl, axis: frame, role, stationsMm: localStations, rays: input.rays, maxRadiusMm: input.maxRadiusMm });
@@ -301,6 +314,8 @@ export function measureRevoluteFit(input: {
     radialEnclosure,
     axis,
     stationsMm: stations,
+    stationSource: base.stationSource,
+    stationFrame: base.stationFrame,
     unknowns,
   };
 }

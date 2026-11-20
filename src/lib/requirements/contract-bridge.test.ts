@@ -3,6 +3,7 @@ import { createHash } from "crypto";
 import { deriveRequirementContract } from "./extract-requirements";
 import { toEvidenceRequirements, toFitRequirements, resolveContractFitRequirements } from "./contract-bridge";
 import { prepareAssembly } from "../assembly/prepare-assembly";
+import { tubeStl } from "../geometry/__tests__/solids";
 import { prismStl } from "../geometry/__tests__/prism";
 import { tubeStl } from "../geometry/__tests__/solids";
 
@@ -97,7 +98,8 @@ describe("request to measured evidence", () => {
     const contract = deriveRequirementContract({ request: "两件式铰链，直径间隙 0.35 到 0.45 mm，可拆" });
     const fits = toFitRequirements(contract, spec(), { boreInstanceId: "bore-instance" });
     const result = await prepareAssembly({ scadSource: "cube(1);", spec: spec(), render, fitRequirements: fits });
-    expect(result.manifest.evidence.assembly.status).toBe("PASS");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
+    expect(result.fits[0].measuredStatus).toBe("PASS");
     expect(result.fits[0].diametralClearanceMm!.min).toBeCloseTo(0.3923, 3);
   });
 
@@ -201,4 +203,18 @@ describe("request to measured evidence", () => {
     expect(resolveContractFitRequirements(deriveRequirementContract({ request: "两件式铰链" }), spec()).required).toBe(false);
   });
 
+});
+
+
+test("a cylindrical prismatic fit is derived only when explicitly allowed", () => {
+  const contract = deriveRequirementContract({ request: "做一个曲柄滑块机构，曲柄半径 8 mm，连杆长度 28 mm，直径间隙 0.1 到 0.6 mm，能转 360 度" });
+  const prismatic = spec([{
+    id: "slide", type: "prismatic", a: "bore-instance", b: "shaft-instance",
+    frameA: axis, frameB: axis, range: null, pitchMm: null, ratio: null,
+    boreInstanceId: "bore-instance", allowedContact: [],
+  }]);
+  expect(() => toFitRequirements(contract, prismatic, { connectionId: "slide", boreInstanceId: "bore-instance" })).toThrow("exactly one revolute");
+  expect(toFitRequirements(contract, prismatic, {
+    connectionId: "slide", boreInstanceId: "bore-instance", allowPrismatic: true,
+  })[0].connectionId).toBe("slide");
 });

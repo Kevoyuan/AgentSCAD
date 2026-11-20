@@ -7,20 +7,8 @@ import { retrieveContext, formatRetrievalContext } from "@/lib/retrieval/example
 // Types (mirrors the ParameterDef in process/route.ts)
 // ---------------------------------------------------------------------------
 
-export interface ParameterDef {
-  key: string;
-  label: string;
-  kind: string;
-  unit: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  source: string;
-  editable: boolean;
-  description: string;
-  group: string;
-}
+export type { ParameterDef } from "@/lib/harness/types";
+import type { ParameterDef } from "@/lib/harness/types";
 
 interface FamilySchemaFile {
   family: string;
@@ -62,6 +50,17 @@ async function readJsonFile<T>(filePath: string): Promise<T | null> {
 
 export function skillInstructions(content: string): string {
   return content.replace(/^---\r?\n[\s\S]*?\r?\n---\s*/, "").trim();
+}
+
+/** Share the generation contract with repair without importing its output format. */
+export function assemblyContractGuidance(content: string): string | null {
+  const start = "<!-- ASSEMBLY_CONTRACT_GUIDANCE_START -->";
+  const end = "<!-- ASSEMBLY_CONTRACT_GUIDANCE_END -->";
+  const first = content.indexOf(start);
+  const last = content.indexOf(end);
+  if (first < 0 || last <= first || content.indexOf(start, first + start.length) !== -1
+      || content.indexOf(end, last + end.length) !== -1) return null;
+  return content.slice(first + start.length, last).trim() || null;
 }
 
 export function isExperimentalMemoryPromptEnabled(
@@ -313,6 +312,6 @@ export function applyParameterOverrides(
 ): ParameterDef[] {
   return schema.map((p) => {
     const v = overrides[p.key];
-    return v !== undefined ? { ...p, value: v as number } : p;
+    return v !== undefined ? { ...p, value: v as number | boolean } : p;
   });
 }

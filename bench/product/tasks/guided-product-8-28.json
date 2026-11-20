@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "id": "guided-product-8-28",
+  "prompt": "Use the product assembly-preparation path to check a six-part guided/retained single-cylinder slider-crank. The embedded declaration must pass selector part identity, part connectivity, export reconstruction, a declared assembly sequence, a correct removal sequence, the eccentric revolute fit and its measured joint frames. Wrong declarations or geometry must be rejected by the product layers.",
+  "partCount": 6,
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 6
+      }
+    },
+    {
+      "id": "part-connectivity",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "assembly-reconstruction",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "assembly-path",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "disassembly-path",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "diametral-clearance",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "measured-joint-frames",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "This family calls prepareContractAssembly, not a tool-level renderer or the A001 route.",
+    "It scores only the product-preparation layers that can be measured here: distinct parts, topology, reconstruction, declared assembly, declared disassembly, the eccentric fit and its joint frames.",
+    "Fit and joint frames cover only the eccentric revolute; main-shaft and wrist stations are not valid cylindrical probes in this fixture and remain NOT_RUN.",
+    "Motion, source motion and physical function remain unmeasured.",
+    "The assembly path is the declared insertion sequence, checked as the reverse of the declared removal paths, not as continuous transport."
+  ],
+  "fit": {
+    "minClearanceMm": 0.1,
+    "maxClearanceMm": 0.6,
+    "requirements": [
+      {
+        "connectionId": "eccentric",
+        "boreSelector": "rod"
+      }
+    ]
+  }
+}

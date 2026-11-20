@@ -28,6 +28,8 @@ Usage:
 """
 
 import json
+import hashlib
+import io
 import os
 import sys
 import traceback
@@ -73,7 +75,9 @@ def validate_stl(stl_path: str, max_dim: float = 300.0, min_wall: float = 1.2) -
         return make_error_result(f"STL file not found: {stl_path}")
 
     try:
-        mesh = trimesh.load(stl_path, force="mesh")
+        with open(stl_path, "rb") as source:
+            stl_bytes = source.read()
+        mesh = trimesh.load(io.BytesIO(stl_bytes), file_type="stl", force="mesh")
     except Exception as e:
         return make_error_result(f"Failed to load STL file: {e}")
 
@@ -84,6 +88,7 @@ def validate_stl(stl_path: str, max_dim: float = 300.0, min_wall: float = 1.2) -
 
     # ─── R001: Wall Thickness ────────────────────────────────────────────
     r001 = check_wall_thickness(mesh, min_wall)
+    r001["details"]["meshSha256"] = hashlib.sha256(stl_bytes).hexdigest()
     rules.append(r001)
 
     # ─── R002: Maximum Dimensions ────────────────────────────────────────
@@ -221,24 +226,39 @@ def check_wall_thickness(mesh, min_wall: float) -> dict:
         # Start on the surface and exclude only numerical self-hits. The old
         # 0.3 mm cutoff hid very thin walls; the 0.01 mm offset inflated results.
         epsilon = max(1e-8, float(mesh.scale) * 1e-9)
-        locations, index_ray, _ = mesh.ray.intersects_location(
+        locations, index_ray, index_triangle = mesh.ray.intersects_location(
             points, -normals, multiple_hits=True
         )
         sheet = planar_sheet_axis(mesh)
         thicknesses, wall_widths, sheet_gauges = [], [], []
+        minimum_witness, wall_witness = None, None
         for i in range(n_samples):
-            hits = locations[index_ray == i]
+            ray_hits = index_ray == i
+            hits = locations[ray_hits]
             distances = (hits - points[i]) @ (-normals[i])
-            valid = distances[distances > epsilon]
+            valid = np.flatnonzero(distances > epsilon)
             if len(valid) == 0:
                 continue
-            thickness = float(np.min(valid))
+            nearest = int(valid[np.argmin(distances[valid])])
+            thickness = float(distances[nearest])
+            source_face = int(face_indices[i])
+            hit_face = int(index_triangle[ray_hits][nearest])
+            witness = dict(sampleIndex=i, sourceFaceIndex=source_face, hitFaceIndex=hit_face,
+                           origin=points[i].tolist(), direction=(-normals[i]).tolist(),
+                           hit=hits[nearest].tolist(), distanceMm=thickness,
+                           sourceTriangle=mesh.triangles[source_face].tolist(),
+                           hitTriangle=mesh.triangles[hit_face].tolist(),
+                           indexConvention="Processed trimesh face indices")
+            if minimum_witness is None or thickness < minimum_witness["distanceMm"]:
+                minimum_witness = witness
             thicknesses.append(thickness)
             if (sheet is not None and abs(float(normals[i] @ sheet[0])) > 1 - 1e-4
                     and abs(thickness - sheet[1]) < max(1e-6, sheet[1] * 1e-4)):
                 sheet_gauges.append(thickness)
             else:
                 wall_widths.append(thickness)
+                if wall_witness is None or thickness < wall_witness["distanceMm"]:
+                    wall_witness = witness
 
         if not thicknesses:
             return result("error", "Thickness measurement unavailable — no opposing surface intersections",
@@ -254,6 +274,8 @@ def check_wall_thickness(mesh, min_wall: float) -> dict:
         if below(wall_minimum):
             status = "fail"
             message = f"Min local wall/feature width: {wall_minimum:.2f}mm is below threshold {min_wall}mm"
+            coordinates = ", ".join(f"{value:.3f}" for value in wall_witness["origin"])
+            message += f" at [{coordinates}] mm"
         elif below(sheet_minimum):
             status = "warn"
             message = (f"Planar sheet material thickness: {sheet_minimum:.2f}mm; "
@@ -274,7 +296,9 @@ def check_wall_thickness(mesh, min_wall: float) -> dict:
                       minWallWidth=round(wall_minimum, 4) if wall_minimum is not None else None,
                       sheetThickness=round(sheet_minimum, 4) if sheet_minimum is not None else None,
                       geometryClass="planar_sheet" if sheet is not None else "unclassified_solid",
-                      method="ray_casting", samplesUsed=len(thicknesses), samplesMissing=missing)
+                      method="ray_casting", samplesUsed=len(thicknesses), samplesMissing=missing,
+                      minThicknessWitness=minimum_witness, minWallWitness=wall_witness,
+                      coverage="Listed face-centre inward rays on this mesh. Manufacturing process, load and unsampled features require further evidence.")
     except Exception as e:
         return result("error", f"Wall thickness measurement failed: {e}",
                       minThickness=None, method="unavailable", error=str(e))

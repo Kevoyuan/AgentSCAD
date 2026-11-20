@@ -18,6 +18,8 @@ import { useI18n } from '@/components/i18n-provider'
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 import { getPrecision, clampAndAlign } from '@/components/cad/parameter-panel'
+import type { NumericParameterConstraints } from '@/lib/harness/types'
+import { constrainNumericInput } from '@/lib/tools/numeric-parameter-input'
 
 /* ── Stepper  [ −  163.4  + ] ─────────────────────────────────────────────── */
 
@@ -33,6 +35,7 @@ export function Stepper({
   max,
   step,
   kind,
+  numericConstraints,
   disabled,
   changed,
   label,
@@ -44,6 +47,7 @@ export function Stepper({
   max: number
   step: number
   kind?: string
+  numericConstraints?: NumericParameterConstraints
   disabled?: boolean
   changed?: boolean
   /** accessible name; the visible label lives in the row outside the control */
@@ -56,17 +60,20 @@ export function Stepper({
   const { t } = useI18n()
 
   const precision = getPrecision(step, min, kind)
-  const [draft, setDraft] = React.useState(() => value.toFixed(precision))
+  const format = (number: number) => numericConstraints ? String(number) : number.toFixed(precision)
+  const align = (number: number) => numericConstraints ? constrainNumericInput(number, numericConstraints)
+    : clampAndAlign(number, min, max, step, kind, precision)
+  const [draft, setDraft] = React.useState(() => format(value))
   const [focused, setFocused] = React.useState(false)
 
   // One writer per element: the input follows `draft` while the user types and
   // resyncs from the prop only when it is not being edited.
   React.useEffect(() => {
-    if (!focused) setDraft(value.toFixed(precision))
-  }, [value, precision, focused])
+    if (!focused) setDraft(numericConstraints ? String(value) : value.toFixed(precision))
+  }, [value, precision, focused, numericConstraints])
 
   const emit = (next: number, commit: boolean) => {
-    setDraft(next.toFixed(precision))
+    setDraft(format(next))
     if (commit) onCommit?.(next)
     else onDraft?.(next)
   }
@@ -76,17 +83,18 @@ export function Stepper({
     // Step from what is on screen, so typing 163.5 then pressing ＋ gives 164.5.
     const base = Number.parseFloat(draft)
     const origin = Number.isFinite(base) ? base : value
-    emit(clampAndAlign(origin + direction * step, min, max, step, kind, precision), false)
+    const next = Number((origin + direction * step).toPrecision(15))
+    emit(align(next), false)
   }
 
   const commitTyped = () => {
     if (disabled) return
     const parsed = Number.parseFloat(draft)
     if (!Number.isFinite(parsed)) {
-      setDraft(value.toFixed(precision))
+      setDraft(format(value))
       return
     }
-    emit(clampAndAlign(parsed, min, max, step, kind, precision), true)
+    emit(align(parsed), true)
   }
 
   const nudgeTitle = (direction: -1 | 1) =>
@@ -143,7 +151,7 @@ export function Stepper({
         onChange={e => {
           setDraft(e.target.value)
           const parsed = Number.parseFloat(e.target.value)
-          if (Number.isFinite(parsed)) onDraft?.(clampAndAlign(parsed, min, max, step, kind, precision))
+          if (Number.isFinite(parsed)) onDraft?.(align(parsed))
         }}
         onBlur={() => {
           setFocused(false)
@@ -160,7 +168,7 @@ export function Stepper({
             e.preventDefault()
             nudge(-1)
           } else if (e.key === 'Escape') {
-            setDraft(value.toFixed(precision))
+            setDraft(format(value))
             ;(e.target as HTMLInputElement).blur()
           }
         }}

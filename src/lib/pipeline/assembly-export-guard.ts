@@ -7,6 +7,7 @@ import { JobExecutionConflict, JobExecutionStopped } from "./job-execution";
 import { readAssemblySpecification } from "./assembly-spec-record";
 import type { AssemblySpec } from "@/lib/assembly/assembly-spec";
 import { readRequirementContract, type RequirementContractRecord } from "@/lib/requirements/requirement-contract-record";
+import { captureVerificationContext,saveAssemblyVerification,type VerificationContext } from "./assembly-verification-record";
 
 /**
  * An export is refused for a reason the user can act on. `status` is the HTTP
@@ -28,6 +29,9 @@ export interface AssemblyExportLease {
   signal: AbortSignal;
   /** Re-checks the job and the declaration after rendering, under the same lease. */
   verifyUnchanged(): Promise<void>;
+  /** Captures source, contract and tool versions while this lease is active. */
+  verificationContext():Promise<VerificationContext>;
+  recordVerification(input:{context:VerificationContext;startedAt:Date;producer:"check"|"bundle";manifest?:unknown;error?:string}):ReturnType<typeof saveAssemblyVerification>;
   /** Clears the heartbeat and releases the execution mutex. Safe to call twice. */
   stop(): Promise<void>;
 }
@@ -42,12 +46,14 @@ export async function lockAssemblyExport(input: {
   jobId: string;
   sourceSha256: string;
   specSha256: string;
+  purpose?: "export" | "verification";
 }): Promise<AssemblyExportLease> {
   const access = await getJobAccessScope(input.request);
   if (!access) throw new AssemblyExportRejection(401, "Browser session required");
   const job = await db.job.findFirst({ where: { id: input.jobId, ...jobAccessFilter(access) } });
   if (!job) throw new AssemblyExportRejection(404, "Job not found");
-  if (!job.scadSource || job.state !== "DELIVERED") throw new AssemblyExportRejection(409, "Job is not in a delivered state");
+  const allowedState = job.state === "DELIVERED" || (input.purpose === "verification" && job.state === "HUMAN_REVIEW");
+  if (!job.scadSource || !allowedState) throw new AssemblyExportRejection(409, "Job is not ready for this assembly operation");
 
   const lease = await claimAssemblyExport(job);
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -87,6 +93,12 @@ export async function lockAssemblyExport(input: {
       spec: current.spec,
       requirements,
       signal: abort.signal,
+      async verificationContext(){return captureVerificationContext(job,input.specSha256,requirements,current.spec);},
+      async recordVerification(record){
+        if(heartbeatFailed||abort.signal.aborted)throw new JobExecutionStopped();
+        await lease.heartbeat();
+        return saveAssemblyVerification({...record,leaseToken:lease.token});
+      },
       async verifyUnchanged() {
         if (heartbeatFailed || abort.signal.aborted) throw new JobExecutionStopped();
         await lease.heartbeat();

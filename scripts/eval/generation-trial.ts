@@ -156,6 +156,9 @@ export interface TrialTaskResult {
   id: string;
   prompt: string;
   status: TrialStatus;
+  /** All non-intent evidence PASS. `null` means no non-intent evidence existed. */
+  measuredCorePassed?: boolean | null;
+  measuredCoreReason?: string;
   attempts: number;
   calls: number;
   usd: number;
@@ -177,7 +180,28 @@ export interface TrialReport {
   contractProvenance: "derived";
   budget: { maxCalls: number; maxUsd: number; calls: number; usd: number; pricePerCallUsd: number };
   tasks: TrialTaskResult[];
-  summary: { tasks: number; passed: number; failed: number; notRun: number; passRate: number | null; stoppedBecause: string };
+  summary: {
+    tasks: number; passed: number; failed: number; notRun: number; passRate: number | null;
+    /** Count of tasks whose non-intent evidence all passed; intent and acceptance stay outside. */
+    measuredCorePassed: number; measuredCoreRate: number | null;
+    stoppedBecause: string;
+  };
+}
+
+/**
+ * A trial cannot report user acceptance because intent-preserved has no independent
+ * audit. This secondary metric reports whether every other observed assertion
+ * passed, so model progress on measurable geometry remains visible.
+ */
+export function measuredCore(evidence: Array<{ id: string; status: string }>): { passed: boolean | null; reason: string } {
+  const measured = evidence.filter((item) => item.id !== "intent-preserved");
+  if (!measured.length) return { passed: null, reason: "No non-intent evidence was produced." };
+  const failing = measured.filter((item) => item.status !== "PASS");
+  if (failing.length) return {
+    passed: false,
+    reason: `Non-intent evidence not PASS: ${failing.map((item) => `${item.id}:${item.status}`).join(", ")}`,
+  };
+  return { passed: true, reason: "Every non-intent evidence item is PASS; intent-preserved and user acceptance remain unresolved." };
 }
 
 export interface TrialDeps {
@@ -333,6 +357,11 @@ export async function runTrial(input: {
     }
   }
 
+  for (const result of results) {
+    const core = measuredCore(result.evidence);
+    result.measuredCorePassed = core.passed;
+    result.measuredCoreReason = core.reason;
+  }
   const passed = results.filter((result) => result.status === "PASS").length;
   const failed = results.filter((result) => result.status === "FAIL" || result.status === "ERROR").length;
   const notRun = results.filter((result) => result.status === "NOT_RUN").length;
@@ -354,6 +383,11 @@ export async function runTrial(input: {
       notRun,
       // A rate computed over tasks that never ran would be a fiction.
       passRate: passed + failed === 0 ? null : passed / (passed + failed),
+      measuredCorePassed: results.filter((result) => result.measuredCorePassed === true).length,
+      measuredCoreRate: (() => {
+        const judged = results.filter((result) => result.measuredCorePassed === true || result.measuredCorePassed === false).length;
+        return judged === 0 ? null : results.filter((result) => result.measuredCorePassed === true).length / judged;
+      })(),
       stoppedBecause,
     },
   };
@@ -365,7 +399,7 @@ export function planReport(plan: TrialPlan, model: string | null): TrialReport {
     schemaVersion: 1, mode: "plan", taskSetSha256: plan.taskSetSha256, model,
     startedAt: new Date().toISOString(), durationMs: 0, contractProvenance: "derived",
     budget: { maxCalls: plan.maxCalls, maxUsd: plan.maxUsd, calls: 0, usd: 0, pricePerCallUsd: plan.pricePerCallUsd },
-    tasks: [], summary: { tasks: plan.tasks, passed: 0, failed: 0, notRun: plan.tasks, passRate: null, stoppedBecause: "not-started" },
+    tasks: [], summary: { tasks: plan.tasks, passed: 0, failed: 0, notRun: plan.tasks, passRate: null, measuredCorePassed: 0, measuredCoreRate: null, stoppedBecause: "not-started" },
   };
 }
 
@@ -389,6 +423,8 @@ export function formatTrial(report: TrialReport, plan?: TrialPlan): string {
   lines.push(`  ${report.summary.passed} passed, ${report.summary.failed} failed, ${report.summary.notRun} not run (stopped: ${report.summary.stoppedBecause})`);
   const judged = report.summary.passed + report.summary.failed;
   lines.push(`  pass rate: ${report.summary.passRate === null ? "not measured" : `${(report.summary.passRate * 100).toFixed(0)}% of ${judged} judged`}${report.summary.notRun > 0 ? `; ${report.summary.notRun} task(s) were never judged` : ""}`);
+  const coreJudged = report.tasks.filter((task) => task.measuredCorePassed === true || task.measuredCorePassed === false).length;
+  lines.push(`  measured-core rate (all non-intent evidence PASS): ${report.summary.measuredCoreRate === null ? "not measured" : `${(report.summary.measuredCoreRate * 100).toFixed(0)}% of ${coreJudged} judged`}`);
   return lines.join("\n");
 }
 
@@ -513,4 +549,35 @@ if (import.meta.main) {
       console.error(error instanceof Error ? error.message : String(error));
       process.exitCode = 2;
     });
+}
+
+/**
+ * A repair prompt with several different measured failures tends to produce a
+ * broad rewrite that fixes none of them. Keep the most concrete prerequisite
+ * defects first; the rest stay available in the full judgement for the next
+ * bounded attempt.
+ */
+const REPAIR_PRIORITY: ReadonlyArray<[RegExp, string]> = [
+  [/contains separated pieces|connectivity/i, "connectivity"],
+  [/not independently selectable|measured-part-identity|parts are not independently/i, "identity"],
+  [/does not implement the declared joint frame|mating features|measured diametral clearance|fit measurement/i, "joint-fit"],
+  [/reconstruct the delivered assembly|assembly reconstruction/i, "reconstruction"],
+  [/Declared insertion failed|Declared removal failed|path pose .*intersects|initial pose intersects|starting pose already intersects/i, "path"],
+  [/Rotating through the declared range is blocked/i, "motion"],
+  [/translation probe/i, "probe"],
+  [/Unresolved|Measurement attribution/i, "deferred"],
+];
+export function focusRepairFeedback(feedback: string, maxFindings = 2): string {
+  const lines = feedback.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) return feedback;
+  const ranked = lines.map((line, index) => ({
+    line, index,
+    rank: (() => { const found = REPAIR_PRIORITY.findIndex(([pattern]) => pattern.test(line)); return found < 0 ? REPAIR_PRIORITY.length : found; })(),
+  })).sort((a, b) => a.rank - b.rank || a.index - b.index);
+  const selected = ranked.slice(0, Math.max(1, Math.min(lines.length, Math.trunc(maxFindings))));
+  const deferred = lines.length - selected.length;
+  return [
+    ...selected.map(({ line }) => line),
+    deferred > 0 ? `Address the highest-priority measured defect above first. ${deferred} other finding(s) are deferred until that is fixed.` : "",
+  ].filter(Boolean).join("\n");
 }

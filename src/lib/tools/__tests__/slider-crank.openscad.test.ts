@@ -212,7 +212,7 @@ test("guide retainers must be turned and pulled before the guide can leave", asy
   const guideIndex=guideFirst.operations.findIndex(o=>o.instanceId==="guide_front");
   const [guide]=guideFirst.operations.splice(guideIndex,1);
   guideFirst.operations.unshift(guide);
-  const blockedGuide=checkDeclaredPoseDisassembly({spec:guideFirst,meshes});
+  const blockedGuide=checkDeclaredPoseDisassembly({spec:guideFirst,meshes,budgetMs:60000});
   expect(blockedGuide.status).toBe("FAIL");
   const guidePath=blockedGuide.results[0].path;
   expect(guidePath && "blockedAt" in guidePath ? guidePath.blockedAt?.obstacleId : undefined).toBe("guide_lock_right");
@@ -223,7 +223,7 @@ test("guide retainers must be turned and pulled before the guide can leave", asy
   const start=lock.waypoints[0];
   const end=[...start];end[7]+=5;
   lock.waypoints=[start,end] as typeof lock.waypoints;
-  const blockedLock=checkDeclaredPoseDisassembly({spec:straight,meshes});
+  const blockedLock=checkDeclaredPoseDisassembly({spec:straight,meshes,budgetMs:60000});
   expect(blockedLock.status).toBe("FAIL");
   const lockPath=blockedLock.results[0].path;
   expect(lockPath && "blockedAt" in lockPath ? lockPath.blockedAt?.obstacleId : undefined).toBe("frame");

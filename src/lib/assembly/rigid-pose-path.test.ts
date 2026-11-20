@@ -89,6 +89,25 @@ test("a clear outward path and its reverse preserve actual cumulative poses",()=
   expect(checkRigidPosePath({...base,poses:[...poses].reverse()}).status).toBe("PASS");
 });
 
+test("clear samples inside the combined obstacle envelope leave complete removal unverified", () => {
+  const input = {
+    moving: boxStl([0, 0, 0], [1, 1, 1]),
+    obstacles: {
+      left: boxStl([-2, -2, -2], [-1, 2, 2]),
+      right: boxStl([3, -2, -2], [4, 2, 2]),
+    },
+    poses: [translationMatrix([0, 0, 0]), translationMatrix([0, 0, 0.5])],
+    maxTranslationStepMm: 0.5,
+    maxRotationStepDeg: 5,
+  };
+  expect(checkRigidPosePath(input).status).toBe("PASS");
+  const removal = checkRigidPosePath({ ...input, requireSeparatedEnd: true });
+  expect(removal.status).toBe("NOT_RUN");
+  expect(removal.reason).toContain("Complete removal is unverified");
+  expect(removal.posesEvaluated).toBe(2);
+  expect("blockedAt" in removal).toBe(false);
+});
+
 test("a final collision check that finishes after the deadline cannot return PASS",()=>{
   const original=performance.now;
   let calls=0;
@@ -99,4 +118,18 @@ test("a final collision check that finishes after the deadline cannot return PAS
     expect(result.reason).toContain("budget");
     expect(result.posesEvaluated).toBe(2);
   } finally {Object.defineProperty(performance,"now",{configurable:true,value:original});}
+});
+
+
+test("path failures name the obstacle, pose and initial-pose condition", () => {
+  const intermediate = checkRigidPosePath({ ...base,
+    poses: Array.from({ length: 9 }, (_, i) => translationMatrix([i / 2, 0, 0])) });
+  expect(intermediate.status).toBe("FAIL");
+  expect(intermediate.reason).toContain("wall");
+  expect(intermediate.reason).toContain("Sampled path pose");
+  const overlap = checkRigidPosePath({ ...base,
+    obstacles: { wall: boxStl([0, 0, 0], [1, 1, 1]) },
+    poses: [translationMatrix([0, 0, 0]), translationMatrix([0, 0.5, 0])] });
+  expect(overlap.status).toBe("FAIL");
+  expect(overlap.reason).toContain("Initial pose intersects wall");
 });

@@ -13,6 +13,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 | Author preflight | `bun run doctor` |
 | Lint | `bun run lint` |
 | Test | `bun run test` |
+| Test native OpenSCAD integration | `bun run test:openscad` |
 | Test OpenSCAD WASM runtime | `bun run test:wasm` |
 | Audit dependency licenses | `bun run license:audit` |
 | Check OpenSCAD libraries | `bun run scad:libs:check` |
@@ -148,6 +149,20 @@ OpenSCAD is the core CAD execution engine. Local development can use the native 
 5. **DELIVER** — SCAD, STL, PNG, parameters, and validation reports are available. `DELIVERED` does not prove that the artifact matches the user's intent or that the user accepted it. Acceptance is a separate fact the user records through the outcome ledger (`POST /api/jobs/{id}/outcome` with `accepted` or `rejected`); the checks module offers that verdict once a part is built and nothing blocks it.
 
 Each step emits SSE events to the requesting frontend. The broader workspace refreshes job data through polling; there is no separate WebSocket service in the current repository.
+
+### Functional Assemblies
+
+The product target is a natural-language workflow that delivers identifiable, separately exportable parts with assembly and disassembly instructions and evidence for the requested function under explicit conditions. The first complex target is a manufacturable, manually driven V8 demonstration assembly. The implementation and acceptance criteria are in `docs/FUNCTIONAL_ASSEMBLY_PLAN.md`; experiment provenance and current evidence are in `docs/ASSEMBLY_EVIDENCE_LOG.md`.
+
+- `src/lib/requirements/` derives and stores versioned requirement contracts. Preserve the original request, explicit user decisions, unknown conditions and contract hashes. A stated retention condition is a requirement until independently measured.
+- `src/lib/assembly/` defines parts, instances, connections, transforms, fit, sampled motion and assembly paths. `prepare-contract-assembly.ts` connects the confirmed contract to geometry checks. `assembly-bundle.ts` exports the individual manufacturing meshes, manifest and retained source-pose evidence.
+- `src/app/api/jobs/[id]/assembly/evidence/route.ts` checks the current source and stores version-bound evidence. Re-run affected checks after source, contract, specification or verifier changes. Keep unknown and unavailable results visible as `NOT_RUN` or `ERROR`.
+- Source-driven poses, rigid-pose collision samples, fit, connectivity, assembly paths, manufacturing measurements and physical function are distinct evidence. Finite samples cover only the sampled inputs. An overlapping final bounding envelope leaves complete removal unverified; actual sampled collisions remain failures.
+- Preserve every required part, instance, connection, motion range, fit and assembly operation during repair. Give the model measured failures and re-evaluate the resulting geometry. A preserved declaration or a successful compile alone does not establish function.
+- Treat researcher-authored or assisted fixtures as tool and feasibility evidence. Evaluate autonomous generation separately. Record model, prompts, source, artifacts, check versions, usage and applicable cost limits for paid trials. Never place credentials in the repository or logs.
+- Do not copy third-party CAD application or library source code into this project. Existing reviewed runtime dependencies retain their documented policy.
+
+Run `bun run test` for pipeline or skill changes, plus relevant native OpenSCAD tests when geometry behavior changes. The offline assembly evaluator and replay exercise their own stated scopes. Physical function, independent hidden evaluation and user acceptance require their own evidence.
 
 ### Thin Harness, Fat Skills Rules
 

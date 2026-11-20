@@ -1,3 +1,4 @@
+import {motionRangeObservations, declaredPathObservation, judgeAssemblyCandidate} from "../../../../scripts/eval/judge-assembly";
 import { describe, expect, test } from "bun:test";
 import { createHash } from "crypto";
 import { readFile } from "fs/promises";
@@ -35,6 +36,27 @@ function bounds(stl: Buffer) {
 }
 
 describe("original axial hinge with native OpenSCAD", () => {
+  test("offline trial separates declared connection, complete intent and false retention evidence",async()=>{
+    const fixture=await readFile("benchmarks/assembly/axial_hinge.scad","utf8");
+    const spec=await hingeSpec();
+    const source=(value:unknown)=>`/* AGENTSCAD_ASSEMBLY_V1\n${JSON.stringify(value)}\nEND_AGENTSCAD_ASSEMBLY */\n${fixture}`;
+    const prompt="两件式铰链，直径间隙0.35到0.45mm";
+    const baseline=await judgeAssemblyCandidate({prompt,scad:source(spec)});
+    expect(baseline.passed,JSON.stringify(baseline)).toBe(false);
+    expect(baseline.evidence.find(item=>item.id==="intent-preserved")?.status).toBe("NOT_RUN");
+    expect(baseline.evidence.find(item=>item.id==="declared-connection-type")?.status).toBe("PASS");
+    expect(baseline.evidence.filter(item=>item.id!=="intent-preserved").every(item=>item.status==="PASS"),JSON.stringify(baseline)).toBe(true);
+    expect(baseline.findings.join("\n")).toContain("independent requirement-coverage audit is unavailable");
+    const contaminated=await judgeAssemblyCandidate({prompt,scad:source(spec)+"\n</｜｜DSML｜｜ calls>"});
+    expect(contaminated.passed).toBe(false);
+    expect(contaminated.evidence.find(item=>item.id==="compile")?.status).toBe("FAIL");
+    expect(contaminated.evidence.filter(item=>item.id!=="compile").every(item=>item.status==="NOT_RUN")).toBe(true);
+    expect(contaminated.findings.join("\n")).toContain("SCAD_PROTOCOL_MARKUP");
+    const challenged={...spec,translationProbes:[{id:"falseAxialRetention",instanceId:"moving-instance",startTransform:spec.instances[1].transform,translationMm:[0,0,30],samples:65,expected:"blocked"}]};
+    const result=await judgeAssemblyCandidate({prompt,scad:source(challenged)});
+    expect(result.passed).toBe(false);
+    expect(result.evidence.find(e=>e.id==="declared-translation-probes")?.status).toBe("FAIL");
+  },60000);
   test("renders distinct selected parts and retains declared poses without claiming fit", async () => {
     const fixture = await readFile("benchmarks/assembly/axial_hinge.scad", "utf8");
     const spec = await hingeSpec();
@@ -167,7 +189,8 @@ describe("original axial hinge with native OpenSCAD", () => {
     const scadSource = `/* AGENTSCAD_ASSEMBLY_V1\n${JSON.stringify(spec)}\nEND_AGENTSCAD_ASSEMBLY */\n${fixture}`;
     const result = await prepareAssembly({ scadSource, spec, fitRequirements: fits, contractGate: { evidenceCurrent: true } });
 
-    expect(result.manifest.evidence.assembly.status).toBe("PASS");
+    expect(result.manifest.evidence.assembly.status).toBe("NOT_RUN");
+    expect(result.fits[0].measuredStatus).toBe("PASS");
     expect(result.manifest.contract.evidenceCurrent).toBe(true);
     expect(result.fits[0].diametralClearanceMm!.min).toBeCloseTo(0.4, 2);
     expect(result.fits[0].diametralClearanceMm!.max).toBeCloseTo(0.415, 2);
@@ -214,9 +237,9 @@ describe("original axial hinge with native OpenSCAD", () => {
     expect(shifted(radialClearanceMm * 1.5).status).toBe("INTERSECT");
   }, 120000);
 
-  test("one hinge request closes L1 to L4 with measured evidence and leaves L5 open", async () => {
+  test("a declared hinge sequence retains partial digital evidence and unresolved source motion", async () => {
     const fixture = await readFile("benchmarks/assembly/axial_hinge.scad", "utf8");
-    const spec = await hingeSpec();
+    const spec = JSON.parse(await readFile("scripts/eval/assembly-fixtures/axial-hinge-operations-v2.spec.json", "utf8"));
     const request = "做一个两件式铰链，直径间隙 0.35 到 0.45 mm，能转 ±45°，可拆，3D 打印";
 
     // L1: the request becomes a contract, and a human confirms it unchanged.
@@ -237,7 +260,9 @@ describe("original axial hinge with native OpenSCAD", () => {
     });
     expect(result.manifest.evidence.identity.status).toBe("PASS");
     expect(result.manifest.evidence.assembly.status).toBe("PASS");
-    expect(result.manifest.evidence.motion.status).toBe("PASS");
+    expect(result.manifest.evidence.rigidMotion.status).toBe("PASS");
+    expect(result.manifest.evidence.sourceMotion.status).toBe("NOT_RUN");
+    expect(result.manifest.evidence.motion.status).toBe("NOT_RUN");
     // Layers nobody measured stay open rather than inheriting the pass.
     expect(result.manifest.evidence.geometry.status).toBe("NOT_RUN");
     expect(result.manifest.evidence.physical.status).toBe("NOT_RUN");
@@ -247,9 +272,8 @@ describe("original axial hinge with native OpenSCAD", () => {
     const clearance = result.fits[0].diametralClearanceMm!;
     const observations = [
       {
-        id: "intent-preserved", status: "MEASURED" as const, value: spec.parts.length === 2, ...provenance,
-        method: "Compared the declared intent kind with the confirmed contract; no geometry involved.",
-        coverage: "Declaration only.",
+        id: "intent-preserved", status: "NOT_RUN" as const,
+        reason: "Counting declared parts does not audit the full request.",
       },
       {
         id: "distinct-exported-parts", status: "MEASURED" as const, value: new Set(result.parts.map((part) => part.sha256)).size, ...provenance,
@@ -262,38 +286,31 @@ describe("original axial hinge with native OpenSCAD", () => {
         method: "Planar section at three axial stations, radial ray casting, regular-polygon fit.",
         coverage: "Three stations over the axial overlap; 64-facet bore and pin; radial fit only.",
       },
+      declaredPathObservation("disassembly-path", result.manifest.evidence.disassembly,
+        result.manifest.declaredDisassembly.coverage, provenance),
       {
-        id: "disassembly-path", status: "MEASURED" as const, value: result.kinematics!.path.status === "PASS", ...provenance,
-        method: "BVH triangle collision over sampled offsets along the joint axis.",
-        coverage: result.kinematics!.path.coverage,
+        id: "sampled-motion", status: "NOT_RUN" as const,
+        reason: result.manifest.evidence.sourceMotion.reason,
       },
-      {
-        id: "sampled-motion", status: "MEASURED" as const, value: result.kinematics!.motion.status === "PASS", ...provenance,
-        method: "BVH triangle collision over sampled rotation angles.",
-        coverage: result.kinematics!.motion.coverage,
-      },
-      {
-        id: "motion-range-deg", status: "MEASURED" as const,
-        value: Math.max(Math.abs(result.kinematics!.motion.rangeDeg!.min), Math.abs(result.kinematics!.motion.rangeDeg!.max)),
-        uncertainty: 0, unit: "deg", ...provenance,
-        method: "Largest sampled angle that was free of interference.",
-        coverage: result.kinematics!.motion.coverage,
-      },
+
     ];
 
+    observations.push(...motionRangeObservations({ ...result.kinematics!.motion,
+      status: result.manifest.evidence.motion.status }, provenance));
     const report = evaluateAssembly(toEvidenceRequirements(confirmed), observations);
     expect(report.evidence.map((item) => `${item.id}:${item.status}`)).toEqual([
-      "intent-preserved:PASS",
+      "intent-preserved:NOT_RUN",
       "distinct-exported-parts:PASS",
       "disassembly-path:PASS",
-      "sampled-motion:PASS",
-      "motion-range-deg:PASS",
+      "sampled-motion:NOT_RUN",
+      "motion-range-deg:NOT_RUN",
+      "motion-range-negative-end:NOT_RUN",
+      "motion-range-positive-end:NOT_RUN",
       "diametral-clearance:PASS",
     ]);
-    expect(report.gate_passed).toBe(true);
+    expect(report.gate_passed).toBe(false);
 
-    // The same gate with the contract unconfirmed must not pass, even though every
-    // number above is unchanged.
+    // Removing confirmation keeps these measurements provisional too.
     const unconfirmed = await prepareAssembly({
       scadSource, spec,
       fitRequirements: toFitRequirements(confirmed, spec),
@@ -354,7 +371,9 @@ generated_part();
     const measure = async (scadSource: string) => {
       const extracted = extractEmbeddedAssemblySpec(scadSource);
       if (extracted.status !== "valid") throw new Error("The source carries no assembly specification");
+      const whole = (await renderAssemblyParts({scadSource,parts:[{partId:"all",selector:"all"}]}))[0];
       const prepared = await prepareAssembly({
+        assemblyMesh:whole,
         scadSource, spec: extracted.spec, fitRequirements: fits,
         kinematics: { connectionId: "hinge", pathSteps: 12, motionSteps: 24 },
       });
@@ -397,10 +416,12 @@ generated_part();
     expect(result.evidenceComplete).toBe(false);
     expect(result.attempts[1].accepted).toBe(true);
     expect(result.attempts[1].violations).toEqual([]);
-    expect(result.attempts[1].evidence.motion).toBe("PASS");
+    expect(result.attempts[1].evidence.motion).toBe("NOT_RUN");
     expect(result.attempts[1].evidence.assembly).toBe("PASS");
     expect(result.findings).toEqual([]);
-    expect(result.final.manifest.evidence.motion.status).toBe("PASS");
+    expect(result.final.manifest.evidence.rigidMotion.status).toBe("PASS");
+    expect(result.final.manifest.evidence.sourceMotion.status).toBe("NOT_RUN");
+    expect(result.final.manifest.evidence.motion.status).toBe("NOT_RUN");
     expect(result.final.manifest.evidence.physical.status).toBe("NOT_RUN");
     expect(result.attempts[0].scadSha256).not.toBe(result.attempts[1].scadSha256);
   }, 240000);

@@ -95,6 +95,40 @@ describe("requirement extraction in English", () => {
   });
 });
 
+describe("explicit axial retention conditions", () => {
+  test.each([
+    "两件式可拆铰链。工作姿态必须有几何轴向防脱，并有明确几何约束阻止直接转到释放角。",
+    "两件式可拆铰链，要求轴向保持，按压释放后拆卸。",
+    "Make a removable two-part hinge. During use the rotor must be retained axially until an independent release action.",
+    "A removable hinge must prevent axial withdrawal before release.",
+  ])("preserves an explicit condition from the request without inventing a measurement: %s", request => {
+    const contract = derive(request);
+    const condition = contract.requirements.find(item => item.id === "axial-retention");
+    expect(condition).toMatchObject({
+      layer: "assembly", required: true, applicable: true, provenance: "request",
+      expected: { kind: "equals", value: true },
+    });
+    expect(condition?.statement).toBeTruthy();
+    expect(request).toContain(condition!.statement!);
+    expect(contract.unknowns.some(item => item.id === "axial-retention")).toBe(false);
+    expect(validateRequirementContract(contract).success).toBe(true);
+  });
+
+  test.each([
+    "两件式可拆铰链，是否需要轴向防脱？",
+    "两件式可拆铰链，必须可拆，轴向防脱未指定。",
+    "两件式可拆铰链，无需轴向防脱。",
+    "A removable hinge that must not be retained axially.",
+    "A hinge must be removable without axial retention.",
+    "Do we need axial retention for this removable hinge?",
+    "Axial retention must be optional for a removable hinge.",
+  ])("keeps questions, negation and unspecified conditions unresolved: %s", request => {
+    const contract = derive(request);
+    expect(contract.requirements.some(item => item.id === "axial-retention")).toBe(false);
+    expect(contract.unknowns.some(item => item.id === "axial-retention")).toBe(true);
+  });
+});
+
 describe("requirement extraction for other mechanisms", () => {
   test("a V8 request does not pretend to know the part count", () => {
     const contract = derive("做一个 V8 发动机装配体，八个活塞，可拆");
@@ -159,4 +193,57 @@ describe("contract freezing", () => {
     expect(requirementsInScope(digital).every((item) => item.layer !== "physical")).toBe(true);
     expect(requirementsInScope(contract)).toEqual(contract.requirements);
   });
+});
+
+
+describe("requirement extraction for a crank-slider", () => {
+  test("explicit crank radius, rod length and full turn become requirements", () => {
+    const contract = derive("做一个曲柄滑块机构，曲柄半径 8 mm，连杆长度 28 mm，能转 360 度");
+    const byId = Object.fromEntries(contract.requirements.map((item) => [item.id, item]));
+    expect(contract.intent.kind).toBe("crank-slider");
+    expect(byId["crank-radius"].expected).toEqual({ kind: "range", min: 7.999, max: 8.001, unit: "mm" });
+    expect(byId["rod-length"].expected).toEqual({ kind: "range", min: 27.999, max: 28.001, unit: "mm" });
+    expect(byId["motion-range-deg"].expected).toEqual({ kind: "atLeast", min: 360, unit: "deg" });
+    expect(byId["crank-radius"].statement).toContain("曲柄半径");
+    expect(contract.unknowns.map((unknown) => unknown.id)).not.toContain("crank-geometry");
+    expect(contract.unknowns.map((unknown) => unknown.id)).not.toContain("motion-range");
+    expect(contract.assumptions.join(" ")).toContain("0.001");
+  });
+
+  test("a crank-slider clearance is stated to apply to every measurable revolute fit", () => {
+    const contract = derive("做一个曲柄滑块机构，曲柄半径 8 mm，连杆长度 28 mm，直径间隙 0.1 到 0.6 mm，能转 360 度");
+    expect(contract.requirements.some((item) => item.id === "diametral-clearance")).toBe(true);
+    expect(contract.assumptions.join(" ")).toContain("所有带 boreInstanceId 的可测 revolute");
+  });
+
+  test("missing dimensions stay an explicit unknown", () => {
+    const contract = derive("做一个曲柄滑块机构，能转 360 度");
+    expect(contract.requirements.some((item) => item.id === "crank-radius")).toBe(false);
+    expect(contract.unknowns.map((unknown) => unknown.id)).toContain("crank-geometry");
+  });
+
+  test("a signed hinge-style range still produces signed endpoints", () => {
+    const contract = derive("做一个曲柄滑块机构，曲柄半径 8 mm，连杆长度 28 mm，能转 ±45 度");
+    const byId = Object.fromEntries(contract.requirements.map((item) => [item.id, item]));
+    expect(byId["motion-range-deg"].expected).toEqual({ kind: "atLeast", min: 45, unit: "deg" });
+    expect(byId["motion-range-negative-end"].expected).toEqual({ kind: "atLeast", min: 45, unit: "deg" });
+  });
+});
+
+
+test("stated crank and rod tolerances become the dimension bands", () => {
+  const contract = derive("做一个曲柄滑块机构，曲柄半径 8 ± 0.02 mm，连杆长度 28±0.05 mm，能转 360 度");
+  const byId = Object.fromEntries(contract.requirements.map((item) => [item.id, item]));
+  expect(byId["crank-radius"].expected).toEqual({ kind: "range", min: 7.98, max: 8.02, unit: "mm" });
+  expect(byId["rod-length"].expected).toEqual({ kind: "range", min: 27.95, max: 28.05, unit: "mm" });
+  expect(contract.assumptions.join(" ")).toContain("制造过程");
+});
+
+test("English crank and rod dimensions are recognized", () => {
+  const contract = derive("Design a crank slider with crank radius 8 mm and rod length 28 mm, full rotation.");
+  const ids = contract.requirements.map((item) => item.id);
+  expect(contract.intent.kind).toBe("crank-slider");
+  expect(ids).toContain("crank-radius");
+  expect(ids).toContain("rod-length");
+  expect(ids).toContain("motion-range-deg");
 });

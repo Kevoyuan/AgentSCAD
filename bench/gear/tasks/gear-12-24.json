@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "id": "gear-12-24",
+  "prompt": "Build a 12-tooth and 24-tooth external spur gear pair with a 36 mm centre distance. A positive input turns the driven gear in the opposite direction at half speed. Both gears must export separately; tooth counts and centre distance are part of the contract.",
+  "parts": [
+    {
+      "id": "pinion",
+      "selector": "pinion_pose"
+    },
+    {
+      "id": "wheel",
+      "selector": "wheel_pose"
+    }
+  ],
+  "pinionPartId": "pinion",
+  "wheelPartId": "wheel",
+  "axisDirection": [
+    0,
+    0,
+    1
+  ],
+  "pinion": {
+    "centerMm": [
+      0,
+      0
+    ],
+    "toothCount": 12
+  },
+  "wheel": {
+    "centerMm": [
+      36,
+      0
+    ],
+    "toothCount": 24
+  },
+  "ratio": -0.5,
+  "centerDistanceMm": 36,
+  "pose": {
+    "parameter": "input_deg",
+    "values": [
+      0,
+      45,
+      90,
+      135,
+      180,
+      225,
+      270,
+      315
+    ],
+    "angleToleranceDeg": 0.5,
+    "ratioTolerance": 0.005,
+    "centerDistanceToleranceMm": 0.2
+  },
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 2
+      }
+    },
+    {
+      "id": "rigid-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "The markers and through-bores are measurement features, not a claim about tooth contact.",
+    "The fixture uses straight-sided full-depth teeth; pitch radius is an estimate from measured tip/root radii.",
+    "A PASS covers the listed eight input angles only."
+  ]
+}

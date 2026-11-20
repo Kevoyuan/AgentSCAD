@@ -80,6 +80,7 @@ export async function renderAssemblySpecParts(scadSource: string, spec: unknown,
   const parts = generated.length === 0 ? [] : await renderAssemblyParts({
     scadSource,
     parts: generated.map(part => ({ partId: part.id, selector: part.selector })),
+    parameters: { agentscad_pose: false },
     options,
   });
   return { parts, purchasedPartIds };

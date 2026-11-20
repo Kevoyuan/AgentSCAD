@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "purpose": "Select the smallest closed section loop enclosing the declared seed. Degree-two topology is required, with a reported 1e-7 mm joining tolerance. Filter and fit search use the selected contour bounding-box center. Self-crossings and absolute axis truth remain unverified.",
+  "sampling": "enclosing-contour-endpoints",
+  "input": ".agentscad/experiments/threaded-fastener-jeYSbU/turn-90-nut.stl",
+  "inputSha256": "f73217c395b6694848cd2d443f31a216d2793c15ab4b3629ee27bb12b5602c17",
+  "stationsMm": [0.6, 1.6, 3.6],
+  "seedsMm": [[0, 0], [0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5], [1, 0], [-1, 0]],
+  "decision": "Report all availability, candidate counts/hashes and relative axes, with no pass threshold. Compare with frozen ray-hit and endpoint protocols. Seed independence on this input does not establish feature correctness or absolute uncertainty. Actual coaxiality remains NOT_RUN."
+}

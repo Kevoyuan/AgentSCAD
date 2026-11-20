@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "purpose": "Paired comparison against protocol 80d080b35b23c8a9bc2f7a21e3bd7b7548f6c073e9604789ea9741a18263f96b. Keep the reference generator, all 18 meshes, 36 attempts and initial consensus unchanged. Refit the fixed consensus support using the existing centered algebraic least-squares circle helper and recheck the original radius, RMS and arc domain. Preserve unavailable results. No acceptance threshold is fitted to observations.",
+  "circleFit": "least-squares-support",
+  "geometry": { "minorRadiusMm": 4.25, "majorRadiusMm": 5.15, "outerRadiusMm": 9.8, "heightMm": 6, "pitchMm": 1.5, "centerMm": [0.37, -0.22] },
+  "angularMultipliers": [1, 2, 4],
+  "layersPerMm": [8, 16, 32],
+  "phaseDeg": [0, 37],
+  "stationsMm": [[0.6, 1.6, 3.6], [0.63, 1.63, 3.63]],
+  "decision": "Compare availability and individual offset/angle errors on identical mesh hashes. A finite improvement is not a calibrated guarantee, physical validation or permission to change a product default. Actual coaxiality remains NOT_RUN."
+}

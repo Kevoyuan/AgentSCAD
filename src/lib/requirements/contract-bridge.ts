@@ -19,7 +19,7 @@ export function toEvidenceRequirements(contract: RequirementContract) {
 export function toFitRequirements(
   contract: RequirementContract,
   spec: unknown,
-  options: { boreInstanceId?: string; connectionId?: string } = {},
+  options: { boreInstanceId?: string; connectionId?: string; allowPrismatic?: boolean } = {},
 ): AssemblyFitRequirement[] {
   const clearance = contract.requirements.find((requirement) => requirement.id === "diametral-clearance");
   if (!clearance) return [];
@@ -28,7 +28,8 @@ export function toFitRequirements(
 
   const parsed = validateAssemblySpec(spec);
   if (!parsed.success) throw new Error("Invalid assembly specification.");
-  const revolute = parsed.data.connections.filter((connection) => connection.type === "revolute");
+  const revolute = parsed.data.connections.filter((connection) =>
+    connection.type === "revolute" || (options.allowPrismatic === true && connection.type === "prismatic"));
   const connection = options.connectionId
     ? revolute.find((item) => item.id === options.connectionId)
     : revolute.length === 1 ? revolute[0] : undefined;

@@ -1,0 +1,195 @@
+import { renderAssemblyParts, renderAssemblySpecParts } from "../assembly-part-renderer";
+import { meshBounds, readBinaryStl } from "../../geometry/stl-mesh";
+import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { extractEmbeddedAssemblySpec } from "../../assembly/embedded-spec";
+import { expect, test } from "bun:test";
+import { verifySourcePoses } from "../source-pose-verification";
+import { prepareContractAssembly } from "../../assembly/prepare-contract-assembly";
+import { deriveRequirementContract } from "../../requirements/extract-requirements";
+import { collectAssemblyFindings } from "../../assembly/repair-findings";
+import { buildAssemblyBundle } from "../../assembly/assembly-bundle";
+import { unzipSync, strFromU8 } from "fflate";
+import { buildHingeSourceProtocol } from "../../assembly/source-motion-protocol";
+import { AssemblySpecSchema } from "../../assembly/assembly-spec";
+import fixture from "../../../../scripts/eval/assembly-fixtures/axial-hinge.spec.json";
+import { translation } from "../../geometry/__tests__/solids";
+test("native source motion is observed and incorrect input-to-output coupling is rejected", async () => {
+    const spec = {
+        ...fixture, parts: fixture.parts.slice(0, 1), instances: fixture.instances.slice(0, 1), connections: [], motions: []
+    };
+    const id = spec.instances[0].id, selector = spec.parts[0].selector;
+    const source = `agentscad_part="${selector}"; agentscad_pose=false; travel=0;
+ module generated_part(){ if(agentscad_pose) translate([travel,0,0]) cube([2,3,4]); else cube([2,3,4]); }
+ generated_part();`;
+    const input = {
+        spec, poseSelectors: { [id]: selector }, manufacturingParameters: { agentscad_pose: false }, poseParameters: { agentscad_pose: true },
+        cases: [
+            {
+                id: "zero", parameters: { travel: 0 }, transforms: { [id]: translation(0, 0, 0) }
+            }, {
+                id: "moved", parameters: { travel: 4 }, transforms: { [id]: translation(4, 0, 0) }
+            }, {
+                id: "fractional", parameters: { travel: 0.9 }, transforms: { [id]: translation(0.9, 0, 0) }
+            }
+        ]
+    };
+    expect((await verifySourcePoses({
+        ...input, scadSource: source
+    })).status).toBe("PASS");
+    const dishonest = source.replace("if(agentscad_pose)", 'if(agentscad_part == "all") translate([20,0,0]) cube([2,3,4]); else if(agentscad_pose)');
+    const inconsistent = await verifySourcePoses({ ...input, scadSource: dishonest });
+    expect(inconsistent.status).toBe("FAIL");
+    expect(inconsistent.results[0].comparisons?.every(item => item.result.status === "PASS")).toBe(true);
+    expect(inconsistent.results[0].assembly?.status).toBe("FAIL");
+    for (const replacement of ["0", "2*travel"]) {
+        const result = await verifySourcePoses({
+            ...input, scadSource: source.replace("[travel,0,0]", `[${replacement},0,0]`)
+        });
+        expect(result.status).toBe("FAIL");
+        expect(result.results.find(item => item.id === "moved")?.status).toBe("FAIL");
+    }
+}, 60000);
+
+test("retained model pose interface supports axial motion and exposes an idle rotation control", async () => {
+    const source = await readFile("scripts/eval/assembly-fixtures/candidates/guided-pose-hinge-2026-11-08.scad", "utf8");
+    const extracted = extractEmbeddedAssemblySpec(source);
+    if (extracted.status !== "valid") throw new Error("Frozen model interface declaration invalid");
+    const identity = translation(0, 0, 0);
+    const reference = { id: "reference", parameters: { hinge_angle: 0, axial_offset: 0 }, transforms: { a1: identity, b1: identity } };
+    const input = {
+        scadSource: source, spec: extracted.spec, poseSelectors: { a1: "supportA", b1: "rotorB" },
+        manufacturingParameters: { agentscad_pose: false }, poseParameters: { agentscad_pose: true, show_angle_clamp: false },
+        cases: [reference, { id: "drop", parameters: { hinge_angle: 0, axial_offset: -0.9 }, transforms: { a1: identity, b1: translation(0, 0, -0.9) } }]
+    };
+    expect(createHash("sha256").update(source).digest("hex")).toBe("6363d86e0c2e4f809beb841f1fe1456fb796d7a1cf6722a3d7ea388525d196d9");
+    const result = await verifySourcePoses(input);
+    expect(result.status).toBe("PASS");
+    expect(result.results.every(item => item.assembly?.comparison === "exact-oriented-triangles")).toBe(true);
+    const viewDefault = source.replace(/^agentscad_pose\s*=\s*false;/m, "agentscad_pose = true;")
+        .replace(/^axial_offset\s*=\s*0;/m, "axial_offset = 10;");
+    expect(viewDefault).toMatch(/^agentscad_pose\s*=\s*true;/m);
+    expect(viewDefault).toMatch(/^axial_offset\s*=\s*10;/m);
+    const [posedRotor] = await renderAssemblyParts({ scadSource: viewDefault, parts: [{ partId: "view", selector: "rotorB" }] });
+    expect(meshBounds(readBinaryStl(posedRotor.stl)).min[2]).toBeCloseTo(7, 4);
+    const manufactured = await renderAssemblySpecParts(viewDefault, extracted.spec);
+    const rotor = manufactured.parts.find(part => part.partId === "rotorB")!;
+    expect(meshBounds(readBinaryStl(rotor.stl)).min[2]).toBeCloseTo(-3, 4);
+
+    const c = Math.SQRT1_2;
+    const rotated = [c, -c, 0, 0, c, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+    const faulty = source.replace("rotate([0, 0, ang])", "rotate([0, 0, 0])");
+    expect(faulty).not.toBe(source);
+    const failure = await verifySourcePoses({ ...input, scadSource: faulty,
+        cases: [reference, { id: "work45", parameters: { hinge_angle: 45, axial_offset: 0 }, transforms: { a1: identity, b1: rotated } }] });
+    expect(failure.status).toBe("FAIL");
+    expect(failure.results.find(item => item.id === "work45")?.comparisons?.find(item => item.instanceId === "b1")?.result.status).toBe("FAIL");
+}, 90000);
+
+test("retained model source rotations have bounded surface correspondence and matching assembly views", async () => {
+    const source = await readFile("scripts/eval/assembly-fixtures/candidates/guided-pose-hinge-2026-11-08.scad", "utf8");
+    const extracted = extractEmbeddedAssemblySpec(source);
+    if (extracted.status !== "valid") throw new Error("Frozen model interface declaration invalid");
+    const identity = translation(0, 0, 0);
+    const cases = [["reference", 0, 0], ["drop", 0, -0.9], ["work45", 45, 0], ["release", 90, -0.9]] as const;
+    const result = await verifySourcePoses({
+        scadSource: source, spec: extracted.spec, poseSelectors: { a1: "supportA", b1: "rotorB" },
+        manufacturingParameters: { agentscad_pose: false }, poseParameters: { agentscad_pose: true, show_angle_clamp: false },
+        surfaceComparison: "bounded-cover", budgetMs: 120000,
+        cases: cases.map(([id, angle, z]) => {
+            const c = Math.cos(angle * Math.PI / 180), s = Math.sin(angle * Math.PI / 180);
+            return { id, parameters: { hinge_angle: angle, axial_offset: z },
+                transforms: { a1: identity, b1: [c,-s,0,0,s,c,0,0,0,0,1,z,0,0,0,1] } };
+        })
+    });
+    expect(result.status).toBe("PASS");
+    expect(result.results).toHaveLength(4);
+    expect(result.results.every(item => item.assembly?.status === "PASS")).toBe(true);
+    for (const id of ["work45", "release"]) {
+        const comparison = result.results.find(item => item.id === id)?.comparisons?.find(item => item.instanceId === "b1");
+        expect(comparison?.result.status).toBe("PASS");
+        expect(comparison?.result.method).toBe("bidirectional-convex-triangle-cover/v2");
+    }
+}, 150000);
+
+test("normal assembly checks distinguish source motion from ideal rigid sampling", async () => {
+    const source = await readFile("scripts/eval/assembly-fixtures/candidates/guided-pose-hinge-2026-11-08.scad", "utf8");
+    const extracted = extractEmbeddedAssemblySpec(source);
+    if (extracted.status !== "valid") throw new Error("Invalid retained declaration");
+    const spec = extracted.spec;
+    spec.motions[0].sourceInput = { parameter: "hinge_angle", poseSelectors: { a1: "supportA", b1: "rotorB" } };
+    const request = "两件式可拆装铰链，直径间隙0.35到0.45mm，转动范围±45°。";
+    const contract = deriveRequirementContract({ request });
+    const input = { spec, contractSnapshot: { contract, request }, contractGate: { evidenceCurrent: true },
+        sourceSamplingSeed: "0123456789abcdef0123456789abcdef" };
+    const correct = await buildAssemblyBundle({ ...input, scadSource: source });
+    expect(correct.manifest.evidence.rigidMotion.status).toBe("PASS");
+    expect(correct.manifest.evidence.sourceMotion.status).toBe("PASS");
+    expect(correct.manifest.evidence.motion.status).toBe("PASS");
+    expect(correct.manifest.sourceMotion?.results).toHaveLength(6);
+    expect(correct.manifest.sourceMotion?.sampling.challengeSeed).toBe(input.sourceSamplingSeed);
+    expect(correct.manifest.sourceMotion?.results.some(item => item.comparisons?.some(row =>
+        row.result.method === "bidirectional-convex-triangle-cover/v2"))).toBe(true);
+    expect(correct.manifest.evidence.requirements.status).toBe("NOT_RUN");
+    expect(correct.manifest.evidence.requirements.reason).toContain("axial-retention");
+    expect(correct.manifest.sourceMotion).not.toHaveProperty("durationMs");
+    const archive = unzipSync(correct.zip);
+    expect(strFromU8(archive["README.txt"])).toContain("- sourceMotion: PASS");
+    expect(correct.manifest.sourcePoseArchive.status).toBe("COMPLETE");
+    expect(correct.manifest.sourcePoseArchive.files).toHaveLength(20);
+    expect(strFromU8(archive["evidence/source.scad"])).toBe(source);
+    expect(JSON.parse(strFromU8(archive["evidence/requirements.json"])).request).toBe(request);
+    const index = JSON.parse(strFromU8(archive["evidence/source-poses.json"]));
+    expect(index.sourceSha256).toBe(correct.manifest.sourceSha256);
+    for (const file of index.files) {
+        expect(createHash("sha256").update(archive[file.path]).digest("hex")).toBe(file.sha256);
+    }
+    for (const item of correct.manifest.sourceMotion!.results) {
+        const whole = index.files.find((file: { phase: string; caseId: string }) => file.phase === "assembly" && file.caseId === item.id);
+        expect(whole.sha256).toBe(item.assembly?.assemblySha256);
+        for (const row of item.comparisons ?? []) {
+            const mesh = index.files.find((file: { phase: string; caseId: string; partId: string }) =>
+                file.phase === "pose" && file.caseId === item.id && file.partId === row.instanceId);
+            expect(mesh.sha256).toBe(row.result.posedSha256);
+        }
+    }
+    const faulty = source.replace("rotate([0, 0, ang])", "rotate([0, 0, 0])");
+    expect(faulty).not.toBe(source);
+    const failed = await prepareContractAssembly({ ...input, scadSource: faulty });
+    expect(failed.manifest.evidence.rigidMotion.status).toBe("PASS");
+    expect(failed.manifest.evidence.sourceMotion.status).toBe("FAIL");
+    expect(failed.manifest.evidence.motion.status).toBe("FAIL");
+    const findings = collectAssemblyFindings(failed);
+    expect(findings.some(item => item.kind === "motion" && item.message.includes("Source-driven motion failed") && item.message.includes("b1"))).toBe(true);
+}, 360000);
+
+test("native pose adversaries distinguish finite-input agreement from unobserved phase and a seeded failure", async () => {
+    const spec = { ...fixture, parts: fixture.parts.slice(0,1), instances: fixture.instances.slice(0,1), connections: [], motions: [], operations: [] };
+    const id = spec.instances[0].id;
+    const bound = AssemblySpecSchema.parse(fixture);
+    bound.motions[0].sourceInput = { parameter: "angle", poseSelectors: { "fixed-instance": "fixed", "moving-instance": "moving" } };
+    const sampled = buildHingeSourceProtocol(bound, "0123456789abcdef0123456789abcdef");
+    if (sampled.status !== "READY") throw new Error("Expected seeded protocol");
+    const input = (angles: number[]) => ({ spec, poseSelectors: { [id]: "fixed" },
+        manufacturingParameters: { agentscad_pose: false }, poseParameters: { agentscad_pose: true },
+        surfaceComparison: "bounded-cover" as const,
+        cases: angles.map((angle, index) => {
+            const c = Math.cos(angle*Math.PI/180), s = Math.sin(angle*Math.PI/180);
+            return { id: `angle-${index}`, parameters: { angle }, transforms: { [id]: [c,-s,0,0,s,c,0,0,0,0,1,0,0,0,0,1] } };
+        }) });
+    const alias = `agentscad_part="all"; agentscad_pose=false; angle=0;
+      module body(){translate([3,0,0]) cube([2,1,1]);}
+      module generated_part(){if(agentscad_pose) rotate([0,0,angle+10*sin(8*angle)]) body(); else body();}
+      generated_part();`;
+    const fixed = input([-45,-22.5,0,22.5,45]);
+    // This PASS concerns these five surfaces, preserving the known sampling gap.
+    expect((await verifySourcePoses({ ...fixed, scadSource: alias })).status).toBe("PASS");
+    const seeded = input(sampled.protocol.cases.map(item => Number(item.parameters.angle)));
+    expect((await verifySourcePoses({ ...seeded, scadSource: alias })).status).toBe("FAIL");
+    expect((await verifySourcePoses({ ...seeded, scadSource: alias.replace("angle+10*sin(8*angle)", "angle") })).status).toBe("PASS");
+    const cylinder = 'agentscad_part="all"; agentscad_pose=false; angle=0; $fn=64; module generated_part(){cylinder(r=1,h=3);} generated_part();';
+    const invisible = await verifySourcePoses({ ...fixed, scadSource: cylinder });
+    expect(invisible.status).toBe("NOT_RUN");
+    expect(invisible.hasObservableChange).toBe(false);
+    expect(invisible.results.every(item => item.comparisons?.[0].result.status === "PASS" && item.assembly?.status === "PASS")).toBe(true);
+}, 60000);
