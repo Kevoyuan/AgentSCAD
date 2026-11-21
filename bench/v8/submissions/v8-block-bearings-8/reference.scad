@@ -42,6 +42,12 @@ module crank_part() {
           rotate([90,0,0]) cylinder(h = 1, r = 2.5, center = true);
           translate([px(phase[i]), 0, pz(phase[i])]) rotate([90,0,0]) cylinder(h = 1, r = 2.5, center = true);
         }
+        // Counterweight lobe opposite the throw on the same web plane.
+        translate([0, station_y[i] + s, 0]) hull() {
+          rotate([90,0,0]) cylinder(h = 1, r = 2.5, center = true);
+          translate([-1.5 * px(phase[i]), 0, -1.5 * pz(phase[i])])
+            rotate([90,0,0]) cylinder(h = 1, r = 5, center = true);
+        }
       }
     }
     // Main journals between station webs, plus end stubs: one connected crank.

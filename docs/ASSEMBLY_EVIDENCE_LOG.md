@@ -3411,3 +3411,53 @@ motion, bearing load/lubrication behavior, physical function or user acceptance.
 complete V8 machine (cylinder bores/heads, counterweights, firing order), full A001
 contract pass, an independent hidden set, a fresh funded product trial, user acceptance
 and physical validation remain open.
+
+## 2026-11-21 · V8 counterweights and the balance layer (contract v4) (English log)
+
+The V8 crankcase/bearing task had connected geometry and measured main bearings but no
+counterweights. Contract v4 adds a counterweight lobe to every throw on its two web
+planes and measures it as a **vertex-sector extent** on the declared web plane.
+
+### Geometry and measurement
+
+- Each web hull gains a second hull from the main axis to a point 1.5× the crank radius
+  opposite the pin, ending in a radius-5 mm disc (web thickness 1 mm). Counterweight
+  material therefore reaches 17 mm opposite the throw and the pin-side web stays at
+  10.5 mm (pin radius 8 + web radius 2.5).
+- The new `counterweight-balance` evidence id (new bench `balance` layer) samples triangle
+  vertices within ±0.6 mm of each throw-side web plane (station + 8 mm), computes their
+  radius and angular deviation from the throw direction, and requires: pin-side material
+  ≤ **11 mm**, opposite-sector (35° half-angle) material ≥ **12 mm**, and at least 50
+  sampled vertices per plane. The reference measures **17 mm opposite / 10.5 mm pin-side**
+  on all four web planes.
+- This is a geometric presence/phase check. It is not a mass moment, balance factor,
+  stress, fatigue or vibration calculation, and it does not prove manufacturability.
+
+### Result
+
+`bun bench/v8/run.ts --task v8-block-bearings-8 --self-check` -> `SELF-CHECK OK: 1
+reference(s) pass, 4 adversarial submission(s) rejected.` Native OpenSCAD 2021.01, no
+model calls.
+
+| Submission | Result |
+|---|---|
+| `reference` | **PASS 7/7**: connected crank and block; bearing fit 0.989–1.019 mm at 0° offset; **counterweight balance PASS**; 765 sampled collisions separated; source motion PASS |
+| `adversarial-baseplate` | ERROR 6/7: only `bearing-fit` ERROR; counterweights pass (the plate cannot satisfy the bearing requirement) |
+| `adversarial-bearing-clearance` | FAIL 6/7: only `bearing-fit` fails |
+| `adversarial-disconnected-crank` | FAIL 6/7: only `part-connectivity` fails; bearing fit and counterweights pass |
+| `adversarial-no-counterweight` | FAIL 6/7: the opposite-sector extent drops to 2.5 mm, so **only `counterweight-balance` fails** |
+
+The bench layer model gains one additive layer, `balance`, fed by
+`counterweight-balance`. Existing cases emit neither and their layer coverage is
+unchanged; the v8 family becomes 13 cases and the design gains its first balance-phase
+evidence.
+
+### Boundaries
+
+- Four web planes at one pose only; no mass/moment computation, balance-factor
+  calculation, stress, fatigue, vibration or manufacturing check.
+- The block still has no cylinder bores/heads and the crank has no firing order, so
+  L5c (complete V8 machine) stays open.
+- The external hidden development copy predates contracts v2–v4 and must be re-frozen.
+- The published thirteen-family matrix keeps the pre-v4 v8 row until the next full
+  `bench:all` rerun. No model calls, no deployment.

@@ -67,7 +67,7 @@ You can then nudge the extracted dimensions with the parameter steppers and rebu
 Most text-to-CAD demos stop at "the shape looks right". The interesting part of CAD is what can be measured afterwards, so that is where the effort went:
 
 - A **deterministic verifier** measures the rendered mesh: the clearance between a bore and a shaft, collision across a sampled motion sweep, whether a part can actually be withdrawn.
-- A **public benchmark** for functional assemblies — thirteen native families (hinges, slider-cranks, inline twin and 90° V-twin, V8 packaging, planetary trains, threads, cam), eleven evidence layers, and adversarial submissions in every family. The self-check fails if a cheat starts passing.
+- A **public benchmark** for functional assemblies — thirteen native families (hinges, slider-cranks, inline twin and 90° V-twin, V8 packaging, planetary trains, threads, cam), twelve evidence layers, and adversarial submissions in every family. The self-check fails if a cheat starts passing.
   → [`bench/`](./bench/README.md)
 
 ## Documentation

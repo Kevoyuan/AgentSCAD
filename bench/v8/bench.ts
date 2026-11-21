@@ -30,7 +30,17 @@ export interface V8BearingContract {
   maxClearanceMm: number;
   maxAxisOffsetMm: number;
 }
-export interface V8BenchTask { schemaVersion: 1; id: string; prompt: string; selectors: V8Selectors; motionParameter: string; angles: number[]; contract: V8Contract; bearingFit?: V8BearingContract; requirements: BenchRequirement[]; notes?: string[] }
+export interface V8CounterweightContract {
+  /** Web plane measured at station + offset (the throw-side web). */
+  webOffsetMm: number;
+  /** Counterweight material must reach at least this radius opposite the pin. */
+  minOppositeRadiusMm: number;
+  /** Material toward the pin must stay inside this radius. */
+  maxPinSideRadiusMm: number;
+  /** Half-angle of the pin-side and opposite sectors, in degrees. */
+  angleToleranceDeg: number;
+}
+export interface V8BenchTask { schemaVersion: 1; id: string; prompt: string; selectors: V8Selectors; motionParameter: string; angles: number[]; contract: V8Contract; bearingFit?: V8BearingContract; counterweight?: V8CounterweightContract; requirements: BenchRequirement[]; notes?: string[] }
 export interface V8CaseMeasurements {
   parts: Array<{ id: string; triangleCount: number }>;
   angles: number[];
@@ -45,6 +55,11 @@ export interface V8CaseMeasurements {
   bearingFit: {
     status: EvidenceStatus; reason: string; stationsMm: number[];
     clearanceMm: { min: number; max: number } | null; axisOffsetMm: number | null;
+  } | null;
+  /** Measured counterweight presence/phase on the crank web planes. */
+  counterweight: {
+    status: EvidenceStatus; reason: string; passed: boolean;
+    stations: Array<{ stationIndex: number; webY: number; oppositeMaxRadiusMm: number; pinSideMaxRadiusMm: number }>;
   } | null;
 }
 export interface V8CaseReport {
@@ -100,6 +115,17 @@ export function validateV8Task(value: unknown): V8BenchTask {
     if (!(minClearanceMm >= 0) || !(maxClearanceMm >= minClearanceMm) || !(maxAxisOffsetMm > 0)) fail("bearingFit bounds are invalid");
     bearingFit = { stationsY, minClearanceMm, maxClearanceMm, maxAxisOffsetMm };
   }
+  let counterweight: V8CounterweightContract | undefined;
+  if (raw.counterweight !== undefined) {
+    if (!raw.counterweight || typeof raw.counterweight !== "object") fail("counterweight must be an object");
+    const b = raw.counterweight as Record<string, unknown>;
+    const webOffsetMm = finite(b.webOffsetMm, "counterweight.webOffsetMm");
+    const minOppositeRadiusMm = finite(b.minOppositeRadiusMm, "counterweight.minOppositeRadiusMm");
+    const maxPinSideRadiusMm = finite(b.maxPinSideRadiusMm, "counterweight.maxPinSideRadiusMm");
+    const angleToleranceDeg = finite(b.angleToleranceDeg, "counterweight.angleToleranceDeg");
+    if (!(webOffsetMm > 0) || !(minOppositeRadiusMm > maxPinSideRadiusMm) || !(maxPinSideRadiusMm > 0) || !(angleToleranceDeg > 0) || !(angleToleranceDeg < 90)) fail("counterweight bounds are invalid");
+    counterweight = { webOffsetMm, minOppositeRadiusMm, maxPinSideRadiusMm, angleToleranceDeg };
+  }
   if (!Array.isArray(raw.requirements) || raw.requirements.length === 0) fail("requirements must be non-empty");
   const requirements: BenchRequirement[] = raw.requirements.map((entry, index) => {
     if (!entry || typeof entry !== "object") fail(`requirements[${index}] must be an object`);
@@ -111,12 +137,13 @@ export function validateV8Task(value: unknown): V8BenchTask {
     return { id: r.id, layer: r.layer as BenchRequirement["layer"], required: r.required, applicable: r.applicable, expected: { kind: "equals", value: e.value as string | boolean | number } };
   });
   if (new Set(requirements.map((r) => r.id)).size !== requirements.length) fail("duplicate requirement id");
-  const observable = new Set(["distinct-exported-parts", "measured-joint-frames", "sampled-motion", "source-motion", "part-connectivity", "frame-connectivity", "bearing-fit"]);
+  const observable = new Set(["distinct-exported-parts", "measured-joint-frames", "sampled-motion", "source-motion", "part-connectivity", "frame-connectivity", "bearing-fit", "counterweight-balance"]);
   for (const r of requirements) if (!observable.has(r.id)) fail(`requirement ${r.id} has no observer`);
   if (requirements.some((r) => r.id === "bearing-fit") && !bearingFit) fail("a bearing-fit requirement needs a bearingFit contract");
+  if (requirements.some((r) => r.id === "counterweight-balance") && !counterweight) fail("a counterweight-balance requirement needs a counterweight contract");
   const distinct = requirements.find((r) => r.id === "distinct-exported-parts");
   if (!distinct || distinct.expected.kind !== "equals" || distinct.expected.value !== 18) fail("distinct-exported-parts must equal 18");
-  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, selectors: { frame, crank, rods, sliders }, motionParameter: raw.motionParameter, angles, contract, ...(bearingFit ? { bearingFit } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
+  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, selectors: { frame, crank, rods, sliders }, motionParameter: raw.motionParameter, angles, contract, ...(bearingFit ? { bearingFit } : {}), ...(counterweight ? { counterweight } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
 }
 export function v8TasksDirectory(): string { return path.join(import.meta.dir, "tasks"); }
 export function v8SubmissionsDirectory(): string { return path.join(import.meta.dir, "submissions"); }
@@ -186,11 +213,52 @@ function measureBearingFit(task: V8BenchTask, frame: RenderedAssemblyPart, crank
   };
 }
 
+/**
+ * Counterweight evidence: on each declared throw-side web plane, the crank must
+ * carry material beyond the pin-side limit only in the sector opposite the throw.
+ * This is a geometric presence/phase check, not a mass moment or balance-factor
+ * calculation.
+ */
+function measureCounterweights(task: V8BenchTask, crankStl: Buffer): V8CaseMeasurements["counterweight"] {
+  if (!task.counterweight) return null;
+  let mesh: TriangleMesh;
+  try { mesh = readBinaryStl(crankStl); } catch (error) { return { status: "ERROR", reason: error instanceof Error ? error.message : "Invalid crank mesh", passed: false, stations: [] }; }
+  const tol = task.counterweight.angleToleranceDeg * Math.PI / 180;
+  const stations: NonNullable<V8CaseMeasurements["counterweight"]>["stations"] = [];
+  let passed = true;
+  let reason = "Every declared web plane carries counterweight material opposite its throw and stays clear on the pin side.";
+  for (let index = 0; index < task.contract.stationsY.length; index += 1) {
+    const webY = task.contract.stationsY[index] + task.counterweight.webOffsetMm;
+    const angle = task.contract.phasesDeg[index] * Math.PI / 180;
+    const pinX = Math.sin(angle), pinZ = Math.cos(angle);
+    let oppositeMax = 0, pinSideMax = 0, samples = 0;
+    for (let triangle = 0; triangle < mesh.triangleCount; triangle += 1) {
+      for (let corner = 0; corner < 3; corner += 1) {
+        const base = triangle * 9 + corner * 3;
+        const x = mesh.coordinates[base], y = mesh.coordinates[base + 1], z = mesh.coordinates[base + 2];
+        if (Math.abs(y - webY) > 0.6) continue;
+        const radius = Math.hypot(x, z);
+        if (radius < 1e-6) continue;
+        samples += 1;
+        const cos = (x * pinX + z * pinZ) / radius;
+        const deviation = Math.acos(Math.max(-1, Math.min(1, cos)));
+        if (deviation <= tol) pinSideMax = Math.max(pinSideMax, radius);
+        if (deviation >= Math.PI - tol) oppositeMax = Math.max(oppositeMax, radius);
+      }
+    }
+    stations.push({ stationIndex: index, webY, oppositeMaxRadiusMm: oppositeMax, pinSideMaxRadiusMm: pinSideMax });
+    if (samples < 50) { passed = false; reason = `Not enough crank material sampled on the web plane at y=${webY.toFixed(2)} mm.`; continue; }
+    if (oppositeMax < task.counterweight.minOppositeRadiusMm) { passed = false; reason = `Counterweight material opposite the throw at y=${webY.toFixed(2)} mm reaches only ${oppositeMax.toFixed(2)} mm, below the declared ${task.counterweight.minOppositeRadiusMm} mm.`; }
+    if (pinSideMax > task.counterweight.maxPinSideRadiusMm) { passed = false; reason = `Crank material on the pin side at y=${webY.toFixed(2)} mm reaches ${pinSideMax.toFixed(2)} mm, above the declared ${task.counterweight.maxPinSideRadiusMm} mm.`; }
+  }
+  return { status: "PASS", reason, passed, stations };
+}
+
 export async function scoreV8Submission(task: V8BenchTask, submission: Submission): Promise<V8CaseReport> {
   const sourceSha256 = sha256(submission.source);
   const provenance = { createdAt: new Date().toISOString(), backend: process.env.AGENTSCAD_OPENSCAD_BACKEND === "wasm" ? "wasm" : "native", openscad: openscadVersion(), runtime: `bun ${process.env.BUN_VERSION ?? "unknown"}`, platform: process.platform };
-  const unknowns = ["A PASS covers five crank angles and pairwise triangle collision; it is not continuous motion, load, friction, wear or physical function.", "This is a V8 phase/packaging family: the base task has a base-plate frame, the block/bearing task adds a two-bearing crankcase block with a top rail. Neither models cylinder bores, counterweights or firing order.", "Connectivity is exact edge connectivity of one rendered part at 0 degrees: it is not balance, strength, machining or a complete cylinder block.", "The bearing fit measures a sampled cylindrical clearance between the block bore and the crankshaft journals at the declared stations only; it is not a calibrated tolerance, bearing load rating, lubrication or manufacturability proof.", "Slider centres come from mesh bounds; the 0.1 mm tolerance is a mesh value."];
-  const empty: V8CaseMeasurements = { parts: [], angles: task.angles, sliderCenters: [], maxPositionErrorMm: null, collision: { sampled: 0, separated: 0, firstFailure: null }, crankConnectivity: null, frameConnectivity: null, bearingFit: null };
+  const unknowns = ["A PASS covers five crank angles and pairwise triangle collision; it is not continuous motion, load, friction, wear or physical function.", "This is a V8 phase/packaging family: the base task has a base-plate frame, the block/bearing task adds a two-bearing crankcase block with a top rail. Neither models cylinder bores, counterweights or firing order.", "Connectivity is exact edge connectivity of one rendered part at 0 degrees: it is not balance, strength, machining or a complete cylinder block.", "The bearing fit measures a sampled cylindrical clearance between the block bore and the crankshaft journals at the declared stations only; it is not a calibrated tolerance, bearing load rating, lubrication or manufacturability proof.", "Counterweight balance is measured as material extent on the crank web planes relative to each throw direction; it is not a mass moment, balance factor, stress or fatigue calculation.", "Slider centres come from mesh bounds; the 0.1 mm tolerance is a mesh value."];
+  const empty: V8CaseMeasurements = { parts: [], angles: task.angles, sliderCenters: [], maxPositionErrorMm: null, collision: { sampled: 0, separated: 0, firstFailure: null }, crankConnectivity: null, frameConnectivity: null, bearingFit: null, counterweight: null };
   const baseReport = (status: EvidenceStatus, results: Result[], measurements: V8CaseMeasurements): V8CaseReport => {
     const scored = scoreEvidence(results.map((r) => ({ id: r.id, status: r.status })));
     return { schemaVersion: "v8-bench.case.v1", taskId: task.id, submission: submission.id, expected: expectedOutcome(submission.id), sourcePath: path.relative(process.cwd(), submission.sourcePath), sourceSha256, status, gatePassed: status === "PASS", results, layers: { coverage: scored.coverage, byLayer: scored.layers.map((l) => ({ layer: l.layer, status: l.status, blockers: l.blockers })) }, measurements, provenance, unknowns };
@@ -211,6 +279,7 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
   const bearingFit = task.bearingFit && framePart && crankPart
     ? measureBearingFit(task, framePart, crankPart)
     : null;
+  const counterweight = task.counterweight && crankPart ? measureCounterweights(task, crankPart.stl) : null;
   const measurements: V8CaseMeasurements = { ...empty, parts: zeroParts.map((part) => ({ id: part.partId, triangleCount: part.triangleCount })),
     crankConnectivity: crankConnectivity === null ? null : {
       status: crankConnectivity.status as EvidenceStatus,
@@ -220,7 +289,7 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
       status: frameConnectivity.status as EvidenceStatus,
       reason: frameConnectivity.reason, components: frameConnectivity.components.length,
     },
-    bearingFit };
+    bearingFit, counterweight };
   const artifactSha256 = sha256(zeroParts.map((part) => part.sha256).join(":"));
   const distinct = new Set(zeroMeshes.map(({ mesh }) => canonicalMeshHash(mesh))).size;
   let collisionSampled = 0, collisionSeparated = 0, firstFailure: string | null = null, maxPositionError = 0;
@@ -284,7 +353,19 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
       : { id: "bearing-fit", status: bearing.status === "ERROR" ? "ERROR" : "NOT_RUN", reason: bearing.reason, artifactSha256, toolVersion,
           method: "Cylindrical section measurement of the block bore against the crankshaft journals at the declared axial stations.",
           coverage: `${bearing.stationsMm.length} station(s).` };
+  const balance = measurements.counterweight;
+  const counterweightObservation: Observation = balance === null
+    ? { id: "counterweight-balance", status: "NOT_RUN", reason: "No counterweight contract or a missing crank mesh prevented measurement." }
+    : balance.status === "PASS"
+      ? { id: "counterweight-balance", status: "MEASURED", value: balance.passed, artifactSha256, toolVersion,
+          method: "Vertex-sector extent on the declared crank web planes relative to each throw direction.",
+          coverage: `${balance.stations.length} web plane(s): ${balance.stations.map((station) => `y=${station.webY.toFixed(1)} mm`).join(", ")}.`,
+          ...(balance.passed ? {} : { reason: balance.reason }) }
+      : { id: "counterweight-balance", status: balance.status === "ERROR" ? "ERROR" : "NOT_RUN", reason: balance.reason, artifactSha256, toolVersion,
+          method: "Vertex-sector extent on the declared crank web planes relative to each throw direction.",
+          coverage: `${balance.stations.length} web plane(s).` };
   const observations: Record<string, Observation> = {
+    "counterweight-balance": counterweightObservation,
     "frame-connectivity": frameConnectivityObservation,
     "bearing-fit": bearingFitObservation,
     "distinct-exported-parts": { id: "distinct-exported-parts", status: "MEASURED", value: distinct, artifactSha256, method: "Canonical order-independent triangle hash per rendered instance.", toolVersion, coverage: `${zeroParts.length} instance meshes.`, ...(distinct === 18 ? {} : { reason: `Only ${distinct} distinct meshes.` }) },

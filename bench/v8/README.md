@@ -1,4 +1,4 @@
-# L5b/L5c-1 V8 packaging carrier: connected crankshaft and crankcase block/bearings
+# L5b/L5c-1 V8 packaging carrier: connected crankshaft, crankcase block/bearings and counterweights
 
 This is the V8 phase/packaging rung: **eight piston-and-rod sets in four 90° phase
 groups on two ±45° banks**, one **shared crankpin per phase group with two rods per
@@ -8,9 +8,10 @@ no cylinder block, bearing shell, counterweight or firing order.
 
 Contract v2 (2026-11-21) made the connected crankshaft a scored requirement. The v1
 reference — four separate disc/pin throws with no main shaft — is retained as
-`adversarial-disconnected-crank` and must be rejected. Contract v3 adds a second task
-with a crankcase block and two measured main bearings; the base carrier keeps its
-base-plate frame.
+`adversarial-disconnected-crank` and must be rejected. Contract v3 added a second task
+with a crankcase block and two measured main bearings; contract v4 adds measured
+counterweights on the crank web planes. The base carrier keeps its base-plate frame and
+no counterweights.
 
 ## Task
 
@@ -52,7 +53,12 @@ Scored layers:
 - **`bearing-fit`**: the shared cylindrical-feature measurement binds the rendered block
   bore to the crankshaft journals at both declared stations and requires the whole
   sampled clearance interval inside **0.4–1.6 mm** and the measured axis offset at most
-  **0.3 mm**.
+  **0.3 mm**;
+- **`counterweight-balance`** (contract v4): on each throw-side web plane (station + 8
+  mm), crank material on the pin side must stay inside **11 mm** while material in the
+  sector opposite the throw (35° half-angle) must reach at least **12 mm**. The reference
+  reaches 17 mm opposite and 10.5 mm on the pin side; this is a geometric
+  presence/phase check, not a mass moment or balance-factor calculation.
 
 The measured clearance on the reference is **0.989–1.019 mm** with a 0° axis offset.
 The band is a demonstrator tolerance, not a calibrated manufacturing tolerance, bearing
@@ -92,15 +98,16 @@ Block/bearing task:
 
 | Submission | Result |
 |---|---|
-| `v8-block-bearings-8/reference` | **PASS 6/6**: 18 instances; connected crank PASS; block PASS; **bearing fit PASS at 0.989–1.019 mm with 0° axis offset**; 765 sampled collisions separated; source motion PASS |
-| `adversarial-baseplate` | ERROR 5/6: the base-plate frame has no bearing bore, so **only `bearing-fit` is ERROR** while every other layer passes — the requirement cannot be satisfied by a plate |
-| `adversarial-bearing-clearance` | FAIL 5/6: oversized bores give a clearance outside the band, so **only `bearing-fit` FAILS** |
-| `adversarial-disconnected-crank` | FAIL 5/6: the split crankshaft fails **only `part-connectivity`** while the bearing fit still passes |
+| `v8-block-bearings-8/reference` | **PASS 7/7**: 18 instances; connected crank PASS; block PASS; **bearing fit PASS at 0.989–1.019 mm with 0° axis offset**; **counterweight balance PASS** (17 mm opposite / 10.5 mm pin-side on every web plane); 765 sampled collisions separated; source motion PASS |
+| `adversarial-baseplate` | ERROR 6/7: the base-plate frame has no bearing bore, so **only `bearing-fit` is ERROR** while every other layer, including the counterweights, passes |
+| `adversarial-bearing-clearance` | FAIL 6/7: oversized bores give a clearance outside the band, so **only `bearing-fit` FAILS** |
+| `adversarial-disconnected-crank` | FAIL 6/7: the split crankshaft fails **only `part-connectivity`**; bearing fit and counterweights still pass |
+| `adversarial-no-counterweight` | FAIL 6/7: removing the lobes makes the opposite-sector extent 2.5 mm, so **only `counterweight-balance` FAILS** |
 
 ## Hidden set
 
-The external development copy `hidden-v8-shared-dev [v8]` predates contracts v2/v3 and
-must be re-frozen before it is used; until then it does not represent either task. Every
+The external development copy `hidden-v8-shared-dev [v8]` predates contracts v2–v4 and
+must be re-frozen before it is used; until then it does not represent any task. Every
 hidden copy remains `independentHiddenEvaluation = NOT_RUN`.
 
 ## Boundaries
@@ -114,6 +121,9 @@ hidden copy remains `independentHiddenEvaluation = NOT_RUN`.
   connectivity under rotation.
 - `bearing-fit` measures two sampled stations only; it is not continuous rotation,
   bearing clearance over temperature/load, surface finish or press-fit behavior.
+- `counterweight-balance` measures material extents on four web planes at one pose; it is
+  not a mass moment, balance factor, stress, fatigue or vibration analysis, and it does
+  not prove the part is manufacturable.
 - Only five discrete angles, mesh-bound slider centres and 765 discrete collisions are
   covered; continuous motion is not established.
 - The published thirteen-family matrix row for v8 predates contract v2; a full gate
