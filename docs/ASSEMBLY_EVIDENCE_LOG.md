@@ -3730,3 +3730,33 @@ pre-coaxiality thread row until the next full gate rerun.**
 - The tool's own coaxiality/exit verdicts remain outside this task and unchanged.
 - The external hidden thread development copy predates this layer and must be re-frozen;
   no independent hidden evaluation, physical part or user acceptance is claimed.
+
+## 2026-11-21 · Second load-induced product budget flake in the coaxiality gate (English log)
+
+The first full `bench:all` on the thread-coaxiality tree (`9943481`) finished **overall
+FAIL (product)**. Every other family passed, including the new thread coaxiality row
+(thread 8 cases / 25-of-35 layers) and the unchanged v8 row (15 cases / 67-of-89). The
+product family showed load-budget timeouts again:
+
+- `product-slider-crank-360/reference`: `source-motion` **NOT_RUN**; the fixed five-pose
+  source verification exceeded its wall-clock budget after the earlier poses passed.
+- Several product adversaries show `assembly-reconstruction NOT_RUN | Reconstruction
+  exceeded its 15000 ms budget`, which lowers their layer counts but does not change the
+  self-check rejection.
+- The product family took 355 s instead of the usual ~300 s. Host load average was
+  **7.5–14.9** during the run (unrelated macOS daemons; the thread family took 53 minutes
+  instead of ~33).
+
+Per the rules this is neither a product failure nor a pass. Verification done:
+
+1. **Source identity**: `git diff --stat e54166b HEAD -- bench/product` and the same
+   diff for `src/lib` / `src/app` are empty — the product tasks, checker sources and
+   production code are byte-identical to the tree of the last green gate (`e54166b`).
+2. **Isolated rerun**: `bun run bench:product:check` reports `SELF-CHECK OK: 3
+   reference(s) pass, 13 adversarial submission(s) rejected` with all three references
+   PASS 7/7 under the lower load (~4.5).
+
+A second full `bench:all` attempt is running on the exact tree; the published matrix is
+updated only from a green attempt. This is a wall-clock-budget flake, not a product
+regression, and it is not treated as user acceptance or physical evidence. No model
+calls, no deployment.
