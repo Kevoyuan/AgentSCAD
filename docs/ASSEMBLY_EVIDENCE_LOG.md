@@ -3538,3 +3538,52 @@ motion, bearing load/lubrication, balance-factor physics, physical function or u
 acceptance. A complete V8 machine (cylinder bores/heads, firing order), full A001 contract
 pass, an independent hidden set, a fresh funded product trial, user acceptance and
 physical validation remain open.
+
+## 2026-11-21 · Negative result: full circular cylinder guide tubes collide with the rods (L5c-2 exploration) (English log)
+
+Before adding a cylinder-bore/head rung to the V8 block task, two full-circular guide
+tube layouts were tested against the existing 13-case v8 self-check. Both were rejected
+by the sampled collision check; the reference file was restored unchanged afterwards
+(`bench/v8/submissions/v8-block-bearings-8/reference.scad` hashes to `5ae2c7d5…`, equal
+to its committed blob). **No bench source changed and no gate rerun is implied by this
+entry.**
+
+### Attempt A — tubes from bank radius 12.5 to 46
+
+Eight tubes (bore r = 10.1 mm, outer r = 12 mm, 28–33.5 mm long) were added around the
+sliders, with head rails at bank radius 46 and outboard columns at x = ±42 tied to the
+base plate. Result: `reference` FAIL 6/7; **680/765 instance-pair checks separated**, first
+failure `0° frame/crank: INTERSECT` (the rotating counterweight lobes reach bank radius
+12–17 and enter the tube wall annulus at some angles).
+
+### Attempt B — tubes moved outboard to bank radius 18–46
+
+The tubes were moved outward so the counterweights clear (counterweight axial projection
+≤ 17 mm), keeping the same bore/wall. Result: `reference` FAIL 6/7; **685/765 pairs
+separated**, first failure `0° frame/rod0L: INTERSECT`. All eight rods collide with the
+block; recorded witness points (mm):
+
+```
+rod0L  8.04,-37.17,15.49   rod1L 20.86,-21.01,21.98   rod2L 16.86,-1.01,17.98
+rod3L 16.83,18.99,18.04    rod0R -26.29,-25.17,22.27  rod1R -19.24,-5.12,14.95
+rod2R -11.14,17.01,4.46    rod3R -17.06,35.24,6.66
+```
+
+Root cause, confirmed from the frame triangle witness at (9.4, −37.3, 16.1): the
+full-circular tube has a **lateral radius of 12 mm in y**, while the neighbouring rod
+plane is only 2–10 mm away in y (sliders at station ± 3, rods at station ± 5, rod
+thickness 4). Near the pin the rod reaches about 7 mm perpendicular offset from the bank
+axis, so it enters the tube wall annulus (10.1–12 mm) even though it is inside the bore
+further out. The same loop also created the two bank tubes at each y twice (16
+placements for 8 unique positions); that duplication is harmless for the union but should
+be removed in the next design.
+
+### Consequence
+
+A **full circular bore** is not collision-free under the current two-rods-per-shared-pin
+geometry. L5c-2 needs a different guide topology — thin U-channel guide plates that stay
+outside the rod sweep, split saddles around the outboard half of each slider, or a
+different rod/slider y separation in the mechanism contract — before a cylinder-bore
+evidence layer can be added. This entry is a design negative result at the five sampled
+angles, not a proof that no bore geometry exists. No model calls, no user acceptance and
+no physical claim are involved.
