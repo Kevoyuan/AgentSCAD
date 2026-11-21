@@ -61,8 +61,8 @@ Aligned with the milestones in [`FUNCTIONAL_ASSEMBLY_PLAN.md`](../docs/FUNCTIONA
 | L4 | multi-joint with retention | 4 joints, 7 parts / 9 instances | M4 | in `bench/l4`: declaration-bound, reference + 4 adversarial |
 | L4.5 | inline twin / 90° V-twin cross-section | 2 cylinders, one crank | M5 | in `bench/twin` and `bench/vtwin` |
 | L5a | planetary stage | fixed ring, sun/planet/carrier | M5 | in `bench/planetary` and `bench/planetary3` |
-| L5b | V8 phase/packaging carrier | 8 kinematic chains, 18 instances | M6 | in `bench/v8`: four shared pins, **disconnected** crank discs; reference + 6 adversarial |
-| L5c | full V8 with a connected crankshaft | 8 chains plus webs/journals/block | M6 | **open**: a 2026-11-19 connected-web layout still hit 2-5 rods at the sampled angles; no candidate passed |
+| L5b | V8 phase/packaging carrier with a connected crankshaft | 8 kinematic chains, 18 instances, pins/webs/main journals | M6 | in `bench/v8` contract v2: reference + 7 adversarial; the v1 disconnected-disc reference is kept as a rejected adversary |
+| L5c | complete V8 machine | 8 chains plus block, bearings, counterweights, firing order | M6 | **open**: no cylinder block, bearing shells, counterweights, firing order or lubrication exist |
 
 **Why a ladder:** failing L5 does not mean L3 does not exist. With rungs, a score can say which layer is stuck even when the top fails.
 
@@ -184,8 +184,11 @@ cam          OK         4      1     3     0         1     3     0        5/8
 promoted. `layers` is the sum of observed layers across cases, not a pass rate.
 
 This is a public self-check gate, not independent hidden evaluation, model ability,
-physical function or user acceptance. A connected-crankshaft V8, full A001 contract
-pass, an independent hidden set and a fresh funded product trial remain open.
+physical function or user acceptance. The **v8 row predates contract v2** (the connected
+crankshaft requirement); its current family result is in
+[`bench/v8/README.md`](./v8/README.md) and the next full gate rerun replaces the row. A
+complete V8 machine, full A001 contract pass, an independent hidden set and a fresh
+funded product trial remain open.
 
 ### The layer table over recorded history
 

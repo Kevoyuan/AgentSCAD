@@ -10,6 +10,12 @@ describe("V8 phase carrier task", () => {
     expect(task.contract.phasesDeg).toEqual([0, 90, 180, 270]);
     expect(new Set([task.selectors.frame, task.selectors.crank, ...task.selectors.rods, ...task.selectors.sliders]).size).toBe(18);
   });
+  test("requires one connected crankshaft (contract v2)", async () => {
+    const task = (await loadV8Tasks())[0];
+    expect(task.prompt).toContain("connected crankshaft");
+    const requirement = task.requirements.find((entry) => entry.id === "part-connectivity");
+    expect(requirement).toMatchObject({ layer: "assembly", required: true, applicable: true, expected: { kind: "equals", value: true } });
+  });
   test("places both banks from the same phase group", async () => {
     const task = (await loadV8Tasks())[0];
     const left = expectedV8Center(task.contract, 0, 0, 0);

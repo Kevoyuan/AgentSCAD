@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "v8-phase-8",
-  "prompt": "Build a V8 phase/packaging demonstration: two banks at 45 degrees, four crank phase groups 0/90/180/270, eight piston-and-rod sets. Use four shared crankpins with two rods per pin; a shared crankshaft is not required. All eighteen instances must export separately and must not interfere at the five listed input angles.",
+  "prompt": "Build a V8 phase/packaging demonstration: two banks at 45 degrees, four crank phase groups 0/90/180/270, eight piston-and-rod sets. Use four shared crankpins with two rods per pin, and one connected crankshaft: the pins must join main journals through webs, not four separate discs. All eighteen instances must export separately and must not interfere at the five listed input angles.",
   "selectors": {
     "frame": "frame",
     "crank": "crank",
@@ -65,6 +65,16 @@
       }
     },
     {
+      "id": "part-connectivity",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
       "id": "measured-joint-frames",
       "layer": "assembly",
       "required": true,
@@ -96,8 +106,9 @@
     }
   ],
   "notes": [
-    "V8 shared-pin/packaging carrier: eight cylinders in four 90-degree phase groups, two rods per shared crankpin; the throws are separate discs/pins with no main shaft, so it is not a complete crankshaft V8.",
-    "The frame is a base plate only; no cylinder block, guides, bearings, firing order, load or lubrication are modeled.",
+    "Contract v2 (2026-11-21): the crank must be one connected crankshaft. The v1 disconnected-disc reference is retained as adversarial-disconnected-crank and must be rejected by the connectivity requirement.",
+    "V8 shared-pin/packaging carrier: eight cylinders in four 90-degree phase groups, two rods per shared crankpin. The crank has pins, webs and short main journals plus end stubs; there is no cylinder block, bearing shell, counterweight, firing order, load or lubrication model.",
+    "Connectivity is exact edge connectivity of the rendered crank part at 0 degrees. It is not balance, strength, bearing fit, machining or physical function.",
     "Only five input angles, mesh-bounds slider centres and 153 pairwise mesh checks per angle are covered."
   ]
 }

@@ -14,10 +14,22 @@ function phi(a, sx) = atan2(travel(a, sx) * sx - px(a), travel(a, sx) * uz - pz(
 module frame_part() { translate([0,0,-20]) cube([32, 85, 3], center = true); }
 module crank_part() {
   union() {
+    // Four shared crankpins between webs.
     for (i = [0:3]) {
-      translate([0, station_y[i], 0]) rotate([90,0,0]) cylinder(h = 1.5, r = 11, center = true);
-      translate([px(phase[i]), station_y[i], pz(phase[i])]) rotate([90,0,0]) cylinder(h = 18, r = 2, center = true);
+      translate([px(phase[i]), station_y[i], pz(phase[i])])
+        rotate([90,0,0]) cylinder(h = 16, r = 2, center = true);
+      // Webs sit in the gap between the two rod planes of each shared pin.
+      for (s = [-8, 8]) {
+        translate([0, station_y[i] + s, 0]) hull() {
+          rotate([90,0,0]) cylinder(h = 1, r = 2.5, center = true);
+          translate([px(phase[i]), 0, pz(phase[i])]) rotate([90,0,0]) cylinder(h = 1, r = 2.5, center = true);
+        }
+      }
     }
+    // Main journals between station webs, plus end stubs: one connected crank.
+    for (m = [-20, 0, 20]) translate([0, m, 0]) rotate([90,0,0]) cylinder(h = 4, r = 2, center = true);
+    translate([0, -39, 0]) rotate([90,0,0]) cylinder(h = 2, r = 2, center = true);
+    translate([0, 39, 0]) rotate([90,0,0]) cylinder(h = 2, r = 2, center = true);
   }
 }
 module rod_local() {

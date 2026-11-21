@@ -2854,3 +2854,49 @@ the serial native suite `bun run test:openscad` **68 PASS / 1 SKIP / 0 FAIL** (6
 15 files, 1,394.51 s); `bun run build` PASS (Next.js production output); `bun run lint`
 PASS. These are tool-level results for this exact tree; they do not upgrade any sampled
 geometry claim above its own scope.
+
+## 2026-11-21 · Connected-crankshaft V8 carrier rung, contract v2 (English log)
+
+The 2026-11-19 connected-web attempt failed with 2-5 rod intersections at the sampled
+angles, and the `bench/v8` reference has been four **disconnected** disc/pin throws ever
+since. This change makes a connected crankshaft a scored requirement and supplies a
+reference that passes.
+
+### Geometry
+
+Four shared crankpins (radius 2 mm, 16 mm long) at the four phase stations; each pin is
+joined by two webs at `station ± 8` mm to short main journals between the stations
+(radius 2 mm, 4 mm long at y = −20 / 0 / 20) plus end stubs at y = ±39. The webs are
+1 mm thick y-axis plates whose radius-2.5 ends enclose the main axis and the pin, so the
+crank is one connected solid while the webs sit in the 6 mm gap between the two rod
+planes (`station ± 5`, rod thickness 4 mm). This is a packaging demonstrator: there are
+no counterweights, bearing shells or cylinder block.
+
+### Measured result (native OpenSCAD 2021.01, no model calls)
+
+`bun run bench:v8:check` -> `SELF-CHECK OK: 1 reference(s) pass, 7 adversarial
+submission(s) rejected`.
+
+| Submission | Result |
+|---|---|
+| reference (connected crank) | **PASS 5/5**; 18 instances; connectivity PASS (one edge component); 765/765 sampled pair checks separated; slider-centre error 0.0000 mm |
+| adversarial-disconnected-crank (v1 reference) | FAIL 4/5; **only `part-connectivity` fails** (four disc/pin solids separated by empty slabs); motion/phase/source still pass |
+| adversarial-main-shaft | FAIL 4/5; connectivity PASS, `sampled-motion` FAIL (continuous shaft crosses the rod sweep) |
+| adversarial-connected-crank | FAIL 4/5; connectivity PASS, `sampled-motion` FAIL (misoriented webs plus segmented journals still hit rods) |
+| adversarial-phase / static / crank-radius / collision | FAIL 2/5, 2/5, 2/5, 1/5 as before |
+
+The two connected-yet-colliding adversaries are the point: connectivity is a separate
+layer and cannot substitute for sampled collision evidence.
+
+### Boundaries
+
+- Connectivity is **exact edge connectivity of the rendered crank part at 0° only**; it
+  is not balance, strength, bearing fit, machining or rotation-invariant connectivity.
+- Five discrete angles, mesh-bounds slider centres and 765 discrete collision checks;
+  no continuous motion, load, friction, wear or physical function.
+- The frame remains a base plate: no block, bearings, counterweights or firing order.
+- The external hidden development copy predates contract v2 and must be re-frozen;
+  `independentHiddenEvaluation` remains NOT_RUN.
+- The published thirteen-family matrix retains the **pre-v2** v8 row until the next
+  full `bench:all` rerun; the family self-check above is the current v8 result. No
+  deployment and no paid model call.

@@ -32,7 +32,7 @@ the gate is recorded from a fresh run on the integrated tree rather than copied.
 | Repair/route targeted tests | 24 repair tests PASS; full route test file PASS |
 | Production build | **PASS** (`bun run build`, Next.js production output) |
 | Native OpenSCAD suite (serial) | **68 PASS / 1 SKIP / 0 FAIL** (69 tests, 15 files, 1394.51 s) |
-| Thirteen-family gate | **PASS**, 94 cases / 21 reference / 67 adversarial / 6 unscored; 27 PASS / 65 FAIL-or-ERROR / 2 NOT_RUN; layers 273/412; native OpenSCAD 2021.01, no model calls, about 89 family-minutes |
+| Thirteen-family gate | **PASS**, 94 cases / 21 reference / 67 adversarial / 6 unscored; 27 PASS / 65 FAIL-or-ERROR / 2 NOT_RUN; layers 273/412; native OpenSCAD 2021.01, no model calls, about 89 family-minutes. The v8 row predates contract v2 (connected crankshaft); its current family result is recorded in `bench/v8/README.md` |
 
 The production build and native suite are recorded after they finish; a green gate
 is a public self-check, not independent hidden evaluation, model ability or physical
@@ -55,9 +55,9 @@ function.
 
 ## What it does not include
 
-- A connected-crankshaft V8. The `bench/v8` reference has four shared pins and
-  **disconnected** crank discs; the 2026-11-19 connected-web attempt still hit
-  2-5 rods at the sampled angles.
+- A complete V8 machine. The `bench/v8` reference (contract v2) now requires one
+  connected crankshaft with pins, webs and main journals, but there is no cylinder
+  block, bearing shell, counterweight, firing order or lubrication model.
 - Full A001 contract-gate pass for a multi-joint source; the confirmed-contract
   regression remains NOT_RUN by design.
 - Independent hidden evaluation or fresh external model sampling. Hidden copies
