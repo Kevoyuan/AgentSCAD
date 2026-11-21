@@ -28,10 +28,11 @@ describe("product-path tasks", () => {
     expect(task).toBeDefined();
     expect(task!.partCount).toBe(5);
     expect(task!.request).toContain("eccentric retention key");
-    expect(task!.fit).toBeUndefined();
+    expect(task!.fit?.minClearanceMm).toBe(0.1);
+    expect(task!.fit?.requirements.map((r) => r.connectionId)).toEqual(["main_shaft", "eccentric", "wrist"]);
     expect(task!.requirements.map((r) => r.id)).toEqual([
       "distinct-exported-parts", "part-connectivity", "assembly-reconstruction",
-      "assembly-path", "disassembly-path",
+      "diametral-clearance", "measured-joint-frames", "assembly-path", "disassembly-path",
     ]);
   });
   test("refuses a requirement id the product path cannot observe", () => {

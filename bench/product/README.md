@@ -56,9 +56,11 @@ slider. The submission declaration in `reference.scad` adds the four mirrored in
 operations, so the product path measures **both** the declared removal order and the
 declared insertion order on rendered part meshes.
 
-The fixture declares no bore stations or source pose parameter for this six-connection
-mechanism, so fits, joint frames, rigid motion and source motion stay unobserved instead
-of being faked; they are not listed as required.
+The declaration adds the bore stations of the three revolute joints (main shaft, crank
+pin, wrist), so the product path also measures **three diametral fits and their joint
+frames** against the same 0.1–0.6 mm band. The fixture declares no source pose parameter,
+so rigid motion and source motion stay unobserved instead of being faked; they are not
+listed as required.
 
 ## Result
 
@@ -91,11 +93,11 @@ Task 3:
 
 | Submission | Result |
 |---|---|
-| `product-keyed-slider-crank-disassembly/reference` | **PASS 5/5**: 5 parts; connectivity PASS; reconstruction PASS; **disassembly-path PASS** (every declared removal clears at its sampled poses); **assembly-path PASS** (every declared insertion reaches the assembled pose) |
-| `adversarial-wrong-order` | FAIL 3/5; removing the slider before the eccentric key **fails `disassembly-path`** while identity, topology and reconstruction still pass |
-| `adversarial-missing-insertions` | NOT_RUN 4/5; the declared removals pass but `assembly-path` is NOT_RUN, so it is not promoted to a pass |
-| `adversarial-key-declaration-removed` | ERROR 0/5; the declaration no longer matches the rendered parts and is blocked before measurement |
-| `adversarial-declaration-missing` | ERROR 0/5; blocked before any layer |
+| `product-keyed-slider-crank-disassembly/reference` | **PASS 7/7**: 5 parts; connectivity PASS; reconstruction PASS; three revolute fits PASS (measured clearance 0.395–0.405 mm inside the 0.1–0.6 mm band) and their joint frames PASS; **assembly-path PASS**; **disassembly-path PASS** |
+| `adversarial-wrong-order` | FAIL 5/7; removing the slider before the eccentric key **fails `disassembly-path`** while identity, topology, reconstruction, fits and joint frames still pass |
+| `adversarial-missing-insertions` | NOT_RUN 6/7; the declared removals pass but `assembly-path` is NOT_RUN, so it is not promoted to a pass |
+| `adversarial-key-declaration-removed` | ERROR 0/7; the declaration no longer matches the rendered parts and is blocked before measurement |
+| `adversarial-declaration-missing` | ERROR 0/7; blocked before any layer |
 
 ## Hidden set
 
@@ -111,10 +113,11 @@ re-frozen before it is used. Every hidden copy remains
   continuous motion, contact tolerance, load, lubrication, friction, wear or physical
   function.
 - Task 2 has no declared assembly or removal operations, so its assembly/disassembly
-  order is unobserved; task 3 covers the declared removal and insertion orders of a
-  retained-key mechanism, but only at the sampled rigid poses. It is not continuous
-  motion, tool access, tolerance or physical function, and there is still no interactive
-  nine-plus-pose product workflow. A08 remains partial.
+  order is unobserved; task 3 covers three revolute fits and joint frames plus the
+  declared removal and insertion orders of a retained-key mechanism, but only at the
+  sampled rigid poses. It is not continuous motion, tool access, tolerance or physical
+  function, and there is still no interactive nine-plus-pose product workflow. A08
+  remains partial.
 - The fixture is an original researcher-authored demonstration part; a source PASS is
   not evidence that autonomous generation produces this mechanism.
 - No model calls, no deployment and no physical claim.

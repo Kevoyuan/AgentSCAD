@@ -54,6 +54,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add the threaded-fastener family to external hidden sets (family `thread`) and the unified twelve-family gate
 - Make the external hidden-split harness family-aware (`assembly`/`gear`/`slider`/`l4`), with family-specific freezing, hashing, scoring and external L4 spec loading; dev copies verify all four dispatches without claiming independence
 - Refresh the thirteen-family gate with the retained-key disassembly product row: 105 cases, 312/484 observed layers, overall PASS
+- Extend the retained-key disassembly product task with the three revolute fits and measured joint frames from the same declaration: the reference passes all seven scored layers at 0.395–0.405 mm measured clearance while the swapped removal order still fails only `disassembly-path`
 - Add a retained-key disassembly product task: the real product path measures the declared removal order (eccentric key first) and the mirrored insertion order on rendered part meshes; the swapped-order adversarial fails only `disassembly-path`, missing insertions stay NOT_RUN
 - Refresh the thirteen-family gate with the contract-driven slider-crank product row: 100 cases, 300/459 observed layers, overall PASS
 - Add a contract-driven product-path slider-crank bench task: derived requirement contract, three revolute fits and joint frames, sampled rigid motion and source-driven poses; the static-source adversarial fails only `source-motion`, showing declared transforms cannot substitute for independent source re-rendering

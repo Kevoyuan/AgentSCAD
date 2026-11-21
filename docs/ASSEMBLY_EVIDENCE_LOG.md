@@ -3216,3 +3216,40 @@ This remains a public self-check gate: not hidden evaluation, not model ability,
 continuous motion or tool reach, not physical function and not user acceptance. A
 complete V8 machine, full A001 contract pass, an independent hidden set, a fresh funded
 product trial, user acceptance and physical validation remain open.
+
+## 2026-11-21 · Fitted joints added to the retained-key disassembly task (English log)
+
+The retained-key product task previously measured identity, connectivity,
+reconstruction and the declared removal/insertion orders. This change adds the bore
+stations of the three revolute joints (main shaft, crank pin, wrist) to the submission
+declarations and binds them to the same 0.1–0.6 mm full-band requirement already used by
+the contract-driven slider-crank task.
+
+### Measured result
+
+`bun run bench:product:check` -> `SELF-CHECK OK: 3 reference(s) pass, 13 adversarial
+submission(s) rejected.` Native OpenSCAD 2021.01, no model calls.
+
+| Submission | Result |
+|---|---|
+| `product-keyed-slider-crank-disassembly/reference` | **PASS 7/7**: 5 parts; connectivity PASS; reconstruction PASS; **three revolute fits PASS at 0.395–0.405 mm**; joint frames PASS; **assembly-path PASS**; **disassembly-path PASS** |
+| `adversarial-wrong-order` | FAIL 5/7: only **disassembly-path FAIL** (slider removed before the eccentric key); fits and joint frames still pass |
+| `adversarial-missing-insertions` | NOT_RUN 6/7: removals pass, `assembly-path` NOT_RUN, not promoted |
+| `adversarial-key-declaration-removed` / `adversarial-declaration-missing` | ERROR 0/7; blocked before measurement |
+
+The product family is now 16 cases / **63-of-112** observed layer entries in its own
+self-check.
+
+### Boundaries
+
+- The measured fits cover three revolute joints at the declared stations only; the
+  prismatic guide and the key-removal connection remain unmeasured and stay NOT_RUN in
+  the aggregate joint-frame evidence.
+- Rigid motion and source motion stay unobserved: this six-connection mechanism has no
+  source pose parameter, and the product path does not derive multi-joint kinematics for
+  it automatically.
+- Operations are checked at sampled rigid poses only; not continuous motion, tool
+  access, tolerance, load or physical function. A08 still needs the interactive
+  nine-plus-pose product workflow and user acceptance.
+- The published thirteen-family matrix keeps the pre-change product row until the next
+  full `bench:all` rerun. No model calls, no deployment.

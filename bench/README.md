@@ -59,7 +59,7 @@ Aligned with the milestones in [`FUNCTIONAL_ASSEMBLY_PLAN.md`](../docs/FUNCTIONA
 | L2 | two-part prismatic (piston in a barrel) | 1 joint, 2 parts | M3 | in `bench/assembly`: 6 tasks |
 | L3 | single-cylinder slider-crank | 4-joint loop, 4-6 parts | M4 | in `bench/slider`: 3 tasks, reference + 14 adversarial |
 | L4 | multi-joint with retention | 4 joints, 7 parts / 9 instances | M4 | in `bench/l4`: declaration-bound, reference + 4 adversarial |
-| L4p | product-path slider-crank closure (contract-driven) | task 2: 4 parts, 3 revolute fits + joint frames, sampled rigid motion and source poses; task 3: 5 parts with declared removal and insertion orders | M4 | in `bench/product`; retained-key disassembly now measured, interactive nine-pose workflow and user acceptance still open |
+| L4p | product-path slider-crank closure (contract-driven) | task 2: 4 parts, 3 revolute fits + joint frames, sampled rigid motion and source poses; task 3: 5 parts, three revolute fits + joint frames, declared removal and insertion orders | M4 | in `bench/product`; retained-key disassembly now measured, interactive nine-pose workflow and user acceptance still open |
 | L4.5 | inline twin / 90° V-twin cross-section | 2 cylinders, one crank | M5 | in `bench/twin` and `bench/vtwin` |
 | L5a | planetary stage | fixed ring, sun/planet/carrier | M5 | in `bench/planetary` and `bench/planetary3` |
 | L5b | V8 phase/packaging carrier with a connected crankshaft | 8 kinematic chains, 18 instances, pins/webs/main journals | M6 | in `bench/v8` contract v2: reference + 7 adversarial; the v1 disconnected-disc reference is kept as a rejected adversary |

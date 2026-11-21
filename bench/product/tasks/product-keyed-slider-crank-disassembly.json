@@ -36,6 +36,26 @@
       }
     },
     {
+      "id": "diametral-clearance",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "measured-joint-frames",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
       "id": "assembly-path",
       "layer": "assembly",
       "required": true,
@@ -57,8 +77,25 @@
     }
   ],
   "notes": [
-    "This is the retained-key disassembly rung for A08: the product preparation path measures the declared removal order and the declared insertion order on rendered part meshes, with the eccentric key blocking a swapped order.",
-    "The fixture declares no bore stations or source pose parameter for this six-connection mechanism, so fits, joint frames, rigid motion and source motion stay unobserved instead of being faked; those layers are not listed as required.",
-    "The declared operations are reachable per sampled rigid poses only; this is not continuous motion, tool access, tolerance, load or physical function."
-  ]
+    "This is the retained-key disassembly rung for A08: the product preparation path measures the declared removal order and the declared insertion order on rendered part meshes, with the eccentric key blocking a swapped order. Three revolute fits (main shaft, crank pin, wrist) and their measured joint frames are bound to the same 0.1-0.6 mm full-band requirement; the fixture declares no source pose parameter, so rigid motion and source motion stay unobserved instead of being faked.",
+    "The declared operations are checked at sampled rigid poses only; this is not continuous motion, tool access, tolerance, load or physical function."
+  ],
+  "fit": {
+    "minClearanceMm": 0.1,
+    "maxClearanceMm": 0.6,
+    "requirements": [
+      {
+        "connectionId": "main_shaft",
+        "boreSelector": "frame"
+      },
+      {
+        "connectionId": "eccentric",
+        "boreSelector": "rod"
+      },
+      {
+        "connectionId": "wrist",
+        "boreSelector": "rod"
+      }
+    ]
+  }
 }
