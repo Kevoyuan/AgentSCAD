@@ -3350,3 +3350,64 @@ unchanged; the v8 family becomes 12 cases.
 - The external hidden development copy predates contracts v2/v3 and must be re-frozen.
 - The published thirteen-family matrix keeps the pre-task-2 v8 row until the next full
   `bench:all` rerun. No model calls, no deployment.
+
+## 2026-11-21 · Zero-cost rejudge sample after the sampled-motion fix (English log)
+
+Two more retained paid-trial candidates were rejudged under the current judge, with the
+frozen evaluator source hashes and `codeUnchangedDuringRun: true`. No model calls. Both
+were compared with their recorded evidence using `bench/rejudge-diff.ts`.
+
+| Batch | Recorded layers | Rejudged layers | Evidence diff |
+|---|---|---|---|
+| `3n5PrM` (`guided-gated-hinge-v1`, dir `rejudged-assembly-1oV7sT`) | 7/9 (retention NOT_RUN, rigid-motion NOT_RUN) | **9/10** (retention PASS, rigid-motion PASS, source-motion NOT_RUN) | +axial-retention PASS, +rigid-motion PASS, +source-motion NOT_RUN, −unresolved-axial-retention; `sampled-motion` and all three `motion-range-*` ids **NOT_RUN → PASS** |
+| `7M8nmE` (`guided-gated-hinge-v1`, dir `rejudged-assembly-lWHetS`) | 5/9 (joint-frames ERROR, fit ERROR, rigid-motion ERROR, retention NOT_RUN) | **6/10** (joint-frames ERROR, fit ERROR, rigid-motion ERROR, retention PASS, source-motion NOT_RUN) | +axial-retention PASS, +rigid-motion ERROR, +source-motion NOT_RUN, −unresolved-axial-retention; 0 status changes among common ids |
+
+Together with the earlier `aVlhoH` rejudge (9/10), three retained candidates now have a
+current-judge measurement: two of them recover measured rigid motion that the recorded
+evidence either left NOT_RUN or measured in an older judge, and one keeps its ERROR
+statuses for joint frames, fit and rigid motion.
+
+Boundaries: these are new measurements of old sources under a changed judge, not a new
+trial, not a comparable series and not candidate improvement. The recorded paid-trial
+layer table is unchanged; a fresh funded trial is still required to move it. The rejudge
+directories are local `.agentscad/experiments` artifacts (gitignored). No user
+acceptance or physical function is implied.
+
+## 2026-11-21 · Thirteen-family gate with the V8 block/bearing row (English log)
+
+Re-ran `bun run bench:all` after adding the V8 crankcase block/bearing task. Native
+OpenSCAD 2021.01, no model calls; about **98 family-minutes** on this machine. Every
+family self-check passed.
+
+```
+family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers
+assembly     OK         20     6     8     6         12    8     0        104/120
+gear         OK         6      1     5     0         1     4     1        7/12
+slider       OK         17     3     14    0         3     14    0        51/77
+l4           OK         5      1     4     0         1     4     0        14/25
+twin         OK         6      1     5     0         1     5     0        11/24
+vtwin        OK         5      1     4     0         1     4     0        11/20
+declaration  OK         4      1     3     0         1     3     0        7/20
+v8           OK         12     2     10    0         2     10    0        45/64
+planetary    OK         4      1     3     0         1     3     0        4/8
+planetary3   OK         4      1     3     0         1     3     0        4/8
+product      OK         16     3     13    0         3     12    1        63/112
+thread       OK         6      2     4     0         2     3     1        13/20
+cam          OK         4      1     3     0         1     3     0        5/8
+```
+
+`overall: PASS`; **109 cases** — 24 reference, 79 adversarial, 6 unscored; **30 PASS /
+76 FAIL-or-ERROR / 3 NOT_RUN**; **339/518** observed layer entries.
+
+Changes from the previous published gate (`14d6537` record): only the v8 family changed,
+from 8 cases / 24-of-40 layers to **12 cases / 45-of-64 layers**. Its new task is the
+crankcase block with two measured main bearings: reference PASS 6/6 with 0.989–1.019 mm
+clearance and 0° axis offset at y = ±20, a base-plate frame that cannot measure the
+bearing (only `bearing-fit` ERROR), an oversized-bore adversary that fails only
+`bearing-fit`, and a split-crankshaft adversary that fails only `part-connectivity`.
+
+This remains a public self-check gate: not hidden evaluation, model ability, continuous
+motion, bearing load/lubrication behavior, physical function or user acceptance. A
+complete V8 machine (cylinder bores/heads, counterweights, firing order), full A001
+contract pass, an independent hidden set, a fresh funded product trial, user acceptance
+and physical validation remain open.

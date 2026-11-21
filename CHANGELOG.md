@@ -54,6 +54,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add the threaded-fastener family to external hidden sets (family `thread`) and the unified twelve-family gate
 - Make the external hidden-split harness family-aware (`assembly`/`gear`/`slider`/`l4`), with family-specific freezing, hashing, scoring and external L4 spec loading; dev copies verify all four dispatches without claiming independence
 - Refresh the thirteen-family gate with the fitted retained-key disassembly product row: 105 cases, 318/494 observed layers, overall PASS
+- Refresh the thirteen-family gate with the V8 crankcase block/bearing row: 109 cases, 339/518 observed layers, overall PASS
 - Add a V8 crankcase block/bearing bench task (contract v3): connected block frame with two main-bearing webs and a top rail, measured bearing clearance 0.989-1.019 mm at 0 deg axis offset, and adversaries that isolate block connectivity, the bearing fit and the connected crankshaft
 - Extend the retained-key disassembly product task with the three revolute fits and measured joint frames from the same declaration: the reference passes all seven scored layers at 0.395–0.405 mm measured clearance while the swapped removal order still fails only `disassembly-path`
 - Add a retained-key disassembly product task: the real product path measures the declared removal order (eccentric key first) and the mirrored insertion order on rendered part meshes; the swapped-order adversarial fails only `disassembly-path`, missing insertions stay NOT_RUN

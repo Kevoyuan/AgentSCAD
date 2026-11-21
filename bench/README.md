@@ -179,7 +179,7 @@ so `independentHiddenEvaluation` stays `NOT_RUN`, not `PASS`.
 The public self-check gate re-runs every family on the same native OpenSCAD backend.
 The matrix below is a real run on the integrated `main` tree (commit `6e54984` plus the
 documentation restoration that records it), native OpenSCAD 2021.01, **no model calls**.
-Family self-check time was about **86 minutes** on this machine; wall time is not a
+Family self-check time was about **98 minutes** on this machine; wall time is not a
 performance claim.
 
 ```
@@ -191,7 +191,7 @@ l4           OK         5      1     4     0         1     4     0        14/25
 twin         OK         6      1     5     0         1     5     0        11/24
 vtwin        OK         5      1     4     0         1     4     0        11/20
 declaration  OK         4      1     3     0         1     3     0        7/20
-v8           OK         8      1     7     0         1     7     0        24/40
+v8           OK         12     2     10    0         2     10    0        45/64
 planetary    OK         4      1     3     0         1     3     0        4/8
 planetary3   OK         4      1     3     0         1     3     0        4/8
 product      OK         16     3     13    0         3     12    1        63/112
@@ -199,17 +199,17 @@ thread       OK         6      2     4     0         2     3     1        13/20
 cam          OK         4      1     3     0         1     3     0        5/8
 ```
 
-`overall: PASS`; **105 cases** — 23 reference, 76 adversarial, 6 unscored; 29 PASS /
-73 FAIL-or-ERROR / 3 NOT_RUN; **318/494** observed layer entries. The six assembly
+`overall: PASS`; **109 cases** — 24 reference, 79 adversarial, 6 unscored; 30 PASS /
+76 FAIL-or-ERROR / 3 NOT_RUN; **339/518** observed layer entries. The six assembly
 `unscored` rows are recorded model replays, not new model samples. The gear and thread
 `NOT_RUN` rows are adversarial cases rejected by their self-checks; they are not
 promoted. `layers` is the sum of observed layers across cases, not a pass rate.
 
 This is a public self-check gate, not independent hidden evaluation, model ability,
-physical function or user acceptance. The **v8 row predates task 2** (the crankcase
-block/bearing rung, 12 cases); its current family result is in
-[`bench/v8/README.md`](./v8/README.md). The product row includes task 2 and task 3
-(16 cases / 63-of-112 layers); family detail is in
+physical function or user acceptance. The v8 row includes both the
+connected-crank carrier and the crankcase block/bearing task (12 cases / 45-of-64
+layers); family detail is in [`bench/v8/README.md`](./v8/README.md). The product row
+includes task 2 and task 3 (16 cases / 63-of-112 layers); family detail is in
 [`bench/product/README.md`](./product/README.md). A complete V8 machine, full A001
 contract pass, an independent hidden set and a fresh funded product trial remain open.
 
