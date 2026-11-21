@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {loadTaskSet} from "./generation-trial";
 import {judgeAssemblyCandidate} from "./judge-assembly";
+import {formatRejudgedLayers,summarizeRejudgedLayers} from "../../bench/rejudged-layers";
 const sha=(b:Buffer|string)=>createHash("sha256").update(b).digest("hex");
 
 async function main() {
@@ -17,7 +18,7 @@ async function main() {
   const directory=await fs.mkdtemp(path.join(".agentscad/experiments","rejudged-assembly-"));
   // Freeze sources before evaluation, not afterwards: concurrent work must not
   // attach a later file version to a result produced by an earlier module.
-  const codeFiles=["scripts/eval/rejudge-assembly-trial.ts","scripts/eval/judge-assembly.ts","src/lib/requirements/extract-requirements.ts","src/lib/tools/assembly-reconstruction.ts","src/lib/assembly/prepare-assembly.ts","src/lib/assembly/part-identity-check.ts","src/lib/assembly/fit-measurement.ts","src/lib/assembly/measured-joint-frame.ts","src/lib/assembly/path-and-motion.ts","src/lib/geometry/cylindrical-feature.ts"];
+  const codeFiles=["scripts/eval/rejudge-assembly-trial.ts","scripts/eval/judge-assembly.ts","src/lib/requirements/extract-requirements.ts","src/lib/tools/assembly-reconstruction.ts","src/lib/assembly/prepare-assembly.ts","src/lib/assembly/part-identity-check.ts","src/lib/assembly/fit-measurement.ts","src/lib/assembly/measured-joint-frame.ts","src/lib/assembly/path-and-motion.ts","src/lib/geometry/cylindrical-feature.ts","bench/layers.ts","bench/rejudged-layers.ts"];
   const codeHashes:Record<string,string>={};
   for(const file of codeFiles) {
     const code=await fs.readFile(file);codeHashes[file]=sha(code);await fs.writeFile(path.join(directory,path.basename(file)),code);
@@ -43,11 +44,17 @@ async function main() {
       results.push({taskId:task.id,attempt:candidate.attempt,sourceSha256:sha(source),status:"ERROR",reason:String(error)});
     }
   }
+  const rejudgedLayers=summarizeRejudgedLayers(results.flatMap((result)=>{
+    const judgment=result["judgment"] as {evidence:Array<{id:string;status:string}>}|undefined;
+    return judgment?.evidence?[{taskId:String(result["taskId"]),attempt:Number(result["attempt"]),evidence:judgment.evidence}]:[];
+  }));
   const changedCodeFiles:string[]=[];
   for(const file of codeFiles)if(sha(await fs.readFile(file))!==codeHashes[file])changedCodeFiles.push(file);
-  const report={status:changedCodeFiles.length?"ERROR":"NOT_RUN",scope:"Zero-model-cost rejudging of retained model artifacts under the current evaluator. No regeneration, user acceptance or physical function.",inputDirectory:input,inputReportSha256:sha(bytes),taskSetSha256:tasks.taskSetSha256,codeHashes,codeUnchangedDuringRun:changedCodeFiles.length===0,changedCodeFiles,results};
+  const report={status:changedCodeFiles.length?"ERROR":"NOT_RUN",scope:"Zero-model-cost rejudging of retained model artifacts under the current evaluator. No regeneration, user acceptance or physical function.",inputDirectory:input,inputReportSha256:sha(bytes),taskSetSha256:tasks.taskSetSha256,codeHashes,codeUnchangedDuringRun:changedCodeFiles.length===0,changedCodeFiles,benchLayers:rejudgedLayers,results};
   await fs.writeFile(path.join(directory,"report.json"),JSON.stringify(report,null,2));
   await fs.writeFile(path.join(directory,"tasks.json"),taskBytes);
   console.log(JSON.stringify({directory,results:results.map(({taskId,attempt,status,judgment})=>({taskId,attempt,status,judgment}))},null,2));
+  console.log("\nBench layer model over the rejudged sample:");
+  console.log(formatRejudgedLayers(rejudgedLayers));
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

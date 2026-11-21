@@ -146,6 +146,18 @@ Individual families also run and self-check on their own, for example
 matrix; it is a real native-render gate, because each family runner rewrites its
 report before the matrix reads it.
 
+A **zero-cost rejudge** replays retained product-trial sources through the current
+judge without any model call and prints the bench layer model over that sample:
+
+```bash
+bun scripts/eval/rejudge-assembly-trial.ts .agentscad/experiments/<trial-dir>
+```
+
+The output binds the frozen evaluator source hashes and is a new measurement of old
+candidate sources. It is not a new model trial, not a comparable series with the
+recorded history, and it does not rewrite the paid-trial layer table above; that table
+only moves after a new funded run.
+
 External hidden sets are frozen and run separately: `bun run bench:hidden:freeze`
 copies a task/submission set into an external directory, hashes it and records a
 manifest; `bun run bench:hidden` scores it from that external directory. A
