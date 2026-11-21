@@ -3760,3 +3760,44 @@ A second full `bench:all` attempt is running on the exact tree; the published ma
 updated only from a green attempt. This is a wall-clock-budget flake, not a product
 regression, and it is not treated as user acceptance or physical evidence. No model
 calls, no deployment.
+
+## 2026-11-22 · Thirteen-family gate with the thread coaxiality row — green second attempt (English log)
+
+The second full `bench:all` attempt on the coaxiality tree (`9943481` plus the
+evidence-only flake record `8719cba`) completed green. Native OpenSCAD 2021.01, no model
+calls. The host stayed heavily loaded throughout (load average 4–28 from unrelated
+macOS daemons), so the run took about **184 family-minutes**; wall time is environment,
+not a performance claim.
+
+```
+family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers
+assembly     OK         20     6     8     6         12    8     0        104/120
+gear         OK         6      1     5     0         1     4     1        7/12
+slider       OK         17     3     14    0         3     14    0        51/77
+l4           OK         5      1     4     0         1     4     0        14/25
+twin         OK         6      1     5     0         1     5     0        11/24
+vtwin        OK         5      1     4     0         1     4     0        11/20
+declaration  OK         4      1     3     0         1     3     0        7/20
+v8           OK         15     2     13    0         2     12    1        67/89
+planetary    OK         4      1     3     0         1     3     0        4/8
+planetary3   OK         4      1     3     0         1     3     0        4/8
+product      OK         16     3     13    0         3     12    1        63/112
+thread       OK         8      2     6     0         2     5     1        25/35
+cam          OK         4      1     3     0         1     3     0        5/8
+```
+
+`overall: PASS`; **114 cases** — 24 reference, 84 adversarial, 6 unscored; **30 PASS /
+80 FAIL-or-ERROR / 4 NOT_RUN**; **373/558** observed layer entries.
+
+Changes from the previous published gate (`e54166b`): the thread family grew from 6
+cases / 13-of-20 layers to **8 cases / 25-of-35 layers** because both thread tasks now
+also score the measured thread-to-body coaxiality (reference 0.000/0.000 mm, eccentric
+decoy 0.400 mm rejected only on that layer). The v8 row is unchanged at 15 cases /
+67-of-89 layers, and no other family row changed. The earlier load-induced product flake
+is recorded separately and is superseded by this green attempt.
+
+This remains a public self-check gate: not hidden evaluation, model ability, continuous
+motion, calibrated metrology, physical function or user acceptance. Open items: a
+complete V8 machine (closed cylinder bores/heads with valves, firing order), full A001
+contract pass, an independent hidden set, a fresh funded product trial, calibrated thread
+feature/axis uncertainty, user acceptance and physical validation.

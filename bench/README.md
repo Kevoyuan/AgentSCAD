@@ -180,8 +180,8 @@ so `independentHiddenEvaluation` stays `NOT_RUN`, not `PASS`.
 The public self-check gate re-runs every family on the same native OpenSCAD backend.
 The matrix below is a real run on the integrated `main` tree (commit `6e54984` plus the
 documentation restoration that records it), native OpenSCAD 2021.01, **no model calls**.
-Family self-check time was about **110 minutes** on this machine; wall time is not a
-performance claim.
+Family self-check time was about **184 minutes** on this machine during a
+heavily loaded run; wall time is not a performance claim.
 
 ```
 family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers
@@ -196,19 +196,19 @@ v8           OK         15     2     13    0         2     12    1        67/89
 planetary    OK         4      1     3     0         1     3     0        4/8
 planetary3   OK         4      1     3     0         1     3     0        4/8
 product      OK         16     3     13    0         3     12    1        63/112
-thread       OK         6      2     4     0         2     3     1        13/20
+thread       OK         8      2     6     0         2     5     1        25/35
 cam          OK         4      1     3     0         1     3     0        5/8
 ```
 
-`overall: PASS`; **112 cases** — 24 reference, 82 adversarial, 6 unscored; 30 PASS /
-78 FAIL-or-ERROR / 4 NOT_RUN; **361/543** observed layer entries. The six assembly
+`overall: PASS`; **114 cases** — 24 reference, 84 adversarial, 6 unscored; 30 PASS /
+80 FAIL-or-ERROR / 4 NOT_RUN; **373/558** observed layer entries. The six assembly
 `unscored` rows are recorded model replays, not new model samples. The gear and thread
 `NOT_RUN` rows are adversarial cases rejected by their self-checks; they are not
 promoted. `layers` is the sum of observed layers across cases, not a pass rate.
 
 This is a public self-check gate, not independent hidden evaluation, model ability,
-physical function or user acceptance. The **thread row predates the coaxiality rung**
-(8 cases / 26-of-35 layers); family detail is in
+physical function or user acceptance. The thread row includes the coaxiality rung
+(8 cases / 25-of-35 layers); family detail is in
 [`bench/thread/README.md`](./thread/README.md). The v8 row includes contract v5 (the
 guide-channel rung: 15 cases / 67-of-89 layers); family detail is in
 [`bench/v8/README.md`](./v8/README.md). The product row

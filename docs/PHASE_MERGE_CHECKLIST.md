@@ -32,7 +32,7 @@ the gate is recorded from a fresh run on the integrated tree rather than copied.
 | Repair/route targeted tests | 24 repair tests PASS; full route test file PASS |
 | Production build | **PASS** (`bun run build`, Next.js production output) |
 | Native OpenSCAD suite (serial) | **68 PASS / 1 SKIP / 0 FAIL** (69 tests, 15 files, 1394.51 s) |
-| Thirteen-family gate | **PASS**, 112 cases / 24 reference / 82 adversarial / 6 unscored; 30 PASS / 78 FAIL-or-ERROR / 4 NOT_RUN; layers 361/543; native OpenSCAD 2021.01, no model calls, about 110 family-minutes. Includes the v8 family (15 cases, 67/89 layers: connected-crank carrier plus crankcase block with measured main bearings, counterweights and cylinder guide channels) and the product rows (16 cases, 63/112 layers: contract-driven slider-crank motion plus fitted retained-key disassembly) |
+| Thirteen-family gate | **PASS**, 114 cases / 24 reference / 84 adversarial / 6 unscored; 30 PASS / 80 FAIL-or-ERROR / 4 NOT_RUN; layers 373/558; native OpenSCAD 2021.01, no model calls, about 184 family-minutes (heavily loaded run). Includes the v8 family (15 cases, 67/89 layers: connected-crank carrier plus crankcase block with measured main bearings, counterweights and cylinder guide channels), the thread family (8 cases, 25/35 layers incl. measured coaxiality) and the product rows (16 cases, 63/112 layers: contract-driven slider-crank motion plus fitted retained-key disassembly) |
 
 The production build and native suite are recorded after they finish; a green gate
 is a public self-check, not independent hidden evaluation, model ability or physical
