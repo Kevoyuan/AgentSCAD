@@ -53,6 +53,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add a square-profile threaded-fastener family under `bench/thread`: two parts, measured pitch/hand/diameters and lead/advance over nine turns
 - Add the threaded-fastener family to external hidden sets (family `thread`) and the unified twelve-family gate
 - Make the external hidden-split harness family-aware (`assembly`/`gear`/`slider`/`l4`), with family-specific freezing, hashing, scoring and external L4 spec loading; dev copies verify all four dispatches without claiming independence
+- Refresh the thirteen-family gate with the contract-driven slider-crank product row: 100 cases, 300/459 observed layers, overall PASS
 - Add a contract-driven product-path slider-crank bench task: derived requirement contract, three revolute fits and joint frames, sampled rigid motion and source-driven poses; the static-source adversarial fails only `source-motion`, showing declared transforms cannot substitute for independent source re-rendering
 - Refresh the thirteen-family gate with the connected-crankshaft v8 row (95 cases, 280/424 layers) and report the bench layer model over zero-cost rejudged trial candidates
 - Require one connected crankshaft in the V8 phase/packaging carrier (contract v2): pins joined to main journals by webs, an exact edge-connectivity requirement on the rendered crank part, the v1 disconnected-disc reference retained as a rejected adversarial, and a self-check of 1 reference / 7 adversarial submissions

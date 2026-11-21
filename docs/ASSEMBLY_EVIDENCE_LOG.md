@@ -3088,3 +3088,43 @@ judge had measured.
 - The pre-fix rejudge of `cN1uDq` remains recorded as its own measurement; it was not
   re-run after this fix.
 - No user acceptance, physical function, model quality or paid model call is implied.
+
+## 2026-11-21 · Thirteen-family gate with the contract-driven product row (English log)
+
+Re-ran `bun run bench:all` after adding product task 2
+(`product-slider-crank-360`). Native OpenSCAD 2021.01, no model calls; about **85
+family-minutes** on this machine. The gate was launched from commit `e02b9b6`; the
+later judge fix `cc58906` touches `scripts/eval/` only, so the bench source set is
+identical. Every family self-check passed.
+
+```
+family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers
+assembly     OK         20     6     8     6         12    8     0        104/120
+gear         OK         6      1     5     0         1     4     1        7/12
+slider       OK         17     3     14    0         3     14    0        51/77
+l4           OK         5      1     4     0         1     4     0        14/25
+twin         OK         6      1     5     0         1     5     0        11/24
+vtwin        OK         5      1     4     0         1     4     0        11/20
+declaration  OK         4      1     3     0         1     3     0        7/20
+v8           OK         8      1     7     0         1     7     0        24/40
+planetary    OK         4      1     3     0         1     3     0        4/8
+planetary3   OK         4      1     3     0         1     3     0        4/8
+product      OK         11     2     9     0         2     9     0        45/77
+thread       OK         6      2     4     0         2     3     1        13/20
+cam          OK         4      1     3     0         1     3     0        5/8
+```
+
+`overall: PASS`; **100 cases** — 22 reference, 72 adversarial, 6 unscored; **28 PASS /
+70 FAIL-or-ERROR / 2 NOT_RUN**; **300/459** observed layer entries.
+
+Changes from the previous published gate (`b11243e` record): the product family grew
+from 6 cases / 25-of-42 layers to **11 cases / 45-of-77 layers**. Its self-check passes
+2 references and rejects 9 adversarial submissions, including the new slider-crank
+reference (all seven layers PASS, including sampled rigid motion and source-driven
+poses) and the static-source adversarial that fails only `source-motion`. No other
+family row changed; the v8 contract-v2 row and its boundaries are unchanged.
+
+This remains a public self-check gate: not hidden evaluation, not model ability, not
+continuous motion, not physical function and not user acceptance. A complete V8
+machine, full A001 contract pass, an independent hidden set, a fresh funded product
+trial and physical validation remain open.
