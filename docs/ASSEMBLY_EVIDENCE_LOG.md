@@ -3461,3 +3461,40 @@ evidence.
 - The external hidden development copy predates contracts v2–v4 and must be re-frozen.
 - The published thirteen-family matrix keeps the pre-v4 v8 row until the next full
   `bench:all` rerun. No model calls, no deployment.
+
+## 2026-11-21 · Gate attempt with a load-induced product budget flake (English log)
+
+The first full `bench:all` run after the counterweight contract (commit `45370ba`)
+finished with **overall FAIL (product)**. Every other family passed, including the v8
+family with the new counterweight row (13 cases, 2 references, 11 adversarial, 55/75
+layers). The product family produced `NOT_RUN` references instead of PASS:
+
+- `guided-product-8-28/reference`: `assembly-path` and `disassembly-path` NOT_RUN —
+  "Path exceeded its 4957.09 ms / 2111.67 ms evaluation budget".
+- `product-slider-crank-360/reference`: `source-motion` NOT_RUN after the five-pose
+  source verification exceeded its wall-clock budget.
+
+These are wall-clock budgets, and the host was heavily oversubscribed during the run:
+system load average was 8.7–9.3 with unrelated macOS daemons (`ecosystemd` ~55–78 %,
+WindowServer ~50 %, the agent renderer ~60 %) consuming most CPU; the v8 family took
+68 minutes instead of the usual ~35 and the thread family 45 minutes instead of ~25.
+
+### Flake handling
+
+Per the development rules a timeout under load is not a product failure but is not a
+pass either. Two checks were done:
+
+1. **Product sources are byte-identical to the tree of the last green gate**
+   (`2036e2e`): `git diff --stat 2036e2e HEAD -- bench/product` is empty. The older
+   product row therefore describes exactly the same product task/checker sources; it was
+   not copied over a changed family.
+2. **Isolated rerun**: `bun run bench:product:check` now reports `SELF-CHECK OK: 3
+   reference(s) pass, 13 adversarial submission(s) rejected` with both references PASS
+   7/7 and the counterweight-related layers unaffected.
+
+A second full `bench:all` attempt is running on the exact tree; the published matrix is
+updated only from a green attempt. If the host remains oversubscribed, the product row
+continues to be reported with this flake note rather than silently promoted.
+
+No model calls, no user acceptance and no physical claim are involved. This entry exists
+so a later reader can tell a load-budget timeout from a product regression.
