@@ -60,6 +60,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Reject a stored repair candidate whose bytes do not match its claimed SHA-256 or byte length, even when the event envelope hash is recomputed
 
 ### Fixed
+- Report sampled rigid motion separately from source-driven motion in the trial judge: an unavailable source pose protocol no longer demotes a measured rigid sample to NOT_RUN. The regression was exposed by a zero-cost rejudge evidence diff (`bench/rejudge-diff.ts`) over a retained paid-trial candidate, which also added the added/removed/changed evidence diff to the evaluation tooling
 - State six benchmark tasks in the front page and evaluation docs, matching the task set and the recorded matrix, which had said seven
 - Remove a duplicated baseline section from `bench/README.md`; the two copies disagreed (5/6 versus 6/6), and the surviving copy now labels run 3 and its 0.391 CNY spend instead of run 1's 0.564 CNY
 - Bind repair-proposal replay to the current Job source; a changed Job source now redacts stale candidate text instead of continuing to serve it from the saved declaration's older source hash

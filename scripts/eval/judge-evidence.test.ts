@@ -1,6 +1,6 @@
 import {expect,test} from "bun:test";
 import {deriveRequirementContract} from "../../src/lib/requirements/extract-requirements";
-import {motionRangeObservations, declaredPathObservation, unresolvedContractEvidence, declaredTranslationProbeEvidence} from "./judge-assembly";
+import {motionRangeObservations, sampledMotionEvidence, declaredPathObservation, unresolvedContractEvidence, declaredTranslationProbeEvidence} from "./judge-assembly";
 import {evaluateAssembly} from "./assembly-evidence";
 
 const provenance={artifactSha256:"a".repeat(64),toolVersion:"unit-reference"};
@@ -56,4 +56,21 @@ test("an absent declared removal cannot be replaced by a passing automatic axis 
   }
   const passed=declaredPathObservation("disassembly-path",{status:"PASS",reason:"Every required instance removed"},"Complete declared sequence",provenance);
   expect(evaluateAssembly(requirement,[passed]).gate_passed).toBe(true);
+});
+
+test("sampled rigid motion is reported separately from unavailable source-driven motion",()=>{
+  // A declaration without a source pose protocol cannot be source-verified, but
+  // the rigid sample it does support must stay a measured result.
+  const passing=sampledMotionEvidence("PASS",{status:"PASS",rangeDeg:{min:-45,max:45},coverage:"5 sampled angles"},provenance);
+  expect(passing.sampled.status).toBe("MEASURED");
+  expect(passing.sampled.value).toBe(true);
+  expect(passing.ranges.map(item=>item.status)).toEqual(["MEASURED","MEASURED","MEASURED"]);
+  const missing=sampledMotionEvidence("NOT_RUN",null,provenance);
+  expect(missing.sampled.status).toBe("NOT_RUN");
+  expect(missing.ranges.every(item=>item.status==="NOT_RUN")).toBe(true);
+  const failed=sampledMotionEvidence("FAIL",{status:"FAIL",rangeDeg:null,coverage:"blocked sample"},provenance);
+  expect(failed.sampled.status).toBe("MEASURED");
+  expect(failed.sampled.value).toBe(false);
+  // A witnessed block is a failure, not a fabricated range coverage.
+  expect(failed.ranges.every(item=>item.status==="NOT_RUN")).toBe(true);
 });

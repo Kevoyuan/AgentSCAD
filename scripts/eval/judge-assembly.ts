@@ -15,6 +15,11 @@
  *   but the manifest records `TRIAL_GATE_REASON` and the judgement carries
  *   `trialAttribution`. That is measurement attribution, not user confirmation,
  *   acceptance, or a product requirement contract.
+ * - `sampled-motion` reports the independently measured *rigid* motion samples.
+ *   `source-motion` is a separate assertion about what the OpenSCAD source does
+ *   between those samples. A declaration with no source-driven pose protocol can
+ *   pass sampled rigid motion while source motion stays NOT_RUN; the rigid sample
+ *   must not be demoted because source verification is unavailable.
  * - The `intent-preserved` assertion has no independent coverage audit, so it
  *   stays NOT_RUN and `passed` never means the complete request was preserved
  *   or accepted. Reports must read the per-assertion evidence.
@@ -51,6 +56,23 @@ export function motionRangeObservations(motion: {status:string;rangeDeg?:{min:nu
 }
 
 const observationStatus=(status?:string): Observation["status"]=>status==="PASS"||status==="FAIL"?"MEASURED":status==="ERROR"?"ERROR":"NOT_RUN";
+
+/**
+ * Sampled rigid-motion evidence. This reads the *rigid* motion status only, so an
+ * unavailable source-driven pose check cannot turn a measured rigid sample into
+ * NOT_RUN. Source motion stays a separate assertion.
+ */
+export function sampledMotionEvidence(rigidMotionStatus: string,
+  motion: {status:string;rangeDeg?:{min:number;max:number}|null;coverage:string}|null,
+  provenance: {artifactSha256:string;toolVersion:string}): {sampled: Observation; ranges: Observation[]} {
+  const sampled: Observation = {
+    id:"sampled-motion", status: observationStatus(rigidMotionStatus), value: rigidMotionStatus==="PASS", ...provenance,
+    method:"BVH triangle collision over sampled rotation angles.",
+    coverage: motion?.coverage ?? "Not sampled.",
+    ...(rigidMotionStatus==="FAIL" ? {reason:"A sampled rigid rotation angle was witnessed as blocked."} : {}),
+  };
+  return { sampled, ranges: motionRangeObservations(motion?{...motion,status:rigidMotionStatus}:null, provenance) };
+}
 
 /** A joint-axis probe is not an inventory-complete declared operation sequence. */
 export function declaredPathObservation(id: "assembly-path" | "disassembly-path", evidence: { status: string; reason: string } | undefined,
@@ -189,7 +211,10 @@ export async function judgeAssemblyCandidate(input: {
   const provenance = { artifactSha256, toolVersion: "agentscad.trial/1" };
   const clearance = prepared.fits[0]?.diametralClearanceMm ?? null;
   const motion = prepared.kinematics?.motion ?? null;
-  const motionStatus=prepared.manifest.evidence.motion.status;
+  // Rigid sampling is its own measurement; source verification is reported as
+  // `source-motion`, so do not fold the two into the sampled-motion verdict.
+  const rigidMotionStatus=prepared.manifest.evidence.rigidMotion.status;
+  const sampledMotion = sampledMotionEvidence(rigidMotionStatus, motion, provenance);
 
   const observations: Record<string, Observation> = {
     "intent-preserved": {
@@ -208,12 +233,7 @@ export async function judgeAssemblyCandidate(input: {
       prepared.manifest.declaredDisassembly.coverage, provenance),
     "assembly-path": declaredPathObservation("assembly-path", prepared.manifest.evidence.assemblyPath,
       prepared.manifest.declaredAssembly.coverage, provenance),
-    "sampled-motion": {
-      id: "sampled-motion", status: observationStatus(motionStatus),
-      value: motionStatus === "PASS", ...provenance,
-      method: "BVH triangle collision over sampled rotation angles.",
-      coverage: motion?.coverage ?? "Not sampled.",
-    },
+    "sampled-motion": sampledMotion.sampled,
     "diametral-clearance": {
       id: "diametral-clearance", status: clearance ? "MEASURED" : prepared.fits[0]?.measuredStatus === "ERROR" ? "ERROR" : "NOT_RUN",
       value: clearance ? (clearance.min + clearance.max) / 2 : 0,
@@ -223,7 +243,7 @@ export async function judgeAssemblyCandidate(input: {
       coverage: prepared.fits[0] ? `Stations: ${prepared.fits[0].stationsMm.map((value) => value.toFixed(2)).join(", ")} mm.` : "Not measured.",
     },
   };
-  for(const observation of motionRangeObservations(motion?{...motion,status:motionStatus}:null,provenance)) observations[observation.id]=observation;
+  for(const observation of sampledMotion.ranges) observations[observation.id]=observation;
   const retention = contract.requirements.some(requirement => requirement.id === "axial-retention" && requirement.required && requirement.applicable)
     ? assessAssemblyRequirements(contract, spec, prepared).find(item => item.id === "axial-retention") : undefined;
   const retentionObservation = retention ? assertionObservation("axial-retention", retention, provenance) : null;

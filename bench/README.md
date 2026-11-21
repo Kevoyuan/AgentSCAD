@@ -85,6 +85,11 @@ Each layer is `PASS | FAIL | SKIP | ERROR | NOT_RUN`. Within a layer the **worst
 | `source-motion` | `source-motion` | SCAD parameterisation, pose selectors |
 | `reconstruction` | `assembly-reconstruction` | export, re-assembly, budget |
 
+`sampled-motion` reports the independently measured **rigid** samples only. `source-motion`
+is a separate assertion about what the OpenSCAD source does between those samples; a
+declaration with no source-driven pose protocol must not demote its own measured rigid
+sample to `NOT_RUN`.
+
 **Layers are not a mirror of the storage taxonomy.** The product keeps twelve storage layers; a layer exists here only if it has a **repair target no other layer shares**. Three evidence ids are deliberately unmapped: `intent-preserved` (the product states it has no independent audit), `declared-connection-type` and `declared-translation-probes` (declaration preconditions — when they fail, everything downstream is `NOT_RUN` anyway), and `repair-preservation` (it belongs to the repair axis, not to the geometry being scored). Unmapped ids are reported, never dropped.
 
 ### 2.4 Gap kind: "cannot measure" is not "cannot build"
@@ -152,10 +157,13 @@ judge without any model call and prints the bench layer model over that sample:
 
 ```bash
 bun scripts/eval/rejudge-assembly-trial.ts .agentscad/experiments/<trial-dir>
+bun bench/rejudge-diff.ts --before <trial-dir>/report.json --after .agentscad/experiments/rejudged-assembly-*/report.json
 ```
 
-The output binds the frozen evaluator source hashes and is a new measurement of old
-candidate sources. It is not a new model trial, not a comparable series with the
+The rejudge output binds the frozen evaluator source hashes; the diff prints which
+evidence ids the current judge added, removed or changed for the same candidate, with
+the layer model applied to both sides. Both are new measurements of old candidate
+sources. It is not a new model trial, not a comparable series with the
 recorded history, and it does not rewrite the paid-trial layer table above; that table
 only moves after a new funded run.
 
@@ -274,7 +282,7 @@ One earlier failure was a harness limit rather than a model failure: the first p
 - [x] **layer counting in `bench/assembly`**: every case reports `cover 6/6`, sharing one `scoreEvidence`
 - [x] **`retention` and `source-motion` observers**: the capture pull in `hinge-captured-45`, and pose re-rendering across all tasks
 - [x] **first model baseline**: DeepSeek v4 flash, 6 tasks, 6/6 — saturated, so the next rung is L3
-- [x] **wire both checks into the product's judge**: `scripts/eval/judge-assembly.ts` now emits `source-motion` and `axial-retention` (with unresolved-requirement ids) under the explicit trial-attribution gate. A zero-cost rejudge of the retained `aVlhoH` candidate under the current judge reports `retention` PASS and `measured-joint-frames` PASS (8/10 layers, gate not passed) while its motion and source-motion ids remain NOT_RUN. The historical layer table is unchanged because those batches predate the wiring and are not a comparable series; moving it needs a fresh funded trial, not a documentation edit
+- [x] **wire both checks into the product's judge**: `scripts/eval/judge-assembly.ts` now emits `source-motion` and `axial-retention` (with unresolved-requirement ids) under the explicit trial-attribution gate, and reports rigid sampling as `sampled-motion` separately from source verification. A zero-cost rejudge of the retained `aVlhoH` candidate reports `retention` PASS, measured joint frames PASS and **9/10 layers** with rigid motion PASS; only `source-motion` stays NOT_RUN because the declaration carries no source pose protocol. The historical layer table is unchanged because those batches predate the wiring and are not a comparable series; moving it needs a fresh funded trial, not a documentation edit
 - [x] **L3 slider-crank**: `bench/slider` has 3 tasks (plain, keyed, guided), 4-6 parts and a closed four-joint loop
 - [x] **hidden split harness**: 13 family dispatchers, external freeze/run and manifest hashing. Development copies only; **independent hidden evaluation is still `NOT_RUN`** because no independent maintainer exists
 - [x] **L5 cross-section rungs**: inline twin, 90° V-twin, planetary / three-planet and the 18-instance V8 shared-pin packaging carrier

@@ -3018,3 +3018,73 @@ layer entries in its own self-check.
   return an honest NOT_RUN, which is not counted as a pass.
 - The published thirteen-family matrix keeps the pre-task-2 product row until the next
   full `bench:all` rerun; only this family self-check covers the new task today.
+
+## 2026-11-21 · Rejudge diff exposes and fixes a judge coverage regression (English log)
+
+Zero-cost rejudging already replays retained trial sources under the current judge. This
+entry adds the missing comparison step and records what it found.
+
+### Tool
+
+`bench/rejudge-diff.ts` joins a recorded paid-batch `report.json` with its rejudged
+report by task id and attempt, and reports evidence ids **added**, **removed** and
+**status-changed**. The bench layer model is applied to both sides. The diff is a
+measurement of verifier coverage under a changed judge, not of candidate improvement;
+it is not a new trial, not a comparable series and not user acceptance. Unit tests cover
+the join, malformed rows, missing candidates and the layer view.
+
+### Finding: a sampled-motion regression
+
+Recorded `aVlhoH` evidence (2026-11-08-era judge) had `sampled-motion: PASS` and the
+fixed `guided-gated-hinge-v1` candidate covered **8/9 layers**, with `retention`
+NOT_RUN. Rejudging it under the pre-fix judge produced **8/10 layers** with `retention`
+PASS but `sampled-motion` demoted to **NOT_RUN**: `prepare-assembly` had started folding
+rigid motion and source motion into one `evidence.motion` aggregate during the A06 work,
+and the judge read that aggregate for `sampled-motion`. Any declaration without a
+source-driven pose protocol therefore had `source-motion: NOT_RUN`, which turned its
+measured rigid sampling into NOT_RUN even though `evidence.rigidMotion` was PASS.
+That is a verifier coverage regression, not a candidate change.
+
+### Fix
+
+`scripts/eval/judge-assembly.ts` now derives `sampled-motion` and the three
+`motion-range-*` observations from `manifest.evidence.rigidMotion`, and keeps
+`source-motion` as its own assertion. A new exported helper `sampledMotionEvidence`
+makes the separation explicit and testable; a unit test asserts that a PASS rigid sample
+stays `MEASURED` when source verification is unavailable, that a witnessed FAIL sample
+is `MEASURED` with value false, and that a blocked sample never fabricates range
+coverage.
+
+### Rejudge after the fix
+
+Rejudged `aVlhoH` (`rejudged-assembly-558vSG`, input report SHA-256 `636092ef…`,
+frozen evaluator code unchanged during the run, no model calls):
+
+```
+layer             obs  pass  fail  error  not_run  worst
+parts-identity     1    2     0     0      0       PASS
+topology           1    1     0     0      0       PASS
+joint-frames       1    1     0     0      0       PASS
+fit                1    1     0     0      0       PASS
+retention          1    1     0     0      0       PASS
+assembly-path      1    1     0     0      0       PASS
+disassembly-path   1    1     0     0      0       PASS
+rigid-motion       1    5     0     0      0       PASS
+source-motion      1    0     0     0      1       NOT_RUN
+reconstruction     1    1     0     0      0       PASS
+```
+
+**9/10 layers (90%), gate not passed**; `source-motion` is the only NOT_RUN layer
+because the declaration declares no source pose parameter. The recorded-vs-fixed diff
+reports: `+ axial-retention (PASS)`, `+ rigid-motion (PASS)`, `+ source-motion
+(NOT_RUN)`, `− unresolved-axial-retention`, with **0 status changes among the evidence
+ids common to both judges** — the recovered `sampled-motion` matches what the recorded
+judge had measured.
+
+### Boundaries
+
+- The recorded paid-trial layer table in `bench/README.md` is unchanged: these are
+  different judge versions on old sources, not a comparable trial series.
+- The pre-fix rejudge of `cN1uDq` remains recorded as its own measurement; it was not
+  re-run after this fix.
+- No user acceptance, physical function, model quality or paid model call is implied.
