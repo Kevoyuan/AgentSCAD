@@ -3498,3 +3498,43 @@ continues to be reported with this flake note rather than silently promoted.
 
 No model calls, no user acceptance and no physical claim are involved. This entry exists
 so a later reader can tell a load-budget timeout from a product regression.
+
+## 2026-11-21 · Thirteen-family gate with the counterweight row — green second attempt (English log)
+
+After the load-induced product flake recorded above, a second full `bench:all` attempt on
+the same tree (`45370ba` plus the evidence-only commit `e0ac8ae`) completed green.
+Native OpenSCAD 2021.01, no model calls; about **103 family-minutes** (v8 alone 40
+minutes; host load had fallen to ~4.6 during this attempt).
+
+```
+family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers
+assembly     OK         20     6     8     6         12    8     0        104/120
+gear         OK         6      1     5     0         1     4     1        7/12
+slider       OK         17     3     14    0         3     14    0        51/77
+l4           OK         5      1     4     0         1     4     0        14/25
+twin         OK         6      1     5     0         1     5     0        11/24
+vtwin        OK         5      1     4     0         1     4     0        11/20
+declaration  OK         4      1     3     0         1     3     0        7/20
+v8           OK         13     2     11    0         2     11    0        55/75
+planetary    OK         4      1     3     0         1     3     0        4/8
+planetary3   OK         4      1     3     0         1     3     0        4/8
+product      OK         16     3     13    0         3     12    1        63/112
+thread       OK         6      2     4     0         2     3     1        13/20
+cam          OK         4      1     3     0         1     3     0        5/8
+```
+
+`overall: PASS`; **110 cases** — 24 reference, 80 adversarial, 6 unscored; **30 PASS /
+77 FAIL-or-ERROR / 3 NOT_RUN**; **349/529** observed layer entries.
+
+Changes from the previous published gate (`14d6537` was the last green before the
+counterweight work; `2036e2e` recorded the block/bearing row): only the v8 family
+changed, from 12 cases / 45-of-64 layers to **13 cases / 55-of-75 layers**, because the
+block/bearing task now also measures counterweight balance on every throw-side web plane
+and its no-counterweight adversary is rejected. The product family returned to its
+previous green 63/112 row in this attempt; its sources are unchanged.
+
+This remains a public self-check gate: not hidden evaluation, model ability, continuous
+motion, bearing load/lubrication, balance-factor physics, physical function or user
+acceptance. A complete V8 machine (cylinder bores/heads, firing order), full A001 contract
+pass, an independent hidden set, a fresh funded product trial, user acceptance and
+physical validation remain open.
