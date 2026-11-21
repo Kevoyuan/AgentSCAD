@@ -26,7 +26,7 @@ the gate is recorded from a fresh run on the integrated tree rather than copied.
 
 | Check | Result |
 |---|---|
-| Unit suite | **1283 PASS / 3 SKIP / 0 FAIL** (199 files) on the current tree |
+| Unit suite | **1286 PASS / 3 SKIP / 0 FAIL** (200 files) on the current tree |
 | Typecheck | PASS |
 | Lint | PASS |
 | Repair/route targeted tests | 24 repair tests PASS; full route test file PASS |
