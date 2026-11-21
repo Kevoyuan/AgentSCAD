@@ -9,12 +9,13 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { extractEmbeddedAssemblySpec } from "../../src/lib/assembly/embedded-spec";
 import { prepareContractAssembly } from "../../src/lib/assembly/prepare-contract-assembly";
+import { deriveRequirementContract } from "../../src/lib/requirements/extract-requirements";
 import { validateAssemblySpec } from "../../src/lib/assembly/assembly-spec";
 import { evaluateRequirement, type Observation, type Result } from "../../scripts/eval/assembly-evidence";
 import { scoreEvidence } from "../layers";
 import { aggregateStatus, expectedOutcome, type BenchRequirement, type EvidenceStatus, type ExpectedOutcome, type Submission } from "../assembly/bench";
 
-export interface ProductTask { schemaVersion: 1; id: string; prompt: string; partCount: number; fit?: { minClearanceMm: number; maxClearanceMm: number; requirements: Array<{ connectionId: string; boreSelector: string }> }; requirements: BenchRequirement[]; notes?: string[] }
+export interface ProductTask { schemaVersion: 1; id: string; prompt: string; request?: string; partCount: number; fit?: { minClearanceMm: number; maxClearanceMm: number; requirements: Array<{ connectionId: string; boreSelector: string }> }; requirements: BenchRequirement[]; notes?: string[] }
 export interface ProductMeasurements {
   parts: number;
   partStatuses: string[];
@@ -26,6 +27,10 @@ export interface ProductMeasurements {
   reconstructionReason: string | null;
   disassemblyReason: string | null;
   assemblyReason: string | null;
+  motion: string | null;
+  motionReason: string | null;
+  sourceMotion: string | null;
+  sourceMotionReason: string | null;
 }
 export interface ProductReport {
   schemaVersion: "product-bench.case.v1"; taskId: string; submission: string; expected: ExpectedOutcome;
@@ -42,6 +47,7 @@ export function validateProductTask(value: unknown): ProductTask {
   if (raw.schemaVersion !== 1) fail("schemaVersion must be 1");
   if (typeof raw.id !== "string" || !/^[a-z0-9][a-z0-9-]{2,63}$/.test(raw.id)) fail("id is invalid");
   if (typeof raw.prompt !== "string" || raw.prompt.trim().length < 8) fail("prompt must be non-trivial");
+  if (raw.request !== undefined && (typeof raw.request !== "string" || raw.request.trim().length < 8)) fail("request must be non-trivial when present");
   const partCount = finite(raw.partCount, "partCount");
   if (!Number.isInteger(partCount) || partCount < 1) fail("partCount must be a positive integer");
   if (!Array.isArray(raw.requirements) || raw.requirements.length === 0) fail("requirements must be non-empty");
@@ -54,7 +60,7 @@ export function validateProductTask(value: unknown): ProductTask {
     if (!e || e.kind !== "equals" || !["string", "boolean", "number"].includes(typeof e.value)) fail(`requirements[${index}].expected is invalid`);
     return { id: r.id, layer: r.layer as BenchRequirement["layer"], required: r.required, applicable: r.applicable, expected: { kind: "equals", value: e.value as string | boolean | number } };
   });
-  const observable = new Set(["distinct-exported-parts", "part-connectivity", "assembly-reconstruction", "assembly-path", "disassembly-path", "diametral-clearance", "measured-joint-frames"]);
+  const observable = new Set(["distinct-exported-parts", "part-connectivity", "assembly-reconstruction", "assembly-path", "disassembly-path", "diametral-clearance", "measured-joint-frames", "rigid-motion", "source-motion"]);
   for (const r of requirements) if (!observable.has(r.id)) fail(`requirement ${r.id} has no product observer`);
   const distinct = requirements.find((r) => r.id === "distinct-exported-parts");
   if (!distinct || distinct.expected.kind !== "equals" || distinct.expected.value !== partCount) fail("distinct-exported-parts must equal partCount");
@@ -74,7 +80,7 @@ export function validateProductTask(value: unknown): ProductTask {
     });
     fit = { minClearanceMm, maxClearanceMm, requirements };
   }
-  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, partCount, ...(fit ? { fit } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
+  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, ...(typeof raw.request === "string" ? { request: raw.request } : {}), partCount, ...(fit ? { fit } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
 }
 export function productTasksDirectory(): string { return path.join(import.meta.dir, "tasks"); }
 export function productSubmissionsDirectory(): string { return path.join(import.meta.dir, "submissions"); }
@@ -93,11 +99,13 @@ let cachedOpenscadVersion: string | null = null;
 function openscadVersion(): string { if (cachedOpenscadVersion !== null) return cachedOpenscadVersion; const r = Bun.spawnSync(["openscad", "--version"], { stdout: "pipe", stderr: "pipe" }); cachedOpenscadVersion = r.success ? r.stdout.toString().trim() : "unavailable"; return cachedOpenscadVersion; }
 function statusOf(value: unknown): string | null { if (typeof value === "string") return value; if (value && typeof value === "object") { const s = (value as { status?: unknown }).status; return typeof s === "string" ? s : null; } return null; }
 
+export const PRODUCT_BENCH_TRIAL_GATE_REASON = "Bench trial attribution: the derived contract is used for measurement attribution only; this is not user confirmation, acceptance, or a product requirement contract.";
+
 export async function scoreProductSubmission(task: ProductTask, submission: Submission): Promise<ProductReport> {
   const sourceSha256 = sha256(submission.source);
   const provenance = { createdAt: new Date().toISOString(), backend: process.env.AGENTSCAD_OPENSCAD_BACKEND === "wasm" ? "wasm" : "native", openscad: openscadVersion(), runtime: `bun ${process.env.BUN_VERSION ?? "unknown"}`, platform: process.platform };
-  const unknowns = ["A PASS covers product preparation layers only: distinct selectors, part connectivity, export reconstruction and the submitted disassembly order.", "Fit, joint frames, assembly path, motion, source motion and physical function are not measured without a confirmed requirement contract.", "The product's A001 contract gate remains separate; this is not a user acceptance or physical-function verdict."];
-  const empty: ProductMeasurements = { parts: 0, partStatuses: [], topology: null, reconstruction: null, disassembly: null, assembly: null, fitStatuses: [], reconstructionReason: null, disassemblyReason: null, assemblyReason: null };
+  const unknowns = ["A PASS covers product preparation layers only: distinct selectors, part connectivity, export reconstruction, declared paths where present, and the layers listed by the task.", "Rigid motion and source-driven poses are sampled at the declared protocol angles; they are not continuous motion, contact tolerance, load, friction or physical function.", "Source-driven pose verification has a fixed wall-clock budget; a loaded host can return an honest NOT_RUN, which is not a pass.", "The product's A001 contract gate remains separate; this is not a user acceptance or physical-function verdict."];
+  const empty: ProductMeasurements = { parts: 0, partStatuses: [], topology: null, reconstruction: null, disassembly: null, assembly: null, fitStatuses: [], reconstructionReason: null, disassemblyReason: null, assemblyReason: null, motion: null, motionReason: null, sourceMotion: null, sourceMotionReason: null };
   const baseReport = (status: EvidenceStatus, results: Result[], measurements: ProductMeasurements): ProductReport => {
     const scored = scoreEvidence(results.map((r) => ({ id: r.id, status: r.status })));
     return { schemaVersion: "product-bench.case.v1", taskId: task.id, submission: submission.id, expected: expectedOutcome(submission.id), sourcePath: path.relative(process.cwd(), submission.sourcePath), sourceSha256, status, gatePassed: status === "PASS", results, layers: { coverage: scored.coverage, byLayer: scored.layers.map((l) => ({ layer: l.layer, status: l.status, blockers: l.blockers })) }, measurements, provenance, unknowns };
@@ -121,10 +129,25 @@ export async function scoreProductSubmission(task: ProductTask, submission: Subm
     if (!instance) fail(`fit bore selector ${required.boreSelector} is not a declared instance`);
     return { connectionId: connection.id, boreInstanceId: instance.id, diametralClearanceMm: { min: task.fit!.minClearanceMm, max: task.fit!.maxClearanceMm }, ...(connection.fitStationsMm ? { stationsMm: connection.fitStationsMm } : {}) };
   }) : undefined;
+  // A task may carry the natural-language request it was derived from. In that
+  // case the real product path derives the multi-joint contract and measures the
+  // layers the contract asks for. The gate reason records measurement attribution
+  // only; it is not user confirmation, acceptance or a product contract.
+  const contract = task.request ? deriveRequirementContract({ request: task.request }) : null;
   let prepared: Awaited<ReturnType<typeof prepareContractAssembly>>;
-  try { prepared = await prepareContractAssembly({ scadSource: submission.source, spec: parsed.data, ...(fitRequirements ? { fitRequirements, contractGate: { evidenceCurrent: true } } : {}) }); }
+  try { prepared = await prepareContractAssembly({
+    scadSource: submission.source, spec: parsed.data,
+    ...(fitRequirements ? { fitRequirements } : {}),
+    ...(contract ? {
+      contractSnapshot: { contract, request: task.request! },
+      contractGate: { evidenceCurrent: true, reason: PRODUCT_BENCH_TRIAL_GATE_REASON },
+      sourceSamplingSeed: sha256(`${task.id}\0${submission.source}`).slice(0, 32),
+    } : {}),
+  }); }
   catch (error) { return blocked(`prepareContractAssembly failed: ${error instanceof Error ? error.message : String(error)}`); }
   const m = prepared.manifest as unknown as Record<string, unknown>;
+  const evidence = (m.evidence && typeof m.evidence === "object" ? m.evidence : {}) as Record<string, unknown>;
+  const reasonOf = (value: unknown): string | null => value && typeof value === "object" && typeof (value as { reason?: unknown }).reason === "string" ? (value as { reason: string }).reason : null;
   const connectivity = Array.isArray(m.partConnectivity) ? m.partConnectivity as Array<Record<string, unknown>> : [];
   const partStatuses = connectivity.map((entry) => statusOf(entry) ?? "UNKNOWN");
   const topology = statusOf(m.evidence && typeof m.evidence === "object" ? (m.evidence as Record<string, unknown>).topology : null) ?? (partStatuses.length && partStatuses.every((s) => s === "PASS") ? "PASS" : partStatuses.length ? "FAIL" : null);
@@ -132,7 +155,9 @@ export async function scoreProductSubmission(task: ProductTask, submission: Subm
   const disassembly = statusOf(m.declaredDisassembly);
   const assembly = statusOf(m.declaredAssembly);
   const fitStatuses = Array.isArray(m.fits) ? (m.fits as Array<Record<string, unknown>>).map((fit) => ({ connectionId: String(fit.connectionId ?? "?"), status: statusOf(fit), joint: statusOf(fit.jointFrames), reason: typeof fit.reason === "string" ? fit.reason : null })) : [];
-  const measurements: ProductMeasurements = { parts: connectivity.length, partStatuses, topology, reconstruction, disassembly, assembly, fitStatuses, reconstructionReason: typeof (m.reconstruction as Record<string, unknown> | undefined)?.reason === "string" ? (m.reconstruction as Record<string, unknown>).reason as string : null, disassemblyReason: typeof (m.declaredDisassembly as Record<string, unknown> | undefined)?.reason === "string" ? (m.declaredDisassembly as Record<string, unknown>).reason as string : null, assemblyReason: typeof (m.declaredAssembly as Record<string, unknown> | undefined)?.reason === "string" ? (m.declaredAssembly as Record<string, unknown>).reason as string : null };
+  const motion = statusOf(evidence.rigidMotion);
+  const sourceMotion = statusOf(evidence.sourceMotion);
+  const measurements: ProductMeasurements = { parts: connectivity.length, partStatuses, topology, reconstruction, disassembly, assembly, fitStatuses, reconstructionReason: reasonOf(m.reconstruction), disassemblyReason: reasonOf(m.declaredDisassembly), assemblyReason: reasonOf(m.declaredAssembly), motion, motionReason: reasonOf(evidence.rigidMotion), sourceMotion, sourceMotionReason: reasonOf(evidence.sourceMotion) };
   const artifactSha256 = sourceSha256;
   const toolVersion = `product-bench/1 openscad:${openscadVersion()}`;
   const distinctObservation: Observation = { id: "distinct-exported-parts", status: topology !== null ? "MEASURED" : "NOT_RUN", value: connectivity.length, artifactSha256, method: "Product partConnectivity array length after selector rendering.", toolVersion, coverage: `${connectivity.length} part(s) measured by prepareContractAssembly.` };
@@ -148,7 +173,13 @@ export async function scoreProductSubmission(task: ProductTask, submission: Subm
   const jointPass = jointValues.length > 0 && jointValues.every((status) => status === "PASS");
   const jointObservation: Observation = { id: "measured-joint-frames", status: !jointMeasured ? "NOT_RUN" : "MEASURED", ...(jointMeasured ? { value: jointPass } : {}), artifactSha256, method: "Product joint-frame verdicts for measured revolute fits.", toolVersion, coverage: `${fitStatuses.length} fit(s): ${fitStatuses.map((fit) => `${fit.connectionId}:${fit.joint ?? "?"}`).join(", ") || "none"}.`, ...(jointPass ? {} : { reason: "At least one measured joint frame did not agree." }) };
   const fitObservation: Observation = { id: "diametral-clearance", status: fitStatuses.length === 0 ? "NOT_RUN" : fitMeasured ? "MEASURED" : "NOT_RUN", ...(fitMeasured ? { value: fitAllPass } : {}), artifactSha256, method: "Product revolute fit measurements at declared stations for the task clearance band.", toolVersion, coverage: `${fitStatuses.length} revolute fit(s): ${fitStatuses.map((fit) => `${fit.connectionId}:${fit.status ?? "?"}`).join(", ") || "none"}.`, ...(fitAllPass ? {} : { reason: fitStatuses.filter((fit) => fit.status !== "PASS").map((fit) => `${fit.connectionId}: ${fit.reason ?? fit.status}`).join(" | ") || "No revolute fits were measured." }) };
-  const observations: Record<string, Observation> = { "distinct-exported-parts": distinctObservation, "part-connectivity": topologyObservation, "assembly-reconstruction": reconstructionObservation, "assembly-path": assemblyObservation, "disassembly-path": disassemblyObservation, "diametral-clearance": fitObservation, "measured-joint-frames": jointObservation };
+  const measuredStatus = (status: string | null): { status: Observation["status"]; value?: boolean } => {
+    if (status === "PASS" || status === "FAIL") return { status: "MEASURED", value: status === "PASS" };
+    return { status: status === "ERROR" ? "ERROR" : "NOT_RUN" };
+  };
+  const motionObservation: Observation = { id: "rigid-motion", ...measuredStatus(motion), artifactSha256, method: "Product rigid sampled motion evidence from prepareContractAssembly.", toolVersion, coverage: motion === null ? "No rigid motion evidence." : `Product rigid-motion status ${motion}.`, ...(motion === "PASS" ? {} : { reason: measurements.motionReason ?? `rigidMotion ${motion ?? "missing"}.` }) };
+  const sourceMotionObservation: Observation = { id: "source-motion", ...measuredStatus(sourceMotion), artifactSha256, method: "Product source-driven pose verification from prepareContractAssembly.", toolVersion, coverage: sourceMotion === null ? "No source-motion evidence." : `Product source-motion status ${sourceMotion}.`, ...(sourceMotion === "PASS" ? {} : { reason: measurements.sourceMotionReason ?? `sourceMotion ${sourceMotion ?? "missing"}.` }) };
+  const observations: Record<string, Observation> = { "distinct-exported-parts": distinctObservation, "part-connectivity": topologyObservation, "assembly-reconstruction": reconstructionObservation, "assembly-path": assemblyObservation, "disassembly-path": disassemblyObservation, "diametral-clearance": fitObservation, "measured-joint-frames": jointObservation, "rigid-motion": motionObservation, "source-motion": sourceMotionObservation };
   const results: Result[] = task.requirements.map((requirement) => {
     const evaluated = evaluateRequirement({ id: requirement.id, layer: requirement.layer, required: requirement.required, applicable: requirement.applicable, expected: requirement.expected }, observations[requirement.id]);
     if (evaluated.status === "FAIL" && requirement.expected.kind === "equals") return { ...evaluated, reason: `${evaluated.reason} Observed ${String(observations[requirement.id]?.value)}, expected ${String(requirement.expected.value)}.` };

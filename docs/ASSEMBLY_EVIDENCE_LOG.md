@@ -2963,3 +2963,58 @@ them NOT_RUN, but the historical layer table is unchanged and the best rejudged
 candidate still fails the delivery gate on motion/source evidence. User acceptance and
 physical function remain outside this record. A fresh funded trial is still required to
 move the product-trial layer table.
+
+## 2026-11-21 · A08 product-path slider-crank rung: contract-driven multi-joint closure (English log)
+
+The product-path bench family previously scored a **static** six-part guided
+declaration only. It now has a second task, `product-slider-crank-360`, which drives the
+real `prepareContractAssembly` path on the original declared single-cylinder slider-crank
+(`benchmarks/assembly/slider_crank_declared.scad`, 4 parts, 3 revolute + 1 prismatic
+joint, 0 declared operations).
+
+### Method
+
+- The task carries the natural-language request it was derived from:
+  "Build a single-cylinder slider-crank: crank radius 8 mm, rod length 28 mm,
+  diametral clearance 0.1 to 0.6 mm, full 360 degree rotation."
+- The scorer derives the contract with `deriveRequirementContract` and passes it as a
+  **bench trial-attribution gate** (`PRODUCT_BENCH_TRIAL_GATE_REASON`). The derived
+  contract selects what is measured; it is not user confirmation, acceptance or a
+  product requirement contract.
+- `prepareContractAssembly` then recognizes the declared slider-crank, derives the
+  multi-joint kinematics and three revolute fits, and measures sampled rigid motion
+  plus independent source-driven poses. New product observers map
+  `manifest.evidence.rigidMotion` and `manifest.evidence.sourceMotion` into the
+  `rigid-motion` and `source-motion` bench layers.
+- The fixture declares no assembly/disassembly operations, so those layers stay
+  unobserved instead of being faked.
+
+### Measured result
+
+`bun run bench:product:check` -> `SELF-CHECK OK: 2 reference(s) pass, 9 adversarial
+submission(s) rejected.` Native OpenSCAD 2021.01, no model calls.
+
+| product-slider-crank-360 submission | Result |
+|---|---|
+| `reference` | **PASS 7/7**: 4 parts; 3 revolute fits PASS; joint frames PASS (crank_axis/crank_pin/wrist); reconstruction PASS; **rigid-motion PASS**; **source-motion PASS** |
+| `adversarial-static` | FAIL 6/7: every layer passes except **`source-motion` FAIL** — declared rigid transforms are consistent while the source ignores its motion parameter, so only independent source re-rendering catches it |
+| `adversarial-crank-radius` | FAIL 3/7: `rigid-motion` FAIL, `source-motion` FAIL, `measured-joint-frames` FAIL (crank-pin frame); reconstruction NOT_RUN |
+| `adversarial-wrist-frame` | FAIL 4/7: `measured-joint-frames` FAIL (wrist); motion and source motion NOT_RUN, never promoted |
+| `adversarial-declaration-missing` | ERROR 0/7: blocked before any layer; no embedded declaration |
+
+The product family is now 11 cases (2 references + 9 adversarial) and 45/77 observed
+layer entries in its own self-check.
+
+### Boundaries
+
+- The derived contract is trial attribution, not user confirmation or a product
+  contract; no user acceptance is recorded.
+- Only declared protocol poses and sampled rigid motion are covered; not continuous
+  motion, contact tolerance, load, lubrication, friction, wear or physical function.
+- A08 remains partial: the interactive nine-plus-pose product workflow, retained
+  pins/guides and a declared disassembly sequence are still missing, and the fixture is
+  researcher-authored rather than autonomously generated.
+- The source-driven pose verification has a fixed wall-clock budget; a loaded host can
+  return an honest NOT_RUN, which is not counted as a pass.
+- The published thirteen-family matrix keeps the pre-task-2 product row until the next
+  full `bench:all` rerun; only this family self-check covers the new task today.

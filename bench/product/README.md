@@ -1,44 +1,95 @@
-# P-A08 product-path preparation (six-part guided/retained)
+# Product-path preparation families
 
-This is the first **product-path** bench family: it calls the real `prepareContractAssembly`, not a tool-level renderer. The task uses a six-part guided/retained embedded declaration and scores the seven layers the product-preparation path can measure:
+These families call the real product preparation path, not a tool-level renderer.
+Task 1 (`guided-product-8-28`) exercises a static six-part guided/retained
+declaration. Task 2 (`product-slider-crank-360`) exercises the **contract-driven**
+multi-joint path: `prepareContractAssembly` derives the requirement contract from the
+task request, recognizes the declared slider-crank, derives three revolute fits and
+their joint frames, and measures sampled rigid motion plus source-driven poses.
 
-- `distinct-exported-parts`: selector-distinct parts;
-- `part-connectivity`: every rendered part connects;
-- `assembly-reconstruction`: delivered triangles rebuild the placed assembly;
-- `assembly-path`: declared insertion order, checked as the reverse of the declared removal paths;
-- `disassembly-path`: declared removal order;
-- `diametral-clearance`: **one eccentric revolute fit** (0.1–0.6 mm);
-- `measured-joint-frames`: measured joint-frame agreement for that same eccentric fit.
+## Task 1 — P-A08 static guided/retained (six parts)
 
-Fit and joint frames cover only the eccentric revolute. Main-shaft and wrist stations are not valid cylindrical probes in this fixture and remain NOT_RUN. Motion, source motion and physical function are also outside this family.
+`tasks/guided-product-8-28.json` scores seven layers the product-preparation path can
+measure without a confirmed requirement contract:
+
+- `distinct-exported-parts`, `part-connectivity`, `assembly-reconstruction`,
+  `assembly-path` (reverse of declared removal), `disassembly-path`,
+  `diametral-clearance` (one eccentric revolute fit, 0.1–0.6 mm), and
+  `measured-joint-frames` for that same eccentric fit.
+
+Fit and joint frames cover only the eccentric revolute. Main-shaft and wrist stations
+are not valid cylindrical probes in this fixture and remain NOT_RUN. Motion, source
+motion and physical function are outside this task.
+
+## Task 2 — contract-driven slider-crank (four parts, A08 measurement half)
+
+`tasks/product-slider-crank-360.json` carries the natural-language request it was
+derived from:
+
+> Build a single-cylinder slider-crank: crank radius 8 mm, rod length 28 mm, diametral
+> clearance 0.1 to 0.6 mm, full 360 degree rotation.
+
+The scorer derives the contract with `deriveRequirementContract` and passes it as a
+**bench trial-attribution gate** (`PRODUCT_BENCH_TRIAL_GATE_REASON`): the derived
+contract selects what is measured, but it is not user confirmation, acceptance or a
+product requirement contract. `prepareContractAssembly` then derives the
+slider-crank kinematics and the three revolute fits from the confirmed declaration.
+
+Scored layers:
+
+- `distinct-exported-parts` (4), `part-connectivity`, `assembly-reconstruction`;
+- `diametral-clearance` and `measured-joint-frames` for the three revolute fits
+  (`crank_axis`, `crank_pin`, `wrist`);
+- `rigid-motion` from the sampled rigid-pose evidence;
+- `source-motion` from the independent source-driven pose verification.
+
+The fixture declares no assembly/disassembly operations, so those layers stay
+unobserved instead of being faked. The source-driven pose verification has a fixed
+wall-clock budget; a loaded host can return an honest NOT_RUN, which is not a pass.
 
 ## Result
 
 ```
 bun run bench:product:check
-SELF-CHECK OK: 1 reference(s) pass, 5 adversarial submission(s) rejected.
+SELF-CHECK OK: 2 reference(s) pass, 9 adversarial submission(s) rejected.
 ```
+
+Task 1 (unchanged by task 2):
 
 | Submission | Result |
 |---|---|
-| `reference` | **PASS 7/7**; 6 parts; topology/reconstruction/assembly/disassembly PASS; eccentric fit 0.395–0.405 mm PASS; joint frames PASS |
-| `adversarial-slider-before-guide` | **FAIL 5/7**; topology/reconstruction/fit/joint PASS, disassembly FAIL; assembly NOT_RUN because this counterexample has no insertion sequence |
-| `adversarial-declaration-missing-guide` | FAIL 4/7; 5 parts; reconstruction NOT_RUN, distinct parts fail |
-| `adversarial-crank-radius` | FAIL 3/7; reconstruction NOT_RUN, disassembly FAIL, topology still PASS |
-| `adversarial-fit-pin` | FAIL 3/7; eccentric clearance **−0.605 to −0.594 mm**, fit FAIL; joint frames still PASS, reconstruction NOT_RUN |
-| `adversarial-joint-offset` | FAIL 3/7; fit still PASS, but measured joint frames FAIL; assembly/disassembly FAIL |
+| `guided-product-8-28/reference` | PASS 7/7; 6 parts; topology/reconstruction/assembly/disassembly PASS; eccentric fit 0.395–0.405 mm PASS; joint frames PASS |
+| five adversarial submissions | rejected 3/7–5/7 on identity, reconstruction, removal order, fit or joint frames |
 
-### A semantic boundary
+Task 2:
 
-An early attempt treated the key/guide swap as an adversarial case, but the product path correctly PASSES it: both orders are geometrically removable. The blocked order is **slider before guide**. The family therefore uses `adversarial-slider-before-guide`, not the structural-contract key/guide swap. The product layer checks geometric order; the declaration-contract layer may freeze a stricter structural order.
+| Submission | Result |
+|---|---|
+| `product-slider-crank-360/reference` | **PASS 7/7**; 4 parts; 3 revolute fits PASS; joint frames PASS; reconstruction PASS; **rigid-motion PASS**; **source-motion PASS** |
+| `adversarial-static` | FAIL 6/7; every measured layer passes except **`source-motion` FAIL** — the rigid transforms come from the declaration, so only independent source re-rendering catches a static source |
+| `adversarial-crank-radius` | FAIL 3/7; `rigid-motion` FAIL, `source-motion` FAIL, `measured-joint-frames` FAIL (crank-pin frame), reconstruction NOT_RUN |
+| `adversarial-wrist-frame` | FAIL 4/7; `measured-joint-frames` FAIL, motion and source motion NOT_RUN rather than promoted |
+| `adversarial-declaration-missing` | ERROR 0/7; blocked before any layer because the embedded declaration is absent |
+
+The static adversarial is the reason `source-motion` is scored separately from
+`rigid-motion`: declared transforms can be consistent while the source does not move.
 
 ## Hidden set
 
-The hidden manifest family `product` has an external development copy `hidden-product-joint-dev [product]`: 1 task / 1 case, reference PASS, `layers 7/7`, `independentHiddenEvaluation=NOT_RUN`. It is still a development copy, not an independent hidden evaluation.
+The external development copy for the product family predates task 2 and must be
+re-frozen before it is used. Every hidden copy remains
+`independentHiddenEvaluation = NOT_RUN`.
 
 ## Boundaries
 
-- Only the seven product-preparation layers are scored. Fit/joint cover only the eccentric revolute. The assembly path is a discrete reverse of declared removals, not continuous transport.
-- This is not the A001 contract gate, user acceptance, continuous motion, or physical function.
-- One fixture, one correct order, five counterexamples; no claim about arbitrary product workflows or model generation.
-- Included in the twelve-family `bench:all` gate and the hidden split. The latest gate matrix includes all six product cases (reference plus five adversarial).
+- The derived contract in the bench is a **measurement-attribution gate**, not user
+  confirmation, user acceptance or a product requirement contract.
+- Only the declared protocol poses and sampled rigid motion are covered; this is not
+  continuous motion, contact tolerance, load, lubrication, friction, wear or physical
+  function.
+- Task 2 has no declared assembly or removal operations, so assembly/disassembly
+  order, retained pins/guides and an interactive nine-pose product workflow are not
+  measured here; A08 remains partial.
+- The fixture is an original researcher-authored demonstration part; a source PASS is
+  not evidence that autonomous generation produces this mechanism.
+- No model calls, no deployment and no physical claim.

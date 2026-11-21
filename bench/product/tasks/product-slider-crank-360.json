@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "id": "product-slider-crank-360",
+  "prompt": "Use the product contract-assembly preparation path on a declared single-cylinder slider-crank: crank radius 8 mm, rod length 28 mm, diametral clearance 0.1 to 0.6 mm, full 360-degree rotation. The product path must derive the contract, the multi-joint kinematics, the revolute fits and the source-driven poses; wrong source geometry or a tampered declaration must be rejected by the product layers.",
+  "request": "Build a single-cylinder slider-crank: crank radius 8 mm, rod length 28 mm, diametral clearance 0.1 to 0.6 mm, full 360 degree rotation.",
+  "partCount": 4,
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 4
+      }
+    },
+    {
+      "id": "part-connectivity",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "assembly-reconstruction",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "diametral-clearance",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "measured-joint-frames",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "rigid-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "source-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "This is the product-path counterpart of the L3 slider-crank rung: prepareContractAssembly derives the contract from the task request and measures multi-joint fits, joint frames, sampled rigid motion and source-driven poses.",
+    "The fixture has no declared assembly operations, so assembly/disassembly paths are not scored here; that keeps the task honest about what the declaration provides.",
+    "The source-driven pose verification has a fixed wall-clock budget; a loaded host can return an honest NOT_RUN, which is not a pass.",
+    "Only the declared 360-degree protocol poses are sampled; this is not continuous motion, load, friction, wear, manufacturing tolerance or physical function."
+  ]
+}

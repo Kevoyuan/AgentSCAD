@@ -59,6 +59,7 @@ Aligned with the milestones in [`FUNCTIONAL_ASSEMBLY_PLAN.md`](../docs/FUNCTIONA
 | L2 | two-part prismatic (piston in a barrel) | 1 joint, 2 parts | M3 | in `bench/assembly`: 6 tasks |
 | L3 | single-cylinder slider-crank | 4-joint loop, 4-6 parts | M4 | in `bench/slider`: 3 tasks, reference + 14 adversarial |
 | L4 | multi-joint with retention | 4 joints, 7 parts / 9 instances | M4 | in `bench/l4`: declaration-bound, reference + 4 adversarial |
+| L4p | product-path slider-crank closure (contract-driven) | 4 parts, 3 revolute fits + joint frames, sampled rigid motion and source poses | M4 | in `bench/product` task 2; assembly/disassembly operations are absent, so A08 stays partial |
 | L4.5 | inline twin / 90° V-twin cross-section | 2 cylinders, one crank | M5 | in `bench/twin` and `bench/vtwin` |
 | L5a | planetary stage | fixed ring, sun/planet/carrier | M5 | in `bench/planetary` and `bench/planetary3` |
 | L5b | V8 phase/packaging carrier with a connected crankshaft | 8 kinematic chains, 18 instances, pins/webs/main journals | M6 | in `bench/v8` contract v2: reference + 7 adversarial; the v1 disconnected-disc reference is kept as a rejected adversary |
@@ -198,8 +199,11 @@ promoted. `layers` is the sum of observed layers across cases, not a pass rate.
 This is a public self-check gate, not independent hidden evaluation, model ability,
 physical function or user acceptance. The v8 row includes contract v2 (the connected
 crankshaft requirement); its family-level detail is in
-[`bench/v8/README.md`](./v8/README.md). A complete V8 machine, full A001 contract pass,
-an independent hidden set and a fresh funded product trial remain open.
+[`bench/v8/README.md`](./v8/README.md). The **product row predates task 2** (the
+contract-driven slider-crank product family, 11 cases / 45-of-77 layers); its current
+family result is in [`bench/product/README.md`](./product/README.md) and the next full
+gate rerun replaces the row. A complete V8 machine, full A001 contract pass, an
+independent hidden set and a fresh funded product trial remain open.
 
 ### The layer table over recorded history
 
