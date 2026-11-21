@@ -3253,3 +3253,41 @@ self-check.
   nine-plus-pose product workflow and user acceptance.
 - The published thirteen-family matrix keeps the pre-change product row until the next
   full `bench:all` rerun. No model calls, no deployment.
+
+## 2026-11-21 · Thirteen-family gate with fitted retained-key disassembly (English log)
+
+Re-ran `bun run bench:all` after adding the three revolute fits and joint frames to the
+retained-key product task. Native OpenSCAD 2021.01, no model calls; about **86
+family-minutes** on this machine. Every family self-check passed.
+
+```
+family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers
+assembly     OK         20     6     8     6         12    8     0        104/120
+gear         OK         6      1     5     0         1     4     1        7/12
+slider       OK         17     3     14    0         3     14    0        51/77
+l4           OK         5      1     4     0         1     4     0        14/25
+twin         OK         6      1     5     0         1     5     0        11/24
+vtwin        OK         5      1     4     0         1     4     0        11/20
+declaration  OK         4      1     3     0         1     3     0        7/20
+v8           OK         8      1     7     0         1     7     0        24/40
+planetary    OK         4      1     3     0         1     3     0        4/8
+planetary3   OK         4      1     3     0         1     3     0        4/8
+product      OK         16     3     13    0         3     12    1        63/112
+thread       OK         6      2     4     0         2     3     1        13/20
+cam          OK         4      1     3     0         1     3     0        5/8
+```
+
+`overall: PASS`; **105 cases** — 23 reference, 76 adversarial, 6 unscored; **29 PASS /
+73 FAIL-or-ERROR / 3 NOT_RUN**; **318/494** observed layer entries.
+
+Changes from the previous published gate (`5ff939d` record): only the product family
+changed, from 16 cases / 57-of-102 layers to **16 cases / 63-of-112 layers**, because the
+retained-key reference now also measures three revolute fits (0.395–0.405 mm inside the
+0.1–0.6 mm band) and their joint frames. The reference passes 7/7 layers; the
+swapped-order adversarial fails 5/7 with only `disassembly-path` failing; missing
+insertions stay NOT_RUN 6/7 on `assembly-path`. No other family row changed.
+
+This is a public self-check gate: not hidden evaluation, model ability, continuous
+motion, tool reach, physical function or user acceptance. A complete V8 machine, full
+A001 contract pass, an independent hidden set, a fresh funded product trial, user
+acceptance and physical validation remain open.
