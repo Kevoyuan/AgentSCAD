@@ -3128,3 +3128,52 @@ This remains a public self-check gate: not hidden evaluation, not model ability,
 continuous motion, not physical function and not user acceptance. A complete V8
 machine, full A001 contract pass, an independent hidden set, a fresh funded product
 trial and physical validation remain open.
+
+## 2026-11-21 · A08 retained-key disassembly through the product path (English log)
+
+Product task 2 covers the contract-driven slider-crank motion half. Task 3 adds the
+retained-key disassembly half using the original keyed fixture
+(`benchmarks/assembly/slider_crank_keyed.scad`: frame, crank, rod, slider, eccentric
+retention key; six connections; a declared removal order in which the key must be
+removed before the slider).
+
+### Method
+
+- The submission's embedded declaration keeps the four declared disassembly operations
+  and adds the four **mirrored insertion operations** in reverse order (assembled pose
+  as the last waypoint). The product path therefore measures both declared directions
+  on rendered part meshes, not a hand-written claim.
+- The task request names the clearance band, the 360-degree range, the eccentric key and
+  the ability to disassemble; `deriveRequirementContract` supplies the removal
+  requirement and the product path measures the declared operations.
+- The fixture declares no bore stations or source pose parameter for this six-connection
+  mechanism, so fits, joint frames, rigid motion and source motion are not scored and
+  stay unobserved rather than being faked.
+
+### Measured result
+
+`bun bench:product:run --task product-keyed-slider-crank-disassembly --self-check` (as
+part of `bun run bench:product:check`): SELF-CHECK OK, 1 reference pass / 4 adversarial
+submissions rejected.
+
+| Submission | Result |
+|---|---|
+| `reference` | **PASS 5/5**: 5 parts; connectivity PASS; reconstruction PASS; **disassembly-path PASS** ("Every declared removal passed at its sampled poses"); **assembly-path PASS** ("Every declared insertion is clear at the sampled rigid poses and reaches its assembled pose") |
+| `adversarial-wrong-order` | FAIL 3/5: removing the slider before the eccentric key **fails disassembly-path** while identity, topology and reconstruction still pass |
+| `adversarial-missing-insertions` | NOT_RUN 4/5: removals pass, `assembly-path` NOT_RUN; not promoted |
+| `adversarial-key-declaration-removed` | ERROR 0/5: declaration no longer matches the rendered parts and is blocked before measurement |
+| `adversarial-declaration-missing` | ERROR 0/5: blocked before any layer |
+
+The product family is now 16 cases (3 references + 13 adversarial) and 57/102 observed
+layer entries in its own self-check.
+
+### Boundaries
+
+- Only the declared sampled rigid poses of each removal/insertion are checked; this is
+  not continuous removal, tool reach, tolerance, load or physical function.
+- No bore/source declaration exists for this six-connection mechanism, so fit, joint
+  frame, rigid-motion and source-motion layers remain unobserved; A08 still needs the
+  interactive nine-plus-pose product workflow and user acceptance.
+- The fixture is researcher-authored, not autonomously generated.
+- The published thirteen-family matrix keeps the pre-task-3 product row until the next
+  full `bench:all` rerun. No model calls, no deployment.

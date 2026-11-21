@@ -47,6 +47,19 @@ The fixture declares no assembly/disassembly operations, so those layers stay
 unobserved instead of being faked. The source-driven pose verification has a fixed
 wall-clock budget; a loaded host can return an honest NOT_RUN, which is not a pass.
 
+## Task 3 — retained-key disassembly (five parts, A08 retention/disassembly half)
+
+`tasks/product-keyed-slider-crank-disassembly.json` uses the original keyed fixture:
+five parts (frame, crank, rod, slider, eccentric eccentric retention key), six
+connections and a declared removal order in which the key must come out before the
+slider. The submission declaration in `reference.scad` adds the four mirrored insertion
+operations, so the product path measures **both** the declared removal order and the
+declared insertion order on rendered part meshes.
+
+The fixture declares no bore stations or source pose parameter for this six-connection
+mechanism, so fits, joint frames, rigid motion and source motion stay unobserved instead
+of being faked; they are not listed as required.
+
 ## Result
 
 ```
@@ -74,9 +87,19 @@ Task 2:
 The static adversarial is the reason `source-motion` is scored separately from
 `rigid-motion`: declared transforms can be consistent while the source does not move.
 
+Task 3:
+
+| Submission | Result |
+|---|---|
+| `product-keyed-slider-crank-disassembly/reference` | **PASS 5/5**: 5 parts; connectivity PASS; reconstruction PASS; **disassembly-path PASS** (every declared removal clears at its sampled poses); **assembly-path PASS** (every declared insertion reaches the assembled pose) |
+| `adversarial-wrong-order` | FAIL 3/5; removing the slider before the eccentric key **fails `disassembly-path`** while identity, topology and reconstruction still pass |
+| `adversarial-missing-insertions` | NOT_RUN 4/5; the declared removals pass but `assembly-path` is NOT_RUN, so it is not promoted to a pass |
+| `adversarial-key-declaration-removed` | ERROR 0/5; the declaration no longer matches the rendered parts and is blocked before measurement |
+| `adversarial-declaration-missing` | ERROR 0/5; blocked before any layer |
+
 ## Hidden set
 
-The external development copy for the product family predates task 2 and must be
+The external development copy for the product family predates tasks 2 and 3 and must be
 re-frozen before it is used. Every hidden copy remains
 `independentHiddenEvaluation = NOT_RUN`.
 
@@ -87,9 +110,11 @@ re-frozen before it is used. Every hidden copy remains
 - Only the declared protocol poses and sampled rigid motion are covered; this is not
   continuous motion, contact tolerance, load, lubrication, friction, wear or physical
   function.
-- Task 2 has no declared assembly or removal operations, so assembly/disassembly
-  order, retained pins/guides and an interactive nine-pose product workflow are not
-  measured here; A08 remains partial.
+- Task 2 has no declared assembly or removal operations, so its assembly/disassembly
+  order is unobserved; task 3 covers the declared removal and insertion orders of a
+  retained-key mechanism, but only at the sampled rigid poses. It is not continuous
+  motion, tool access, tolerance or physical function, and there is still no interactive
+  nine-plus-pose product workflow. A08 remains partial.
 - The fixture is an original researcher-authored demonstration part; a source PASS is
   not evidence that autonomous generation produces this mechanism.
 - No model calls, no deployment and no physical claim.

@@ -22,6 +22,18 @@ describe("product-path tasks", () => {
       "diametral-clearance", "measured-joint-frames", "rigid-motion", "source-motion",
     ]);
   });
+  test("freezes the retained-key disassembly product task", async () => {
+    const tasks = await loadProductTasks();
+    const task = tasks.find((entry) => entry.id === "product-keyed-slider-crank-disassembly");
+    expect(task).toBeDefined();
+    expect(task!.partCount).toBe(5);
+    expect(task!.request).toContain("eccentric retention key");
+    expect(task!.fit).toBeUndefined();
+    expect(task!.requirements.map((r) => r.id)).toEqual([
+      "distinct-exported-parts", "part-connectivity", "assembly-reconstruction",
+      "assembly-path", "disassembly-path",
+    ]);
+  });
   test("refuses a requirement id the product path cannot observe", () => {
     expect(() => validateProductTask({
       schemaVersion: 1, id: "bad-task", prompt: "a task with an unobservable requirement", partCount: 1,

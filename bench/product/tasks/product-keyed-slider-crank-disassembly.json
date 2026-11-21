@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "id": "product-keyed-slider-crank-disassembly",
+  "prompt": "Use the product contract-assembly preparation path on the declared five-part keyed slider-crank: crank radius 8 mm, rod length 28 mm, diametral clearance 0.1 to 0.6 mm and a 360 degree range. The eccentric retention key must be removed first; the declared removal order must physically clear and the declared insertion order must reach the assembled pose. A swapped removal order, missing insertions or a tampered declaration must be rejected by the product layers.",
+  "request": "Build a five-part keyed slider-crank: crank radius 8 mm, rod length 28 mm, diametral clearance 0.1 to 0.6 mm, full 360 degree rotation, with an eccentric retention key that can be removed so the mechanism can be disassembled.",
+  "partCount": 5,
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 5
+      }
+    },
+    {
+      "id": "part-connectivity",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "assembly-reconstruction",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "assembly-path",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "disassembly-path",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "This is the retained-key disassembly rung for A08: the product preparation path measures the declared removal order and the declared insertion order on rendered part meshes, with the eccentric key blocking a swapped order.",
+    "The fixture declares no bore stations or source pose parameter for this six-connection mechanism, so fits, joint frames, rigid motion and source motion stay unobserved instead of being faked; those layers are not listed as required.",
+    "The declared operations are reachable per sampled rigid poses only; this is not continuous motion, tool access, tolerance, load or physical function."
+  ]
+}
