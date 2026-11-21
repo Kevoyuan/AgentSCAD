@@ -3587,3 +3587,62 @@ different rod/slider y separation in the mechanism contract — before a cylinde
 evidence layer can be added. This entry is a design negative result at the five sampled
 angles, not a proof that no bore geometry exists. No model calls, no user acceptance and
 no physical claim are involved.
+
+## 2026-11-21 · V8 cylinder guide channels and measured slider-to-guide gap (contract v5) (English log)
+
+The earlier full-circular guide tubes were a recorded negative result: a tube wall with
+12 mm lateral y radius intersects the neighbouring rod plane 2–10 mm away. Contract v5
+replaces them with **thin U-channel guide plates**, which avoid that geometry entirely.
+
+### Geometry
+
+For each slider, two thin plates (0.5 mm along the in-plane perpendicular, 20 mm wide
+along y, 28 mm long along the bank axis) sit at ±10.35 mm from the bank axis, so their
+inner faces are at **±10.1 mm**. They run from bank radius 18 to the head rail at 46.
+One head rail per bank (radial 45–47 mm, 80 mm along y) is carried by two outboard
+columns at x = ±42 mm and bottom arms into the base plate. Because the plates are thin
+in the perpendicular direction they stay outside the rod sweep (rods reach only ~7 mm
+perpendicular near the pin and less further out), and they start outside the
+counterweight axial reach (≤ 17 mm). The reference passes **765/765 sampled collision
+checks** at the five angles.
+
+### Measured slider-to-guide gap
+
+New `guide-clearance` evidence on the `fit` layer: at every sampled crank angle, a ray
+from each slider centre (radial component from the closure formula) is cast along the
+in-plane ±perpendicular direction into the frame mesh. A measured hit must be within
+**0.15 mm** of the declared 10.1 mm inner face, and the measured gap (hit distance minus
+the slider's perpendicular extent) must stay inside **0.2–1.0 mm**. Rays that miss are
+`NOT_RUN`, never a pass.
+
+Reference: **80 sampled rays, 0 misses, 0.35 mm gap on every ray**, maximum offset error
+≤ 0.0001 mm.
+
+### Result
+
+`bun bench/v8/run.ts --task v8-block-bearings-8 --self-check` -> `SELF-CHECK OK: 1
+reference(s) pass, 6 adversarial submission(s) rejected.` Native OpenSCAD 2021.01, no
+model calls.
+
+| Submission | Result |
+|---|---|
+| `reference` | **PASS 7/7**: 18 instances; connected crank and block; bearing fit 0.989–1.019 mm at 0°; counterweight extents 17/10.5 mm; **guide gap 0.35 mm on 80 rays**; 765 collisions separated; source motion PASS |
+| `adversarial-no-guides` | NOT_RUN 6/7: every guide ray misses, so **only `guide-clearance` is NOT_RUN** |
+| `adversarial-tight-guides` | FAIL 6/7: inner faces at 9.9 mm give a 0.15 mm gap, so **only `guide-clearance` fails** while collision stays separated |
+| `adversarial-baseplate` | ERROR 6/7: only `bearing-fit` ERROR and `guide-clearance` NOT_RUN — a base plate has neither bearing bore nor guides |
+| `adversarial-bearing-clearance` / `adversarial-disconnected-crank` / `adversarial-no-counterweight` | each FAIL 6/7 on only its intended layer |
+
+The bench `fit` layer now carries `diametral-clearance`, `bearing-fit` and
+`guide-clearance`; the v8 task-2 self-check is 7 cases and 43/49 layers, and the v8
+family is 15 cases / 67-of-89 layers. **The published thirteen-family matrix keeps the
+pre-v5 v8 row until the next full gate rerun.**
+
+### Boundaries
+
+- 80 rays at five crank angles only; this is not continuous sliding clearance, bore
+  roundness, surface finish, wear, lubrication or a closed cylinder bore.
+- The guide plates are open channels, not engine cylinder barrels; there are no valves,
+  cylinder heads with ports, firing order or gas loads.
+- Only mesh-tessellated geometry is measured; no manufacturing tolerance or physical
+  function is claimed.
+- External hidden development copy predates contracts v2–v5 and must be re-frozen.

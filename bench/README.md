@@ -63,7 +63,7 @@ Aligned with the milestones in [`FUNCTIONAL_ASSEMBLY_PLAN.md`](../docs/FUNCTIONA
 | L4.5 | inline twin / 90° V-twin cross-section | 2 cylinders, one crank | M5 | in `bench/twin` and `bench/vtwin` |
 | L5a | planetary stage | fixed ring, sun/planet/carrier | M5 | in `bench/planetary` and `bench/planetary3` |
 | L5b | V8 phase/packaging carrier with a connected crankshaft | 8 kinematic chains, 18 instances, pins/webs/main journals | M6 | in `bench/v8` task 1 (contract v2): reference + 7 adversarial; the v1 disconnected-disc reference is kept as a rejected adversary |
-| L5c-1 | crankcase block with two measured main bearings and counterweights | 18 instances plus a connected block frame with two bearing webs, a top rail, measured bearing fit and measured counterweight sectors | M6 | in `bench/v8` task 2 (contract v4): reference PASS 7/7 with 0.989–1.019 mm clearance at 0° axis offset and 17 mm opposite / 10.5 mm pin-side extents; base-plate, oversized-bore, split-crank and no-counterweight adversaries rejected |
+| L5c-1 | crankcase block with main bearings, cylinder guides and counterweights | 18 instances plus a connected block frame with two bearing webs, a top rail, thin guide channels on head rails, measured bearing fit, counterweight sectors and slider-to-guide gaps | M6 | in `bench/v8` task 2 (contract v5): reference PASS 7/7 with 0.989–1.019 mm bearing clearance at 0° offset, 17/10.5 mm counterweight extents and a 0.35 mm guide gap on 80 sampled rays; base-plate, oversized-bore, split-crank, no-counterweight, no-guide and tight-guide adversaries rejected |
 | L5c | complete V8 machine | 8 chains plus cylinder bores/heads, counterweights, firing order | M6 | **open**: no cylinder bores/heads, counterweights, firing order or lubrication exist |
 
 **Why a ladder:** failing L5 does not mean L3 does not exist. With rungs, a score can say which layer is stuck even when the top fails.
@@ -78,7 +78,7 @@ Each layer is `PASS | FAIL | SKIP | ERROR | NOT_RUN`. Within a layer the **worst
 | `parts-identity` | `distinct-exported-parts`, `measured-part-identity` | selectors, parting strategy |
 | `topology` | `part-connectivity`, `frame-connectivity` | booleans, wall thickness, connectivity |
 | `joint-frames` | `measured-joint-frames` | declared axes, coordinate transforms |
-| `fit` | `diametral-clearance`, `bearing-fit` | bore/shaft dimensions, tolerance |
+| `fit` | `diametral-clearance`, `bearing-fit`, `guide-clearance` | bore/shaft dimensions, tolerance, guide gap |
 | `balance` | `counterweight-balance` | crank counterweights and throw phase |
 | `retention` | `axial-retention`, `unresolved-axial-retention` | retention features, latches |
 | `assembly-path` | `assembly-path` | insertion path, clearance |
@@ -207,10 +207,9 @@ cam          OK         4      1     3     0         1     3     0        5/8
 promoted. `layers` is the sum of observed layers across cases, not a pass rate.
 
 This is a public self-check gate, not independent hidden evaluation, model ability,
-physical function or user acceptance. The v8 row includes the
-connected-crank carrier and the crankcase block/bearing/counterweight task (13 cases /
-55-of-75 layers, contract v4); family detail is in
-[`bench/v8/README.md`](./v8/README.md). The product row
+physical function or user acceptance. The **v8 row predates contract v5**
+(the guide-channel rung: 15 cases / 67-of-89 layers); its current family result is in
+[`bench/v8/README.md`](./v8/README.md) and the next full gate rerun replaces the row. The product row
 includes task 2 and task 3 (16 cases / 63-of-112 layers); family detail is in
 [`bench/product/README.md`](./product/README.md). A complete V8 machine, full A001
 contract pass, an independent hidden set and a fresh funded product trial remain open.

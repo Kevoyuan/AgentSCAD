@@ -28,6 +28,32 @@ module frame_part() {
     }
     // Top rail ties both webs to the base plate through their lower halves.
     translate([0, 0, 22]) cube([6, 44, 2], center = true);
+    // Cylinder guide channels: two thin plates per slider, parallel to the bank
+    // axis and offset +/-10.35 mm in the in-plane perpendicular direction. The
+    // plates are thin along the perpendicular so they stay outside the rod sweep,
+    // and they run from bank radius 18 to the head rail at 46.
+    for (i = [0:3]) for (bank = [0, 1]) {
+      guide_y = station_y[i] + (bank == 0 ? -bank_y : bank_y);
+      if (bank == 0) {
+        for (gp = [-10.35, 10.35])
+          translate([32 * ux + gp * cos(45), guide_y, 32 * uz - gp * sin(45)])
+            rotate([0, 45, 0]) cube([0.5, 20, 28], center = true);
+      } else {
+        for (gp = [-10.35, 10.35])
+          translate([32 * -ux + gp * cos(45), guide_y, 32 * uz + gp * sin(45)])
+            rotate([0, -45, 0]) cube([0.5, 20, 28], center = true);
+      }
+    }
+    // One head rail per bank at the far end, tied to the base plate by two
+    // outboard columns and bottom arms.
+    translate([46 * ux, 0, 46 * uz]) rotate([0, 45, 0]) cube([28, 80, 2], center = true);
+    translate([46 * -ux, 0, 46 * uz]) rotate([0, -45, 0]) cube([28, 80, 2], center = true);
+    for (cy = [-39.5, 39.5]) {
+      translate([42, cy, 1.5]) cube([2, 2, 43], center = true);
+      translate([-42, cy, 1.5]) cube([2, 2, 43], center = true);
+      translate([29, cy, -20]) cube([26, 2, 2], center = true);
+      translate([-29, cy, -20]) cube([26, 2, 2], center = true);
+    }
   }
 }
 module crank_part() {

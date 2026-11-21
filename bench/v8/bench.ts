@@ -40,7 +40,15 @@ export interface V8CounterweightContract {
   /** Half-angle of the pin-side and opposite sectors, in degrees. */
   angleToleranceDeg: number;
 }
-export interface V8BenchTask { schemaVersion: 1; id: string; prompt: string; selectors: V8Selectors; motionParameter: string; angles: number[]; contract: V8Contract; bearingFit?: V8BearingContract; counterweight?: V8CounterweightContract; requirements: BenchRequirement[]; notes?: string[] }
+export interface V8GuideContract {
+  /** Declared guide-face distance from the bank axis. */
+  offsetMm: number;
+  /** Allowed deviation of the measured guide face from the declared offset. */
+  toleranceMm: number;
+  minGapMm: number;
+  maxGapMm: number;
+}
+export interface V8BenchTask { schemaVersion: 1; id: string; prompt: string; selectors: V8Selectors; motionParameter: string; angles: number[]; contract: V8Contract; bearingFit?: V8BearingContract; counterweight?: V8CounterweightContract; guide?: V8GuideContract; requirements: BenchRequirement[]; notes?: string[] }
 export interface V8CaseMeasurements {
   parts: Array<{ id: string; triangleCount: number }>;
   angles: number[];
@@ -60,6 +68,11 @@ export interface V8CaseMeasurements {
   counterweight: {
     status: EvidenceStatus; reason: string; passed: boolean;
     stations: Array<{ stationIndex: number; webY: number; oppositeMaxRadiusMm: number; pinSideMaxRadiusMm: number }>;
+  } | null;
+  /** Measured slider-to-guide channel clearance at the sampled angles. */
+  guideClearance: {
+    status: EvidenceStatus; reason: string; sampled: number; missed: number;
+    maxOffsetErrorMm: number | null; minGapMm: number | null; maxGapMm: number | null;
   } | null;
 }
 export interface V8CaseReport {
@@ -126,6 +139,17 @@ export function validateV8Task(value: unknown): V8BenchTask {
     if (!(webOffsetMm > 0) || !(minOppositeRadiusMm > maxPinSideRadiusMm) || !(maxPinSideRadiusMm > 0) || !(angleToleranceDeg > 0) || !(angleToleranceDeg < 90)) fail("counterweight bounds are invalid");
     counterweight = { webOffsetMm, minOppositeRadiusMm, maxPinSideRadiusMm, angleToleranceDeg };
   }
+  let guide: V8GuideContract | undefined;
+  if (raw.guide !== undefined) {
+    if (!raw.guide || typeof raw.guide !== "object") fail("guide must be an object");
+    const b = raw.guide as Record<string, unknown>;
+    const offsetMm = finite(b.offsetMm, "guide.offsetMm");
+    const toleranceMm = finite(b.toleranceMm, "guide.toleranceMm");
+    const minGapMm = finite(b.minGapMm, "guide.minGapMm");
+    const maxGapMm = finite(b.maxGapMm, "guide.maxGapMm");
+    if (!(offsetMm > 0) || !(toleranceMm > 0) || !(minGapMm >= 0) || !(maxGapMm > minGapMm) || !(maxGapMm < offsetMm)) fail("guide bounds are invalid");
+    guide = { offsetMm, toleranceMm, minGapMm, maxGapMm };
+  }
   if (!Array.isArray(raw.requirements) || raw.requirements.length === 0) fail("requirements must be non-empty");
   const requirements: BenchRequirement[] = raw.requirements.map((entry, index) => {
     if (!entry || typeof entry !== "object") fail(`requirements[${index}] must be an object`);
@@ -137,13 +161,14 @@ export function validateV8Task(value: unknown): V8BenchTask {
     return { id: r.id, layer: r.layer as BenchRequirement["layer"], required: r.required, applicable: r.applicable, expected: { kind: "equals", value: e.value as string | boolean | number } };
   });
   if (new Set(requirements.map((r) => r.id)).size !== requirements.length) fail("duplicate requirement id");
-  const observable = new Set(["distinct-exported-parts", "measured-joint-frames", "sampled-motion", "source-motion", "part-connectivity", "frame-connectivity", "bearing-fit", "counterweight-balance"]);
+  const observable = new Set(["distinct-exported-parts", "measured-joint-frames", "sampled-motion", "source-motion", "part-connectivity", "frame-connectivity", "bearing-fit", "counterweight-balance", "guide-clearance"]);
   for (const r of requirements) if (!observable.has(r.id)) fail(`requirement ${r.id} has no observer`);
   if (requirements.some((r) => r.id === "bearing-fit") && !bearingFit) fail("a bearing-fit requirement needs a bearingFit contract");
   if (requirements.some((r) => r.id === "counterweight-balance") && !counterweight) fail("a counterweight-balance requirement needs a counterweight contract");
+  if (requirements.some((r) => r.id === "guide-clearance") && !guide) fail("a guide-clearance requirement needs a guide contract");
   const distinct = requirements.find((r) => r.id === "distinct-exported-parts");
   if (!distinct || distinct.expected.kind !== "equals" || distinct.expected.value !== 18) fail("distinct-exported-parts must equal 18");
-  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, selectors: { frame, crank, rods, sliders }, motionParameter: raw.motionParameter, angles, contract, ...(bearingFit ? { bearingFit } : {}), ...(counterweight ? { counterweight } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
+  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, selectors: { frame, crank, rods, sliders }, motionParameter: raw.motionParameter, angles, contract, ...(bearingFit ? { bearingFit } : {}), ...(counterweight ? { counterweight } : {}), ...(guide ? { guide } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
 }
 export function v8TasksDirectory(): string { return path.join(import.meta.dir, "tasks"); }
 export function v8SubmissionsDirectory(): string { return path.join(import.meta.dir, "submissions"); }
@@ -254,11 +279,38 @@ function measureCounterweights(task: V8BenchTask, crankStl: Buffer): V8CaseMeasu
   return { status: "PASS", reason, passed, stations };
 }
 
+/** Nearest positive ray/triangle distance for a mesh, or null when the ray misses. */
+function nearestTriangleHit(mesh: TriangleMesh, origin: readonly [number, number, number], direction: readonly [number, number, number], maxDistance: number): number | null {
+  const [ox, oy, oz] = origin; const [dx, dy, dz] = direction;
+  let best = maxDistance;
+  for (let triangle = 0; triangle < mesh.triangleCount; triangle += 1) {
+    const base = triangle * 9;
+    const ax = mesh.coordinates[base], ay = mesh.coordinates[base + 1], az = mesh.coordinates[base + 2];
+    const bx = mesh.coordinates[base + 3], by = mesh.coordinates[base + 4], bz = mesh.coordinates[base + 5];
+    const cx = mesh.coordinates[base + 6], cy = mesh.coordinates[base + 7], cz = mesh.coordinates[base + 8];
+    const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+    const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+    const px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x;
+    const determinant = e1x * px + e1y * py + e1z * pz;
+    if (Math.abs(determinant) < 1e-12) continue;
+    const inverse = 1 / determinant;
+    const tx = ox - ax, ty = oy - ay, tz = oz - az;
+    const u = (tx * px + ty * py + tz * pz) * inverse;
+    if (u < 0 || u > 1) continue;
+    const qx = ty * e1z - tz * e1y, qy = tz * e1x - tx * e1z, qz = tx * e1y - ty * e1x;
+    const v = (dx * qx + dy * qy + dz * qz) * inverse;
+    if (v < 0 || u + v > 1) continue;
+    const t = (e2x * qx + e2y * qy + e2z * qz) * inverse;
+    if (t > 1e-6 && t < best) best = t;
+  }
+  return best < maxDistance ? best : null;
+}
+
 export async function scoreV8Submission(task: V8BenchTask, submission: Submission): Promise<V8CaseReport> {
   const sourceSha256 = sha256(submission.source);
   const provenance = { createdAt: new Date().toISOString(), backend: process.env.AGENTSCAD_OPENSCAD_BACKEND === "wasm" ? "wasm" : "native", openscad: openscadVersion(), runtime: `bun ${process.env.BUN_VERSION ?? "unknown"}`, platform: process.platform };
-  const unknowns = ["A PASS covers five crank angles and pairwise triangle collision; it is not continuous motion, load, friction, wear or physical function.", "This is a V8 phase/packaging family: the base task has a base-plate frame, the block/bearing task adds a two-bearing crankcase block with a top rail. Neither models cylinder bores, counterweights or firing order.", "Connectivity is exact edge connectivity of one rendered part at 0 degrees: it is not balance, strength, machining or a complete cylinder block.", "The bearing fit measures a sampled cylindrical clearance between the block bore and the crankshaft journals at the declared stations only; it is not a calibrated tolerance, bearing load rating, lubrication or manufacturability proof.", "Counterweight balance is measured as material extent on the crank web planes relative to each throw direction; it is not a mass moment, balance factor, stress or fatigue calculation.", "Slider centres come from mesh bounds; the 0.1 mm tolerance is a mesh value."];
-  const empty: V8CaseMeasurements = { parts: [], angles: task.angles, sliderCenters: [], maxPositionErrorMm: null, collision: { sampled: 0, separated: 0, firstFailure: null }, crankConnectivity: null, frameConnectivity: null, bearingFit: null, counterweight: null };
+  const unknowns = ["A PASS covers five crank angles and pairwise triangle collision; it is not continuous motion, load, friction, wear or physical function.", "This is a V8 phase/packaging family: the base task has a base-plate frame, the block/bearing task adds a two-bearing crankcase block with a top rail. Neither models cylinder bores, counterweights or firing order.", "Connectivity is exact edge connectivity of one rendered part at 0 degrees: it is not balance, strength, machining or a complete cylinder block.", "The bearing fit measures a sampled cylindrical clearance between the block bore and the crankshaft journals at the declared stations only; it is not a calibrated tolerance, bearing load rating, lubrication or manufacturability proof.", "Counterweight balance is measured as material extent on the crank web planes relative to each throw direction; it is not a mass moment, balance factor, stress or fatigue calculation.", "Guide clearance is measured by rays from each slider centre to the nearest block face at the five sampled crank angles; it is a sampled radial channel gap, not a continuous bore, ring, roundness, surface finish or wear measurement.", "Slider centres come from mesh bounds; the 0.1 mm tolerance is a mesh value."];
+  const empty: V8CaseMeasurements = { parts: [], angles: task.angles, sliderCenters: [], maxPositionErrorMm: null, collision: { sampled: 0, separated: 0, firstFailure: null }, crankConnectivity: null, frameConnectivity: null, bearingFit: null, counterweight: null, guideClearance: null };
   const baseReport = (status: EvidenceStatus, results: Result[], measurements: V8CaseMeasurements): V8CaseReport => {
     const scored = scoreEvidence(results.map((r) => ({ id: r.id, status: r.status })));
     return { schemaVersion: "v8-bench.case.v1", taskId: task.id, submission: submission.id, expected: expectedOutcome(submission.id), sourcePath: path.relative(process.cwd(), submission.sourcePath), sourceSha256, status, gatePassed: status === "PASS", results, layers: { coverage: scored.coverage, byLayer: scored.layers.map((l) => ({ layer: l.layer, status: l.status, blockers: l.blockers })) }, measurements, provenance, unknowns };
@@ -293,6 +345,9 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
   const artifactSha256 = sha256(zeroParts.map((part) => part.sha256).join(":"));
   const distinct = new Set(zeroMeshes.map(({ mesh }) => canonicalMeshHash(mesh))).size;
   let collisionSampled = 0, collisionSeparated = 0, firstFailure: string | null = null, maxPositionError = 0;
+  let guideSampled = 0, guideMissed = 0, guideMaxOffsetError = 0, guideMinGap = Infinity, guideMaxGap = -Infinity;
+  let guideFirstFailure: string | null = null;
+  const halfAngle = task.contract.vHalfAngleDeg * Math.PI / 180;
   const centerOf = (parts: RenderedAssemblyPart[], id: string) => { const part = parts.find((p) => p.partId === id); if (!part) throw new Error(`missing ${id}`); const b = meshBounds(readBinaryStl(part.stl)); return [(b.min[0]+b.max[0])/2, (b.min[1]+b.max[1])/2, (b.min[2]+b.max[2])/2] as [number, number, number]; };
   for (const angle of task.angles) {
     let parts: RenderedAssemblyPart[];
@@ -310,9 +365,55 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
       const result = meshesIntersect(meshes[i], IDENTITY, meshes[j], IDENTITY);
       if (result.status === "SEPARATED") collisionSeparated += 1; else if (!firstFailure) firstFailure = `${angle}° ${parts[i].partId}/${parts[j].partId}:${result.status}`;
     }
+    if (task.guide) {
+      const frameMesh = readBinaryStl(parts.find((part) => part.partId === task.selectors.frame)!.stl);
+      for (const side of [0, 1] as const) {
+        const ux2 = side === 0 ? Math.sin(halfAngle) : -Math.sin(halfAngle);
+        const uz2 = Math.cos(halfAngle);
+        const px = Math.cos(halfAngle), pz = side === 0 ? -Math.sin(halfAngle) : Math.sin(halfAngle);
+        for (let station = 0; station < 4; station += 1) {
+          const index = station * 2 + side;
+          const expected = expectedV8Center(task.contract, station, side, angle);
+          const centerRadius = Math.hypot(expected[0], expected[2]);
+          const sliderPart = parts.find((part) => part.partId === task.selectors.sliders[index])!;
+          const sliderMesh = readBinaryStl(sliderPart.stl);
+          const origin: [number, number, number] = [centerRadius * ux2, expected[1], centerRadius * uz2];
+          for (const sign of [1, -1] as const) {
+            const hit = nearestTriangleHit(frameMesh, origin, [sign * px, 0, sign * pz], 60);
+            if (hit === null) {
+              guideMissed += 1;
+              guideFirstFailure ??= `No guide face was hit for slider ${index} at ${angle}° on the ${sign > 0 ? "positive" : "negative"} side.`;
+              continue;
+            }
+            guideSampled += 1;
+            const offsetError = Math.abs(hit - task.guide.offsetMm);
+            guideMaxOffsetError = Math.max(guideMaxOffsetError, offsetError);
+            let maxAlong = -Infinity;
+            for (let vertex = 0; vertex < sliderMesh.triangleCount * 3; vertex += 1) {
+              const base = vertex * 3;
+              const along = sliderMesh.coordinates[base] * sign * px + sliderMesh.coordinates[base + 2] * sign * pz;
+              if (along > maxAlong) maxAlong = along;
+            }
+            const gap = hit - maxAlong;
+            guideMinGap = Math.min(guideMinGap, gap);
+            guideMaxGap = Math.max(guideMaxGap, gap);
+            if (guideFirstFailure === null && (offsetError > task.guide.toleranceMm || gap < task.guide.minGapMm || gap > task.guide.maxGapMm))
+              guideFirstFailure = `Slider ${index} at ${angle}° side ${sign > 0 ? "+" : "-"}: guide face at ${hit.toFixed(3)} mm (declared ${task.guide.offsetMm}), gap ${gap.toFixed(3)} mm.`;
+          }
+        }
+      }
+    }
   }
   measurements.maxPositionErrorMm = maxPositionError;
   measurements.collision = { sampled: collisionSampled, separated: collisionSeparated, firstFailure };
+  measurements.guideClearance = task.guide ? {
+    status: guideMissed > 0 ? "NOT_RUN" : "PASS",
+    reason: guideMissed > 0 ? (guideFirstFailure ?? "A guide ray missed the block.") : (guideFirstFailure ?? "Every sampled slider-to-guide gap is inside the declared band."),
+    sampled: guideSampled, missed: guideMissed,
+    maxOffsetErrorMm: guideSampled > 0 ? guideMaxOffsetError : null,
+    minGapMm: guideSampled > 0 ? guideMinGap : null,
+    maxGapMm: guideSampled > 0 ? guideMaxGap : null,
+  } : null;
   const positionOk = maxPositionError <= task.contract.sliderToleranceMm;
   const collisionOk = collisionSampled > 0 && collisionSeparated === collisionSampled;
   const toolVersion = `v8-bench/1 openscad:${openscadVersion()}`;
@@ -364,7 +465,21 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
       : { id: "counterweight-balance", status: balance.status === "ERROR" ? "ERROR" : "NOT_RUN", reason: balance.reason, artifactSha256, toolVersion,
           method: "Vertex-sector extent on the declared crank web planes relative to each throw direction.",
           coverage: `${balance.stations.length} web plane(s).` };
+  const guideMeasurement = measurements.guideClearance;
+  const guideInBand = !!guideMeasurement && guideMeasurement.status === "PASS" && task.guide !== undefined
+    && guideMeasurement.maxOffsetErrorMm !== null && guideMeasurement.maxOffsetErrorMm <= task.guide.toleranceMm
+    && guideMeasurement.minGapMm !== null && guideMeasurement.minGapMm >= task.guide.minGapMm
+    && guideMeasurement.maxGapMm !== null && guideMeasurement.maxGapMm <= task.guide.maxGapMm;
+  const guideObservation: Observation = guideMeasurement === null
+    ? { id: "guide-clearance", status: "NOT_RUN", reason: "No guide contract or a missing frame/slider mesh prevented measurement." }
+    : guideMeasurement.status === "NOT_RUN"
+      ? { id: "guide-clearance", status: "NOT_RUN", reason: guideMeasurement.reason, artifactSha256, toolVersion, method: "Rays from each slider centre to the nearest block face at the sampled crank angles.", coverage: `${guideMeasurement.sampled} guide face(s) sampled, ${guideMeasurement.missed} missed.` }
+      : { id: "guide-clearance", status: "MEASURED", value: guideInBand, artifactSha256, toolVersion,
+          method: "Rays from each slider centre to the nearest block face at the sampled crank angles.",
+          coverage: `${guideMeasurement.sampled} guide face(s) at ${task.angles.length} angles; offset limit ${task.guide?.toleranceMm} mm, gap band ${task.guide?.minGapMm}-${task.guide?.maxGapMm} mm.`,
+          ...(guideInBand ? {} : { reason: guideMeasurement.reason }) };
   const observations: Record<string, Observation> = {
+    "guide-clearance": guideObservation,
     "counterweight-balance": counterweightObservation,
     "frame-connectivity": frameConnectivityObservation,
     "bearing-fit": bearingFitObservation,

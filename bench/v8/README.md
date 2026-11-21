@@ -1,4 +1,4 @@
-# L5b/L5c-1 V8 packaging carrier: connected crankshaft, crankcase block/bearings and counterweights
+# L5b/L5c-1 V8 packaging carrier: connected crankshaft, crankcase block, cylinder guides and counterweights
 
 This is the V8 phase/packaging rung: **eight piston-and-rod sets in four 90° phase
 groups on two ±45° banks**, one **shared crankpin per phase group with two rods per
@@ -9,9 +9,10 @@ no cylinder block, bearing shell, counterweight or firing order.
 Contract v2 (2026-11-21) made the connected crankshaft a scored requirement. The v1
 reference — four separate disc/pin throws with no main shaft — is retained as
 `adversarial-disconnected-crank` and must be rejected. Contract v3 added a second task
-with a crankcase block and two measured main bearings; contract v4 adds measured
-counterweights on the crank web planes. The base carrier keeps its base-plate frame and
-no counterweights.
+with a crankcase block and two measured main bearings; contract v4 added measured
+counterweights on the crank web planes; contract v5 adds thin cylinder guide channels
+with a measured slider-to-guide gap. The base carrier keeps its base-plate frame, no
+counterweights and no guides.
 
 ## Task
 
@@ -58,7 +59,14 @@ Scored layers:
   mm), crank material on the pin side must stay inside **11 mm** while material in the
   sector opposite the throw (35° half-angle) must reach at least **12 mm**. The reference
   reaches 17 mm opposite and 10.5 mm on the pin side; this is a geometric
-  presence/phase check, not a mass moment or balance-factor calculation.
+  presence/phase check, not a mass moment or balance-factor calculation;
+- **`guide-clearance`** (contract v5): two thin guide plates per slider, parallel to the
+  bank axis, are carried by one head rail per bank through outboard columns. Rays from
+  each slider centre at the five sampled angles must hit a block face within **0.15 mm**
+  of the declared **10.1 mm** inner-face offset, and the measured slider-to-guide gap
+  must stay inside **0.2–1.0 mm**. The reference measures a 0.35 mm gap on all 80
+  sampled rays. This is a sampled radial channel gap, not a continuous bore, ring,
+  roundness, surface finish or wear measurement.
 
 The measured clearance on the reference is **0.989–1.019 mm** with a 0° axis offset.
 The band is a demonstrator tolerance, not a calibrated manufacturing tolerance, bearing
@@ -103,10 +111,12 @@ Block/bearing task:
 | `adversarial-bearing-clearance` | FAIL 6/7: oversized bores give a clearance outside the band, so **only `bearing-fit` FAILS** |
 | `adversarial-disconnected-crank` | FAIL 6/7: the split crankshaft fails **only `part-connectivity`**; bearing fit and counterweights still pass |
 | `adversarial-no-counterweight` | FAIL 6/7: removing the lobes makes the opposite-sector extent 2.5 mm, so **only `counterweight-balance` FAILS** |
+| `adversarial-no-guides` | NOT_RUN 6/7: removing the guide plates makes every guide ray miss, so **only `guide-clearance` is NOT_RUN** |
+| `adversarial-tight-guides` | FAIL 6/7: guide plates at 9.9 mm inner-face offset give a 0.15 mm gap, so **only `guide-clearance` FAILS** while collision stays separated |
 
 ## Hidden set
 
-The external development copy `hidden-v8-shared-dev [v8]` predates contracts v2–v4 and
+The external development copy `hidden-v8-shared-dev [v8]` predates contracts v2–v5 and
 must be re-frozen before it is used; until then it does not represent any task. Every
 hidden copy remains `independentHiddenEvaluation = NOT_RUN`.
 
@@ -124,6 +134,9 @@ hidden copy remains `independentHiddenEvaluation = NOT_RUN`.
 - `counterweight-balance` measures material extents on four web planes at one pose; it is
   not a mass moment, balance factor, stress, fatigue or vibration analysis, and it does
   not prove the part is manufacturable.
+- `guide-clearance` samples 80 rays at five crank angles; it does not prove continuous
+  sliding clearance, bore roundness, surface finish, wear or lubrication, and the guide
+  plates are not a closed cylinder bore.
 - Only five discrete angles, mesh-bound slider centres and 765 discrete collisions are
   covered; continuous motion is not established.
 - The published thirteen-family matrix row for v8 predates contract v2; a full gate

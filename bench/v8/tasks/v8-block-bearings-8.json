@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "v8-block-bearings-8",
-  "prompt": "Build the V8 phase/packaging carrier with a crankcase block and counterweights: two banks at 45 degrees, four crank phase groups 0/90/180/270, eight piston-and-rod sets on four shared crankpins, and one connected crankshaft. The block is one connected casting with a base plate, two main-bearing webs at y = -20 and +20 with journal bores, and a continuous top rail; the main-bearing fit is measured at both stations. Each crank throw carries counterweight material opposite its pin on the declared web planes. All eighteen instances must export separately and must not interfere at the five listed input angles.",
+  "prompt": "Build the V8 phase/packaging carrier with a crankcase block, cylinder guide channels and counterweights: two banks at 45 degrees, four crank phase groups 0/90/180/270, eight piston-and-rod sets on four shared crankpins, and one connected crankshaft. The block is one connected casting with a base plate, two main-bearing webs with journal bores, a top rail, thin cylinder guide channels around the sliders and two head rails carried by outboard columns; the main-bearing fit, the slider-to-guide gaps and the counterweights are measured. All eighteen instances must export separately and must not interfere at the five listed input angles.",
   "selectors": {
     "frame": "frame",
     "crank": "crank",
@@ -142,19 +142,36 @@
         "kind": "equals",
         "value": true
       }
+    },
+    {
+      "id": "guide-clearance",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
     }
   ],
   "notes": [
-    "Contract v4 (block/bearing/counterweight rung): the frame is a crankcase block with two main-bearing webs at y = -20 / +20, journal bores and a continuous top rail; each crank throw carries a counterweight lobe opposite the pin on its web planes.",
-    "The measured bearing fit binds the block bore to the crankshaft journals at the two declared stations, requiring the whole sampled clearance interval inside 0.4-1.6 mm and the measured axis offset at most 0.3 mm. This is a demonstrator clearance band, not a calibrated manufacturing tolerance, bearing load rating, lubrication or wear model.",
-    "Counterweight balance is a geometric vertex-sector measurement on the declared web planes: material beyond 10 mm on the pin side fails, and material opposite the throw must reach at least 12 mm within a 35-degree sector. It is not a mass moment, balance factor, stress or fatigue calculation.",
+    "Contract v5 (block/bearing/counterweight/guide rung): the frame is a crankcase block with two main-bearing webs, a top rail, one head rail per bank on outboard columns and two thin guide plates per slider whose inner faces sit at +/-10.1 mm from the bank axis (plates centered at +/-10.35 mm).",
+    "The measured bearing fit binds the block bore to the crankshaft journals at the two declared stations (whole sampled clearance interval inside 0.4-1.6 mm, axis offset at most 0.3 mm). This is a demonstrator clearance band, not a calibrated manufacturing tolerance, bearing load rating, lubrication or wear model.",
+    "Counterweight balance is a geometric vertex-sector measurement on the declared web planes: material beyond 11 mm on the pin side fails, and material opposite the throw must reach at least 12 mm within a 35-degree sector. It is not a mass moment, balance factor, stress or fatigue calculation.",
+    "Guide clearance is measured by rays from each slider centre to the nearest block face at the five sampled crank angles: the guide face must lie within 0.15 mm of the declared 10.1 mm inner-face offset and the measured slider-to-guide gap must stay inside 0.2-1.0 mm. It is a sampled radial channel gap, not a continuous bore, ring, roundness, surface finish or wear measurement.",
     "Connectivity is exact edge connectivity of the rendered crank and block parts at 0 degrees; it is not balance, strength, machining or a complete cylinder block.",
-    "No cylinder bores, cylinder heads or firing order are modeled. Only five input angles, mesh-bounds slider centres, 153 pairwise collision checks per angle, two bearing stations and eight web planes are covered."
+    "No cylinder heads with valves, firing order or lubrication are modeled. Only five input angles, mesh-bounds slider centres, 153 pairwise collision checks per angle, two bearing stations, eight web planes and 80 sampled guide rays per angle are covered."
   ],
   "counterweight": {
     "webOffsetMm": 8,
     "minOppositeRadiusMm": 12,
     "maxPinSideRadiusMm": 11,
     "angleToleranceDeg": 35
+  },
+  "guide": {
+    "offsetMm": 10.1,
+    "toleranceMm": 0.15,
+    "minGapMm": 0.2,
+    "maxGapMm": 1.0
   }
 }

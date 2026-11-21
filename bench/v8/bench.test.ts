@@ -26,9 +26,11 @@ describe("V8 bench tasks", () => {
     expect(task.prompt).toContain("crankcase block");
     expect(task.bearingFit).toEqual({ stationsY: [-20, 20], minClearanceMm: 0.4, maxClearanceMm: 1.6, maxAxisOffsetMm: 0.3 });
     expect(task.counterweight).toEqual({ webOffsetMm: 8, minOppositeRadiusMm: 12, maxPinSideRadiusMm: 11, angleToleranceDeg: 35 });
+    expect(task.guide).toEqual({ offsetMm: 10.1, toleranceMm: 0.15, minGapMm: 0.2, maxGapMm: 1.0 });
     expect(task.requirements.map((entry) => entry.id)).toEqual([
       "distinct-exported-parts", "part-connectivity", "frame-connectivity", "bearing-fit",
       "measured-joint-frames", "sampled-motion", "source-motion", "counterweight-balance",
+      "guide-clearance",
     ]);
   });
 
@@ -64,6 +66,23 @@ describe("V8 bench tasks", () => {
         { id: "counterweight-balance", layer: "parts", required: true, applicable: true, expected: { kind: "equals", value: true } },
       ],
     })).toThrow("needs a counterweight contract");
+  });
+
+  test("a guide-clearance requirement without a declared guide contract is rejected", () => {
+    expect(() => validateV8Task({
+      schemaVersion: 1, id: "v8-bad-guide", prompt: "a V8 task with a guide requirement",
+      selectors: {
+        frame: "frame", crank: "crank",
+        rods: ["rod0L", "rod0R", "rod1L", "rod1R", "rod2L", "rod2R", "rod3L", "rod3R"],
+        sliders: ["slider0L", "slider0R", "slider1L", "slider1R", "slider2L", "slider2R", "slider3L", "slider3R"],
+      },
+      motionParameter: "crank_angle", angles: [0, 90, 180],
+      contract: { crankRadiusMm: 8, rodLengthMm: 28, vHalfAngleDeg: 45, bankYmm: 3, stationsY: [-30, -10, 10, 30], phasesDeg: [0, 90, 180, 270], sliderToleranceMm: 0.1 },
+      requirements: [
+        { id: "distinct-exported-parts", layer: "parts", required: true, applicable: true, expected: { kind: "equals", value: 18 } },
+        { id: "guide-clearance", layer: "assembly", required: true, applicable: true, expected: { kind: "equals", value: true } },
+      ],
+    })).toThrow("needs a guide contract");
   });
 
   test("places both banks from the same phase group", async () => {
