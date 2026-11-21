@@ -56,6 +56,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Refresh the thirteen-family gate with the fitted retained-key disassembly product row: 105 cases, 318/494 observed layers, overall PASS
 - Refresh the thirteen-family gate with the V8 crankcase block/bearing row: 109 cases, 339/518 observed layers, overall PASS
 - Refresh the thirteen-family gate with the V8 counterweight row: 110 cases, 349/529 observed layers, overall PASS (a first attempt failed only the product family on wall-clock budgets under an oversubscribed host; the isolated rerun and a green second attempt superseded it)
+- Add a measured thread-to-body coaxiality evidence layer to the thread bench: the reference bolt/nut measure 0.000/0.000 mm against the 0.05 mm limit, while an eccentric-nut decoy measures 0.400 mm and is rejected
 - Refresh the thirteen-family gate with the V8 guide-channel row: 112 cases, 361/543 observed layers, overall PASS
 - Add thin cylinder guide channels to the V8 crankcase task (contract v5) with a ray-sampled slider-to-guide clearance layer: the reference measures a 0.35 mm gap on 80 rays, while no-guide and tight-guide adversaries fail only that layer
 - Add measured counterweights to the V8 crankcase task (contract v4): each throw carries a counterweight lobe on its web planes, and a new balance layer measures the opposite-sector and pin-side extents (17 mm / 10.5 mm on the reference) while a no-counterweight adversary fails only that layer

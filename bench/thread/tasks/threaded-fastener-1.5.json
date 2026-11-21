@@ -96,11 +96,25 @@
         "kind": "equals",
         "value": true
       }
+    },
+    {
+      "id": "thread-coaxiality",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
     }
   ],
   "notes": [
     "Square-profile helical thread, not an ISO metric profile; no torque, preload, strength, wear or self-locking claim.",
     "Geometry and lead/advance are scored; the tool overall status can remain NOT_RUN for coaxiality/exit layers not in this task.",
-    "Only the nine listed turn angles are covered."
-  ]
+    "Only the nine listed turn angles are covered.",
+    "Coaxiality is measured by the bench from the rendered bolt/nut meshes: the lateral bounding-box centre of a two-pitch thread band must stay within 0.05 mm of the bolt-head or nut-body axis at pose 0. It is not calibrated metrology or a machining tolerance."
+  ],
+  "coaxiality": {
+    "toleranceMm": 0.05
+  }
 }

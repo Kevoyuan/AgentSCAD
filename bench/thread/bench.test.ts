@@ -14,5 +14,8 @@ describe("thread task", () => {
     expect(exitTask.turns.length).toBe(49);
     expect(exitTask.exit?.minTurns).toBe(12);
     expect(exitTask.requirements.some((r) => r.id === "disassembly-path")).toBe(true);
+    expect(task.coaxiality?.toleranceMm).toBe(0.05);
+    expect(task.requirements.some((r) => r.id === "thread-coaxiality")).toBe(true);
+    expect(exitTask.requirements.some((r) => r.id === "thread-coaxiality")).toBe(true);
   });
 });

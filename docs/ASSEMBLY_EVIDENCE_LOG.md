@@ -3686,3 +3686,47 @@ hidden evaluation, model ability, continuous guide clearance, bore roundness, ph
 function or user acceptance. A complete V8 machine (closed cylinder bores with heads and
 valves, firing order), full A001 contract pass, an independent hidden set, a fresh funded
 product trial, user acceptance and physical validation remain open.
+
+## 2026-11-21 · Thread-to-body coaxiality in the thread bench (A09 partial, English log)
+
+The thread bench measured geometry, lead and the frozen exit path but no coaxiality: the
+generic cylindrical-feature probe rejects the threaded/hex sections as non-regular
+polygons, so the tool's own coaxiality verdict stayed NOT_RUN. This rung adds a
+**bench-side sampled coaxiality measurement** without changing the production tool.
+
+### Method
+
+The scorer reuses the already-rendered unplaced bolt/nut meshes. Within a two-pitch band
+of the threaded section the helical rib covers at least one full turn, so the lateral
+bounding-box centre of the vertices in that band is the thread axis (a partial-turn
+centroid is biased by the rib sector — that was measured and rejected as an estimator).
+The body axis comes from the bolt head (vertices below the thread range) or the nut
+outside the thread band (radius greater than the internal major diameter + 2 mm). Each
+part must keep its thread axis within **0.05 mm** of its body axis at pose 0.
+
+### Result
+
+`bun bench/thread/run.ts --self-check` -> `SELF-CHECK OK: 2 reference(s) pass, 6
+adversarial submission(s) rejected.` Native OpenSCAD 2021.01, no model calls.
+
+| Submission | Result |
+|---|---|
+| `reference` (geometry task) | **PASS 4/4**; coaxiality **0.000 / 0.000 mm**; lead 1.5000 mm/turn |
+| `reference` (exit task) | **PASS 5/5**; full withdrawal and coaxiality PASS |
+| `adversarial-eccentric-nut` (both tasks) | **only `thread-coaxiality` FAILS**; nut body shifted 0.4 mm, measured **0.400 mm** |
+| `adversarial-plain-bore` | NOT_RUN 1/4; geometry and coaxiality NOT_RUN (no rib to sample) |
+| `adversarial-spin-only` / `adversarial-wrong-pitch` | unchanged motion/geometry failures; coaxiality PASS |
+| `adversarial-short-thread` (exit) | FAIL 3/5; coaxiality PASS, motion NOT_RUN, disassembly-path FAIL |
+
+The bench `fit` layer now also carries `thread-coaxiality`; the thread family grows from
+6 to 8 cases and 26-of-35 layers. **The published thirteen-family matrix keeps the
+pre-coaxiality thread row until the next full gate rerun.**
+
+### Boundaries
+
+- One sampled pose per part; a lateral bounding-box-centre estimator, not a calibrated
+  metrology fit, thread-flank inspection, roundness, machining tolerance or functional
+  fit. It cannot see local thread-form errors that leave the section centre unchanged.
+- The tool's own coaxiality/exit verdicts remain outside this task and unchanged.
+- The external hidden thread development copy predates this layer and must be re-frozen;
+  no independent hidden evaluation, physical part or user acceptance is claimed.

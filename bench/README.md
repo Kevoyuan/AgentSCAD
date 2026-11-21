@@ -78,7 +78,7 @@ Each layer is `PASS | FAIL | SKIP | ERROR | NOT_RUN`. Within a layer the **worst
 | `parts-identity` | `distinct-exported-parts`, `measured-part-identity` | selectors, parting strategy |
 | `topology` | `part-connectivity`, `frame-connectivity` | booleans, wall thickness, connectivity |
 | `joint-frames` | `measured-joint-frames` | declared axes, coordinate transforms |
-| `fit` | `diametral-clearance`, `bearing-fit`, `guide-clearance` | bore/shaft dimensions, tolerance, guide gap |
+| `fit` | `diametral-clearance`, `bearing-fit`, `guide-clearance`, `thread-coaxiality` | bore/shaft dimensions, tolerance, guide gap, threaded coaxiality |
 | `balance` | `counterweight-balance` | crank counterweights and throw phase |
 | `retention` | `axial-retention`, `unresolved-axial-retention` | retention features, latches |
 | `assembly-path` | `assembly-path` | insertion path, clearance |
@@ -207,7 +207,9 @@ cam          OK         4      1     3     0         1     3     0        5/8
 promoted. `layers` is the sum of observed layers across cases, not a pass rate.
 
 This is a public self-check gate, not independent hidden evaluation, model ability,
-physical function or user acceptance. The v8 row includes contract v5 (the
+physical function or user acceptance. The **thread row predates the coaxiality rung**
+(8 cases / 26-of-35 layers); family detail is in
+[`bench/thread/README.md`](./thread/README.md). The v8 row includes contract v5 (the
 guide-channel rung: 15 cases / 67-of-89 layers); family detail is in
 [`bench/v8/README.md`](./v8/README.md). The product row
 includes task 2 and task 3 (16 cases / 63-of-112 layers); family detail is in

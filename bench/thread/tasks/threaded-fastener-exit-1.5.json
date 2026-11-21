@@ -154,11 +154,25 @@
         "kind": "equals",
         "value": true
       }
+    },
+    {
+      "id": "thread-coaxiality",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
     }
   ],
   "notes": [
     "Square-profile thread; not ISO metric metrology.",
     "Scores geometry, engagement/lead and the frozen full-withdrawal exit only. The tool overall status can remain NOT_RUN for coaxiality.",
-    "The exit contract requires 12 turns with a 90-degree step and 0.1 mm axial clearance; the short-thread adversarial must not pass."
-  ]
+    "The exit contract requires 12 turns with a 90-degree step and 0.1 mm axial clearance; the short-thread adversarial must not pass.",
+    "Coaxiality is measured by the bench from the rendered bolt/nut meshes: the lateral bounding-box centre of a two-pitch thread band must stay within 0.05 mm of the bolt-head or nut-body axis at pose 0. It is not calibrated metrology or a machining tolerance."
+  ],
+  "coaxiality": {
+    "toleranceMm": 0.05
+  }
 }

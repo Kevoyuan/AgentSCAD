@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { renderAssemblyParts } from "../../src/lib/tools/assembly-part-renderer";
+import { meshBounds, readBinaryStl, type TriangleMesh } from "../../src/lib/geometry/stl-mesh";
 import { sampleThreadedFastener } from "../../src/lib/tools/thread-measurement";
 import { evaluateRequirement, type Observation, type Result } from "../../scripts/eval/assembly-evidence";
 import { scoreEvidence } from "../layers";
@@ -19,6 +20,7 @@ export interface ThreadTask {
   motion: Parameters<typeof sampleThreadedFastener>[0]["motion"];
   turns: number[]; poseParameters?: Record<string, number | string | boolean>;
   exit?: Parameters<typeof sampleThreadedFastener>[0]["exit"];
+  coaxiality?: { toleranceMm: number };
   requirements: BenchRequirement[]; notes?: string[];
 }
 export interface ThreadMeasurements {
@@ -28,6 +30,7 @@ export interface ThreadMeasurements {
   internal: { status: string | null; pitchMm: number | null; hand: string | null; majorDiameterMm: number | null; minorDiameterMm: number | null };
   engagement: string | null; motion: string | null;
   leadPerTurnMm: number | null; advanceResidualMm: number | null; turnsCovered: number | null;
+  coaxiality: { status: string; reason: string; boltOffsetMm: number | null; nutOffsetMm: number | null; toleranceMm: number } | null;
 }
 export interface ThreadReport {
   schemaVersion: "thread-bench.case.v1"; taskId: string; submission: string; expected: ExpectedOutcome;
@@ -52,19 +55,27 @@ export function validateThreadTask(value: unknown): ThreadTask {
   if (!Array.isArray(raw.turns) || raw.turns.length < 3 || raw.turns.length > 64) fail("turns must have 3 to 64 entries");
   const turns = raw.turns.map((entry) => finite(entry, "turns[]"));
   if (new Set(turns).size !== turns.length) fail("turns must be unique");
+  let coaxiality: { toleranceMm: number } | undefined;
+  if (raw.coaxiality !== undefined) {
+    if (!raw.coaxiality || typeof raw.coaxiality !== "object") fail("coaxiality must be an object");
+    const toleranceMm = finite((raw.coaxiality as Record<string, unknown>).toleranceMm, "coaxiality.toleranceMm");
+    if (!(toleranceMm > 0)) fail("coaxiality.toleranceMm must be positive");
+    coaxiality = { toleranceMm };
+  }
   if (!Array.isArray(raw.requirements) || raw.requirements.length === 0) fail("requirements must be non-empty");
   const requirements: BenchRequirement[] = raw.requirements.map((entry, index) => {
     if (!entry || typeof entry !== "object") fail(`requirements[${index}] must be an object`);
     const r = entry as Record<string, unknown>;
-    if (typeof r.id !== "string" || !["distinct-exported-parts", "measured-joint-frames", "rigid-motion", "disassembly-path"].includes(r.id)) fail(`requirements[${index}] has no thread observer`);
+    if (typeof r.id !== "string" || !["distinct-exported-parts", "measured-joint-frames", "rigid-motion", "disassembly-path", "thread-coaxiality"].includes(r.id)) fail(`requirements[${index}] has no thread observer`);
     if (!["parts", "assembly", "motion", "physical"].includes(String(r.layer)) || typeof r.required !== "boolean" || typeof r.applicable !== "boolean") fail(`requirements[${index}] flags are invalid`);
     const e = r.expected as Record<string, unknown> | undefined;
     if (!e || e.kind !== "equals" || !["string", "boolean", "number"].includes(typeof e.value)) fail(`requirements[${index}].expected is invalid`);
     return { id: r.id, layer: r.layer as BenchRequirement["layer"], required: r.required, applicable: r.applicable, expected: { kind: "equals", value: e.value as string | boolean | number } };
   });
+  if (requirements.some((r) => r.id === "thread-coaxiality") && !coaxiality) fail("a thread-coaxiality requirement needs a coaxiality contract");
   const distinct = requirements.find((r) => r.id === "distinct-exported-parts");
   if (!distinct || distinct.expected.kind !== "equals" || distinct.expected.value !== 2) fail("distinct-exported-parts must equal 2");
-  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, selectors: { bolt, nut }, geometry: raw.geometry as ThreadTask["geometry"], motion: raw.motion as ThreadTask["motion"], turns, ...(raw.poseParameters && typeof raw.poseParameters === "object" ? { poseParameters: raw.poseParameters as Record<string, number | string | boolean> } : {}), ...(raw.exit && typeof raw.exit === "object" ? { exit: raw.exit as ThreadTask["exit"] } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
+  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, selectors: { bolt, nut }, geometry: raw.geometry as ThreadTask["geometry"], motion: raw.motion as ThreadTask["motion"], turns, ...(raw.poseParameters && typeof raw.poseParameters === "object" ? { poseParameters: raw.poseParameters as Record<string, number | string | boolean> } : {}), ...(raw.exit && typeof raw.exit === "object" ? { exit: raw.exit as ThreadTask["exit"] } : {}), ...(coaxiality ? { coaxiality } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
 }
 export function threadTasksDirectory(): string { return path.join(import.meta.dir, "tasks"); }
 export function threadSubmissionsDirectory(): string { return path.join(import.meta.dir, "submissions"); }
@@ -84,11 +95,53 @@ function openscadVersion(): string { if (cachedOpenscadVersion !== null) return 
 function statusOf(value: unknown): string | null { return value && typeof value === "object" && typeof (value as { status?: unknown }).status === "string" ? (value as { status: string }).status : null; }
 function numeric(value: unknown): number | null { return typeof value === "number" && Number.isFinite(value) ? value : null; }
 
+function crossSectionCenter(mesh: TriangleMesh, accept: (x: number, y: number, z: number) => boolean): { x: number; y: number; n: number } | null {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, n = 0;
+  for (let triangle = 0; triangle < mesh.triangleCount; triangle += 1) for (let corner = 0; corner < 3; corner += 1) {
+    const base = triangle * 9 + corner * 3;
+    const x = mesh.coordinates[base], y = mesh.coordinates[base + 1], z = mesh.coordinates[base + 2];
+    if (!accept(x, y, z)) continue;
+    n += 1; if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }
+  return n < 12 ? null : { x: (minX + maxX) / 2, y: (minY + maxY) / 2, n };
+}
+
+/**
+ * Measured thread-to-body coaxiality: within a two-pitch band of the threaded
+ * section the full helix covers a whole turn, so the lateral bounding-box centre
+ * of that band is the thread axis; the body axis comes from the bolt head or the
+ * nut outside the thread band. This is sampled line-of-sight geometry, not a
+ * calibrated metrology measurement.
+ */
+function measureThreadCoaxiality(task: ThreadTask, rendered: Awaited<ReturnType<typeof renderAssemblyParts>>): ThreadMeasurements["coaxiality"] {
+  if (!task.coaxiality) return null;
+  const boltRendered = rendered.find((part) => part.partId === task.selectors.bolt);
+  const nutRendered = rendered.find((part) => part.partId === task.selectors.nut);
+  if (!boltRendered || !nutRendered) return { status: "NOT_RUN", reason: "A thread part selector rendered no mesh.", boltOffsetMm: null, nutOffsetMm: null, toleranceMm: task.coaxiality.toleranceMm };
+  const bolt = readBinaryStl(boltRendered.stl);
+  const nut = readBinaryStl(nutRendered.stl);
+  const pitch = task.geometry.external.pitchMm;
+  const bandMm = Math.min(2 * pitch, task.geometry.external.threadRangeMm.max - task.geometry.external.threadRangeMm.min);
+  const boltStart = task.geometry.external.threadRangeMm.min + 0.5;
+  const boltCenter = crossSectionCenter(bolt, (x, y, z) => z >= boltStart && z <= boltStart + bandMm && Math.hypot(x, y) <= task.geometry.external.majorDiameterMm.max / 2 + 0.6);
+  const boltBody = crossSectionCenter(bolt, (_x, _y, z) => z <= task.geometry.external.threadRangeMm.min - 0.5);
+  const nutBounds = meshBounds(nut);
+  const nutBandStart = nutBounds.min[2] + 0.3;
+  const nutBandEnd = Math.min(nutBounds.max[2] - 0.3, nutBandStart + bandMm);
+  const nutCenter = crossSectionCenter(nut, (x, y, z) => z >= nutBandStart && z <= nutBandEnd && Math.hypot(x, y) <= task.geometry.internal.majorDiameterMm.max / 2 + 0.6);
+  const nutBody = crossSectionCenter(nut, (x, y, z) => z >= nutBounds.min[2] && z <= nutBounds.max[2] && Math.hypot(x, y) > task.geometry.internal.majorDiameterMm.max / 2 + 2);
+  if (!boltCenter || !boltBody || !nutCenter || !nutBody) return { status: "NOT_RUN", reason: "The thread or body reference section could not be sampled for coaxiality.", boltOffsetMm: null, nutOffsetMm: null, toleranceMm: task.coaxiality.toleranceMm };
+  const boltOffsetMm = Math.hypot(boltCenter.x - boltBody.x, boltCenter.y - boltBody.y);
+  const nutOffsetMm = Math.hypot(nutCenter.x - nutBody.x, nutCenter.y - nutBody.y);
+  const passed = boltOffsetMm <= task.coaxiality.toleranceMm && nutOffsetMm <= task.coaxiality.toleranceMm;
+  return { status: "PASS", reason: passed ? `Thread axis within ${task.coaxiality.toleranceMm} mm of the body axis on both parts.` : `Thread axis is offset from the body axis (bolt ${boltOffsetMm.toFixed(3)} mm, nut ${nutOffsetMm.toFixed(3)} mm; limit ${task.coaxiality.toleranceMm} mm).`, boltOffsetMm, nutOffsetMm, toleranceMm: task.coaxiality.toleranceMm };
+}
+
 export async function scoreThreadSubmission(task: ThreadTask, submission: Submission): Promise<ThreadReport> {
   const sourceSha256 = sha256(submission.source);
   const provenance = { createdAt: new Date().toISOString(), backend: process.env.AGENTSCAD_OPENSCAD_BACKEND === "wasm" ? "wasm" : "native", openscad: openscadVersion(), runtime: `bun ${process.env.BUN_VERSION ?? "unknown"}`, platform: process.platform };
-  const unknowns = ["A PASS covers nine commanded turns and the listed square-profile geometry contract; it is not ISO metric metrology, torque, preload, strength, wear, self-locking or physical manufacture.", "The tool's overall status may remain NOT_RUN for exit/coaxiality layers outside this task; only geometry and engagement/advance are scored here."];
-  const empty: ThreadMeasurements = { parts: 0, exit: null, external: { status: null, pitchMm: null, hand: null, majorDiameterMm: null, minorDiameterMm: null }, internal: { status: null, pitchMm: null, hand: null, majorDiameterMm: null, minorDiameterMm: null }, engagement: null, motion: null, leadPerTurnMm: null, advanceResidualMm: null, turnsCovered: null };
+  const unknowns = ["A PASS covers nine commanded turns and the listed square-profile geometry contract; it is not ISO metric metrology, torque, preload, strength, wear, self-locking or physical manufacture.", "The tool's overall status may remain NOT_RUN for exit layers outside this task; geometry, engagement/advance and the bench-side coaxiality measurement are scored here.", "Coaxiality is sampled from a two-pitch band's lateral bounding-box centre against the body axis; it is not calibrated metrology, a machining tolerance, thread-flank inspection or a functional fit."];
+  const empty: ThreadMeasurements = { parts: 0, exit: null, external: { status: null, pitchMm: null, hand: null, majorDiameterMm: null, minorDiameterMm: null }, internal: { status: null, pitchMm: null, hand: null, majorDiameterMm: null, minorDiameterMm: null }, engagement: null, motion: null, leadPerTurnMm: null, advanceResidualMm: null, turnsCovered: null, coaxiality: null };
   const baseReport = (status: EvidenceStatus, results: Result[], measurements: ThreadMeasurements): ThreadReport => {
     const scored = scoreEvidence(results.map((r) => ({ id: r.id, status: r.status })));
     return { schemaVersion: "thread-bench.case.v1", taskId: task.id, submission: submission.id, expected: expectedOutcome(submission.id), sourcePath: path.relative(process.cwd(), submission.sourcePath), sourceSha256, status, gatePassed: status === "PASS", results, layers: { coverage: scored.coverage, byLayer: scored.layers.map((l) => ({ layer: l.layer, status: l.status, blockers: l.blockers })) }, measurements, provenance, unknowns };
@@ -103,8 +156,9 @@ export async function scoreThreadSubmission(task: ThreadTask, submission: Submis
   let parts: Awaited<ReturnType<typeof renderAssemblyParts>>;
   try { parts = await renderAssemblyParts({ scadSource: submission.source, parts: [{ partId: "bolt", selector: task.selectors.bolt }, { partId: "nut", selector: task.selectors.nut }], parameters: { ...(task.poseParameters ?? {}), agentscad_pose: false } }); }
   catch (error) { return blocked(`Bolt/nut meshes did not render: ${error instanceof Error ? error.message : String(error)}`); }
+  const coaxiality = measureThreadCoaxiality(task, parts);
   const measurements: ThreadMeasurements = {
-    parts: parts.length, exit: statusOf(sample.exit),
+    parts: parts.length, exit: statusOf(sample.exit), coaxiality,
     external: { status: statusOf(sample.external), pitchMm: numeric(sample.external.pitchMm), hand: sample.external.hand ?? null, majorDiameterMm: numeric(sample.external.majorDiameterMm), minorDiameterMm: numeric(sample.external.minorDiameterMm) },
     internal: { status: statusOf(sample.internal), pitchMm: numeric(sample.internal.pitchMm), hand: sample.internal.hand ?? null, majorDiameterMm: numeric(sample.internal.majorDiameterMm), minorDiameterMm: numeric(sample.internal.minorDiameterMm) },
     engagement: statusOf(sample.engagement), motion: statusOf(sample.motion),
@@ -125,7 +179,17 @@ export async function scoreThreadSubmission(task: ThreadTask, submission: Submis
   const exitStatus = statusOf(sample.exit);
   const exitMeasured = exitStatus === "PASS" || exitStatus === "FAIL";
   const exitObservation: Observation = { id: "disassembly-path", status: !exitMeasured ? "NOT_RUN" : "MEASURED", ...(exitMeasured ? { value: exitStatus === "PASS" } : {}), artifactSha256, method: "Frozen full-withdrawal exit sample over the declared turns.", toolVersion, coverage: "One frozen exit contract.", ...(exitStatus === "PASS" ? {} : { reason: sample.exit?.reason ?? `exit ${exitStatus ?? "missing"}.` }) };
-  const observations: Record<string, Observation> = { "distinct-exported-parts": distinctObservation, "measured-joint-frames": frameObservation, "rigid-motion": motionObservation, "disassembly-path": exitObservation };
+  const coaxialityObservation: Observation = coaxiality === null
+    ? { id: "thread-coaxiality", status: "NOT_RUN", reason: "No coaxiality contract declared." }
+    : coaxiality.status === "PASS"
+      ? { id: "thread-coaxiality", status: "MEASURED", value: coaxiality.boltOffsetMm !== null && coaxiality.nutOffsetMm !== null && coaxiality.boltOffsetMm <= coaxiality.toleranceMm && coaxiality.nutOffsetMm <= coaxiality.toleranceMm, artifactSha256, toolVersion,
+          method: "Lateral bounding-box centre of a two-pitch thread band against the bolt-head or nut-body axis at pose 0.",
+          coverage: `bolt ${coaxiality.boltOffsetMm?.toFixed(3) ?? "?"} mm, nut ${coaxiality.nutOffsetMm?.toFixed(3) ?? "?"} mm; limit ${coaxiality.toleranceMm} mm.`,
+          ...(coaxiality.reason.includes("offset") ? { reason: coaxiality.reason } : {}) }
+      : { id: "thread-coaxiality", status: coaxiality.status === "ERROR" ? "ERROR" : "NOT_RUN", reason: coaxiality.reason, artifactSha256, toolVersion,
+          method: "Lateral bounding-box centre of a two-pitch thread band against the bolt-head or nut-body axis at pose 0.",
+          coverage: "Bolt and nut thread bodies." };
+  const observations: Record<string, Observation> = { "distinct-exported-parts": distinctObservation, "measured-joint-frames": frameObservation, "rigid-motion": motionObservation, "disassembly-path": exitObservation, "thread-coaxiality": coaxialityObservation };
   const results: Result[] = task.requirements.map((requirement) => {
     const evaluated = evaluateRequirement({ id: requirement.id, layer: requirement.layer, required: requirement.required, applicable: requirement.applicable, expected: requirement.expected }, observations[requirement.id]);
     if (evaluated.status === "FAIL" && requirement.expected.kind === "equals") return { ...evaluated, reason: `${evaluated.reason} Observed ${String(observations[requirement.id]?.value)}, expected ${String(requirement.expected.value)}.` };
