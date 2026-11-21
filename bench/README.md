@@ -78,7 +78,7 @@ Each layer is `PASS | FAIL | SKIP | ERROR | NOT_RUN`. Within a layer the **worst
 | `parts-identity` | `distinct-exported-parts`, `measured-part-identity` | selectors, parting strategy |
 | `topology` | `part-connectivity`, `frame-connectivity` | booleans, wall thickness, connectivity |
 | `joint-frames` | `measured-joint-frames` | declared axes, coordinate transforms |
-| `fit` | `diametral-clearance`, `bearing-fit`, `guide-clearance`, `thread-coaxiality` | bore/shaft dimensions, tolerance, guide gap, threaded coaxiality |
+| `fit` | `diametral-clearance`, `bearing-fit`, `guide-clearance`, `thread-coaxiality`, `contact-gap` | bore/shaft dimensions, tolerance, guide gap, threaded coaxiality, cam contact gap |
 | `balance` | `counterweight-balance` | crank counterweights and throw phase |
 | `retention` | `axial-retention`, `unresolved-axial-retention` | retention features, latches |
 | `assembly-path` | `assembly-path` | insertion path, clearance |
@@ -207,7 +207,9 @@ cam          OK         4      1     3     0         1     3     0        5/8
 promoted. `layers` is the sum of observed layers across cases, not a pass rate.
 
 This is a public self-check gate, not independent hidden evaluation, model ability,
-physical function or user acceptance. The thread row includes the coaxiality rung
+physical function or user acceptance. The **cam row predates the contact-gap rung** (5 cases /
+10-of-15 layers); family detail is in
+[`bench/cam/README.md`](./cam/README.md). The thread row includes the coaxiality rung
 (8 cases / 25-of-35 layers); family detail is in
 [`bench/thread/README.md`](./thread/README.md). The v8 row includes contract v5 (the
 guide-channel rung: 15 cases / 67-of-89 layers); family detail is in

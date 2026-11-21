@@ -3801,3 +3801,42 @@ motion, calibrated metrology, physical function or user acceptance. Open items: 
 complete V8 machine (closed cylinder bores/heads with valves, firing order), full A001
 contract pass, an independent hidden set, a fresh funded product trial, calibrated thread
 feature/axis uncertainty, user acceptance and physical validation.
+
+## 2026-11-22 · Cam contact-gap evidence in the cam bench (English log)
+
+The cam rung measured the follower lift and sampled collisions but no contact clearance.
+This adds a **sampled contact-gap** layer without changing the geometry of the existing
+reference or the production tools.
+
+### Method
+
+At every sampled angle the scorer takes the follower face minimum X and the cam mesh
+maximum X from the rendered meshes; the difference is the sampled clearance along the
+motion axis. The declared band is **0.18–0.22 mm** around the modelled 0.2 mm gap. This
+is a bounding-box clearance along the motion axis, not a contact-force, preload,
+friction, wear or calibrated-tolerance measurement.
+
+### Result
+
+`bun bench/cam/run.ts --self-check` -> `SELF-CHECK OK: 1 reference(s) pass, 4
+adversarial submission(s) rejected.` Native OpenSCAD 2021.01, no model calls.
+
+| Submission | Result |
+|---|---|
+| `reference` | **PASS 3/3**; 3 parts; lift error 0.0000 mm; **contact gap 0.200–0.200 mm**; all pairs separated |
+| `adversarial-gap-0.15` (new) | FAIL 2/3; lift error 0.050 mm stays inside the 0.15 mm position tolerance, **only `contact-gap` FAILS (0.150 mm)** while collisions stay separated |
+| `adversarial-static` / `adversarial-eccentricity` | lift failures unchanged; contact gap stays in band |
+| `adversarial-collision` | interference plus negative contact gap (-0.300 mm) |
+
+The bench `fit` layer now carries `contact-gap`; the cam family grows from 4 to 5 cases
+and 5-of-8 to 10-of-15 layers (reference 3/3; gap decoy 2/3; static/eccentric 2/3;
+collision 1/3). **The published thirteen-family matrix keeps the pre-contact-gap cam row
+until the next full gate rerun.**
+
+### Boundaries
+
+- Five sampled angles only; the gap is a bounds clearance along one axis.
+- No contact force, spring preload, friction, wear, surface finish or calibrated
+  tolerance is measured or claimed.
+- The change is bench-only: no production CAM/API behavior changed, no model calls and
+  no deployment.

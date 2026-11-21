@@ -2,19 +2,62 @@
   "schemaVersion": 1,
   "id": "cam-follower-e4",
   "prompt": "Build an eccentric disk cam with a flat translating follower. The cam rotates about +Y with eccentricity 4 mm and radius 10 mm; the follower face is perpendicular to +X and moves along X. Measure the follower lift at 0/90/180/270/360 degrees and confirm the three parts are separate and collision-free.",
-  "selectors": { "frame": "frame", "cam": "cam", "follower": "follower" },
+  "selectors": {
+    "frame": "frame",
+    "cam": "cam",
+    "follower": "follower"
+  },
   "eccentricityMm": 4,
   "camRadiusMm": 10,
   "followerGapMm": 0.2,
-  "angles": [0, 90, 180, 270, 360],
+  "angles": [
+    0,
+    90,
+    180,
+    270,
+    360
+  ],
   "positionToleranceMm": 0.15,
   "requirements": [
-    { "id": "distinct-exported-parts", "layer": "parts", "required": true, "applicable": true, "expected": { "kind": "equals", "value": 3 } },
-    { "id": "rigid-motion", "layer": "motion", "required": true, "applicable": true, "expected": { "kind": "equals", "value": true } }
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 3
+      }
+    },
+    {
+      "id": "rigid-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "contact-gap",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
   ],
   "notes": [
     "A flat-face follower on an eccentric circular cam has lift x = R + e*cos(theta) + gap; this is a sampled profile, not continuous contact.",
     "Collision is checked at the five sampled angles only; no spring, friction, load, wear or physical function.",
-    "The follower is positioned by the source at each commanded angle; a static source must fail."
-  ]
+    "The follower is positioned by the source at each commanded angle; a static source must fail.",
+    "Contact gap is measured as the follower face minimum X minus the cam maximum X at every sampled angle (0.18-0.22 mm band for the reference 0.2 mm gap); it is a sampled bounding-box clearance along the motion axis, not contact force, preload, friction, wear or a calibrated tolerance."
+  ],
+  "contactGap": {
+    "minMm": 0.18,
+    "maxMm": 0.22
+  }
 }

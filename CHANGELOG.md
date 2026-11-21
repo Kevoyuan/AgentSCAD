@@ -56,6 +56,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Refresh the thirteen-family gate with the fitted retained-key disassembly product row: 105 cases, 318/494 observed layers, overall PASS
 - Refresh the thirteen-family gate with the V8 crankcase block/bearing row: 109 cases, 339/518 observed layers, overall PASS
 - Refresh the thirteen-family gate with the V8 counterweight row: 110 cases, 349/529 observed layers, overall PASS (a first attempt failed only the product family on wall-clock budgets under an oversubscribed host; the isolated rerun and a green second attempt superseded it)
+- Add a measured cam contact-gap layer (0.18-0.22 mm) to the cam bench: the reference measures 0.200 mm and a 0.15 mm-gap decoy fails only that layer
 - Refresh the thirteen-family gate with the thread coaxiality row: 114 cases, 373/558 observed layers, overall PASS (second attempt; the first failed only the product family on wall-clock budgets under a heavily loaded host)
 - Add a measured thread-to-body coaxiality evidence layer to the thread bench: the reference bolt/nut measure 0.000/0.000 mm against the 0.05 mm limit, while an eccentric-nut decoy measures 0.400 mm and is rejected
 - Refresh the thirteen-family gate with the V8 guide-channel row: 112 cases, 361/543 observed layers, overall PASS
