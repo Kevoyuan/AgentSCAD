@@ -3177,3 +3177,42 @@ layer entries in its own self-check.
 - The fixture is researcher-authored, not autonomously generated.
 - The published thirteen-family matrix keeps the pre-task-3 product row until the next
   full `bench:all` rerun. No model calls, no deployment.
+
+## 2026-11-21 · Thirteen-family gate with the retained-key disassembly row (English log)
+
+Re-ran `bun run bench:all` after adding product task 3
+(`product-keyed-slider-crank-disassembly`). Native OpenSCAD 2021.01, no model calls;
+about **86 family-minutes** on this machine. Every family self-check passed.
+
+```
+family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers
+assembly     OK         20     6     8     6         12    8     0        104/120
+gear         OK         6      1     5     0         1     4     1        7/12
+slider       OK         17     3     14    0         3     14    0        51/77
+l4           OK         5      1     4     0         1     4     0        14/25
+twin         OK         6      1     5     0         1     5     0        11/24
+vtwin        OK         5      1     4     0         1     4     0        11/20
+declaration  OK         4      1     3     0         1     3     0        7/20
+v8           OK         8      1     7     0         1     7     0        24/40
+planetary    OK         4      1     3     0         1     3     0        4/8
+planetary3   OK         4      1     3     0         1     3     0        4/8
+product      OK         16     3     13    0         3     12    1        57/102
+thread       OK         6      2     4     0         2     3     1        13/20
+cam          OK         4      1     3     0         1     3     0        5/8
+```
+
+`overall: PASS`; **105 cases** — 23 reference, 76 adversarial, 6 unscored; **29 PASS /
+73 FAIL-or-ERROR / 3 NOT_RUN**; **312/484** observed layer entries.
+
+Changes from the previous published gate (`c89f876` record): the product family grew
+from 11 cases / 45-of-77 layers to **16 cases / 57-of-102 layers**. Its self-check
+passes 3 references and rejects 13 adversarial submissions, including the new
+retained-key reference (5/5 layers: identity, connectivity, reconstruction, declared
+insertion order, declared removal order), the swapped-order adversarial that fails only
+`disassembly-path`, and the missing-insertions adversarial that stays NOT_RUN on
+`assembly-path` instead of being promoted. No other family row changed.
+
+This remains a public self-check gate: not hidden evaluation, not model ability, not
+continuous motion or tool reach, not physical function and not user acceptance. A
+complete V8 machine, full A001 contract pass, an independent hidden set, a fresh funded
+product trial, user acceptance and physical validation remain open.
