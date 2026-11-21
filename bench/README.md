@@ -169,7 +169,7 @@ so `independentHiddenEvaluation` stays `NOT_RUN`, not `PASS`.
 The public self-check gate re-runs every family on the same native OpenSCAD backend.
 The matrix below is a real run on the integrated `main` tree (commit `6e54984` plus the
 documentation restoration that records it), native OpenSCAD 2021.01, **no model calls**.
-Family self-check time was about **89 minutes** on this machine; wall time is not a
+Family self-check time was about **92 minutes** on this machine; wall time is not a
 performance claim.
 
 ```
@@ -181,7 +181,7 @@ l4           OK         5      1     4     0         1     4     0        14/25
 twin         OK         6      1     5     0         1     5     0        11/24
 vtwin        OK         5      1     4     0         1     4     0        11/20
 declaration  OK         4      1     3     0         1     3     0        7/20
-v8           OK         7      1     6     0         1     6     0        17/28
+v8           OK         8      1     7     0         1     7     0        24/40
 planetary    OK         4      1     3     0         1     3     0        4/8
 planetary3   OK         4      1     3     0         1     3     0        4/8
 product      OK         6      1     5     0         1     5     0        25/42
@@ -189,18 +189,17 @@ thread       OK         6      2     4     0         2     3     1        13/20
 cam          OK         4      1     3     0         1     3     0        5/8
 ```
 
-`overall: PASS`; **94 cases** — 21 reference, 67 adversarial, 6 unscored; 27 PASS /
-65 FAIL-or-ERROR / 2 NOT_RUN; **273/412** observed layer entries. The six assembly
+`overall: PASS`; **95 cases** — 21 reference, 68 adversarial, 6 unscored; 27 PASS /
+66 FAIL-or-ERROR / 2 NOT_RUN; **280/424** observed layer entries. The six assembly
 `unscored` rows are recorded model replays, not new model samples. The gear and thread
 `NOT_RUN` rows are adversarial cases rejected by their self-checks; they are not
 promoted. `layers` is the sum of observed layers across cases, not a pass rate.
 
 This is a public self-check gate, not independent hidden evaluation, model ability,
-physical function or user acceptance. The **v8 row predates contract v2** (the connected
-crankshaft requirement); its current family result is in
-[`bench/v8/README.md`](./v8/README.md) and the next full gate rerun replaces the row. A
-complete V8 machine, full A001 contract pass, an independent hidden set and a fresh
-funded product trial remain open.
+physical function or user acceptance. The v8 row includes contract v2 (the connected
+crankshaft requirement); its family-level detail is in
+[`bench/v8/README.md`](./v8/README.md). A complete V8 machine, full A001 contract pass,
+an independent hidden set and a fresh funded product trial remain open.
 
 ### The layer table over recorded history
 
@@ -271,7 +270,7 @@ One earlier failure was a harness limit rather than a model failure: the first p
 - [x] **layer counting in `bench/assembly`**: every case reports `cover 6/6`, sharing one `scoreEvidence`
 - [x] **`retention` and `source-motion` observers**: the capture pull in `hinge-captured-45`, and pose re-rendering across all tasks
 - [x] **first model baseline**: DeepSeek v4 flash, 6 tasks, 6/6 — saturated, so the next rung is L3
-- [x] **wire both checks into the product's judge**: `scripts/eval/judge-assembly.ts` now emits `source-motion` and `axial-retention` (with unresolved-requirement ids) under the explicit trial-attribution gate. The historical layer table is unchanged because those batches predate the wiring; moving it needs a fresh funded trial, not a documentation edit
+- [x] **wire both checks into the product's judge**: `scripts/eval/judge-assembly.ts` now emits `source-motion` and `axial-retention` (with unresolved-requirement ids) under the explicit trial-attribution gate. A zero-cost rejudge of the retained `aVlhoH` candidate under the current judge reports `retention` PASS and `measured-joint-frames` PASS (8/10 layers, gate not passed) while its motion and source-motion ids remain NOT_RUN. The historical layer table is unchanged because those batches predate the wiring and are not a comparable series; moving it needs a fresh funded trial, not a documentation edit
 - [x] **L3 slider-crank**: `bench/slider` has 3 tasks (plain, keyed, guided), 4-6 parts and a closed four-joint loop
 - [x] **hidden split harness**: 13 family dispatchers, external freeze/run and manifest hashing. Development copies only; **independent hidden evaluation is still `NOT_RUN`** because no independent maintainer exists
 - [x] **L5 cross-section rungs**: inline twin, 90° V-twin, planetary / three-planet and the 18-instance V8 shared-pin packaging carrier

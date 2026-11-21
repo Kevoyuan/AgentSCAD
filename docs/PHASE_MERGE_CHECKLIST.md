@@ -26,13 +26,13 @@ the gate is recorded from a fresh run on the integrated tree rather than copied.
 
 | Check | Result |
 |---|---|
-| Unit suite | **1282 PASS / 3 SKIP / 0 FAIL** (199 files) on the A07.2 tree |
+| Unit suite | **1283 PASS / 3 SKIP / 0 FAIL** (199 files) on the current tree |
 | Typecheck | PASS |
 | Lint | PASS |
 | Repair/route targeted tests | 24 repair tests PASS; full route test file PASS |
 | Production build | **PASS** (`bun run build`, Next.js production output) |
 | Native OpenSCAD suite (serial) | **68 PASS / 1 SKIP / 0 FAIL** (69 tests, 15 files, 1394.51 s) |
-| Thirteen-family gate | **PASS**, 94 cases / 21 reference / 67 adversarial / 6 unscored; 27 PASS / 65 FAIL-or-ERROR / 2 NOT_RUN; layers 273/412; native OpenSCAD 2021.01, no model calls, about 89 family-minutes. The v8 row predates contract v2 (connected crankshaft); its current family result is recorded in `bench/v8/README.md` |
+| Thirteen-family gate | **PASS**, 95 cases / 21 reference / 68 adversarial / 6 unscored; 27 PASS / 66 FAIL-or-ERROR / 2 NOT_RUN; layers 280/424; native OpenSCAD 2021.01, no model calls, about 92 family-minutes. Includes the connected-crankshaft v8 contract-v2 row (8 cases, 24/40 layers) |
 
 The production build and native suite are recorded after they finish; a green gate
 is a public self-check, not independent hidden evaluation, model ability or physical

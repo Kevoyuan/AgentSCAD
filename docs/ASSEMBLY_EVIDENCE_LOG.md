@@ -2900,3 +2900,66 @@ layer and cannot substitute for sampled collision evidence.
 - The published thirteen-family matrix retains the **pre-v2** v8 row until the next
   full `bench:all` rerun; the family self-check above is the current v8 result. No
   deployment and no paid model call.
+
+## 2026-11-21 · Gate refresh with the connected-crankshaft v8 row and a zero-cost rejudge (English log)
+
+### Thirteen-family gate refresh
+
+Re-ran `bun run bench:all` after the v8 contract-v2 change, native OpenSCAD 2021.01, no
+model calls, about **92 family-minutes** on this machine. Only the v8 row changed; every
+other family self-check is unchanged.
+
+```
+family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers
+assembly     OK         20     6     8     6         12    8     0        104/120
+gear         OK         6      1     5     0         1     4     1        7/12
+slider       OK         17     3     14    0         3     14    0        51/77
+l4           OK         5      1     4     0         1     4     0        14/25
+twin         OK         6      1     5     0         1     5     0        11/24
+vtwin        OK         5      1     4     0         1     4     0        11/20
+declaration  OK         4      1     3     0         1     3     0        7/20
+v8           OK         8      1     7     0         1     7     0        24/40
+planetary    OK         4      1     3     0         1     3     0        4/8
+planetary3   OK         4      1     3     0         1     3     0        4/8
+product      OK         6      1     5     0         1     5     0        25/42
+thread       OK         6      2     4     0         2     3     1        13/20
+cam          OK         4      1     3     0         1     3     0        5/8
+```
+
+`overall: PASS`; **95 cases** — 21 reference, 68 adversarial, 6 unscored; 27 PASS /
+66 FAIL-or-ERROR / 2 NOT_RUN; **280/424** observed layer entries. The v8 row is now
+8 cases (1 reference + 7 adversarial) and 24/40 layers: the connected-crank reference
+passes 5/5 and `adversarial-disconnected-crank` fails only the connectivity layer.
+This replaces the pre-contract-v2 row. It is still a public self-check gate, not
+independent hidden evaluation, model ability, physical function or user acceptance.
+
+### Zero-cost rejudge of retained trial candidates
+
+`scripts/eval/rejudge-assembly-trial.ts` re-runs the **current** judge over retained
+candidate sources without any model call (`AGENTSCAD_ASSEMBLY_RECONSTRUCTION_BUDGET_MS=60000`
+was set explicitly; default semantics otherwise unchanged). Both runs recorded frozen
+evaluator source hashes and `codeUnchangedDuringRun: true`; the rejudged directories are
+local `.agentscad/experiments/rejudged-assembly-*` artifacts (gitignored).
+
+**aVlhoH** (`guided-gated-hinge-v1`, the best recorded candidate; input report SHA-256
+`636092ef…`, task-set SHA-256 `33ef4ddb…`, rejudged dir `rejudged-assembly-IpCTnT`):
+18 evidence entries, **8/10 layers (80%)**, gate not passed. Newly measured under the
+current judge: `axial-retention` PASS, `measured-joint-frames` PASS,
+`part-connectivity` PASS, `assembly-reconstruction` PASS, `diametral-clearance` PASS.
+Still NOT_RUN: `sampled-motion`, the three motion-range endpoints, `source-motion`;
+`intent-preserved` stays NOT_RUN by design. Only the motion/source layers block it.
+
+**cN1uDq** (input report SHA-256 `1b2f8789…`, task-set SHA-256 `15ad2d67…`, rejudged
+dir `rejudged-assembly-JZWI6Q`): 4 admitted candidates (2 skipped because their recorded
+repair-preservation evidence was FAIL), 64 evidence entries, **6/36 layers (16.7%)**,
+gate not passed. `measured-joint-frames` and `diametral-clearance` ERROR; three
+candidates FAIL `sampled-motion`/`rigid-motion`; retention remains
+`unresolved-axial-retention` NOT_RUN.
+
+Boundary: these are **new measurements of old sources under a changed judge**, not a
+re-run of the paid trials and not a comparable series. They show that the current judge
+now measures the retention and joint-frame ids for a candidate whose recorded trial left
+them NOT_RUN, but the historical layer table is unchanged and the best rejudged
+candidate still fails the delivery gate on motion/source evidence. User acceptance and
+physical function remain outside this record. A fresh funded trial is still required to
+move the product-trial layer table.
