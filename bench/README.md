@@ -62,8 +62,9 @@ Aligned with the milestones in [`FUNCTIONAL_ASSEMBLY_PLAN.md`](../docs/FUNCTIONA
 | L4p | product-path slider-crank closure (contract-driven) | task 2: 4 parts, 3 revolute fits + joint frames, sampled rigid motion and source poses; task 3: 5 parts, three revolute fits + joint frames, declared removal and insertion orders | M4 | in `bench/product`; retained-key disassembly now measured, interactive nine-pose workflow and user acceptance still open |
 | L4.5 | inline twin / 90° V-twin cross-section | 2 cylinders, one crank | M5 | in `bench/twin` and `bench/vtwin` |
 | L5a | planetary stage | fixed ring, sun/planet/carrier | M5 | in `bench/planetary` and `bench/planetary3` |
-| L5b | V8 phase/packaging carrier with a connected crankshaft | 8 kinematic chains, 18 instances, pins/webs/main journals | M6 | in `bench/v8` contract v2: reference + 7 adversarial; the v1 disconnected-disc reference is kept as a rejected adversary |
-| L5c | complete V8 machine | 8 chains plus block, bearings, counterweights, firing order | M6 | **open**: no cylinder block, bearing shells, counterweights, firing order or lubrication exist |
+| L5b | V8 phase/packaging carrier with a connected crankshaft | 8 kinematic chains, 18 instances, pins/webs/main journals | M6 | in `bench/v8` task 1 (contract v2): reference + 7 adversarial; the v1 disconnected-disc reference is kept as a rejected adversary |
+| L5c-1 | crankcase block with two measured main bearings | 18 instances plus a connected block frame with two bearing webs, a top rail and a measured bearing fit | M6 | in `bench/v8` task 2 (contract v3): reference PASS 6/6 with 0.989–1.019 mm clearance at 0° axis offset; base-plate, oversized-bore and split-crank adversaries rejected |
+| L5c | complete V8 machine | 8 chains plus cylinder bores/heads, counterweights, firing order | M6 | **open**: no cylinder bores/heads, counterweights, firing order or lubrication exist |
 
 **Why a ladder:** failing L5 does not mean L3 does not exist. With rungs, a score can say which layer is stuck even when the top fails.
 
@@ -75,9 +76,9 @@ Each layer is `PASS | FAIL | SKIP | ERROR | NOT_RUN`. Within a layer the **worst
 |---|---|---|
 | `compile` | `compile` | SCAD compilation |
 | `parts-identity` | `distinct-exported-parts`, `measured-part-identity` | selectors, parting strategy |
-| `topology` | `part-connectivity` | booleans, wall thickness, connectivity |
+| `topology` | `part-connectivity`, `frame-connectivity` | booleans, wall thickness, connectivity |
 | `joint-frames` | `measured-joint-frames` | declared axes, coordinate transforms |
-| `fit` | `diametral-clearance` | bore/shaft dimensions, tolerance |
+| `fit` | `diametral-clearance`, `bearing-fit` | bore/shaft dimensions, tolerance |
 | `retention` | `axial-retention`, `unresolved-axial-retention` | retention features, latches |
 | `assembly-path` | `assembly-path` | insertion path, clearance |
 | `disassembly-path` | `disassembly-path` | removal order |
@@ -205,8 +206,8 @@ cam          OK         4      1     3     0         1     3     0        5/8
 promoted. `layers` is the sum of observed layers across cases, not a pass rate.
 
 This is a public self-check gate, not independent hidden evaluation, model ability,
-physical function or user acceptance. The v8 row includes contract v2 (the connected
-crankshaft requirement); its family-level detail is in
+physical function or user acceptance. The **v8 row predates task 2** (the crankcase
+block/bearing rung, 12 cases); its current family result is in
 [`bench/v8/README.md`](./v8/README.md). The product row includes task 2 and task 3
 (16 cases / 63-of-112 layers); family detail is in
 [`bench/product/README.md`](./product/README.md). A complete V8 machine, full A001

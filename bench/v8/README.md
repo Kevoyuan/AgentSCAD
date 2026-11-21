@@ -1,4 +1,4 @@
-# L5b V8 shared-pin/packaging carrier with a connected crankshaft (contract v2)
+# L5b/L5c-1 V8 packaging carrier: connected crankshaft and crankcase block/bearings
 
 This is the V8 phase/packaging rung: **eight piston-and-rod sets in four 90° phase
 groups on two ±45° banks**, one **shared crankpin per phase group with two rods per
@@ -8,7 +8,9 @@ no cylinder block, bearing shell, counterweight or firing order.
 
 Contract v2 (2026-11-21) made the connected crankshaft a scored requirement. The v1
 reference — four separate disc/pin throws with no main shaft — is retained as
-`adversarial-disconnected-crank` and must be rejected.
+`adversarial-disconnected-crank` and must be rejected. Contract v3 adds a second task
+with a crankcase block and two measured main bearings; the base carrier keeps its
+base-plate frame.
 
 ## Task
 
@@ -32,6 +34,29 @@ The scorer re-renders all 18 instances at every angle and:
 - re-executes the source per angle; a static or wrong-phase source cannot pass;
 - checks the rendered crank part with **exact STL edge connectivity plus a separating-slab
   test** at 0° and requires one closed edge-connected surface.
+
+## Task 2 — crankcase block with two measured main bearings (contract v3)
+
+`tasks/v8-block-bearings-8.json` keeps the same mechanism contract and adds a crankcase
+block to the frame: a base plate, **two main-bearing webs at y = −20 / +20** with journal
+bores, and a continuous top rail tying them together. The webs sit at the y planes where
+the rotating crank has only the main journal (between the paired web planes), stay inside
+|x| ≤ 3 so the slider/rod sweeps are not touched, and connect to the base plate through
+their lower halves.
+
+Scored layers:
+
+- `distinct-exported-parts` (18), `part-connectivity` (connected crankshaft),
+  `frame-connectivity` (the block is one connected casting), `measured-joint-frames`,
+  `sampled-motion`, `source-motion`;
+- **`bearing-fit`**: the shared cylindrical-feature measurement binds the rendered block
+  bore to the crankshaft journals at both declared stations and requires the whole
+  sampled clearance interval inside **0.4–1.6 mm** and the measured axis offset at most
+  **0.3 mm**.
+
+The measured clearance on the reference is **0.989–1.019 mm** with a 0° axis offset.
+The band is a demonstrator tolerance, not a calibrated manufacturing tolerance, bearing
+load rating, lubrication or wear model.
 
 ## Result
 
@@ -63,19 +88,32 @@ v8-phase-8  adversarial-collision         FAIL    1/5    18    FAIL    FAIL     
   rod sweep, so connectivity cannot substitute for the motion check.
 - No candidate is promoted beyond these sampled angles.
 
+Block/bearing task:
+
+| Submission | Result |
+|---|---|
+| `v8-block-bearings-8/reference` | **PASS 6/6**: 18 instances; connected crank PASS; block PASS; **bearing fit PASS at 0.989–1.019 mm with 0° axis offset**; 765 sampled collisions separated; source motion PASS |
+| `adversarial-baseplate` | ERROR 5/6: the base-plate frame has no bearing bore, so **only `bearing-fit` is ERROR** while every other layer passes — the requirement cannot be satisfied by a plate |
+| `adversarial-bearing-clearance` | FAIL 5/6: oversized bores give a clearance outside the band, so **only `bearing-fit` FAILS** |
+| `adversarial-disconnected-crank` | FAIL 5/6: the split crankshaft fails **only `part-connectivity`** while the bearing fit still passes |
+
 ## Hidden set
 
-The external development copy `hidden-v8-shared-dev [v8]` predates contract v2 and must
-be re-frozen before it is used; until then it does not represent this task. Every hidden
-copy remains `independentHiddenEvaluation = NOT_RUN`.
+The external development copy `hidden-v8-shared-dev [v8]` predates contracts v2/v3 and
+must be re-frozen before it is used; until then it does not represent either task. Every
+hidden copy remains `independentHiddenEvaluation = NOT_RUN`.
 
 ## Boundaries
 
-- **A connected crankshaft is not a complete V8.** The frame is a base plate; there is
-  no cylinder block, bearing shell, counterweight, firing order, load, lubrication,
-  friction or wear model.
-- `part-connectivity` is exact edge connectivity of **the crank part at 0°**. It does not
-  prove balance, strength, bearing fit, machining or connectivity under rotation.
+- **A connected crankshaft plus a two-bearing crankcase is not a complete V8.** There
+  are no cylinder bores/heads, counterweights, firing order, load, lubrication, friction
+  or wear model, and the bearing fit is a sampled cylindrical clearance rather than a
+  calibrated manufacturing or load rating.
+- `part-connectivity` / `frame-connectivity` are exact edge connectivity of the crank
+  and block parts **at 0°**. They do not prove balance, strength, machining or
+  connectivity under rotation.
+- `bearing-fit` measures two sampled stations only; it is not continuous rotation,
+  bearing clearance over temperature/load, surface finish or press-fit behavior.
 - Only five discrete angles, mesh-bound slider centres and 765 discrete collisions are
   covered; continuous motion is not established.
 - The published thirteen-family matrix row for v8 predates contract v2; a full gate

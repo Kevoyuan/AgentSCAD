@@ -6,9 +6,9 @@ function argument(name: string): string | null { const i = process.argv.indexOf(
 const pad = (v: string, w: number) => v.padEnd(w).slice(0, w);
 function resultCell(r: V8CaseReport, id: string) { return r.results.find((x) => x.id === id)?.status ?? "—"; }
 function printMatrix(reports: V8CaseReport[]) {
-  const header = [pad("task",16),pad("submission",28),pad("status",8),pad("cover",7),pad("inst",5),pad("frames",8),pad("connect",8),pad("collide",8),pad("source",7),pad("err",9)].join(" ");
+  const header = [pad("task",20),pad("submission",32),pad("status",8),pad("cover",7),pad("inst",5),pad("frames",8),pad("connect",8),pad("block",7),pad("bearing",7),pad("collide",8),pad("source",7),pad("err",9)].join(" ");
   console.log(header); console.log("-".repeat(header.length));
-  for (const r of reports) console.log([pad(r.taskId,16),pad(r.submission,28),pad(r.status,8),pad(r.layers.coverage.ratio===null?"—":`${r.layers.coverage.passed}/${r.layers.coverage.observed}`,7),pad(String(r.measurements.parts.length),5),pad(resultCell(r,"measured-joint-frames"),8),pad(resultCell(r,"part-connectivity"),8),pad(resultCell(r,"sampled-motion"),8),pad(resultCell(r,"source-motion"),7),pad(r.measurements.maxPositionErrorMm?.toFixed(4)??"—",9)].join(" "));
+  for (const r of reports) console.log([pad(r.taskId,20),pad(r.submission,32),pad(r.status,8),pad(r.layers.coverage.ratio===null?"—":`${r.layers.coverage.passed}/${r.layers.coverage.observed}`,7),pad(String(r.measurements.parts.length),5),pad(resultCell(r,"measured-joint-frames"),8),pad(resultCell(r,"part-connectivity"),8),pad(resultCell(r,"frame-connectivity"),7),pad(resultCell(r,"bearing-fit"),7),pad(resultCell(r,"sampled-motion"),8),pad(resultCell(r,"source-motion"),7),pad(r.measurements.maxPositionErrorMm?.toFixed(4)??"—",9)].join(" "));
 }
 async function main() {
   const taskFilter = argument("--task"), subFilter = argument("--submission");

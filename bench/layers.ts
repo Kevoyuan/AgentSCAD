@@ -59,9 +59,9 @@ export interface LayerSpec {
 export const LAYERS: readonly LayerSpec[] = [
   { id: "compile", evidence: ["compile"], subsystem: "SCAD compilation" },
   { id: "parts-identity", evidence: ["distinct-exported-parts", "measured-part-identity"], subsystem: "Selectors and parting strategy" },
-  { id: "topology", evidence: ["part-connectivity"], subsystem: "Boolean ops, wall thickness, connectivity" },
+  { id: "topology", evidence: ["part-connectivity", "frame-connectivity"], subsystem: "Boolean ops, wall thickness, connectivity" },
   { id: "joint-frames", evidence: ["measured-joint-frames"], subsystem: "Declared axes and coordinate transforms" },
-  { id: "fit", evidence: ["diametral-clearance"], subsystem: "Bore/shaft dimensions and tolerance" },
+  { id: "fit", evidence: ["diametral-clearance", "bearing-fit"], subsystem: "Bore/shaft dimensions and tolerance" },
   { id: "retention", evidence: ["axial-retention", "unresolved-axial-retention"], subsystem: "Retention features and latches" },
   { id: "assembly-path", evidence: ["assembly-path"], subsystem: "Insertion path and clearance" },
   { id: "disassembly-path", evidence: ["disassembly-path"], subsystem: "Removal order" },

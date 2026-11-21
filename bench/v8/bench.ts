@@ -1,9 +1,10 @@
 /**
- * L5b V8 phase/packaging carrier: eight cylinders in four 90-degree phase
- * groups, two rods per shared crankpin, and a required **connected** crankshaft
- * (pins joined to main journals by webs). The frame is a base plate only: there
- * is no block, bearings, counterweights or firing order, so this is not a
- * complete V8.
+ * L5b/L5c V8 phase/packaging carrier family: eight cylinders in four 90-degree
+ * phase groups, two rods per shared crankpin, and a required connected
+ * crankshaft (pins joined to main journals by webs). The original task keeps a
+ * base-plate frame; the later block/bearing rung requires a crankcase block with
+ * measured main bearings and a continuous top rail. Neither task models
+ * cylinder bores, counterweights or firing order, so this is not a complete V8.
  */
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
@@ -11,6 +12,7 @@ import path from "node:path";
 import { readBinaryStl, meshBounds, type TriangleMesh } from "../../src/lib/geometry/stl-mesh";
 import { meshesIntersect } from "../../src/lib/geometry/mesh-collision";
 import { checkPartConnectivity } from "../../src/lib/assembly/part-connectivity";
+import { measureRevoluteFit } from "../../src/lib/assembly/fit-measurement";
 import { renderAssemblyParts, type RenderedAssemblyPart } from "../../src/lib/tools/assembly-part-renderer";
 import { evaluateRequirement, type Observation, type Result } from "../../scripts/eval/assembly-evidence";
 import { scoreEvidence } from "../layers";
@@ -21,7 +23,14 @@ export interface V8Contract {
   crankRadiusMm: number; rodLengthMm: number; vHalfAngleDeg: number; bankYmm: number;
   stationsY: number[]; phasesDeg: number[]; sliderToleranceMm: number;
 }
-export interface V8BenchTask { schemaVersion: 1; id: string; prompt: string; selectors: V8Selectors; motionParameter: string; angles: number[]; contract: V8Contract; requirements: BenchRequirement[]; notes?: string[] }
+export interface V8BearingContract {
+  /** Axial stations measured on both the block bore and the crankshaft journals. */
+  stationsY: number[];
+  minClearanceMm: number;
+  maxClearanceMm: number;
+  maxAxisOffsetMm: number;
+}
+export interface V8BenchTask { schemaVersion: 1; id: string; prompt: string; selectors: V8Selectors; motionParameter: string; angles: number[]; contract: V8Contract; bearingFit?: V8BearingContract; requirements: BenchRequirement[]; notes?: string[] }
 export interface V8CaseMeasurements {
   parts: Array<{ id: string; triangleCount: number }>;
   angles: number[];
@@ -30,6 +39,13 @@ export interface V8CaseMeasurements {
   collision: { sampled: number; separated: number; firstFailure: string | null };
   /** Exact edge connectivity of the crank part at 0 degrees; null when not measured. */
   crankConnectivity: { status: EvidenceStatus; reason: string; components: number } | null;
+  /** Exact edge connectivity of the frame/block part at 0 degrees; null when not measured. */
+  frameConnectivity: { status: EvidenceStatus; reason: string; components: number } | null;
+  /** Measured main-bearing fit between the block bore and the crankshaft journals. */
+  bearingFit: {
+    status: EvidenceStatus; reason: string; stationsMm: number[];
+    clearanceMm: { min: number; max: number } | null; axisOffsetMm: number | null;
+  } | null;
 }
 export interface V8CaseReport {
   schemaVersion: "v8-bench.case.v1"; taskId: string; submission: string; expected: ExpectedOutcome;
@@ -72,6 +88,18 @@ export function validateV8Task(value: unknown): V8BenchTask {
   if (contract.stationsY.length !== 4 || contract.phasesDeg.length !== 4) fail("contract must have 4 stations and 4 phases");
   if (!(contract.crankRadiusMm > 0) || !(contract.rodLengthMm > contract.crankRadiusMm)) fail("invalid crank/rod dimensions");
   if (!(contract.vHalfAngleDeg > 0) || !(contract.vHalfAngleDeg < 90) || !(contract.bankYmm > 0) || !(contract.sliderToleranceMm > 0)) fail("invalid contract bounds");
+  let bearingFit: V8BearingContract | undefined;
+  if (raw.bearingFit !== undefined) {
+    if (!raw.bearingFit || typeof raw.bearingFit !== "object") fail("bearingFit must be an object");
+    const b = raw.bearingFit as Record<string, unknown>;
+    const stationsY = Array.isArray(b.stationsY) ? b.stationsY.map((entry) => finite(entry, "bearingFit.stationsY[]")) : fail("bearingFit.stationsY must be an array");
+    if (stationsY.length < 1 || stationsY.length > 4) fail("bearingFit must have 1 to 4 stations");
+    const minClearanceMm = finite(b.minClearanceMm, "bearingFit.minClearanceMm");
+    const maxClearanceMm = finite(b.maxClearanceMm, "bearingFit.maxClearanceMm");
+    const maxAxisOffsetMm = finite(b.maxAxisOffsetMm, "bearingFit.maxAxisOffsetMm");
+    if (!(minClearanceMm >= 0) || !(maxClearanceMm >= minClearanceMm) || !(maxAxisOffsetMm > 0)) fail("bearingFit bounds are invalid");
+    bearingFit = { stationsY, minClearanceMm, maxClearanceMm, maxAxisOffsetMm };
+  }
   if (!Array.isArray(raw.requirements) || raw.requirements.length === 0) fail("requirements must be non-empty");
   const requirements: BenchRequirement[] = raw.requirements.map((entry, index) => {
     if (!entry || typeof entry !== "object") fail(`requirements[${index}] must be an object`);
@@ -83,11 +111,12 @@ export function validateV8Task(value: unknown): V8BenchTask {
     return { id: r.id, layer: r.layer as BenchRequirement["layer"], required: r.required, applicable: r.applicable, expected: { kind: "equals", value: e.value as string | boolean | number } };
   });
   if (new Set(requirements.map((r) => r.id)).size !== requirements.length) fail("duplicate requirement id");
-  const observable = new Set(["distinct-exported-parts", "measured-joint-frames", "sampled-motion", "source-motion", "part-connectivity"]);
+  const observable = new Set(["distinct-exported-parts", "measured-joint-frames", "sampled-motion", "source-motion", "part-connectivity", "frame-connectivity", "bearing-fit"]);
   for (const r of requirements) if (!observable.has(r.id)) fail(`requirement ${r.id} has no observer`);
+  if (requirements.some((r) => r.id === "bearing-fit") && !bearingFit) fail("a bearing-fit requirement needs a bearingFit contract");
   const distinct = requirements.find((r) => r.id === "distinct-exported-parts");
   if (!distinct || distinct.expected.kind !== "equals" || distinct.expected.value !== 18) fail("distinct-exported-parts must equal 18");
-  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, selectors: { frame, crank, rods, sliders }, motionParameter: raw.motionParameter, angles, contract, requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
+  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, selectors: { frame, crank, rods, sliders }, motionParameter: raw.motionParameter, angles, contract, ...(bearingFit ? { bearingFit } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
 }
 export function v8TasksDirectory(): string { return path.join(import.meta.dir, "tasks"); }
 export function v8SubmissionsDirectory(): string { return path.join(import.meta.dir, "submissions"); }
@@ -118,11 +147,50 @@ export function expectedV8Center(contract: V8Contract, stationIndex: number, sid
   const s = along + Math.sqrt(contract.rodLengthMm ** 2 - (px * px + pz * pz - along ** 2));
   return [s * sx, contract.stationsY[stationIndex] + (side === 0 ? -contract.bankYmm : contract.bankYmm), s * uz];
 }
+/**
+ * Measured main-bearing fit: the block is the bore side and the crankshaft the
+ * shaft side, at the task's declared axial stations. The synthetic two-instance
+ * declaration exists only to feed the shared cylindrical-feature measurement; it
+ * is not a product contract and no user intent is inferred from it.
+ */
+function measureBearingFit(task: V8BenchTask, frame: RenderedAssemblyPart, crank: RenderedAssemblyPart): V8CaseMeasurements["bearingFit"] {
+  if (!task.bearingFit) return null;
+  const identity = IDENTITY;
+  const spec = {
+    schemaVersion: 1, units: "mm", coordinateSystem: "right-handed",
+    parts: [
+      { id: "block", name: "Block", selector: task.selectors.frame, source: "generated", material: null },
+      { id: "crank", name: "Crank", selector: task.selectors.crank, source: "generated", material: null },
+    ],
+    instances: [
+      { id: "block1", partId: "block", subassemblyId: null, transform: identity },
+      { id: "crank1", partId: "crank", subassemblyId: null, transform: identity },
+    ],
+    subassemblies: [],
+    connections: [{ id: "main_bearings", type: "revolute", a: "block1", b: "crank1",
+      frameA: { origin: [0, 0, 0], direction: [0, 1, 0] }, frameB: { origin: [0, 0, 0], direction: [0, 1, 0] },
+      range: null, pitchMm: null, ratio: null, boreInstanceId: "block1", allowedContact: [], fitStationsMm: task.bearingFit.stationsY }],
+    groundedInstanceId: "block1", motions: [], operations: [], manufacturing: null, assumptions: [], unknowns: [],
+  };
+  const measured = measureRevoluteFit({
+    spec, connectionId: "main_bearings",
+    meshes: { block: frame.stl, crank: crank.stl },
+    boreInstanceId: "block1", stationsMm: task.bearingFit.stationsY, maxRadiusMm: 6,
+  });
+  const status: EvidenceStatus = measured.status === "MEASURED" ? "PASS"
+    : measured.status === "ERROR" ? "ERROR" : "NOT_RUN";
+  return {
+    status, reason: measured.reason, stationsMm: measured.stationsMm,
+    clearanceMm: measured.clearanceMm,
+    axisOffsetMm: measured.axis?.offsetMm ?? null,
+  };
+}
+
 export async function scoreV8Submission(task: V8BenchTask, submission: Submission): Promise<V8CaseReport> {
   const sourceSha256 = sha256(submission.source);
   const provenance = { createdAt: new Date().toISOString(), backend: process.env.AGENTSCAD_OPENSCAD_BACKEND === "wasm" ? "wasm" : "native", openscad: openscadVersion(), runtime: `bun ${process.env.BUN_VERSION ?? "unknown"}`, platform: process.platform };
-  const unknowns = ["A PASS covers five crank angles and pairwise triangle collision; it is not continuous motion, load, friction, wear or physical function.", "This is a V8 phase/packaging carrier with four shared crankpins and a connected crankshaft; the frame is a base plate only, with no block, bearings, counterweights or firing order.", "Crank connectivity is exact edge connectivity of one rendered part at 0 degrees: it is not balance, strength, bearing fit, machining or a cylinder block.", "Slider centres come from mesh bounds; the 0.1 mm tolerance is a mesh value."];
-  const empty: V8CaseMeasurements = { parts: [], angles: task.angles, sliderCenters: [], maxPositionErrorMm: null, collision: { sampled: 0, separated: 0, firstFailure: null }, crankConnectivity: null };
+  const unknowns = ["A PASS covers five crank angles and pairwise triangle collision; it is not continuous motion, load, friction, wear or physical function.", "This is a V8 phase/packaging family: the base task has a base-plate frame, the block/bearing task adds a two-bearing crankcase block with a top rail. Neither models cylinder bores, counterweights or firing order.", "Connectivity is exact edge connectivity of one rendered part at 0 degrees: it is not balance, strength, machining or a complete cylinder block.", "The bearing fit measures a sampled cylindrical clearance between the block bore and the crankshaft journals at the declared stations only; it is not a calibrated tolerance, bearing load rating, lubrication or manufacturability proof.", "Slider centres come from mesh bounds; the 0.1 mm tolerance is a mesh value."];
+  const empty: V8CaseMeasurements = { parts: [], angles: task.angles, sliderCenters: [], maxPositionErrorMm: null, collision: { sampled: 0, separated: 0, firstFailure: null }, crankConnectivity: null, frameConnectivity: null, bearingFit: null };
   const baseReport = (status: EvidenceStatus, results: Result[], measurements: V8CaseMeasurements): V8CaseReport => {
     const scored = scoreEvidence(results.map((r) => ({ id: r.id, status: r.status })));
     return { schemaVersion: "v8-bench.case.v1", taskId: task.id, submission: submission.id, expected: expectedOutcome(submission.id), sourcePath: path.relative(process.cwd(), submission.sourcePath), sourceSha256, status, gatePassed: status === "PASS", results, layers: { coverage: scored.coverage, byLayer: scored.layers.map((l) => ({ layer: l.layer, status: l.status, blockers: l.blockers })) }, measurements, provenance, unknowns };
@@ -138,11 +206,21 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
   const zeroMeshes = zeroParts.map((part) => ({ part, mesh: readBinaryStl(part.stl) }));
   const crankPart = zeroParts.find((part) => part.partId === task.selectors.crank);
   const crankConnectivity = crankPart ? checkPartConnectivity(crankPart.stl) : null;
+  const framePart = zeroParts.find((part) => part.partId === task.selectors.frame);
+  const frameConnectivity = framePart ? checkPartConnectivity(framePart.stl) : null;
+  const bearingFit = task.bearingFit && framePart && crankPart
+    ? measureBearingFit(task, framePart, crankPart)
+    : null;
   const measurements: V8CaseMeasurements = { ...empty, parts: zeroParts.map((part) => ({ id: part.partId, triangleCount: part.triangleCount })),
     crankConnectivity: crankConnectivity === null ? null : {
       status: crankConnectivity.status as EvidenceStatus,
       reason: crankConnectivity.reason, components: crankConnectivity.components.length,
-    } };
+    },
+    frameConnectivity: frameConnectivity === null ? null : {
+      status: frameConnectivity.status as EvidenceStatus,
+      reason: frameConnectivity.reason, components: frameConnectivity.components.length,
+    },
+    bearingFit };
   const artifactSha256 = sha256(zeroParts.map((part) => part.sha256).join(":"));
   const distinct = new Set(zeroMeshes.map(({ mesh }) => canonicalMeshHash(mesh))).size;
   let collisionSampled = 0, collisionSeparated = 0, firstFailure: string | null = null, maxPositionError = 0;
@@ -181,7 +259,34 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
       : { id: "part-connectivity", status: connectivity.status === "ERROR" ? "ERROR" : "NOT_RUN", reason: connectivity.reason, artifactSha256, toolVersion,
           method: "Exact STL edge connectivity and separating-slab check of the rendered crank part at 0 degrees.",
           coverage: `1 crank mesh; ${connectivity.components} edge component(s).` };
+  const frameConnectivityValue = measurements.frameConnectivity;
+  const frameConnectivityObservation: Observation = frameConnectivityValue === null
+    ? { id: "frame-connectivity", status: "NOT_RUN", reason: "The frame selector rendered no mesh, so block connectivity could not be measured." }
+    : frameConnectivityValue.status === "PASS" || frameConnectivityValue.status === "FAIL"
+      ? { id: "frame-connectivity", status: "MEASURED", value: frameConnectivityValue.status === "PASS", artifactSha256, toolVersion,
+          method: "Exact STL edge connectivity and separating-slab check of the rendered frame/block part at 0 degrees.",
+          coverage: `1 frame mesh; ${frameConnectivityValue.components} edge component(s).`,
+          ...(frameConnectivityValue.status === "PASS" ? {} : { reason: frameConnectivityValue.reason }) }
+      : { id: "frame-connectivity", status: frameConnectivityValue.status === "ERROR" ? "ERROR" : "NOT_RUN", reason: frameConnectivityValue.reason, artifactSha256, toolVersion,
+          method: "Exact STL edge connectivity and separating-slab check of the rendered frame/block part at 0 degrees.",
+          coverage: `1 frame mesh; ${frameConnectivityValue.components} edge component(s).` };
+  const bearing = measurements.bearingFit;
+  const bearingInBand = !!bearing && bearing.clearanceMm !== null && task.bearingFit !== undefined
+    && bearing.clearanceMm.min >= task.bearingFit.minClearanceMm && bearing.clearanceMm.max <= task.bearingFit.maxClearanceMm
+    && bearing.axisOffsetMm !== null && bearing.axisOffsetMm <= task.bearingFit.maxAxisOffsetMm;
+  const bearingFitObservation: Observation = bearing === null
+    ? { id: "bearing-fit", status: "NOT_RUN", reason: "No bearing-fit contract or a missing block/crank mesh prevented measurement." }
+    : bearing.status === "PASS"
+      ? { id: "bearing-fit", status: "MEASURED", value: bearingInBand, artifactSha256, toolVersion,
+          method: "Cylindrical section measurement of the block bore against the crankshaft journals at the declared axial stations.",
+          coverage: `${bearing.stationsMm.length} station(s): ${bearing.stationsMm.map((value) => value.toFixed(1)).join(", ")} mm.`,
+          ...(bearingInBand ? {} : { reason: `Measured clearance ${bearing.clearanceMm?.min.toFixed(4) ?? "?"}-${bearing.clearanceMm?.max.toFixed(4) ?? "?"} mm with axis offset ${bearing.axisOffsetMm?.toFixed(4) ?? "?"} mm outside the declared band or alignment limit. ${bearing.reason}` }) }
+      : { id: "bearing-fit", status: bearing.status === "ERROR" ? "ERROR" : "NOT_RUN", reason: bearing.reason, artifactSha256, toolVersion,
+          method: "Cylindrical section measurement of the block bore against the crankshaft journals at the declared axial stations.",
+          coverage: `${bearing.stationsMm.length} station(s).` };
   const observations: Record<string, Observation> = {
+    "frame-connectivity": frameConnectivityObservation,
+    "bearing-fit": bearingFitObservation,
     "distinct-exported-parts": { id: "distinct-exported-parts", status: "MEASURED", value: distinct, artifactSha256, method: "Canonical order-independent triangle hash per rendered instance.", toolVersion, coverage: `${zeroParts.length} instance meshes.`, ...(distinct === 18 ? {} : { reason: `Only ${distinct} distinct meshes.` }) },
     "measured-joint-frames": obs("measured-joint-frames", positionOk, "Eight slider centres compared with four 90-degree phase groups, ±45-degree axes.", `${task.angles.length} angles; tolerance ${task.contract.sliderToleranceMm} mm.`, positionOk ? undefined : `Max centre error ${maxPositionError.toFixed(4)} mm.`),
     "sampled-motion": obs("sampled-motion", collisionOk, "All 153 pairs of the 18 rendered instance meshes at each angle.", `${collisionSampled} pair checks.`, collisionOk ? undefined : firstFailure ?? "A pair was not sampled."),

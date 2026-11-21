@@ -3291,3 +3291,62 @@ This is a public self-check gate: not hidden evaluation, model ability, continuo
 motion, tool reach, physical function or user acceptance. A complete V8 machine, full
 A001 contract pass, an independent hidden set, a fresh funded product trial, user
 acceptance and physical validation remain open.
+
+## 2026-11-21 · V8 crankcase block with two measured main bearings (L5c-1, contract v3) (English log)
+
+The V8 packaging carrier had a connected crankshaft but only a base-plate frame. This
+adds a second `bench/v8` task whose frame is a **crankcase block**: base plate, two
+main-bearing webs at y = −20 / +20 with journal bores, and a continuous top rail. It is
+not a complete engine block: there are no cylinder bores/heads, counterweights or firing
+order.
+
+### Geometry and why the webs sit at y = ±20
+
+The webs are placed at the y planes where the rotating crank has only the main journal —
+between the paired web planes (17.5–18.5 and 21.5–22.5 mm) and between the paired rod
+planes (13–17 and 23–27 mm) — and stay inside |x| ≤ 3 so neither the slider sweep
+(|x| ≥ ~4.4 at those planes) nor the rod sweep is touched. They connect to the base plate
+through their lower halves; the top rail at z = 21–23 ties both webs together. The
+measured reference passes **765/765 sampled instance-pair collision checks** at the five
+angles with 0.0000 mm slider-centre error.
+
+### Measured bearing fit
+
+The new `bearing-fit` observer feeds the rendered block (bore side) and crankshaft
+(shaft side) meshes to the shared `measureRevoluteFit` cylindrical-section measurement
+at both declared stations y = −20 / +20. The reference measures:
+
+- bore diameter 4.989–5.000 mm, journal diameter 3.981–4.000 mm;
+- **diametral clearance 0.989–1.019 mm**, whole interval inside the declared
+  **0.4–1.6 mm** band;
+- **measured axis offset 0.0000 mm / 0°** against the 0.3 mm limit.
+
+The band is a demonstrator tolerance, not a calibrated manufacturing tolerance, bearing
+load rating, lubrication or wear model. Only two axial stations are measured.
+
+### Result
+
+`bun bench/v8/run.ts --task v8-block-bearings-8 --self-check` -> `SELF-CHECK OK: 1
+reference(s) pass, 3 adversarial submission(s) rejected.` Native OpenSCAD 2021.01, no
+model calls.
+
+| Submission | Result |
+|---|---|
+| `reference` | **PASS 6/6**: 18 instances; connected crank PASS; connected block PASS; **bearing fit PASS**; 765 collisions separated; source motion PASS |
+| `adversarial-baseplate` | ERROR 5/6: only `bearing-fit` is ERROR — a base plate has no bore to measure, so the block requirement cannot be satisfied by plate geometry |
+| `adversarial-bearing-clearance` | FAIL 5/6: oversized bores (r = 2.9 mm) put the measured clearance outside 0.4–1.6 mm; only `bearing-fit` fails |
+| `adversarial-disconnected-crank` | FAIL 5/6: a split crankshaft fails only `part-connectivity`; the bearing fit still passes |
+
+The bench layer model gains two additive evidence ids: `frame-connectivity` (topology)
+and `bearing-fit` (fit). Existing cases emit neither id and their layer coverage is
+unchanged; the v8 family becomes 12 cases.
+
+### Boundaries
+
+- Two sampled bearing stations only; this is not continuous bearing clearance,
+  temperature/load behavior, surface finish, press-fit or wear.
+- The block is a demonstrator casting with two main bearings and a top rail; there are no
+  cylinder bores/heads, counterweights or firing order, so L5c stays open.
+- The external hidden development copy predates contracts v2/v3 and must be re-frozen.
+- The published thirteen-family matrix keeps the pre-task-2 v8 row until the next full
+  `bench:all` rerun. No model calls, no deployment.
