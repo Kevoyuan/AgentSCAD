@@ -3646,3 +3646,43 @@ pre-v5 v8 row until the next full gate rerun.**
 - Only mesh-tessellated geometry is measured; no manufacturing tolerance or physical
   function is claimed.
 - External hidden development copy predates contracts v2–v5 and must be re-frozen.
+
+## 2026-11-21 · Thirteen-family gate with the V8 guide-channel row (English log)
+
+Full `bench:all` on the contract-v5 tree (commit `1362aeb`). Native OpenSCAD 2021.01, no
+model calls; about **110 family-minutes** on this machine (v8 47 minutes), every family
+self-check passed.
+
+```
+family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers
+assembly     OK         20     6     8     6         12    8     0        104/120
+gear         OK         6      1     5     0         1     4     1        7/12
+slider       OK         17     3     14    0         3     14    0        51/77
+l4           OK         5      1     4     0         1     4     0        14/25
+twin         OK         6      1     5     0         1     5     0        11/24
+vtwin        OK         5      1     4     0         1     4     0        11/20
+declaration  OK         4      1     3     0         1     3     0        7/20
+v8           OK         15     2     13    0         2     12    1        67/89
+planetary    OK         4      1     3     0         1     3     0        4/8
+planetary3   OK         4      1     3     0         1     3     0        4/8
+product      OK         16     3     13    0         3     12    1        63/112
+thread       OK         6      2     4     0         2     3     1        13/20
+cam          OK         4      1     3     0         1     3     0        5/8
+```
+
+`overall: PASS`; **112 cases** — 24 reference, 82 adversarial, 6 unscored; **30 PASS /
+78 FAIL-or-ERROR / 4 NOT_RUN**; **361/543** observed layer entries.
+
+Changes from the previous published gate (`81e07cd`): the v8 family grew from 13 cases /
+55-of-75 layers to **15 cases / 67-of-89 layers** because task 2 now also carries the
+contract-v5 guide channels: the reference measures a 0.35 mm slider-to-guide gap on 80
+sampled rays. The no-guide adversary is NOT_RUN on only that layer and the tight-guide
+adversary FAILs only that layer; the base-plate adversary is ERROR on the bearing layer
+and NOT_RUN on the guide layer. No other family row changed.
+
+The v8 not-run count of 1 is the no-guide adversary's `guide-clearance` NOT_RUN — a
+missing guide is never promoted to a pass. This remains a public self-check gate, not
+hidden evaluation, model ability, continuous guide clearance, bore roundness, physical
+function or user acceptance. A complete V8 machine (closed cylinder bores with heads and
+valves, firing order), full A001 contract pass, an independent hidden set, a fresh funded
+product trial, user acceptance and physical validation remain open.
