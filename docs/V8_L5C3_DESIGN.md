@@ -99,3 +99,54 @@ the old call sites keep their behaviour.
 - The reference is researcher-authored fixture geometry; autonomous model generation of
   this task is not measured by it.
 - A physical/manufactured V8 remains NOT_RUN and is outside this rung.
+
+## 7. Next rung sketch: valve train and firing-order schedule (not implemented)
+
+The closed-bore rung leaves one mechanical gap before a complete V8 demonstration: a
+valve train and a measured phase schedule. A sketch, with the schema and cost problems
+stated up front:
+
+### Schema problem
+
+The `v8` scorer hardcodes 18 instances (`selectors.rods` and `selectors.sliders` must each
+have 8 entries; `distinct-exported-parts` must equal 18; `partIds` is `frame`, `crank`,
+8 rods, 8 sliders). A valve rung needs at least 27 instances (18 + 8 valves + 1 camshaft).
+Two options:
+
+1. **Extend the v8 task schema** with an optional `extraParts: { selectors: string[] }`.
+   `partIds` becomes `[frame, crank, ...rods, ...sliders, ...extraParts]`, the distinct
+   requirement becomes `18 + extraParts.length`, and every existing task keeps its 18
+   expectation. Collision checks grow from 153 pairs per angle to `(27*26)/2 = 351`, so the
+   v8 family gate time would grow by roughly 60–80 % (currently 66 minutes) and the whole
+   gate could exceed four hours.
+2. **Create a new family** (`bench/v8valve`) reusing the v8 scorer but with its own
+   `bench/all.ts` row, matrix row and self-check, so the existing v8 family keeps its
+   current cost. This changes the gate matrix from 13 to 14 families and needs README,
+   ladder, evidence-log and checklist updates, but it keeps iteration cost bounded. This
+   is the recommended option.
+
+### Geometry
+
+- one poppet valve per cylinder (stem r1.5 mm, disc r3.5 mm) on the bank axis at the
+  head cap, opening outward (increasing bank radius) and seating in a counterbore in the
+  block;
+- one camshaft along y with eight eccentric cams, geared at a declared 2:1 ratio to the
+  crank; each cam drives its valve through a simple follower;
+- no ports, springs or combustion chamber: the valve is a kinematic demonstrator.
+
+### Scored evidence (proposal)
+
+| Requirement | Measurement |
+|---|---|
+| `valve-lift` | per valve and per sampled crank angle, rendered valve-disc station along the bank axis versus the declared half-speed cam law; sampled tolerance |
+| `valve-schedule` | peak measured lift order across the sampled angles versus the declared firing-order schedule (e.g. `1-8-4-3-6-5-7-2` at 90° intervals), with a granularity caveat: 5–9 samples cannot resolve 90° firing events unless the cam law is deliberately broad |
+| collision | 351 pairs per angle over 5 angles (1755 checks), separated |
+
+### Open questions before implementation
+
+- the sampling budget cannot prove a firing order from 5–9 poses; either sample 17+ crank
+  angles (expensive) or score only a broad "valve opens in the declared half-crank phase
+  order" statement with its sampling bound explicit;
+- firing order is a declared schedule, not a measured combustion event; keep the evidence
+  name and record language honest;
+- gate cost: option 2 (new family) is preferred so `bench:all` stays tractable.

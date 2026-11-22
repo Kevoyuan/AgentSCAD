@@ -26,13 +26,13 @@ the gate is recorded from a fresh run on the integrated tree rather than copied.
 
 | Check | Result |
 |---|---|
-| Unit suite | **1300 PASS / 3 SKIP / 0 FAIL** (201 files) on the current tree |
+| Unit suite | **1302 PASS / 3 SKIP / 0 FAIL** (201 files) on the current tree |
 | Typecheck | PASS |
 | Lint | PASS |
 | Repair/route targeted tests | 24 repair tests PASS; full route test file PASS |
 | Production build | **PASS** (`bun run build`, Next.js production output) |
 | Native OpenSCAD suite (serial) | **68 PASS / 1 SKIP / 0 FAIL** (69 tests, 15 files, 1394.51 s) |
-| Thirteen-family gate | **PASS**, 120 cases / 25 reference / 89 adversarial / 6 unscored; 31 PASS / 84 FAIL-or-ERROR / 5 NOT_RUN; layers 404/595; native OpenSCAD 2021.01, no model calls, about 141 family-minutes. Includes the v8 family (20 cases, 93/119 layers: connected-crank carrier, crankcase block with measured main bearings/counterweights/guides, and the independent-throw closed-bore rung with measured bore/head clearance), the thread family (8 cases, 25/35 layers incl. measured coaxiality), the cam rung (5 cases, 10/15 layers incl. a measured contact gap) and the product rows (16 cases, 63/112 layers: contract-driven slider-crank motion plus fitted retained-key disassembly) |
+| Thirteen-family gate | **PASS**, 123 cases / 26 reference / 91 adversarial / 6 unscored; 32 PASS / 86 FAIL-or-ERROR / 5 NOT_RUN; layers 415/610; native OpenSCAD 2021.01, no model calls, about 146 family-minutes. Includes the v8 family (20 cases, 93/119 layers: connected-crank carrier, crankcase block with measured main bearings/counterweights/guides, and the independent-throw closed-bore rung with measured bore/head clearance), the thread family (8 cases, 25/35 layers incl. measured coaxiality), the cam rung (5 cases, 10/15 layers incl. a measured contact gap) and the product rows (19 cases, 74/127 layers: contract-driven slider-crank motion, fitted retained-key disassembly and nine-pose source verification) |
 
 The production build and native suite are recorded after they finish; a green gate
 is a public self-check, not independent hidden evaluation, model ability or physical

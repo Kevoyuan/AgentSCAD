@@ -4017,3 +4017,45 @@ rerun.**
 - The interactive nine-plus-pose product workflow (UI), tool-access evidence and user
   acceptance remain open; this is the bench-side measurement half only.
 - No model calls and no deployment.
+
+## 2026-11-22 · Thirteen-family gate with the nine-pose product row (English log)
+
+Full `bench:all` on the nine-pose product tree (`65748ac`). Native OpenSCAD 2021.01, no
+model calls; about **146 family-minutes** (v8 66 minutes, product 9 minutes because the
+nine-pose task renders nine listed poses per submission). Every family self-check passed
+and no product budget flake occurred.
+
+```
+family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers
+assembly     OK         20     6     8     6         12    8     0        104/120
+gear         OK         6      1     5     0         1     4     1        7/12
+slider       OK         17     3     14    0         3     14    0        51/77
+l4           OK         5      1     4     0         1     4     0        14/25
+twin         OK         6      1     5     0         1     5     0        11/24
+vtwin        OK         5      1     4     0         1     4     0        11/20
+declaration  OK         4      1     3     0         1     3     0        7/20
+v8           OK         20     3     17    0         3     15    2        93/119
+planetary    OK         4      1     3     0         1     3     0        4/8
+planetary3   OK         4      1     3     0         1     3     0        4/8
+product      OK         19     4     15    0         4     14    1        74/127
+thread       OK         8      2     6     0         2     5     1        25/35
+cam          OK         5      1     4     0         1     4     0        10/15
+```
+
+`overall: PASS`; **123 cases** — 26 reference, 91 adversarial, 6 unscored; **32 PASS /
+86 FAIL-or-ERROR / 5 NOT_RUN**; **415/610** observed layer entries.
+
+Changes from the previous published gate (`bff9459`): the product family grew from 16
+cases / 63-of-112 layers to **19 cases / 74-of-127 layers** because task 4
+(`product-slider-crank-nine-pose`) adds nine independently verified source poses with the
+production slider-crank protocol (reference PASS 5/5 layers; static and wrong-radius
+adversaries rejected). The v8 row is unchanged at 20 cases / 93-of-119 layers. The product
+NOT_RUN count stays 1 (the existing `adversarial-missing-insertions` assembly-path).
+
+This remains a public self-check gate: not hidden evaluation, model ability, continuous
+motion, calibrated metrology, valve-train/firing-order behavior, interactive product
+workflow, user acceptance or physical function. Open items: a complete V8 machine (valve
+train, camshaft, firing order, removable casing), the interactive nine-plus-pose product
+workflow and tool-access evidence (see the valve-train design sketch in
+`docs/V8_L5C3_DESIGN.md` §7), full A001 contract pass, an independent hidden set, a fresh
+funded product trial, user acceptance and physical validation.
