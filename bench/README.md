@@ -64,7 +64,8 @@ Aligned with the milestones in [`FUNCTIONAL_ASSEMBLY_PLAN.md`](../docs/FUNCTIONA
 | L5a | planetary stage | fixed ring, sun/planet/carrier | M5 | in `bench/planetary` and `bench/planetary3` |
 | L5b | V8 phase/packaging carrier with a connected crankshaft | 8 kinematic chains, 18 instances, pins/webs/main journals | M6 | in `bench/v8` task 1 (contract v2): reference + 7 adversarial; the v1 disconnected-disc reference is kept as a rejected adversary |
 | L5c-1 | crankcase block with main bearings, cylinder guides and counterweights | 18 instances plus a connected block frame with two bearing webs, a top rail, thin guide channels on head rails, measured bearing fit, counterweight sectors and slider-to-guide gaps | M6 | in `bench/v8` task 2 (contract v5): reference PASS 7/7 with 0.989–1.019 mm bearing clearance at 0° offset, 17/10.5 mm counterweight extents and a 0.35 mm guide gap on 80 sampled rays; base-plate, oversized-bore, split-crank, no-counterweight, no-guide and tight-guide adversaries rejected |
-| L5c | complete V8 machine | 8 chains plus cylinder bores/heads, counterweights, firing order | M6 | **open**: no cylinder bores/heads, counterweights, firing order or lubrication exist |
+| L5c-2 | independent throws with closed cylinder bores | eight throws on one connected crank (journals between webs), 18 instances, connected block with eight closed bores (1 mm caps), two main-bearing plates, head rails and columns; measured bearing fit, bore clearance and head clearance | M6 | in `bench/v8` task 3 (contract v6): reference PASS 6/6 layers with 0.379–0.419 mm main-bearing clearance, a 0.350 mm bore gap on 320 rays and a 2.000 mm minimum head gap on 40 samples; no-bores, oversized-bore, cap-too-close and disconnected-crank adversaries rejected |
+| L5c | complete V8 machine | 8 chains plus closed bores, valve/head train, counterweights, firing order and removable casing | M6 | **open**: closed bores and head caps now exist, but there is no valve train, camshaft, firing order, removable casing or lubrication model |
 
 **Why a ladder:** failing L5 does not mean L3 does not exist. With rungs, a score can say which layer is stuck even when the top fails.
 
@@ -78,7 +79,7 @@ Each layer is `PASS | FAIL | SKIP | ERROR | NOT_RUN`. Within a layer the **worst
 | `parts-identity` | `distinct-exported-parts`, `measured-part-identity` | selectors, parting strategy |
 | `topology` | `part-connectivity`, `frame-connectivity` | booleans, wall thickness, connectivity |
 | `joint-frames` | `measured-joint-frames` | declared axes, coordinate transforms |
-| `fit` | `diametral-clearance`, `bearing-fit`, `guide-clearance`, `thread-coaxiality`, `contact-gap` | bore/shaft dimensions, tolerance, guide gap, threaded coaxiality, cam contact gap |
+| `fit` | `diametral-clearance`, `bearing-fit`, `guide-clearance`, `thread-coaxiality`, `contact-gap`, `bore-clearance`, `head-clearance` | bore/shaft dimensions, tolerance, guide gap, threaded coaxiality, cam contact gap, closed-bore and head clearance |
 | `balance` | `counterweight-balance` | crank counterweights and throw phase |
 | `retention` | `axial-retention`, `unresolved-axial-retention` | retention features, latches |
 | `assembly-path` | `assembly-path` | insertion path, clearance |
@@ -211,9 +212,9 @@ physical function or user acceptance. The cam row includes the contact-gap rung
 (5 cases / 10-of-15 layers); family detail is in
 [`bench/cam/README.md`](./cam/README.md). The thread row includes the coaxiality rung
 (8 cases / 25-of-35 layers); family detail is in
-[`bench/thread/README.md`](./thread/README.md). The v8 row includes contract v5 (the
-guide-channel rung: 15 cases / 67-of-89 layers); family detail is in
-[`bench/v8/README.md`](./v8/README.md). The product row
+[`bench/thread/README.md`](./thread/README.md). The **v8 row predates contract v6** (the
+closed-bore rung: 20 cases / 93-of-119 layers); its current family result is in
+[`bench/v8/README.md`](./v8/README.md) and the next full gate rerun replaces the row. The product row
 includes task 2 and task 3 (16 cases / 63-of-112 layers); family detail is in
 [`bench/product/README.md`](./product/README.md). A complete V8 machine, full A001
 contract pass, an independent hidden set and a fresh funded product trial remain open.

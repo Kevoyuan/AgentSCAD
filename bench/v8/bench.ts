@@ -19,10 +19,20 @@ import { scoreEvidence } from "../layers";
 import { aggregateStatus, expectedOutcome, type BenchRequirement, type EvidenceStatus, type ExpectedOutcome, type Submission } from "../assembly/bench";
 
 export interface V8Selectors { frame: string; crank: string; rods: string[]; sliders: string[] }
+export interface V8InstancePlacement { yMm: number; bankDeg: number; phaseDeg: number }
 export interface V8Contract {
   crankRadiusMm: number; rodLengthMm: number; vHalfAngleDeg: number; bankYmm: number;
   stationsY: number[]; phasesDeg: number[]; sliderToleranceMm: number;
+  /** Optional independent per-instance throws; when present they replace the four shared-pin stations. */
+  instances?: V8InstancePlacement[];
 }
+export interface V8BoreClearanceContract {
+  innerRadiusMm: number;
+  radiusToleranceMm: number;
+  minGapMm: number;
+  maxGapMm: number;
+}
+export interface V8HeadClearanceContract { minGapMm: number; maxGapMm: number }
 export interface V8BearingContract {
   /** Axial stations measured on both the block bore and the crankshaft journals. */
   stationsY: number[];
@@ -48,7 +58,7 @@ export interface V8GuideContract {
   minGapMm: number;
   maxGapMm: number;
 }
-export interface V8BenchTask { schemaVersion: 1; id: string; prompt: string; selectors: V8Selectors; motionParameter: string; angles: number[]; contract: V8Contract; bearingFit?: V8BearingContract; counterweight?: V8CounterweightContract; guide?: V8GuideContract; requirements: BenchRequirement[]; notes?: string[] }
+export interface V8BenchTask { schemaVersion: 1; id: string; prompt: string; selectors: V8Selectors; motionParameter: string; angles: number[]; contract: V8Contract; bearingFit?: V8BearingContract; counterweight?: V8CounterweightContract; guide?: V8GuideContract; boreClearance?: V8BoreClearanceContract; headClearance?: V8HeadClearanceContract; requirements: BenchRequirement[]; notes?: string[] }
 export interface V8CaseMeasurements {
   parts: Array<{ id: string; triangleCount: number }>;
   angles: number[];
@@ -73,6 +83,15 @@ export interface V8CaseMeasurements {
   guideClearance: {
     status: EvidenceStatus; reason: string; sampled: number; missed: number;
     maxOffsetErrorMm: number | null; minGapMm: number | null; maxGapMm: number | null;
+  } | null;
+  /** Measured radial clearance between each slider and its closed bore at the sampled angles. */
+  boreClearance: {
+    status: EvidenceStatus; reason: string; sampled: number; missed: number;
+    maxRadiusErrorMm: number | null; minGapMm: number | null; maxGapMm: number | null;
+  } | null;
+  /** Measured minimum axial gap between each slider and the bore cap/head rail. */
+  headClearance: {
+    status: EvidenceStatus; reason: string; sampled: number; minGapMm: number | null; maxGapMm: number | null;
   } | null;
 }
 export interface V8CaseReport {
@@ -113,9 +132,41 @@ export function validateV8Task(value: unknown): V8BenchTask {
     phasesDeg: Array.isArray(c.phasesDeg) ? c.phasesDeg.map((entry) => finite(entry, "contract.phasesDeg[]")) : fail("contract.phasesDeg must be an array"),
     sliderToleranceMm: finite(c.sliderToleranceMm, "contract.sliderToleranceMm"),
   };
-  if (contract.stationsY.length !== 4 || contract.phasesDeg.length !== 4) fail("contract must have 4 stations and 4 phases");
+  let instances: V8InstancePlacement[] | undefined;
+  if (c.instances !== undefined) {
+    if (!Array.isArray(c.instances) || c.instances.length < 2 || c.instances.length > 8) fail("contract.instances must have 2 to 8 entries");
+    instances = c.instances.map((entry, index) => {
+      if (!entry || typeof entry !== "object") fail(`contract.instances[${index}] must be an object`);
+      const e = entry as Record<string, unknown>;
+      return { yMm: finite(e.yMm, `contract.instances[${index}].yMm`), bankDeg: finite(e.bankDeg, `contract.instances[${index}].bankDeg`), phaseDeg: finite(e.phaseDeg, `contract.instances[${index}].phaseDeg`) };
+    });
+    if (new Set(instances.map((entry) => entry.yMm)).size !== instances.length) fail("contract.instances yMm values must be distinct");
+  }
+  contract.instances = instances;
+  if (!instances && (contract.stationsY.length !== 4 || contract.phasesDeg.length !== 4)) fail("contract must have 4 stations and 4 phases");
+  if (instances && (instances.length !== 8 || sliders.length !== 8)) fail("this bench currently requires eight selectors when instances are declared");
   if (!(contract.crankRadiusMm > 0) || !(contract.rodLengthMm > contract.crankRadiusMm)) fail("invalid crank/rod dimensions");
   if (!(contract.vHalfAngleDeg > 0) || !(contract.vHalfAngleDeg < 90) || !(contract.bankYmm > 0) || !(contract.sliderToleranceMm > 0)) fail("invalid contract bounds");
+  let boreClearance: V8BoreClearanceContract | undefined;
+  if (raw.boreClearance !== undefined) {
+    if (!raw.boreClearance || typeof raw.boreClearance !== "object") fail("boreClearance must be an object");
+    const b = raw.boreClearance as Record<string, unknown>;
+    const innerRadiusMm = finite(b.innerRadiusMm, "boreClearance.innerRadiusMm");
+    const radiusToleranceMm = finite(b.radiusToleranceMm, "boreClearance.radiusToleranceMm");
+    const minGapMm = finite(b.minGapMm, "boreClearance.minGapMm");
+    const maxGapMm = finite(b.maxGapMm, "boreClearance.maxGapMm");
+    if (!(innerRadiusMm > 0) || !(radiusToleranceMm > 0) || !(minGapMm >= 0) || !(maxGapMm > minGapMm) || !(maxGapMm < innerRadiusMm)) fail("boreClearance bounds are invalid");
+    boreClearance = { innerRadiusMm, radiusToleranceMm, minGapMm, maxGapMm };
+  }
+  let headClearance: V8HeadClearanceContract | undefined;
+  if (raw.headClearance !== undefined) {
+    if (!raw.headClearance || typeof raw.headClearance !== "object") fail("headClearance must be an object");
+    const b = raw.headClearance as Record<string, unknown>;
+    const minGapMm = finite(b.minGapMm, "headClearance.minGapMm");
+    const maxGapMm = finite(b.maxGapMm, "headClearance.maxGapMm");
+    if (!(minGapMm >= 0) || !(maxGapMm > minGapMm)) fail("headClearance bounds are invalid");
+    headClearance = { minGapMm, maxGapMm };
+  }
   let bearingFit: V8BearingContract | undefined;
   if (raw.bearingFit !== undefined) {
     if (!raw.bearingFit || typeof raw.bearingFit !== "object") fail("bearingFit must be an object");
@@ -161,14 +212,16 @@ export function validateV8Task(value: unknown): V8BenchTask {
     return { id: r.id, layer: r.layer as BenchRequirement["layer"], required: r.required, applicable: r.applicable, expected: { kind: "equals", value: e.value as string | boolean | number } };
   });
   if (new Set(requirements.map((r) => r.id)).size !== requirements.length) fail("duplicate requirement id");
-  const observable = new Set(["distinct-exported-parts", "measured-joint-frames", "sampled-motion", "source-motion", "part-connectivity", "frame-connectivity", "bearing-fit", "counterweight-balance", "guide-clearance"]);
+  const observable = new Set(["distinct-exported-parts", "measured-joint-frames", "sampled-motion", "source-motion", "part-connectivity", "frame-connectivity", "bearing-fit", "counterweight-balance", "guide-clearance", "bore-clearance", "head-clearance"]);
   for (const r of requirements) if (!observable.has(r.id)) fail(`requirement ${r.id} has no observer`);
   if (requirements.some((r) => r.id === "bearing-fit") && !bearingFit) fail("a bearing-fit requirement needs a bearingFit contract");
   if (requirements.some((r) => r.id === "counterweight-balance") && !counterweight) fail("a counterweight-balance requirement needs a counterweight contract");
   if (requirements.some((r) => r.id === "guide-clearance") && !guide) fail("a guide-clearance requirement needs a guide contract");
+  if (requirements.some((r) => r.id === "bore-clearance") && !boreClearance) fail("a bore-clearance requirement needs a boreClearance contract");
+  if (requirements.some((r) => r.id === "head-clearance") && !headClearance) fail("a head-clearance requirement needs a headClearance contract");
   const distinct = requirements.find((r) => r.id === "distinct-exported-parts");
   if (!distinct || distinct.expected.kind !== "equals" || distinct.expected.value !== 18) fail("distinct-exported-parts must equal 18");
-  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, selectors: { frame, crank, rods, sliders }, motionParameter: raw.motionParameter, angles, contract, ...(bearingFit ? { bearingFit } : {}), ...(counterweight ? { counterweight } : {}), ...(guide ? { guide } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
+  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, selectors: { frame, crank, rods, sliders }, motionParameter: raw.motionParameter, angles, contract, ...(bearingFit ? { bearingFit } : {}), ...(counterweight ? { counterweight } : {}), ...(guide ? { guide } : {}), ...(boreClearance ? { boreClearance } : {}), ...(headClearance ? { headClearance } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
 }
 export function v8TasksDirectory(): string { return path.join(import.meta.dir, "tasks"); }
 export function v8SubmissionsDirectory(): string { return path.join(import.meta.dir, "submissions"); }
@@ -198,6 +251,18 @@ export function expectedV8Center(contract: V8Contract, stationIndex: number, sid
   const along = px * sx + pz * uz;
   const s = along + Math.sqrt(contract.rodLengthMm ** 2 - (px * px + pz * pz - along ** 2));
   return [s * sx, contract.stationsY[stationIndex] + (side === 0 ? -contract.bankYmm : contract.bankYmm), s * uz];
+}
+/** Per-instance placement for the independent-throw contract variant (eight throws). */
+export function expectedInstanceCenter(contract: V8Contract, index: number, angleDeg: number): [number, number, number] {
+  const placement = contract.instances?.[index];
+  if (!placement) throw new Error(`contract.instances[${index}] is missing`);
+  const bank = placement.bankDeg * Math.PI / 180;
+  const sx = Math.sin(bank), uz = Math.cos(bank);
+  const theta = (angleDeg + placement.phaseDeg) * Math.PI / 180;
+  const px = contract.crankRadiusMm * Math.sin(theta), pz = contract.crankRadiusMm * Math.cos(theta);
+  const along = px * sx + pz * uz;
+  const s = along + Math.sqrt(contract.rodLengthMm ** 2 - (px * px + pz * pz - along ** 2));
+  return [s * sx, placement.yMm, s * uz];
 }
 /**
  * Measured main-bearing fit: the block is the bore side and the crankshaft the
@@ -310,7 +375,7 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
   const sourceSha256 = sha256(submission.source);
   const provenance = { createdAt: new Date().toISOString(), backend: process.env.AGENTSCAD_OPENSCAD_BACKEND === "wasm" ? "wasm" : "native", openscad: openscadVersion(), runtime: `bun ${process.env.BUN_VERSION ?? "unknown"}`, platform: process.platform };
   const unknowns = ["A PASS covers five crank angles and pairwise triangle collision; it is not continuous motion, load, friction, wear or physical function.", "This is a V8 phase/packaging family: the base task has a base-plate frame, the block/bearing task adds a two-bearing crankcase block with a top rail. Neither models cylinder bores, counterweights or firing order.", "Connectivity is exact edge connectivity of one rendered part at 0 degrees: it is not balance, strength, machining or a complete cylinder block.", "The bearing fit measures a sampled cylindrical clearance between the block bore and the crankshaft journals at the declared stations only; it is not a calibrated tolerance, bearing load rating, lubrication or manufacturability proof.", "Counterweight balance is measured as material extent on the crank web planes relative to each throw direction; it is not a mass moment, balance factor, stress or fatigue calculation.", "Guide clearance is measured by rays from each slider centre to the nearest block face at the five sampled crank angles; it is a sampled radial channel gap, not a continuous bore, ring, roundness, surface finish or wear measurement.", "Slider centres come from mesh bounds; the 0.1 mm tolerance is a mesh value."];
-  const empty: V8CaseMeasurements = { parts: [], angles: task.angles, sliderCenters: [], maxPositionErrorMm: null, collision: { sampled: 0, separated: 0, firstFailure: null }, crankConnectivity: null, frameConnectivity: null, bearingFit: null, counterweight: null, guideClearance: null };
+  const empty: V8CaseMeasurements = { parts: [], angles: task.angles, sliderCenters: [], maxPositionErrorMm: null, collision: { sampled: 0, separated: 0, firstFailure: null }, crankConnectivity: null, frameConnectivity: null, bearingFit: null, counterweight: null, guideClearance: null, boreClearance: null, headClearance: null };
   const baseReport = (status: EvidenceStatus, results: Result[], measurements: V8CaseMeasurements): V8CaseReport => {
     const scored = scoreEvidence(results.map((r) => ({ id: r.id, status: r.status })));
     return { schemaVersion: "v8-bench.case.v1", taskId: task.id, submission: submission.id, expected: expectedOutcome(submission.id), sourcePath: path.relative(process.cwd(), submission.sourcePath), sourceSha256, status, gatePassed: status === "PASS", results, layers: { coverage: scored.coverage, byLayer: scored.layers.map((l) => ({ layer: l.layer, status: l.status, blockers: l.blockers })) }, measurements, provenance, unknowns };
@@ -347,22 +412,34 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
   let collisionSampled = 0, collisionSeparated = 0, firstFailure: string | null = null, maxPositionError = 0;
   let guideSampled = 0, guideMissed = 0, guideMaxOffsetError = 0, guideMinGap = Infinity, guideMaxGap = -Infinity;
   let guideFirstFailure: string | null = null;
+  let boreSampled = 0, boreMissed = 0, boreMaxRadiusError = 0, boreMinGap = Infinity, boreMaxGap = -Infinity;
+  let boreFirstFailure: string | null = null;
+  let headSampled = 0, headMinGap = Infinity, headMaxGap = -Infinity, headFirstFailure: string | null = null;
   const halfAngle = task.contract.vHalfAngleDeg * Math.PI / 180;
   const centerOf = (parts: RenderedAssemblyPart[], id: string) => { const part = parts.find((p) => p.partId === id); if (!part) throw new Error(`missing ${id}`); const b = meshBounds(readBinaryStl(part.stl)); return [(b.min[0]+b.max[0])/2, (b.min[1]+b.max[1])/2, (b.min[2]+b.max[2])/2] as [number, number, number]; };
   for (const angle of task.angles) {
     let parts: RenderedAssemblyPart[];
     try { parts = angle === 0 ? zeroParts : await renderParts(angle); } catch (error) { return blocked(`The 18 instance meshes did not render at ${angle}°: ${error instanceof Error ? error.message : String(error)}`); }
-    for (let station = 0; station < 4; station += 1) for (const side of [0, 1] as const) {
-      const index = station * 2 + side;
-      const actual = centerOf(parts, task.selectors.sliders[index]);
-      const expected = expectedV8Center(task.contract, station, side, angle);
-      measurements.sliderCenters.push({ angleDeg: angle, index, actual, expected });
-      maxPositionError = Math.max(maxPositionError, Math.hypot(actual[0]-expected[0], actual[1]-expected[1], actual[2]-expected[2]));
+    if (task.contract.instances) {
+      for (let index = 0; index < task.selectors.sliders.length; index += 1) {
+        const actual = centerOf(parts, task.selectors.sliders[index]);
+        const expected = expectedInstanceCenter(task.contract, index, angle);
+        measurements.sliderCenters.push({ angleDeg: angle, index, actual, expected });
+        maxPositionError = Math.max(maxPositionError, Math.hypot(actual[0]-expected[0], actual[1]-expected[1], actual[2]-expected[2]));
+      }
+    } else {
+      for (let station = 0; station < 4; station += 1) for (const side of [0, 1] as const) {
+        const index = station * 2 + side;
+        const actual = centerOf(parts, task.selectors.sliders[index]);
+        const expected = expectedV8Center(task.contract, station, side, angle);
+        measurements.sliderCenters.push({ angleDeg: angle, index, actual, expected });
+        maxPositionError = Math.max(maxPositionError, Math.hypot(actual[0]-expected[0], actual[1]-expected[1], actual[2]-expected[2]));
+      }
     }
     const meshes = parts.map((part) => readBinaryStl(part.stl));
     for (let i = 0; i < parts.length; i += 1) for (let j = i+1; j < parts.length; j += 1) {
       collisionSampled += 1;
-      const result = meshesIntersect(meshes[i], IDENTITY, meshes[j], IDENTITY);
+      const result = meshesIntersect(meshes[i], IDENTITY, meshes[j], IDENTITY, { maxPairTests: 4_000_000 });
       if (result.status === "SEPARATED") collisionSeparated += 1; else if (!firstFailure) firstFailure = `${angle}° ${parts[i].partId}/${parts[j].partId}:${result.status}`;
     }
     if (task.guide) {
@@ -403,9 +480,97 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
         }
       }
     }
+    if (task.contract.instances && (task.boreClearance || task.headClearance)) {
+      const frameMesh = readBinaryStl(parts.find((part) => part.partId === task.selectors.frame)!.stl);
+      for (let index = 0; index < task.selectors.sliders.length; index += 1) {
+        const placement = task.contract.instances[index];
+        const bank = placement.bankDeg * Math.PI / 180;
+        const sx = Math.sin(bank), uz = Math.cos(bank);
+        const expected = expectedInstanceCenter(task.contract, index, angle);
+        const sliderMesh = readBinaryStl(parts.find((part) => part.partId === task.selectors.sliders[index])!.stl);
+        if (task.boreClearance) {
+          const stationRadial = Math.hypot(expected[0], expected[2]) + 2;
+          const origin: [number, number, number] = [stationRadial * sx, expected[1], stationRadial * uz];
+          const directions: Array<[number, number, number]> = [];
+          for (const offsetDeg of [22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5]) {
+            const radians = offsetDeg * Math.PI / 180;
+            const inPlane = Math.cos(radians), alongY = Math.sin(radians);
+            directions.push([inPlane * uz, alongY, -inPlane * sx]);
+          }
+          for (const direction of directions) {
+            const hit = nearestTriangleHit(frameMesh, origin, direction, 20);
+            if (hit === null) {
+              boreMissed += 1;
+              boreFirstFailure ??= `No bore wall was hit for slider ${index} at ${angle}°.`;
+              continue;
+            }
+            boreSampled += 1;
+            const radiusError = Math.abs(hit - task.boreClearance.innerRadiusMm);
+            boreMaxRadiusError = Math.max(boreMaxRadiusError, radiusError);
+            let sliderExtent = -Infinity;
+            for (let vertex = 0; vertex < sliderMesh.triangleCount * 3; vertex += 1) {
+              const base = vertex * 3;
+              const along = sliderMesh.coordinates[base] * direction[0] + sliderMesh.coordinates[base + 1] * direction[1] + sliderMesh.coordinates[base + 2] * direction[2];
+              const alongFromOrigin = along - (origin[0] * direction[0] + origin[1] * direction[1] + origin[2] * direction[2]);
+              if (alongFromOrigin > sliderExtent) sliderExtent = alongFromOrigin;
+            }
+            const gap = hit - sliderExtent;
+            boreMinGap = Math.min(boreMinGap, gap);
+            boreMaxGap = Math.max(boreMaxGap, gap);
+            if (boreFirstFailure === null && (radiusError > task.boreClearance.radiusToleranceMm || gap < task.boreClearance.minGapMm || gap > task.boreClearance.maxGapMm))
+              boreFirstFailure = `Slider ${index} at ${angle}°: bore wall at ${hit.toFixed(3)} mm (declared ${task.boreClearance.innerRadiusMm}), gap ${gap.toFixed(3)} mm.`;
+          }
+        }
+        if (task.headClearance) {
+          let sliderMaxAxial = -Infinity;
+          for (let vertex = 0; vertex < sliderMesh.triangleCount * 3; vertex += 1) {
+            const base = vertex * 3;
+            const axial = sliderMesh.coordinates[base] * sx + sliderMesh.coordinates[base + 2] * uz;
+            if (axial > sliderMaxAxial) sliderMaxAxial = axial;
+          }
+          let capMinAxial = Infinity;
+          for (let vertex = 0; vertex < frameMesh.triangleCount * 3; vertex += 1) {
+            const base = vertex * 3;
+            const x = frameMesh.coordinates[base], y = frameMesh.coordinates[base + 1], z = frameMesh.coordinates[base + 2];
+            if (Math.abs(y - placement.yMm) > 10) continue;
+            const perp = Math.abs(x * uz - z * sx);
+            if (perp > 14) continue;
+            const axial = x * sx + z * uz;
+            if (axial > sliderMaxAxial + 0.05 && axial < capMinAxial) capMinAxial = axial;
+          }
+          if (capMinAxial === Infinity) {
+            headFirstFailure ??= `No cap or head-rail material was found beyond slider ${index} at ${angle}°.`;
+            continue;
+          }
+          headSampled += 1;
+          const gap = capMinAxial - sliderMaxAxial;
+          headMinGap = Math.min(headMinGap, gap);
+          headMaxGap = Math.max(headMaxGap, gap);
+          // Only a too-close cap is a failure: a retracted piston legitimately has a
+          // larger gap, and the scored value is the minimum sampled gap.
+          if (headFirstFailure === null && gap < task.headClearance.minGapMm)
+            headFirstFailure = `Slider ${index} at ${angle}°: head gap ${gap.toFixed(3)} mm is below the ${task.headClearance.minGapMm} mm minimum.`;
+        }
+      }
+    }
   }
   measurements.maxPositionErrorMm = maxPositionError;
   measurements.collision = { sampled: collisionSampled, separated: collisionSeparated, firstFailure };
+  measurements.boreClearance = task.boreClearance ? {
+    status: boreMissed > 0 ? "NOT_RUN" : "PASS",
+    reason: boreMissed > 0 ? (boreFirstFailure ?? "A bore ray missed the block.") : (boreFirstFailure ?? "Every sampled slider-to-bore radius and gap is inside the declared band."),
+    sampled: boreSampled, missed: boreMissed,
+    maxRadiusErrorMm: boreSampled > 0 ? boreMaxRadiusError : null,
+    minGapMm: boreSampled > 0 ? boreMinGap : null,
+    maxGapMm: boreSampled > 0 ? boreMaxGap : null,
+  } : null;
+  measurements.headClearance = task.headClearance ? {
+    status: headSampled === 0 ? "NOT_RUN" : "PASS",
+    reason: headSampled === 0 ? (headFirstFailure ?? "No head gap could be sampled.") : (headFirstFailure ?? "Every sampled piston-to-head gap is inside the declared band."),
+    sampled: headSampled,
+    minGapMm: headSampled > 0 ? headMinGap : null,
+    maxGapMm: headSampled > 0 ? headMaxGap : null,
+  } : null;
   measurements.guideClearance = task.guide ? {
     status: guideMissed > 0 ? "NOT_RUN" : "PASS",
     reason: guideMissed > 0 ? (guideFirstFailure ?? "A guide ray missed the block.") : (guideFirstFailure ?? "Every sampled slider-to-guide gap is inside the declared band."),
@@ -465,6 +630,31 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
       : { id: "counterweight-balance", status: balance.status === "ERROR" ? "ERROR" : "NOT_RUN", reason: balance.reason, artifactSha256, toolVersion,
           method: "Vertex-sector extent on the declared crank web planes relative to each throw direction.",
           coverage: `${balance.stations.length} web plane(s).` };
+  const boreMeasurement = measurements.boreClearance;
+  const boreInBand = !!boreMeasurement && boreMeasurement.status === "PASS" && task.boreClearance !== undefined
+    && boreMeasurement.maxRadiusErrorMm !== null && boreMeasurement.maxRadiusErrorMm <= task.boreClearance.radiusToleranceMm
+    && boreMeasurement.minGapMm !== null && boreMeasurement.minGapMm >= task.boreClearance.minGapMm
+    && boreMeasurement.maxGapMm !== null && boreMeasurement.maxGapMm <= task.boreClearance.maxGapMm;
+  const boreObservation: Observation = boreMeasurement === null
+    ? { id: "bore-clearance", status: "NOT_RUN", reason: "No boreClearance contract or missing frame/slider mesh prevented measurement." }
+    : boreMeasurement.status === "NOT_RUN"
+      ? { id: "bore-clearance", status: "NOT_RUN", reason: boreMeasurement.reason, artifactSha256, toolVersion, method: "Rays from each slider centre to the closed bore wall at the sampled crank angles.", coverage: `${boreMeasurement.sampled} bore wall sample(s), ${boreMeasurement.missed} missed.` }
+      : { id: "bore-clearance", status: "MEASURED", value: boreInBand, artifactSha256, toolVersion,
+          method: "Rays from each slider centre to the closed bore wall at the sampled crank angles.",
+          coverage: `${boreMeasurement.sampled} samples; radius error limit ${task.boreClearance?.radiusToleranceMm} mm, gap band ${task.boreClearance?.minGapMm}-${task.boreClearance?.maxGapMm} mm.`,
+          ...(boreInBand ? {} : { reason: boreMeasurement.reason }) };
+  const headMeasurement = measurements.headClearance;
+  const headInBand = !!headMeasurement && headMeasurement.status === "PASS" && task.headClearance !== undefined
+    && headMeasurement.minGapMm !== null && headMeasurement.minGapMm >= task.headClearance.minGapMm
+    && headMeasurement.minGapMm <= task.headClearance.maxGapMm;
+  const headObservation: Observation = headMeasurement === null
+    ? { id: "head-clearance", status: "NOT_RUN", reason: "No headClearance contract or missing frame/slider mesh prevented measurement." }
+    : headMeasurement.status === "NOT_RUN"
+      ? { id: "head-clearance", status: "NOT_RUN", reason: headMeasurement.reason, artifactSha256, toolVersion, method: "Minimum axial gap between each slider and the bore cap/head rail at the sampled angles.", coverage: `${headMeasurement.sampled} gap sample(s).` }
+      : { id: "head-clearance", status: "MEASURED", value: headInBand, artifactSha256, toolVersion,
+          method: "Minimum axial gap between each slider and the bore cap/head rail at the sampled angles.",
+          coverage: `${headMeasurement.sampled} samples; gap band ${task.headClearance?.minGapMm}-${task.headClearance?.maxGapMm} mm; minimum ${headMeasurement.minGapMm?.toFixed(3)} mm.`,
+          ...(headInBand ? {} : { reason: headMeasurement.reason }) };
   const guideMeasurement = measurements.guideClearance;
   const guideInBand = !!guideMeasurement && guideMeasurement.status === "PASS" && task.guide !== undefined
     && guideMeasurement.maxOffsetErrorMm !== null && guideMeasurement.maxOffsetErrorMm <= task.guide.toleranceMm
@@ -479,6 +669,8 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
           coverage: `${guideMeasurement.sampled} guide face(s) at ${task.angles.length} angles; offset limit ${task.guide?.toleranceMm} mm, gap band ${task.guide?.minGapMm}-${task.guide?.maxGapMm} mm.`,
           ...(guideInBand ? {} : { reason: guideMeasurement.reason }) };
   const observations: Record<string, Observation> = {
+    "bore-clearance": boreObservation,
+    "head-clearance": headObservation,
     "guide-clearance": guideObservation,
     "counterweight-balance": counterweightObservation,
     "frame-connectivity": frameConnectivityObservation,

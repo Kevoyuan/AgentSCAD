@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "id": "v8-bored-8",
+  "prompt": "Build the V8 demonstration with eight independent crank throws and closed cylinder bores: two banks at 45 degrees, eight distinct crank phases, one connected crankshaft on a main shaft, eight piston-and-rod sets on their own throws, and one connected crankcase block with eight closed cylinder bores (each with a cap at the head end), two main-bearing plates, one top rail, two head rails and four outboard columns. All eighteen instances must export separately and must not interfere at the five listed input angles.",
+  "selectors": {
+    "frame": "frame",
+    "crank": "crank",
+    "rods": [
+      "rod0",
+      "rod1",
+      "rod2",
+      "rod3",
+      "rod4",
+      "rod5",
+      "rod6",
+      "rod7"
+    ],
+    "sliders": [
+      "slider0",
+      "slider1",
+      "slider2",
+      "slider3",
+      "slider4",
+      "slider5",
+      "slider6",
+      "slider7"
+    ]
+  },
+  "motionParameter": "crank_angle",
+  "angles": [
+    0,
+    90,
+    180,
+    270,
+    360
+  ],
+  "contract": {
+    "crankRadiusMm": 8,
+    "rodLengthMm": 28,
+    "vHalfAngleDeg": 45,
+    "bankYmm": 3,
+    "stationsY": [
+      -91,
+      -65,
+      -39,
+      -13
+    ],
+    "phasesDeg": [
+      0,
+      90,
+      180,
+      270
+    ],
+    "sliderToleranceMm": 0.1,
+    "instances": [
+      {
+        "yMm": -91,
+        "bankDeg": 45,
+        "phaseDeg": 0
+      },
+      {
+        "yMm": -65,
+        "bankDeg": -45,
+        "phaseDeg": 90
+      },
+      {
+        "yMm": -39,
+        "bankDeg": 45,
+        "phaseDeg": 180
+      },
+      {
+        "yMm": -13,
+        "bankDeg": -45,
+        "phaseDeg": 270
+      },
+      {
+        "yMm": 13,
+        "bankDeg": 45,
+        "phaseDeg": 45
+      },
+      {
+        "yMm": 39,
+        "bankDeg": -45,
+        "phaseDeg": 135
+      },
+      {
+        "yMm": 65,
+        "bankDeg": 45,
+        "phaseDeg": 225
+      },
+      {
+        "yMm": 91,
+        "bankDeg": -45,
+        "phaseDeg": 315
+      }
+    ]
+  },
+  "bearingFit": {
+    "stationsY": [
+      -98,
+      98
+    ],
+    "minClearanceMm": 0.2,
+    "maxClearanceMm": 0.6,
+    "maxAxisOffsetMm": 0.3
+  },
+  "boreClearance": {
+    "innerRadiusMm": 10.1,
+    "radiusToleranceMm": 0.1,
+    "minGapMm": 0.15,
+    "maxGapMm": 0.6
+  },
+  "headClearance": {
+    "minGapMm": 1.5,
+    "maxGapMm": 6.0
+  },
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 18
+      }
+    },
+    {
+      "id": "part-connectivity",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "frame-connectivity",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "bearing-fit",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "bore-clearance",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "head-clearance",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "measured-joint-frames",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "sampled-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "source-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "Contract v6 (closed-bore rung): eight independent throws at y = -91 + 26k with alternating +/-45 degree banks and phases 0/90/180/270/45/135/225/315; one connected crank on a single main shaft.",
+    "The frame is one connected crankcase block with eight closed cylinder bores (bore inner radius 10.1 mm, outer 12 mm, 1 mm cap at the head end), two main-bearing plates with journal bores at y = +/-98, a top rail, two head rails and four outboard columns into the base plate.",
+    "Bore clearance is a sampled radial gap between each slider and its closed bore wall (160 rays over 8 cylinders x 4 directions x 5 angles; inner radius 10.1 mm +/-0.1, gap 0.15-0.6 mm). Head clearance is the sampled axial gap between each piston and the bore cap/head rail, minimum 3.0-6.0 mm over 40 samples.",
+    "The main-bearing fit measures the two journal bores with the shared cylindrical-section measurement (0.2-0.6 mm diametral, axis offset at most 0.3 mm).",
+    "This is a demonstrator mechanism: no cylinder head with valves, ports or camshafts, no firing-order claim, no combustion, thermal, lubrication, load, wear or manufacturing claim. Only five sampled angles and 765 pairwise collision checks are covered."
+  ]
+}

@@ -1,9 +1,13 @@
 # L5c-3 design note: V8 with eight independent throws and closed cylinder bores
 
-Status: design proposal, not implemented. This note records why the current L5c-1 carrier
-cannot grow closed cylinder bores, the measured negative result that forces a mechanism
-change, and the concrete contract-v6 layout to implement next. It is English-only because
-all new bench logs, prompts and records are English.
+Status: **implemented as `bench/v8/tasks/v8-bored-8.json` (contract v6)**. This note records
+why the L5c-1 carrier cannot grow closed cylinder bores, the measured negative result that
+forced the mechanism change, and the shipped contract-v6 layout. Deviations from the first
+draft: the crank uses main journals **between** the throw webs instead of a continuous
+shaft (a continuous shaft passes through the rod planes and collided with a rod body);
+bore rays are cast at slider centre + 2 mm (the exact bore start plane is a grazing,
+coplanar case); bore gap band is 0.15–0.6 mm and head gap band 1.5–6.0 mm; head clearance
+is scored by the minimum sampled gap (retracted pistons legitimately have larger gaps).
 
 ## 1. Why the current task cannot close the bores
 

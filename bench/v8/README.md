@@ -1,4 +1,4 @@
-# L5b/L5c-1 V8 packaging carrier: connected crankshaft, crankcase block, cylinder guides and counterweights
+# L5b/L5c V8 family: connected crankshaft, crankcase block, guides, counterweights, and a closed-bore independent-throw rung
 
 This is the V8 phase/packaging rung: **eight piston-and-rod sets in four 90° phase
 groups on two ±45° banks**, one **shared crankpin per phase group with two rods per
@@ -10,9 +10,11 @@ Contract v2 (2026-11-21) made the connected crankshaft a scored requirement. The
 reference — four separate disc/pin throws with no main shaft — is retained as
 `adversarial-disconnected-crank` and must be rejected. Contract v3 added a second task
 with a crankcase block and two measured main bearings; contract v4 added measured
-counterweights on the crank web planes; contract v5 adds thin cylinder guide channels
-with a measured slider-to-guide gap. The base carrier keeps its base-plate frame, no
-counterweights and no guides.
+counterweights on the crank web planes; contract v5 added thin cylinder guide channels
+with a measured slider-to-guide gap. Contract v6 adds a third task with **eight
+independent throws and closed cylinder bores**, because a full circular bore cannot fit
+the shared-pin layout (recorded negative result). The base carrier keeps its base-plate
+frame, no counterweights and no guides.
 
 ## Task
 
@@ -72,6 +74,47 @@ The measured clearance on the reference is **0.989–1.019 mm** with a 0° axis 
 The band is a demonstrator tolerance, not a calibrated manufacturing tolerance, bearing
 load rating, lubrication or wear model.
 
+## Task 3 — eight independent throws with closed cylinder bores (contract v6)
+
+`tasks/v8-bored-8.json` is the independent-throw rung designed in
+[`docs/V8_L5C3_DESIGN.md`](../../docs/V8_L5C3_DESIGN.md). The mechanism changes because a
+full circular bore around a shared-pin slider collides with the neighbouring rod plane
+(negative result recorded in the evidence log):
+
+- eight throws at `y = -91 + 26k` (26 mm pitch keeps a 2 mm gap between adjacent bore
+  tubes), alternating ±45° banks, phases `0/90/180/270/45/135/225/315`;
+- one connected crank on **main journals between the throw webs** (not a continuous shaft
+  through the rod planes), one pin per throw and two webs per throw;
+- one connected block: base plate, eight closed bores (inner r10.1, outer r12, 1 mm cap at
+  the head end, bank radius 20–46), two main-bearing plates with journal bores at
+  y = ±98, one top rail, two head rails on four outboard columns, and 18 instances;
+- requirements: `distinct-exported-parts` (18), `part-connectivity`,
+  `frame-connectivity`, `bearing-fit`, **`bore-clearance`**, **`head-clearance`**,
+  `measured-joint-frames`, `sampled-motion`, `source-motion`.
+
+Measurements:
+
+- `bearing-fit`: shared cylindrical-section fit at y = ±98 (journals r2 vs plate bore
+  r2.2), whole interval inside 0.2–0.6 mm with ≤0.3 mm axis offset. Reference:
+  **0.379–0.419 mm**, axis offset 0.
+- `bore-clearance`: 320 rays (8 cylinders × 8 diagonal directions × 5 angles) from each
+  slider centre to the closed bore wall; wall radius 10.1 ±0.1 mm, slider gap 0.15–0.6 mm.
+  Reference: radius error **≤0.0000022 mm**, gap **0.350 mm** on every ray.
+- `head-clearance`: 40 samples of the axial gap between each slider and the bore
+  cap/head rail; the minimum sampled gap must stay inside **1.5–6.0 mm**. Reference:
+  **2.000 mm** minimum (retracted pistons legitimately show larger gaps).
+- 765 pairwise collision checks per case at five angles; reference separated on all.
+
+Adversaries (all rejected; self-check `1 reference pass / 4 adversarial`):
+
+| Submission | Result |
+|---|---|
+| `reference` | **PASS 6/6** layers; all nine requirements PASS |
+| `adversarial-no-bores` | NOT_RUN 5/6; the block has no closed bores, so **only `bore-clearance` is NOT_RUN** |
+| `adversarial-oversized-bore` | FAIL 5/6; bore r10.6 puts the measured radius out of tolerance, **only `bore-clearance` FAILS** |
+| `adversarial-cap-too-close` | FAIL 5/6; a 2.5 mm cap gives a 0.5 mm minimum gap, **only `head-clearance` FAILS** |
+| `adversarial-disconnected-crank` | FAIL 5/6; missing inter-throw journals fail **only `part-connectivity`** |
+
 ## Result
 
 ```
@@ -116,7 +159,7 @@ Block/bearing task:
 
 ## Hidden set
 
-The external development copy `hidden-v8-shared-dev [v8]` predates contracts v2–v5 and
+The external development copy `hidden-v8-shared-dev [v8]` predates contracts v2–v6 and
 must be re-frozen before it is used; until then it does not represent any task. Every
 hidden copy remains `independentHiddenEvaluation = NOT_RUN`.
 
@@ -137,6 +180,10 @@ hidden copy remains `independentHiddenEvaluation = NOT_RUN`.
 - `guide-clearance` samples 80 rays at five crank angles; it does not prove continuous
   sliding clearance, bore roundness, surface finish, wear or lubrication, and the guide
   plates are not a closed cylinder bore.
+- The contract-v6 closed bores are demonstrator geometry: no cylinder head with valves,
+  ports or camshafts, no firing-order claim, no combustion, thermal, lubrication or wear
+  model. `bore-clearance` and `head-clearance` are sampled mesh gaps at five angles, not
+  calibrated metrology or manufacturing tolerances.
 - Only five discrete angles, mesh-bound slider centres and 765 discrete collisions are
   covered; continuous motion is not established.
 - The published thirteen-family matrix row for v8 predates contract v2; a full gate

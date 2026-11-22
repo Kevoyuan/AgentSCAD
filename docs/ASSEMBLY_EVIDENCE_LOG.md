@@ -3879,3 +3879,53 @@ acceptance. A complete V8 machine (closed cylinder bores with heads and valves, 
 order), full A001 contract pass, an independent hidden set, a fresh funded product trial,
 user acceptance and physical validation remain open. The next planned rung is the
 `docs/V8_L5C3_DESIGN.md` contract-v6 `v8-bored-8` task.
+
+## 2026-11-22 · V8 independent throws with closed cylinder bores (contract v6) (English log)
+
+This rung implements `docs/V8_L5C3_DESIGN.md` after the recorded negative result for full
+circular bores in the shared-pin layout. It adds a third `bench/v8` task with **eight
+independent throws** so each cylinder owns its own y band.
+
+### Geometry
+
+- eight throws at `y = -91 + 26k`, alternating ±45° banks, phases
+  `0/90/180/270/45/135/225/315`;
+- one connected crank on **main journals between the throw webs** (a continuous main shaft
+  was tried first and collided with a rod body sweeping past the main axis at its throw
+  plane), one pin and two webs per throw;
+- one connected block: base plate, eight **closed bores** (inner r10.1, outer r12, 1 mm
+  cap at the head end, bank radius 20–46), two main-bearing plates with journal bores at
+  y = ±98, one top rail, two head rails and four outboard columns; 18 instances;
+- 765 sampled pairwise collisions per case, all separated for the reference.
+
+### Measurements and result
+
+`bun bench/v8/run.ts --task v8-bored-8 --self-check` -> `SELF-CHECK OK: 1 reference(s)
+pass, 4 adversarial submission(s) rejected.` Native OpenSCAD 2021.01, no model calls.
+
+| Requirement | Reference measurement |
+|---|---|
+| `bearing-fit` | **0.379–0.419 mm** diametral at y = ±98, axis offset 0 |
+| `bore-clearance` | 320 rays (8 cylinders × 8 diagonal directions × 5 angles): radius error **≤0.0000022 mm**, gap **0.350 mm** on every ray |
+| `head-clearance` | 40 samples: minimum gap **2.000 mm** (band 1.5–6.0 mm; retracted pistons legitimately larger) |
+| `part-connectivity` / `frame-connectivity` | one connected crank and one connected block |
+| `sampled-motion` / `source-motion` | PASS (per-instance closure formula, 0.0000 mm error) |
+
+Adversaries isolate the new layers: `no-bores` → only `bore-clearance` NOT_RUN;
+`oversized-bore` (r10.6) → only `bore-clearance` FAIL; `cap-too-close` (2.5 mm cap, 0.5 mm
+minimum gap) → only `head-clearance` FAIL; `disconnected-crank` (missing inter-throw
+journals) → only `part-connectivity` FAIL. Task 3: reference PASS 6/6 layers, adversaries
+5/6 each; v8 family becomes 20 cases / 93-of-119 layers.
+
+The bench `fit` layer now also carries `bore-clearance` and `head-clearance`. The
+thirteen-family matrix keeps the pre-v6 v8 row until the next full gate rerun.
+
+### Boundaries
+
+- Closed bores with head caps are not a cylinder head with valves, ports, camshafts or a
+  firing order; no combustion, thermal, lubrication, load or wear claim.
+- Bore/head clearances are sampled mesh gaps at five angles, not calibrated metrology,
+  roundness, surface finish or manufacturing tolerances.
+- The reference is researcher-authored fixture geometry; autonomous generation of this
+  task has not been measured. The external hidden development copy predates contract v6
+  and must be re-frozen.
