@@ -41,6 +41,8 @@ Build a single-cylinder slider-crank with an 8 mm crank and a 28 mm rod, plus an
 
 ## 快速开始
 
+前置条件：[Bun](https://bun.sh)，以及可在 `PATH` 中直接调用的 [OpenSCAD CLI](https://openscad.org/downloads.html)（也可设置 `OPENSCAD_BIN`）。本地渲染默认使用原生 OpenSCAD；Serverless 构建使用校验和锁定的 WASM 运行时。安装步骤见[开发文档](./docs/DEVELOPMENT.md)。
+
 ```bash
 git clone https://github.com/Kevoyuan/AgentSCAD.git
 cd AgentSCAD
@@ -56,7 +58,7 @@ bun run dev
 
 没有 Bun？`cp .env.example .env && docker compose up --build`。
 
-然后描述一个零件，按 `⌘ Enter`：
+然后描述一个零件，按 `⌘/Ctrl + Enter`：
 
 ```text
 做一个可壁挂的手机支架，圆角，开两个螺丝孔。
@@ -72,13 +74,21 @@ bun run dev
 - **公开的功能装配评测**——13 个原生家族（铰链、曲柄滑块、直列双缸与 90° V 型双缸、V8 相位封装、行星轮系、螺纹、凸轮）、12 层证据模型，每个家族都有作弊提交；只要有作弊解开始通过，自检就失败。
   → [`bench/`](./bench/README.md)
 
+## 现状与边界
+
+AgentSCAD 仍在积极开发中（v0.6）。它是本地优先的，没有账号体系；provider 密钥只留在你的浏览器或本机。
+
+- `DELIVERED` 只表示产物存在，**不**代表零件已被接受或符合你的意图。接受与否单独记录在结果账本中。
+- 装配证据是**采样的、与版本绑定的**。某个采样点通过不等于连续运动、实际配合或制造成功；无法确定的检查保持 `NOT_RUN`。
+- 功能装配（A01–A14）仍在进行中；当前哪些环节受证据门控，见[执行台账](./docs/ASSEMBLY_EXECUTION_BACKLOG.md)和[执行计划](./docs/FUNCTIONAL_ASSEMBLY_PLAN.md)。
+
 ## 文档
 
 - [架构](./docs/ARCHITECTURE.md)
 - [评测](./bench/README.md) · [评测命令](./docs/BENCHMARK.md)
 - [功能装配目标与执行计划](./docs/FUNCTIONAL_ASSEMBLY_PLAN.md)
 - [技能与路由](./docs/SKILLS.md) · [开发与 CI](./docs/DEVELOPMENT.md)
-- [设计系统](./DESIGN.md) · [更新日志](./CHANGELOG.md)
+- [设计系统](./DESIGN.md) · [更新日志](./CHANGELOG.md) · [贡献指南](./CONTRIBUTING.md)
 
 ## 常用命令
 
@@ -90,7 +100,7 @@ bun run dev
 | 装配评测自检（13 个家族） | `bun run bench:all` |
 | 重置数据库 | `bun run db:reset` |
 
-更多见 [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md)。应用内 `⌘K` 打开命令面板，`Space` 收起全部面板以获得干净的 3D 视图。
+更多见 [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md)。应用内 `⌘/Ctrl + K` 打开命令面板，`Space` 收起全部面板以获得干净的 3D 视图。
 
 ## 许可证
 

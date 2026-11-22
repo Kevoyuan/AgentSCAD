@@ -41,6 +41,8 @@ Build a single-cylinder slider-crank with an 8 mm crank and a 28 mm rod, plus an
 
 ## Quick start
 
+Prerequisites: [Bun](https://bun.sh) and the [OpenSCAD CLI](https://openscad.org/downloads.html) available as `openscad` on your `PATH` (or set `OPENSCAD_BIN`). Local rendering uses native OpenSCAD by default; serverless builds use the pinned WASM runtime. Installation steps are in [Development](./docs/DEVELOPMENT.md).
+
 ```bash
 git clone https://github.com/Kevoyuan/AgentSCAD.git
 cd AgentSCAD
@@ -56,7 +58,7 @@ Open [http://localhost:3000](http://localhost:3000), then **Settings ⚙️ → 
 
 No Bun? `cp .env.example .env && docker compose up --build`.
 
-Then describe a part and press `⌘ Enter`:
+Then describe a part and press `⌘/Ctrl + Enter`:
 
 ```text
 Create a wall-mountable phone holder with rounded corners and two screw holes.
@@ -72,13 +74,21 @@ Most text-to-CAD demos stop at "the shape looks right". The interesting part of 
 - A **public benchmark** for functional assemblies — thirteen native families (hinges, slider-cranks, inline twin and 90° V-twin, V8 packaging, planetary trains, threads, cam), twelve evidence layers, and adversarial submissions in every family. The self-check fails if a cheat starts passing.
   → [`bench/`](./bench/README.md)
 
+## Status & limits
+
+AgentSCAD is under active development (v0.6). It is local-first and has no account system; provider keys stay in your browser or on your machine.
+
+- `DELIVERED` means the artifacts exist — not that the part was accepted or matches your intent. Acceptance is recorded separately in the outcome ledger.
+- Assembly evidence is **sampled and version-bound**. A clear sample is not proof of continuous motion, physical fit or manufacturing success; unresolved checks stay `NOT_RUN`.
+- Functional assembly (A01–A14) is still in progress; see the [execution ledger](./docs/ASSEMBLY_EXECUTION_BACKLOG.md) and [plan](./docs/FUNCTIONAL_ASSEMBLY_PLAN.md) for what is currently gated.
+
 ## Documentation
 
 - [Architecture](./docs/ARCHITECTURE.md)
 - [Benchmark](./bench/README.md) · [Evaluation commands](./docs/BENCHMARK.md)
 - [Functional assembly target](./docs/FUNCTIONAL_ASSEMBLY_PLAN.md) (中文)
 - [Skills and routing](./docs/SKILLS.md) · [Development and CI](./docs/DEVELOPMENT.md)
-- [Design system](./DESIGN.md) · [Changelog](./CHANGELOG.md)
+- [Design system](./DESIGN.md) · [Changelog](./CHANGELOG.md) · [Contributing](./CONTRIBUTING.md)
 
 ## Commands
 
@@ -90,7 +100,7 @@ Most text-to-CAD demos stop at "the shape looks right". The interesting part of 
 | Assembly benchmark self-check (13 families) | `bun run bench:all` |
 | Reset database | `bun run db:reset` |
 
-More in [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md). In the app, `⌘K` opens the command palette and `Space` hides every panel for a clean 3D view.
+More in [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md). In the app, `⌘/Ctrl + K` opens the command palette and `Space` hides every panel for a clean 3D view.
 
 ## License
 
