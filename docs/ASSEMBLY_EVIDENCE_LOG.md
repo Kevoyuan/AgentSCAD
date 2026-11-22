@@ -4103,3 +4103,47 @@ until the next full gate rerun.**
 - The fixture is an original researcher-authored demonstration part; this says nothing
   about autonomous generation of a tool-reachable assembly.
 - The interactive UI and user acceptance remain open. No model calls and no deployment.
+
+## 2026-11-22 · Thirteen-family gate with the tool-access product row (English log)
+
+Full `bench:all` on the tool-access tree (`a00dda9`). Native OpenSCAD 2021.01, no model
+calls; about **162 family-minutes** (v8 66 minutes; thread 54 minutes under a load
+average of ~5). Every family self-check passed and no product budget flake occurred.
+
+```
+family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers
+assembly     OK         20     6     8     6         12    8     0        104/120
+gear         OK         6      1     5     0         1     4     1        7/12
+slider       OK         17     3     14    0         3     14    0        51/77
+l4           OK         5      1     4     0         1     4     0        14/25
+twin         OK         6      1     5     0         1     5     0        11/24
+vtwin        OK         5      1     4     0         1     4     0        11/20
+declaration  OK         4      1     3     0         1     3     0        7/20
+v8           OK         20     3     17    0         3     15    2        93/119
+planetary    OK         4      1     3     0         1     3     0        4/8
+planetary3   OK         4      1     3     0         1     3     0        4/8
+product      OK         21     5     16    0         5     15    1        81/135
+thread       OK         8      2     6     0         2     5     1        25/35
+cam          OK         5      1     4     0         1     4     0        10/15
+```
+
+`overall: PASS`; **125 cases** — 27 reference, 92 adversarial, 6 unscored; **33 PASS /
+87 FAIL-or-ERROR / 5 NOT_RUN**; **422/618** observed layer entries.
+
+Changes from the previous published gate (`24ee501`): the product family grew from 19
+cases / 74-of-127 layers to **21 cases / 81-of-135 layers** because task 5
+(`product-guided-tool-access`) adds sampled tool reachability (reference PASS 4/4; a
+blocked-tool adversary fails only `tool-access`). The v8 row is unchanged at 20 cases /
+93-of-119 layers, and the product NOT_RUN count stays 1 (the existing
+missing-insertions assembly-path).
+
+This remains a public self-check gate: not hidden evaluation, model ability, continuous
+motion or tool paths, calibrated metrology, valve-train/firing-order behavior, interactive
+product workflow, user acceptance or physical function. Open items: a complete V8 machine
+(valve train, camshaft, firing order, removable casing; sketch in
+`docs/V8_L5C3_DESIGN.md` §7), the interactive nine-plus-pose product workflow and
+continuous-removal/tool-force evidence, full A001 contract pass, an independent hidden set,
+a fresh funded product trial, user acceptance and physical validation.
+
+**Development paused after this round at the request of the user; the working tree is
+clean and this is the last published gate before the pause.**
