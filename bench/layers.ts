@@ -65,7 +65,7 @@ export const LAYERS: readonly LayerSpec[] = [
   { id: "fit", evidence: ["diametral-clearance", "bearing-fit", "guide-clearance", "thread-coaxiality", "contact-gap", "bore-clearance", "head-clearance"], subsystem: "Bore/shaft dimensions and tolerance, guide gap, threaded coaxiality, cam contact gap, closed-bore and head clearance" },
   { id: "balance", evidence: ["counterweight-balance"], subsystem: "Crank counterweights and throw phase" },
   { id: "retention", evidence: ["axial-retention", "unresolved-axial-retention"], subsystem: "Retention features and latches" },
-  { id: "assembly-path", evidence: ["assembly-path"], subsystem: "Insertion path and clearance" },
+  { id: "assembly-path", evidence: ["assembly-path", "tool-access"], subsystem: "Insertion path, tool reachability and clearance" },
   { id: "disassembly-path", evidence: ["disassembly-path"], subsystem: "Removal order" },
   { id: "rigid-motion", evidence: ["rigid-motion", "sampled-motion", "motion-range-deg", "motion-range-negative-end", "motion-range-positive-end"], subsystem: "Kinematics and collision" },
   { id: "source-motion", evidence: ["source-motion", "source-motion-nine"], subsystem: "SCAD parameterisation and pose selectors" },

@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "id": "product-guided-tool-access",
+  "prompt": "Use the product contract-assembly path on the six-part guided slider-crank fixture and additionally prove sampled tool reachability: a cylindrical tool must sweep from outside along the declared direction to the removable front guide without intersecting any other instance, and its final tip must contact the guide within the declared tolerance. A tool that is blocked must be rejected.",
+  "partCount": 6,
+  "toolAccess": {
+    "toolRadiusMm": 0.5,
+    "fromMm": 20,
+    "contactMm": 0.3,
+    "contactToleranceMm": 0.5,
+    "samples": 10,
+    "approaches": [
+      {
+        "id": "guide_top",
+        "instanceId": "guide_front",
+        "direction": [
+          0,
+          0,
+          1
+        ]
+      }
+    ]
+  },
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 6
+      }
+    },
+    {
+      "id": "part-connectivity",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "assembly-reconstruction",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "tool-access",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "Tool access is measured by the bench from locally rendered part meshes at pose 0: a closed cylindrical tool (radius 0.5 mm) sweeps 11 positions from 20 mm outside the guide face to 0.3 mm short of it along +X; every tool position must be separated from every other instance, and the final position must not intersect the guide.",
+    "This is sampled reachability and a modelled contact gap, not a continuous path, tool force, tolerance stack, chip clearance, operator access or physical assembly proof.",
+    "The fixture's declaration still declares the guide operation separately; this task changes no product code and only adds a bench observer."
+  ]
+}

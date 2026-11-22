@@ -4059,3 +4059,47 @@ train, camshaft, firing order, removable casing), the interactive nine-plus-pose
 workflow and tool-access evidence (see the valve-train design sketch in
 `docs/V8_L5C3_DESIGN.md` §7), full A001 contract pass, an independent hidden set, a fresh
 funded product trial, user acceptance and physical validation.
+
+## 2026-11-22 · Sampled tool-access product task (A08 tool-access half) (English log)
+
+A08 listed tool access as an open gap. This adds a fifth `bench/product` task that keeps
+the product contract-assembly path on the six-part guided slider-crank fixture and adds a
+**bench-side sampled tool-reachability** observer.
+
+### Method
+
+- a closed cylindrical tool (radius 0.5 mm) sweeps 11 positions from 20 mm outside the
+  removable front guide to 0.3 mm short of it along **+Z**;
+- at every sample the tool mesh is tested against every non-target instance mesh (55
+  instance-pair samples), the final tip must sit within 0.5 mm of the target face, and the
+  final tool must not intersect the target;
+- part meshes are rendered locally at pose 0 and placed with the declared instance
+  transforms.
+
+The first +X approach was rejected during development: the frame's side channel sits in
+front of the guide's outer edge, so a straight +X tool cannot reach the guide without
+hitting the channel. The shipped +Z approach is clear for the reference.
+
+### Result
+
+`bun bench/product/run.ts --task product-guided-tool-access --self-check` ->
+`SELF-CHECK OK: 1 reference(s) pass, 1 adversarial submission(s) rejected.`
+
+| Submission | Result |
+|---|---|
+| `reference` | **PASS 4/4 layers**: connectivity, reconstruction and sampled tool access PASS |
+| `adversarial-blocked-tool` | FAIL 3/4; a bracket/post connected to the frame upper plate closes the +Z path, so **only `tool-access` FAILS** |
+
+The bench `assembly-path` layer now also carries `tool-access` (insertion path, tool
+reachability and clearance). The product family grows from 19 to 21 cases; the new task
+contributes 7-of-8 layers. **The published product row keeps the pre-tool-access result
+until the next full gate rerun.**
+
+### Boundaries
+
+- Sampled reachability at 11 positions and a modelled 0.3 mm contact gap; not a continuous
+  path, tool force, tolerance stack, chip clearance, operator access or physical assembly
+  proof.
+- The fixture is an original researcher-authored demonstration part; this says nothing
+  about autonomous generation of a tool-reachable assembly.
+- The interactive UI and user acceptance remain open. No model calls and no deployment.

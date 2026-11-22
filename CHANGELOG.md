@@ -57,6 +57,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Refresh the thirteen-family gate with the V8 crankcase block/bearing row: 109 cases, 339/518 observed layers, overall PASS
 - Refresh the thirteen-family gate with the V8 counterweight row: 110 cases, 349/529 observed layers, overall PASS (a first attempt failed only the product family on wall-clock budgets under an oversubscribed host; the isolated rerun and a green second attempt superseded it)
 - Refresh the thirteen-family gate with the cam contact-gap row: 115 cases, 378/565 observed layers, overall PASS
+- Add a sampled tool-access product task (A08 tool-access half): a cylindrical tool must reach the removable front guide over 11 sampled positions without colliding with other instances; reference PASS 4/4, blocked-tool adversary fails only that layer
 - Refresh the thirteen-family gate with the nine-pose product row: 123 cases, 415/610 observed layers, overall PASS
 - Add a nine-pose source-verification product task (A08 pose coverage): nine listed slider-crank poses inside the 360-degree range are independently verified with the production protocol; reference PASS 5/5, static and wrong-radius adversaries rejected
 - Refresh the thirteen-family gate with the V8 independent-throw closed-bore row: 120 cases, 404/595 observed layers, overall PASS

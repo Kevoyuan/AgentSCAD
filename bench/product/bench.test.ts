@@ -58,6 +58,28 @@ describe("product-path tasks", () => {
     })).toThrow("needs a sourcePoses contract");
   });
 
+  test("freezes the sampled tool-access task", async () => {
+    const tasks = await loadProductTasks();
+    const task = tasks.find((entry) => entry.id === "product-guided-tool-access");
+    expect(task).toBeDefined();
+    expect(task!.partCount).toBe(6);
+    expect(task!.toolAccess?.toolRadiusMm).toBe(0.5);
+    expect(task!.toolAccess?.approaches).toEqual([{ id: "guide_top", instanceId: "guide_front", direction: [0, 0, 1] }]);
+    expect(task!.requirements.map((r) => r.id)).toEqual([
+      "distinct-exported-parts", "part-connectivity", "assembly-reconstruction", "tool-access",
+    ]);
+  });
+
+  test("a tool-access requirement without a toolAccess contract is rejected", () => {
+    expect(() => validateProductTask({
+      schemaVersion: 1, id: "bad-tool", prompt: "a task with a tool requirement", partCount: 1,
+      requirements: [
+        { id: "distinct-exported-parts", layer: "parts", required: true, applicable: true, expected: { kind: "equals", value: 1 } },
+        { id: "tool-access", layer: "assembly", required: true, applicable: true, expected: { kind: "equals", value: true } },
+      ],
+    })).toThrow("needs a toolAccess contract");
+  });
+
   test("refuses a requirement id the product path cannot observe", () => {
     expect(() => validateProductTask({
       schemaVersion: 1, id: "bad-task", prompt: "a task with an unobservable requirement", partCount: 1,

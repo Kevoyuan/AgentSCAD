@@ -13,12 +13,15 @@ import { deriveRequirementContract } from "../../src/lib/requirements/extract-re
 import { automaticSliderCrankKinematics } from "../../src/lib/assembly/automatic-slider-crank";
 import { buildSliderCrankSourcePoseProtocolFromSpec } from "../../src/lib/tools/slider-crank-source-pose";
 import { verifySourcePoses } from "../../src/lib/tools/source-pose-verification";
+import { renderAssemblyParts } from "../../src/lib/tools/assembly-part-renderer";
+import { readBinaryStl, meshBounds, type TriangleMesh } from "../../src/lib/geometry/stl-mesh";
+import { meshesIntersect } from "../../src/lib/geometry/mesh-collision";
 import { validateAssemblySpec } from "../../src/lib/assembly/assembly-spec";
 import { evaluateRequirement, type Observation, type Result } from "../../scripts/eval/assembly-evidence";
 import { scoreEvidence } from "../layers";
 import { aggregateStatus, expectedOutcome, type BenchRequirement, type EvidenceStatus, type ExpectedOutcome, type Submission } from "../assembly/bench";
 
-export interface ProductTask { schemaVersion: 1; id: string; prompt: string; request?: string; partCount: number; fit?: { minClearanceMm: number; maxClearanceMm: number; requirements: Array<{ connectionId: string; boreSelector: string }> }; sourcePoses?: { count: number; anglesDeg?: number[]; budgetMs?: number }; requirements: BenchRequirement[]; notes?: string[] }
+export interface ProductTask { schemaVersion: 1; id: string; prompt: string; request?: string; partCount: number; fit?: { minClearanceMm: number; maxClearanceMm: number; requirements: Array<{ connectionId: string; boreSelector: string }> }; sourcePoses?: { count: number; anglesDeg?: number[]; budgetMs?: number }; toolAccess?: { toolRadiusMm: number; fromMm: number; contactMm: number; contactToleranceMm?: number; samples?: number; approaches: Array<{ id: string; instanceId: string; direction: [number, number, number] }> }; requirements: BenchRequirement[]; notes?: string[] }
 export interface ProductMeasurements {
   parts: number;
   partStatuses: string[];
@@ -37,6 +40,10 @@ export interface ProductMeasurements {
   sourceMotionNine: string | null;
   sourceMotionNineReason: string | null;
   sourceMotionNineAnglesDeg: number[] | null;
+  toolAccess: {
+    status: string; reason: string; sampled: number;
+    approaches: Array<{ id: string; instanceId: string; status: string; gapMm: number | null; sampled: number; firstFailure: string | null }>;
+  } | null;
 }
 export interface ProductReport {
   schemaVersion: "product-bench.case.v1"; taskId: string; submission: string; expected: ExpectedOutcome;
@@ -75,6 +82,31 @@ export function validateProductTask(value: unknown): ProductTask {
     }
     sourcePoses = { count, ...(anglesDeg ? { anglesDeg } : {}), ...(budgetMs !== undefined ? { budgetMs } : {}) };
   }
+  let toolAccess: ProductTask["toolAccess"];
+  if (raw.toolAccess !== undefined) {
+    if (!raw.toolAccess || typeof raw.toolAccess !== "object") fail("toolAccess must be an object");
+    const t = raw.toolAccess as Record<string, unknown>;
+    const toolRadiusMm = finite(t.toolRadiusMm, "toolAccess.toolRadiusMm");
+    const fromMm = finite(t.fromMm, "toolAccess.fromMm");
+    const contactMm = finite(t.contactMm, "toolAccess.contactMm");
+    let contactToleranceMm: number | undefined;
+    if (t.contactToleranceMm !== undefined) { contactToleranceMm = finite(t.contactToleranceMm, "toolAccess.contactToleranceMm"); if (contactToleranceMm < 0 || contactToleranceMm > 5) fail("toolAccess.contactToleranceMm is out of range"); }
+    let samples: number | undefined;
+    if (t.samples !== undefined) { samples = finite(t.samples, "toolAccess.samples"); if (!Number.isInteger(samples) || samples < 4 || samples > 64) fail("toolAccess.samples must be 4 to 64"); }
+    if (!(toolRadiusMm > 0) || !(fromMm > contactMm) || !(contactMm >= 0)) fail("toolAccess bounds are invalid");
+    if (!Array.isArray(t.approaches) || t.approaches.length === 0) fail("toolAccess.approaches must be non-empty");
+    const approaches = t.approaches.map((entry, index) => {
+      if (!entry || typeof entry !== "object") fail(`toolAccess.approaches[${index}] must be an object`);
+      const a = entry as Record<string, unknown>;
+      if (typeof a.id !== "string" || typeof a.instanceId !== "string") fail(`toolAccess.approaches[${index}] needs id and instanceId`);
+      if (!Array.isArray(a.direction) || a.direction.length !== 3) fail(`toolAccess.approaches[${index}].direction must have 3 entries`);
+      const direction = a.direction.map((value) => finite(value, `toolAccess.approaches[${index}].direction[]`)) as [number, number, number];
+      const length = Math.hypot(...direction);
+      if (!(length > 0)) fail(`toolAccess.approaches[${index}].direction must be non-zero`);
+      return { id: a.id, instanceId: a.instanceId, direction: [direction[0] / length, direction[1] / length, direction[2] / length] as [number, number, number] };
+    });
+    toolAccess = { toolRadiusMm, fromMm, contactMm, ...(contactToleranceMm !== undefined ? { contactToleranceMm } : {}), ...(samples !== undefined ? { samples } : {}), approaches };
+  }
   if (!Array.isArray(raw.requirements) || raw.requirements.length === 0) fail("requirements must be non-empty");
   const requirements: BenchRequirement[] = raw.requirements.map((entry, index) => {
     if (!entry || typeof entry !== "object") fail(`requirements[${index}] must be an object`);
@@ -85,7 +117,7 @@ export function validateProductTask(value: unknown): ProductTask {
     if (!e || e.kind !== "equals" || !["string", "boolean", "number"].includes(typeof e.value)) fail(`requirements[${index}].expected is invalid`);
     return { id: r.id, layer: r.layer as BenchRequirement["layer"], required: r.required, applicable: r.applicable, expected: { kind: "equals", value: e.value as string | boolean | number } };
   });
-  const observable = new Set(["distinct-exported-parts", "part-connectivity", "assembly-reconstruction", "assembly-path", "disassembly-path", "diametral-clearance", "measured-joint-frames", "rigid-motion", "source-motion", "source-motion-nine"]);
+  const observable = new Set(["distinct-exported-parts", "part-connectivity", "assembly-reconstruction", "assembly-path", "disassembly-path", "diametral-clearance", "measured-joint-frames", "rigid-motion", "source-motion", "source-motion-nine", "tool-access"]);
   for (const r of requirements) if (!observable.has(r.id)) fail(`requirement ${r.id} has no product observer`);
   const distinct = requirements.find((r) => r.id === "distinct-exported-parts");
   if (!distinct || distinct.expected.kind !== "equals" || distinct.expected.value !== partCount) fail("distinct-exported-parts must equal partCount");
@@ -106,7 +138,8 @@ export function validateProductTask(value: unknown): ProductTask {
     fit = { minClearanceMm, maxClearanceMm, requirements };
   }
   if (requirements.some((r) => r.id === "source-motion-nine") && !sourcePoses) fail("a source-motion-nine requirement needs a sourcePoses contract");
-  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, ...(typeof raw.request === "string" ? { request: raw.request } : {}), partCount, ...(fit ? { fit } : {}), ...(sourcePoses ? { sourcePoses } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
+  if (requirements.some((r) => r.id === "tool-access") && !toolAccess) fail("a tool-access requirement needs a toolAccess contract");
+  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, ...(typeof raw.request === "string" ? { request: raw.request } : {}), partCount, ...(fit ? { fit } : {}), ...(sourcePoses ? { sourcePoses } : {}), ...(toolAccess ? { toolAccess } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
 }
 export function productTasksDirectory(): string { return path.join(import.meta.dir, "tasks"); }
 export function productSubmissionsDirectory(): string { return path.join(import.meta.dir, "submissions"); }
@@ -127,11 +160,130 @@ function statusOf(value: unknown): string | null { if (typeof value === "string"
 
 export const PRODUCT_BENCH_TRIAL_GATE_REASON = "Bench trial attribution: the derived contract is used for measurement attribution only; this is not user confirmation, acceptance, or a product requirement contract.";
 
+function applyMatrix(matrix: number[], point: [number, number, number]): [number, number, number] {
+  return [
+    matrix[0] * point[0] + matrix[1] * point[1] + matrix[2] * point[2] + matrix[3],
+    matrix[4] * point[0] + matrix[5] * point[1] + matrix[6] * point[2] + matrix[7],
+    matrix[8] * point[0] + matrix[9] * point[1] + matrix[10] * point[2] + matrix[11],
+  ];
+}
+
+/** A closed cylindrical tool whose flat tip is at `tip` and which extends back along -direction. */
+function toolMeshAt(tip: [number, number, number], direction: [number, number, number], radius: number, length: number): TriangleMesh {
+  const [dx, dy, dz] = direction;
+  const helper: [number, number, number] = Math.abs(dx) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+  const ux = dy * helper[2] - dz * helper[1], uy = dz * helper[0] - dx * helper[2], uz = dx * helper[1] - dy * helper[0];
+  const ul = Math.hypot(ux, uy, uz);
+  const ax = ux / ul, ay = uy / ul, az = uz / ul;
+  const bx = dy * az - dz * ay, by = dz * ax - dx * az, bz = dx * ay - dy * ax;
+  const segments = 16;
+  const points: number[] = [];
+  const ring = (center: [number, number, number]): Array<[number, number, number]> => Array.from({ length: segments }, (_, index) => {
+    const angle = (index / segments) * Math.PI * 2;
+    const c = Math.cos(angle) * radius, s = Math.sin(angle) * radius;
+    return [center[0] + ax * c + bx * s, center[1] + ay * c + by * s, center[2] + az * c + bz * s];
+  });
+  const front = ring(tip);
+  const back = ring([tip[0] - dx * length, tip[1] - dy * length, tip[2] - dz * length]);
+  const push = (a: [number, number, number], b: [number, number, number], c: [number, number, number]) => points.push(...a, ...b, ...c);
+  for (let index = 0; index < segments; index += 1) {
+    const next = (index + 1) % segments;
+    push(front[index], back[index], back[next]);
+    push(front[index], back[next], front[next]);
+    push(tip, front[next], front[index]);
+    const backCenter: [number, number, number] = [tip[0] - dx * length, tip[1] - dy * length, tip[2] - dz * length];
+    push(backCenter, back[index], back[next]);
+  }
+  return { triangleCount: points.length / 9, coordinates: Float64Array.from(points) };
+}
+
+/**
+ * Sampled tool-reachability: a cylindrical tool sweeps from outside toward a
+ * declared instance along a declared direction. Every sampled tool position must
+ * be separated from every other instance, the final tip must sit within the
+ * declared contact tolerance of the target, and the tool must not intersect the
+ * target. This is sampled reachability, not a continuous path or a force model.
+ */
+async function measureToolAccess(task: ProductTask, submission: Submission, spec: Awaited<ReturnType<typeof extractEmbeddedAssemblySpec>> extends never ? never : any): Promise<ProductMeasurements["toolAccess"]> {
+  if (!task.toolAccess) return null;
+  const instanceById = new Map<string, { id: string; transform: number[]; selector: string }>();
+  for (const instance of spec.instances) {
+    const part = spec.parts.find((entry: { id: string; selector: string }) => entry.id === instance.partId);
+    if (!part) continue;
+    instanceById.set(instance.id, { id: instance.id, transform: instance.transform, selector: part.selector });
+  }
+  let rendered: Awaited<ReturnType<typeof renderAssemblyParts>>;
+  try {
+    rendered = await renderAssemblyParts({
+      scadSource: submission.source,
+      parameters: { agentscad_pose: false, motion_angle: 0 },
+      parts: [...instanceById.values()].map((instance) => ({ partId: instance.id, selector: instance.selector })),
+    });
+  } catch (error) {
+    return { status: "ERROR", reason: error instanceof Error ? error.message : "Tool-access parts did not render.", sampled: 0, approaches: [] };
+  }
+  const meshes = new Map<string, TriangleMesh>();
+  for (const instance of instanceById.values()) {
+    const part = rendered.find((entry) => entry.partId === instance.id);
+    if (part) meshes.set(instance.id, readBinaryStl(part.stl));
+  }
+  const approaches: NonNullable<ProductMeasurements["toolAccess"]>["approaches"] = [];
+  let sampled = 0, anyFailure = false;
+  for (const approach of task.toolAccess.approaches) {
+    const target = instanceById.get(approach.instanceId);
+    const targetMesh = target ? meshes.get(target.id) : undefined;
+    if (!target || !targetMesh) { anyFailure = true; approaches.push({ id: approach.id, instanceId: approach.instanceId, status: "NOT_RUN", gapMm: null, sampled: 0, firstFailure: `Instance ${approach.instanceId} is not rendered.` }); continue; }
+    const bounds = meshBounds(targetMesh);
+    let minProjection = Infinity, maxProjection = -Infinity;
+    const center: [number, number, number] = [0, 0, 0];
+    const vertexCount = targetMesh.triangleCount * 3;
+    for (let vertex = 0; vertex < vertexCount; vertex += 1) {
+      const base = vertex * 3;
+      const world = applyMatrix(target.transform, [targetMesh.coordinates[base], targetMesh.coordinates[base + 1], targetMesh.coordinates[base + 2]]);
+      const projection = world[0] * approach.direction[0] + world[1] * approach.direction[1] + world[2] * approach.direction[2];
+      if (projection < minProjection) minProjection = projection;
+      if (projection > maxProjection) maxProjection = projection;
+      center[0] += world[0] / vertexCount; center[1] += world[1] / vertexCount; center[2] += world[2] / vertexCount;
+    }
+    const centerProjection = center[0] * approach.direction[0] + center[1] * approach.direction[1] + center[2] * approach.direction[2];
+    const samples = task.toolAccess.samples ?? 12;
+    let firstFailure: string | null = null;
+    let targetSampled = 0;
+    for (let step = 0; step <= samples; step += 1) {
+      const contactOffset = task.toolAccess.fromMm - (task.toolAccess.fromMm - task.toolAccess.contactMm) * (step / samples);
+      const tipOffset = maxProjection + contactOffset - centerProjection;
+      const tip: [number, number, number] = [center[0] + approach.direction[0] * tipOffset, center[1] + approach.direction[1] * tipOffset, center[2] + approach.direction[2] * tipOffset];
+      const tool = toolMeshAt(tip, approach.direction, task.toolAccess.toolRadiusMm, 8);
+      for (const instance of instanceById.values()) {
+        if (instance.id === target.id) continue;
+        const mesh = meshes.get(instance.id);
+        if (!mesh) continue;
+        targetSampled += 1;
+        const result = meshesIntersect(tool, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], mesh, instance.transform as number[], { maxPairTests: 200_000 });
+        if (result.status !== "SEPARATED" && firstFailure === null) firstFailure = `step ${step}/${samples}: tool intersects ${instance.id} (${result.status}).`;
+      }
+      if (step === samples) {
+        const contactResult = meshesIntersect(tool, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], targetMesh, target.transform as number[], { maxPairTests: 200_000 });
+        if (contactResult.status !== "SEPARATED" && firstFailure === null) firstFailure = `final tool position intersects the target (${contactResult.status}).`;
+      }
+    }
+    const gapMm = task.toolAccess.contactMm;
+    const tolerance = task.toolAccess.contactToleranceMm ?? 0.5;
+    sampled += targetSampled;
+    if (firstFailure === null && gapMm > tolerance) firstFailure = `final tip gap ${gapMm.toFixed(3)} mm exceeds the contact tolerance ${tolerance} mm.`;
+    if (firstFailure) anyFailure = true;
+    approaches.push({ id: approach.id, instanceId: approach.instanceId, status: firstFailure ? "FAIL" : "PASS", gapMm, sampled: targetSampled, firstFailure });
+  }
+  return {
+    status: "PASS", reason: anyFailure ? "At least one declared tool approach is blocked." : "Every declared tool approach reaches its target without sampled collision.", sampled, approaches,
+  };
+}
+
 export async function scoreProductSubmission(task: ProductTask, submission: Submission): Promise<ProductReport> {
   const sourceSha256 = sha256(submission.source);
   const provenance = { createdAt: new Date().toISOString(), backend: process.env.AGENTSCAD_OPENSCAD_BACKEND === "wasm" ? "wasm" : "native", openscad: openscadVersion(), runtime: `bun ${process.env.BUN_VERSION ?? "unknown"}`, platform: process.platform };
   const unknowns = ["A PASS covers product preparation layers only: distinct selectors, part connectivity, export reconstruction, declared paths where present, and the layers listed by the task.", "Rigid motion and source-driven poses are sampled at the declared protocol angles; they are not continuous motion, contact tolerance, load, friction or physical function.", "Source-driven pose verification has a fixed wall-clock budget; a loaded host can return an honest NOT_RUN, which is not a pass.", "The product's A001 contract gate remains separate; this is not a user acceptance or physical-function verdict."];
-  const empty: ProductMeasurements = { parts: 0, partStatuses: [], topology: null, reconstruction: null, disassembly: null, assembly: null, fitStatuses: [], reconstructionReason: null, disassemblyReason: null, assemblyReason: null, motion: null, motionReason: null, sourceMotion: null, sourceMotionReason: null, sourceMotionNine: null, sourceMotionNineReason: null, sourceMotionNineAnglesDeg: null };
+  const empty: ProductMeasurements = { parts: 0, partStatuses: [], topology: null, reconstruction: null, disassembly: null, assembly: null, fitStatuses: [], reconstructionReason: null, disassemblyReason: null, assemblyReason: null, motion: null, motionReason: null, sourceMotion: null, sourceMotionReason: null, sourceMotionNine: null, sourceMotionNineReason: null, sourceMotionNineAnglesDeg: null, toolAccess: null };
   const baseReport = (status: EvidenceStatus, results: Result[], measurements: ProductMeasurements): ProductReport => {
     const scored = scoreEvidence(results.map((r) => ({ id: r.id, status: r.status })));
     return { schemaVersion: "product-bench.case.v1", taskId: task.id, submission: submission.id, expected: expectedOutcome(submission.id), sourcePath: path.relative(process.cwd(), submission.sourcePath), sourceSha256, status, gatePassed: status === "PASS", results, layers: { coverage: scored.coverage, byLayer: scored.layers.map((l) => ({ layer: l.layer, status: l.status, blockers: l.blockers })) }, measurements, provenance, unknowns };
@@ -210,7 +362,8 @@ export async function scoreProductSubmission(task: ProductTask, submission: Subm
       }
     }
   }
-  const measurements: ProductMeasurements = { parts: connectivity.length, partStatuses, topology, reconstruction, disassembly, assembly, fitStatuses, reconstructionReason: reasonOf(m.reconstruction), disassemblyReason: reasonOf(m.declaredDisassembly), assemblyReason: reasonOf(m.declaredAssembly), motion, motionReason: reasonOf(evidence.rigidMotion), sourceMotion, sourceMotionReason: reasonOf(evidence.sourceMotion), sourceMotionNine: sourceMotionNine?.status ?? null, sourceMotionNineReason: sourceMotionNine?.reason ?? null, sourceMotionNineAnglesDeg: sourceMotionNine?.angles ?? null };
+  const toolAccess = await measureToolAccess(task, submission, parsed.data);
+  const measurements: ProductMeasurements = { parts: connectivity.length, partStatuses, topology, reconstruction, disassembly, assembly, fitStatuses, reconstructionReason: reasonOf(m.reconstruction), disassemblyReason: reasonOf(m.declaredDisassembly), assemblyReason: reasonOf(m.declaredAssembly), motion, motionReason: reasonOf(evidence.rigidMotion), sourceMotion, sourceMotionReason: reasonOf(evidence.sourceMotion), sourceMotionNine: sourceMotionNine?.status ?? null, sourceMotionNineReason: sourceMotionNine?.reason ?? null, sourceMotionNineAnglesDeg: sourceMotionNine?.angles ?? null, toolAccess };
   const artifactSha256 = sourceSha256;
   const toolVersion = `product-bench/1 openscad:${openscadVersion()}`;
   const distinctObservation: Observation = { id: "distinct-exported-parts", status: topology !== null ? "MEASURED" : "NOT_RUN", value: connectivity.length, artifactSha256, method: "Product partConnectivity array length after selector rendering.", toolVersion, coverage: `${connectivity.length} part(s) measured by prepareContractAssembly.` };
@@ -236,7 +389,12 @@ export async function scoreProductSubmission(task: ProductTask, submission: Subm
   const nineObservation: Observation = nineStatus === null
     ? { id: "source-motion-nine", status: "NOT_RUN", reason: "No sourcePoses contract declared for this task." }
     : { id: "source-motion-nine", ...measuredStatus(nineStatus), artifactSha256, method: "Independent source-pose verification at the declared extra poses using the production slider-crank protocol.", toolVersion, coverage: `${sourceMotionNine?.angles.length ?? 0} listed input(s): ${(sourceMotionNine?.angles ?? []).map((angle) => `${Number(angle.toFixed(3))}°`).join(", ")}.`, ...(nineStatus === "PASS" ? {} : { reason: sourceMotionNine?.reason ?? `sourceMotionNine ${nineStatus}.` }) };
-  const observations: Record<string, Observation> = { "source-motion-nine": nineObservation, "distinct-exported-parts": distinctObservation, "part-connectivity": topologyObservation, "assembly-reconstruction": reconstructionObservation, "assembly-path": assemblyObservation, "disassembly-path": disassemblyObservation, "diametral-clearance": fitObservation, "measured-joint-frames": jointObservation, "rigid-motion": motionObservation, "source-motion": sourceMotionObservation };
+  const toolStatus = toolAccess?.status ?? null;
+  const toolPass = !!toolAccess && toolAccess.status === "PASS" && toolAccess.approaches.every((entry) => entry.status === "PASS");
+  const toolObservation: Observation = toolAccess === null
+    ? { id: "tool-access", status: "NOT_RUN", reason: "No toolAccess contract declared for this task." }
+    : { id: "tool-access", ...measuredStatus(toolStatus), ...(toolStatus === "PASS" ? { value: toolPass } : {}), artifactSha256, method: "Sampled cylindrical-tool sweep from outside toward each declared instance along the declared direction.", toolVersion, coverage: `${toolAccess.approaches.length} approach(es), ${toolAccess.sampled} instance-pair sample(s).`, ...(toolPass ? {} : { reason: toolAccess.reason || toolAccess.approaches.find((entry) => entry.firstFailure)?.firstFailure || "A tool approach is blocked." }) };
+  const observations: Record<string, Observation> = { "tool-access": toolObservation, "source-motion-nine": nineObservation, "distinct-exported-parts": distinctObservation, "part-connectivity": topologyObservation, "assembly-reconstruction": reconstructionObservation, "assembly-path": assemblyObservation, "disassembly-path": disassemblyObservation, "diametral-clearance": fitObservation, "measured-joint-frames": jointObservation, "rigid-motion": motionObservation, "source-motion": sourceMotionObservation };
   const results: Result[] = task.requirements.map((requirement) => {
     const evaluated = evaluateRequirement({ id: requirement.id, layer: requirement.layer, required: requirement.required, applicable: requirement.applicable, expected: requirement.expected }, observations[requirement.id]);
     if (evaluated.status === "FAIL" && requirement.expected.kind === "equals") return { ...evaluated, reason: `${evaluated.reason} Observed ${String(observations[requirement.id]?.value)}, expected ${String(requirement.expected.value)}.` };

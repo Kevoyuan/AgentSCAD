@@ -208,9 +208,9 @@ cam          OK         5      1     4     0         1     4     0        10/15
 promoted. `layers` is the sum of observed layers across cases, not a pass rate.
 
 This is a public self-check gate, not independent hidden evaluation, model ability,
-physical function or user acceptance. The product row includes the nine-pose
-task (19 cases / 74-of-127 layers); family detail is in
-[`bench/product/README.md`](./product/README.md). The cam row includes the contact-gap rung
+physical function or user acceptance. The **product row predates the tool-access task** (21 cases / 81-of-135 layers); its
+current family result is in [`bench/product/README.md`](./product/README.md) and the next
+full gate rerun replaces the row. The cam row includes the contact-gap rung
 (5 cases / 10-of-15 layers); family detail is in
 [`bench/cam/README.md`](./cam/README.md). The thread row includes the coaxiality rung
 (8 cases / 25-of-35 layers); family detail is in

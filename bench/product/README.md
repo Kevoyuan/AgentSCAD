@@ -90,6 +90,31 @@ Result:
 | `adversarial-static` | FAIL 4/5; the source ignores the angle, so `source-motion` and `source-motion-nine` FAIL |
 | `adversarial-crank-radius` | FAIL 2/5; reconstruction is NOT_RUN, rigid motion and both source layers FAIL |
 
+## Task 5 — sampled tool reachability (six parts, A08 tool-access half)
+
+`tasks/product-guided-tool-access.json` uses the product contract-assembly path on the
+six-part guided slider-crank fixture and adds a bench-side tool-reachability observer:
+
+- a closed cylindrical tool (radius 0.5 mm) sweeps 11 sampled positions from 20 mm outside
+  the removable front guide to 0.3 mm short of it along **+Z**;
+- every sampled tool position must be separated from every other instance mesh (55
+  instance-pair samples), the final tip must sit within 0.5 mm of the guide face, and the
+  tool must not intersect the guide itself;
+- the measurement uses locally rendered part meshes plus the declared instance transforms;
+  it is sampled reachability and a modelled contact gap, not a continuous path, tool force,
+  tolerance stack, chip clearance or physical assembly proof.
+
+A first +X approach was rejected during development: the frame's side channel sits in
+front of the guide's outer edge, so a straight +X tool cannot reach the guide without
+hitting the channel. The shipped +Z approach is clear for the reference.
+
+Result:
+
+| Submission | Result |
+|---|---|
+| `reference` | **PASS 4/4**: connectivity, reconstruction and sampled tool access PASS |
+| `adversarial-blocked-tool` | FAIL 3/4; a bracket/post connected to the frame's upper plate closes the +Z path, so **only `tool-access` FAILS** |
+
 ## Result
 
 ```
@@ -149,4 +174,6 @@ re-frozen before it is used. Every hidden copy remains
   product workflow or user acceptance. A08 remains partial.
 - The fixture is an original researcher-authored demonstration part; a source PASS is
   not evidence that autonomous generation produces this mechanism.
+- Tool access is a sampled cylindrical sweep against rendered meshes at pose 0; the
+  interactive UI, operator access and user acceptance remain open.
 - No model calls, no deployment and no physical claim.
