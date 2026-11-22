@@ -181,8 +181,8 @@ so `independentHiddenEvaluation` stays `NOT_RUN`, not `PASS`.
 The public self-check gate re-runs every family on the same native OpenSCAD backend.
 The matrix below is a real run on the integrated `main` tree (commit `6e54984` plus the
 documentation restoration that records it), native OpenSCAD 2021.01, **no model calls**.
-Family self-check time was about **162 minutes** on this machine; wall time is not a
-performance claim.
+Family self-check time was about **185 minutes** on this machine during a
+loaded run; wall time is not a performance claim.
 
 ```
 family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers

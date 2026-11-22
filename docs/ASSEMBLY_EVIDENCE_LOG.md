@@ -4199,3 +4199,20 @@ gate-time fix.
 - Unit suite: **1312 tests, 0 fail**. Typecheck and lint pass.
 - The published matrix is unchanged (no gate rerun in this change); the next full gate run
   publishes the same rows with the optimization in place and records the new family time.
+
+## 2026-11-22 · Thirteen-family gate on the optimized harness tree (English log)
+
+Full `bench:all` on `aa1202c` (shared bench geometry module, BVH reuse, CI lanes). Native
+OpenSCAD 2021.01, no model calls. The host was loaded (load average 4–10), so the run took
+about **185 family-minutes**; the per-family rows and every verdict are identical to the
+previous published gate (`1966c15`): **125 cases, 27 references, 92 adversarial, 6
+unscored, 33 PASS / 87 FAIL-or-ERROR / 5 NOT_RUN, layers 422/618, overall PASS**. v8 took
+88 minutes in this loaded run, thread 42.
+
+This rerun exists to prove the refactor is behavior-preserving for the exact tree: the
+shared `bench/geometry.ts` primitives, the per-part BVH reuse and the new `testedPairs`
+report field change no task, threshold or evidence verdict. The published matrix rows do
+not change; only the recorded family time and the harness/CI description do. The full
+gate remains scheduled weekly in CI, with a changed-family smoke on every PR and a nightly
+cheap-family lane; the earlier measured 2.31x collision-phase speedup does not move the
+gate time because OpenSCAD rendering dominates.
