@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/OpenSCAD-Native_%7C_WASM-blue" alt="OpenSCAD" />
 </p>
 
-<img src="./docs/images/agentscad_overview.png" alt="AgentSCAD workspace" />
+![AgentSCAD workbench showing the guided slider-crank and its editable motion angle, crank radius, and rod length](./docs/images/agentscad-slider-crank-workspace.png)
 
 AgentSCAD is a local-first, open-source AI CAD workspace. A natural-language request becomes editable parametric OpenSCAD, rendered by a real geometry engine and checked by deterministic code instead of by asking a model whether it looks right.
 
@@ -29,13 +29,15 @@ AgentSCAD is a local-first, open-source AI CAD workspace. A natural-language req
 - **Stops when the request is ambiguous.** Two plausible readings means it asks, rather than silently picking one.
 - **Keeps facts apart from opinions.** `DELIVERED` means the artifacts exist. Whether you accepted the part is a separate, append-only record.
 
-| Parameter tuning | Focus view |
-| :---: | :---: |
-| ![Parameter tuning](./docs/images/tune_parameters.png) | ![Focus view](./docs/images/focus_model.png) |
+![Close-up render of the same guided slider-crank at 55°, showing the orange connecting rod](./docs/images/agentscad-slider-crank-detail.png)
 
-When a request has two plausible readings it stops and asks, instead of picking one:
+**Slider-crank benchmark prompt**
 
-![An ambiguous request waiting for a decision](./docs/images/human_review.png)
+```text
+Build a single-cylinder slider-crank with an 8 mm crank and a 28 mm rod, plus an eccentric retaining key and a front guide. A correct removal takes the guide before the key; the wrong order must be blocked by the guide. All six parts must export separately.
+```
+
+[See how AgentSCAD presents an ambiguous request for review.](./docs/images/human_review.png)
 
 ## Quick start
 
@@ -50,7 +52,7 @@ bun run dev
 
 Open [http://localhost:3000](http://localhost:3000), then **Settings ⚙️ → Providers**: pick a preset, paste a key, **Test**, **Save**. Keys stay on your machine.
 
-![Provider settings](./docs/images/providers.png)
+[View the provider settings screenshot.](./docs/images/providers.png)
 
 No Bun? `cp .env.example .env && docker compose up --build`.
 

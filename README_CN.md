@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/OpenSCAD-Native_%7C_WASM-blue" alt="OpenSCAD" />
 </p>
 
-<img src="./docs/images/agentscad_overview.png" alt="AgentSCAD 工作区" />
+![AgentSCAD 工作台中的导向式滑块曲柄，右侧可调整运动角度、曲柄半径和连杆长度](./docs/images/agentscad-slider-crank-workspace.png)
 
 AgentSCAD 是一个本地优先的开源 AI CAD 工作区。一句自然语言需求会变成可编辑的参数化 OpenSCAD，由真实的几何引擎渲染，并由确定性代码检查——而不是问模型"看起来对不对"。
 
@@ -29,13 +29,15 @@ AgentSCAD 是一个本地优先的开源 AI CAD 工作区。一句自然语言�
 - **需求有歧义时停下来问。** 有两种合理解读时它会提问，而不是替你选一个。
 - **事实和判断分开记。** `DELIVERED` 只表示产物存在；你是否接受了这个零件，是另一份只追加的记录。
 
-| 参数微调 | 焦点视图 |
-| :---: | :---: |
-| ![参数微调](./docs/images/tune_parameters.png) | ![焦点视图](./docs/images/focus_model.png) |
+![同一套导向式滑块曲柄在 55° 位置的渲染特写，可见橙色连杆](./docs/images/agentscad-slider-crank-detail.png)
 
-当需求有两种合理解读时，它会停下来问，而不是替你选一个：
+**滑块曲柄评测提示词（英文原文）**
 
-![等待决策的歧义需求](./docs/images/human_review.png)
+```text
+Build a single-cylinder slider-crank with an 8 mm crank and a 28 mm rod, plus an eccentric retaining key and a front guide. A correct removal takes the guide before the key; the wrong order must be blocked by the guide. All six parts must export separately.
+```
+
+[查看 AgentSCAD 如何提示用户确认有歧义的需求。](./docs/images/human_review.png)
 
 ## 快速开始
 
@@ -50,7 +52,7 @@ bun run dev
 
 打开 [http://localhost:3000](http://localhost:3000)，然后 **设置 ⚙️ → Providers**：选一个预设，粘贴 API key，**测试**，**保存**。密钥只留在你本机。
 
-![Provider 设置](./docs/images/providers.png)
+[查看 Provider 设置截图。](./docs/images/providers.png)
 
 没有 Bun？`cp .env.example .env && docker compose up --build`。
 
