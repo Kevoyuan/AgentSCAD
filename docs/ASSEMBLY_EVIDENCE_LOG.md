@@ -4216,3 +4216,27 @@ not change; only the recorded family time and the harness/CI description do. The
 gate remains scheduled weekly in CI, with a changed-family smoke on every PR and a nightly
 cheap-family lane; the earlier measured 2.31x collision-phase speedup does not move the
 gate time because OpenSCAD rendering dominates.
+
+## 2026-11-22 · Benchmark workflow optimization (English log)
+
+The full gate is CPU-bound and serial on one host (150–185 family-minutes depending
+on load; v8 66–88 minutes). The practical workflow is now encoded so it is not run
+after every edit:
+
+- `bun run bench:test` (bench schema/unit tests, seconds), `bun run bench:quick`
+  (bench tests + typecheck) and `bun run bench:smoke` (changed families only: one
+  reference submission each, derived from `HEAD~1..HEAD` or `BENCH_BASE_SHA`,
+  `BENCH_SMOKE_DRY_RUN=1` prints the plan) are the local loop.
+- `bun run bench:all` remains the only way to update the published matrix and should
+  run in the background at a batch or release point.
+- CI keeps `bun test bench/` on every push/PR, a changed-family smoke in the existing
+  OpenSCAD job, a nightly cheap-family fast lane, and now a **weekly parallel family
+  matrix**: each family, with v8 split by task, is its own job, so the weekly wall
+  clock is the slowest job (about v8-bored or thread) instead of the sum. The aggregate
+  `bench/matrix.json` is published by a manual `workflow_dispatch` run of the serial
+  full gate, which also uploads the matrix artifact.
+
+This changes process and CI only: no task, threshold, evidence semantics or published
+matrix row changes. Local checks on this change: bench tests 98 pass, typecheck pass,
+CI YAML parses and lists `core`, `openscad-integration`, `bench-nightly`,
+`bench-family`, `bench-full-serial`; the smoke script dry run prints its plan.

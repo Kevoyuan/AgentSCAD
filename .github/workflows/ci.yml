@@ -163,9 +163,92 @@ jobs:
             xvfb-run -a bun "bench/${family}/run.ts" --submission reference
           done
 
-  bench-full:
-    name: Benchmark Weekly Full Gate
+  bench-family:
+    name: Benchmark Family (${{ matrix.name }})
     if: github.event_name == 'schedule' && github.event.schedule == '0 3 * * 1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: assembly
+            command: bun bench/assembly/run.ts --self-check
+            report: bench/assembly/report.json
+          - name: gear
+            command: bun bench/gear/run.ts --self-check
+            report: bench/gear/report.json
+          - name: slider
+            command: bun bench/slider/run.ts --self-check
+            report: bench/slider/report.json
+          - name: l4
+            command: bun bench/l4/run.ts --self-check
+            report: bench/l4/report.json
+          - name: twin
+            command: bun bench/twin/run.ts --self-check
+            report: bench/twin/report.json
+          - name: vtwin
+            command: bun bench/vtwin/run.ts --self-check
+            report: bench/vtwin/report.json
+          - name: declaration
+            command: bun bench/declaration/run.ts --self-check
+            report: bench/declaration/report.json
+          - name: planetary
+            command: bun bench/planetary/run.ts --self-check
+            report: bench/planetary/report.json
+          - name: planetary3
+            command: bun bench/planetary3/run.ts --self-check
+            report: bench/planetary3/report.json
+          - name: cam
+            command: bun bench/cam/run.ts --self-check
+            report: bench/cam/report.json
+          - name: v8-phase
+            command: bun bench/v8/run.ts --task v8-phase-8 --self-check
+            report: bench/v8/report.json
+          - name: v8-block
+            command: bun bench/v8/run.ts --task v8-block-bearings-8 --self-check
+            report: bench/v8/report.json
+          - name: v8-bored
+            command: bun bench/v8/run.ts --task v8-bored-8 --self-check
+            report: bench/v8/report.json
+          - name: thread
+            command: bun bench/thread/run.ts --self-check
+            report: bench/thread/report.json
+          - name: product
+            command: bun bench/product/run.ts --self-check
+            report: bench/product/report.json
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.3.13"
+
+      - name: Install OpenSCAD and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openscad xvfb
+          bun install --frozen-lockfile
+
+      - name: Benchmark family self-check
+        run: xvfb-run -a ${{ matrix.command }}
+
+      - name: Upload family report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bench-report-${{ matrix.name }}
+          path: ${{ matrix.report }}
+          if-no-files-found: warn
+
+  bench-full-serial:
+    name: Benchmark Full Serial Publication
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 360
 

@@ -71,7 +71,10 @@
     "bench:thread": "bun bench/thread/run.ts",
     "bench:thread:check": "bun bench/thread/run.ts --self-check",
     "bench:cam": "bun bench/cam/run.ts",
-    "bench:cam:check": "bun bench/cam/run.ts --self-check"
+    "bench:cam:check": "bun bench/cam/run.ts --self-check",
+    "bench:test": "bun test bench/",
+    "bench:smoke": "bun scripts/ci/bench-smoke-changed.ts",
+    "bench:quick": "bun test bench/ && bun run typecheck"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

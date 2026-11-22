@@ -13,8 +13,13 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
-const base = (process.env.BENCH_BASE_SHA ?? "").trim();
+let base = (process.env.BENCH_BASE_SHA ?? "").trim();
 const dryRun = process.env.BENCH_SMOKE_DRY_RUN === "1";
+if (!base && !process.env.CI) {
+  // Local convenience: compare the working tree's last commit against its parent.
+  const parent = spawnSync("git", ["rev-parse", "HEAD~1"], { encoding: "utf8" });
+  if (parent.status === 0) base = parent.stdout.trim();
+}
 if (!base || /^0+$/.test(base)) {
   console.log("No base revision (schedule or initial push); skipping benchmark smoke. The scheduled full gate covers this.");
   process.exit(0);

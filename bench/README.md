@@ -155,6 +155,31 @@ Individual families also run and self-check on their own, for example
 matrix; it is a real native-render gate, because each family runner rewrites its
 report before the matrix reads it.
 
+### Local and CI workflow
+
+The full gate is CPU-bound and serial on one host: about 150–185 family-minutes
+depending on host load, with v8 (66–88 minutes) and thread (38–42) the long poles.
+Do not run it after every edit. The practical loop is:
+
+```bash
+bun run bench:test             # bench schema/unit tests, ~1–2 s
+bun run bench:quick            # bench tests + typecheck, ~15 s
+bun run bench:smoke            # changed families only: one reference submission each
+bun run bench:all              # full gate, run it in the background at a batch/release point
+```
+
+`bench:smoke` derives the affected families from `HEAD~1..HEAD` (or `BENCH_BASE_SHA`
+in CI) and validates a single reference submission per family; an empty base or
+`BENCH_SMOKE_DRY_RUN=1` prints the plan only. It is a regression smoke, not a gate:
+only a full `bench:all` run on the exact tree can update the published matrix.
+
+CI runs four benchmark lanes: `bun test bench/` on every push/PR; a changed-family
+smoke inside the existing OpenSCAD job (skipped when no bench/geometry/assembly files
+changed); a nightly cheap-family fast lane; and a weekly **parallel** family matrix
+where each family, and v8 split by task, is its own job, so the weekly wall clock is
+the slowest job rather than the sum. The aggregate `bench/matrix.json` is still
+published by a manual `workflow_dispatch` run of the serial full gate.
+
 A **zero-cost rejudge** replays retained product-trial sources through the current
 judge without any model call and prints the bench layer model over that sample:
 
