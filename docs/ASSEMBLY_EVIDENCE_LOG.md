@@ -3840,3 +3840,42 @@ until the next full gate rerun.**
   tolerance is measured or claimed.
 - The change is bench-only: no production CAM/API behavior changed, no model calls and
   no deployment.
+
+## 2026-11-22 · Thirteen-family gate with the cam contact-gap row (English log)
+
+Full `bench:all` on the cam contact-gap tree (`e5703ee`). Native OpenSCAD 2021.01, no
+model calls; about **128 family-minutes** (host load varied 3.6–9.2). Every family
+self-check passed on the first attempt; no product budget flake occurred this time.
+
+```
+family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers
+assembly     OK         20     6     8     6         12    8     0        104/120
+gear         OK         6      1     5     0         1     4     1        7/12
+slider       OK         17     3     14    0         3     14    0        51/77
+l4           OK         5      1     4     0         1     4     0        14/25
+twin         OK         6      1     5     0         1     5     0        11/24
+vtwin        OK         5      1     4     0         1     4     0        11/20
+declaration  OK         4      1     3     0         1     3     0        7/20
+v8           OK         15     2     13    0         2     12    1        67/89
+planetary    OK         4      1     3     0         1     3     0        4/8
+planetary3   OK         4      1     3     0         1     3     0        4/8
+product      OK         16     3     13    0         3     12    1        63/112
+thread       OK         8      2     6     0         2     5     1        25/35
+cam          OK         5      1     4     0         1     4     0        10/15
+```
+
+`overall: PASS`; **115 cases** — 24 reference, 85 adversarial, 6 unscored; **30 PASS /
+81 FAIL-or-ERROR / 4 NOT_RUN**; **378/565** observed layer entries.
+
+Changes from the previous published gate (`23c48f8`): only the cam family changed, from
+4 cases / 5-of-8 layers to **5 cases / 10-of-15 layers**, because the task now also
+measures the sampled 0.18–0.22 mm cam/follower contact gap (reference 0.200 mm; a 0.15 mm
+gap decoy keeps its 0.050 mm lift error inside the position tolerance and is rejected
+only on `contact-gap`). The v8, thread and product rows are unchanged.
+
+This remains a public self-check gate: not hidden evaluation, model ability, continuous
+motion, calibrated metrology, contact-force physics, physical function or user
+acceptance. A complete V8 machine (closed cylinder bores with heads and valves, firing
+order), full A001 contract pass, an independent hidden set, a fresh funded product trial,
+user acceptance and physical validation remain open. The next planned rung is the
+`docs/V8_L5C3_DESIGN.md` contract-v6 `v8-bored-8` task.
