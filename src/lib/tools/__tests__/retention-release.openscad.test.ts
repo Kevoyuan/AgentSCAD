@@ -308,9 +308,12 @@ test("retained model repair measures its declared guide region without qualifyin
     "assembly-reconstruction", "measured-joint-frames", "declared-translation-probes"]) {
     expect(result.evidence.find(item => item.id === id)?.status).toBe("PASS");
   }
-  // The offline judge has no confirmed contract, so the source-driven half of
-  // motion evidence cannot run; this candidate has an ideal rigid motion sample only.
-  expect(result.evidence.find(item => item.id === "sampled-motion")?.status).toBe("NOT_RUN");
+  // The offline judge has no confirmed source protocol, so only the measured
+  // rigid motion sample is available: sampled-motion reports that measurement
+  // while the separate source-motion assertion stays NOT_RUN. A missing
+  // source-driven half must not demote a measured rigid sample.
+  expect(result.evidence.find(item => item.id === "sampled-motion")?.status).toBe("PASS");
+  expect(result.evidence.find(item => item.id === "source-motion")?.status).toBe("NOT_RUN");
   expect(result.evidence.find(item => item.id === "intent-preserved")?.status).toBe("NOT_RUN");
   expect(result.evidence.find(item => item.id === "unresolved-axial-retention")?.status).toBe("NOT_RUN");
 }, 60000);
