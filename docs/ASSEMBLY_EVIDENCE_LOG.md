@@ -3929,3 +3929,44 @@ thirteen-family matrix keeps the pre-v6 v8 row until the next full gate rerun.
 - The reference is researcher-authored fixture geometry; autonomous generation of this
   task has not been measured. The external hidden development copy predates contract v6
   and must be re-frozen.
+
+## 2026-11-22 · Thirteen-family gate with the V8 closed-bore row (English log)
+
+Full `bench:all` on the contract-v6 tree (`ed2bafd`). Native OpenSCAD 2021.01, no model
+calls; about **141 family-minutes** (v8 alone 66 minutes because the family now has 20
+submissions including the heavy closed-bore block). Every family self-check passed and no
+product budget flake occurred.
+
+```
+family       self-check cases  refs  adv   unscored  pass  fail  not-run  layers
+assembly     OK         20     6     8     6         12    8     0        104/120
+gear         OK         6      1     5     0         1     4     1        7/12
+slider       OK         17     3     14    0         3     14    0        51/77
+l4           OK         5      1     4     0         1     4     0        14/25
+twin         OK         6      1     5     0         1     5     0        11/24
+vtwin        OK         5      1     4     0         1     4     0        11/20
+declaration  OK         4      1     3     0         1     3     0        7/20
+v8           OK         20     3     17    0         3     15    2        93/119
+planetary    OK         4      1     3     0         1     3     0        4/8
+planetary3   OK         4      1     3     0         1     3     0        4/8
+product      OK         16     3     13    0         3     12    1        63/112
+thread       OK         8      2     6     0         2     5     1        25/35
+cam          OK         5      1     4     0         1     4     0        10/15
+```
+
+`overall: PASS`; **120 cases** — 25 reference, 89 adversarial, 6 unscored; **31 PASS /
+84 FAIL-or-ERROR / 5 NOT_RUN**; **404/595** observed layer entries.
+
+Changes from the previous published gate (`38936f2`): the v8 family grew from 15 cases /
+67-of-89 layers to **20 cases / 93-of-119 layers** because task 3 (`v8-bored-8`, contract
+v6) adds eight independent throws with closed cylinder bores and measured bore/head
+clearance; its reference PASSes 6/6 layers with a 0.379–0.419 mm main-bearing fit, a
+0.350 mm bore gap on 320 rays and a 2.000 mm minimum head gap. The two v8 NOT_RUN entries
+are the base-plate task-2 adversary and the task-3 no-bores adversary; neither is promoted.
+No other family row changed.
+
+This remains a public self-check gate: not hidden evaluation, model ability, continuous
+motion, calibrated metrology, valve-train/firing-order behavior, physical function or user
+acceptance. A complete V8 machine (valve train, camshaft, firing order, removable casing),
+full A001 contract pass, an independent hidden set, a fresh funded product trial, user
+acceptance and physical validation remain open.
