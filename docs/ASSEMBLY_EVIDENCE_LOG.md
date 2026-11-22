@@ -3970,3 +3970,50 @@ motion, calibrated metrology, valve-train/firing-order behavior, physical functi
 acceptance. A complete V8 machine (valve train, camshaft, firing order, removable casing),
 full A001 contract pass, an independent hidden set, a fresh funded product trial, user
 acceptance and physical validation remain open.
+
+## 2026-11-22 · Product nine-pose source verification task (A08 measurement half) (English log)
+
+A08 still lacked nine-or-more measured poses. This adds a fourth `bench/product` task that
+runs the real contract-derived slider-crank preparation path and then **independently
+verifies nine listed source poses** with the production slider-crank source protocol
+(`buildSliderCrankSourcePoseProtocolFromSpec` + `verifySourcePoses`), not with the bench's
+own pose maths.
+
+### Method
+
+- nine listed inputs `0, 40, 80, 120, 160, 200, 240, 280, 320` degrees inside the
+  declared full 360-degree motion range;
+- for each input the production verifier must reconstruct the complete assembly at that
+  input and pass complete bidirectional surface correspondence against the independently
+  derived expectation; a pose without an independent surface-change witness stays
+  `NOT_RUN`;
+- 300 s wall-clock budget for the nine poses (a loaded host can return an honest
+  `NOT_RUN`).
+
+The evenly spaced `0/45/.../360` set was tried first and rejected: poses near 135–225°
+are symmetric under this fixture's crank geometry, so the strict surface-change witness
+could not certify motion and the run stayed `NOT_RUN`. The shipped 40° grid avoids those
+ambiguous angles. That is a fixture-specific property, not a general protocol fix.
+
+### Result
+
+`bun bench/product/run.ts --task product-slider-crank-nine-pose --self-check` ->
+`SELF-CHECK OK: 1 reference(s) pass, 2 adversarial submission(s) rejected.`
+
+| Submission | Result |
+|---|---|
+| `reference` | **PASS 5/5 layers**: connectivity, reconstruction, rigid motion, five-pose source motion and **nine-pose source verification** all PASS |
+| `adversarial-static` | FAIL 4/5; the source ignores the angle, so both source layers FAIL |
+| `adversarial-crank-radius` | FAIL 2/5; reconstruction NOT_RUN, rigid motion and both source layers FAIL |
+
+The product family grows from 16 to 19 cases; the new task contributes 11-of-15 layers.
+**The published product row keeps the pre-nine-pose result until the next full gate
+rerun.**
+
+### Boundaries
+
+- Nine listed samples are not continuous motion, a firing order, load, friction, wear,
+  manufacturing tolerance or physical function.
+- The interactive nine-plus-pose product workflow (UI), tool-access evidence and user
+  acceptance remain open; this is the bench-side measurement half only.
+- No model calls and no deployment.

@@ -68,7 +68,7 @@ export const LAYERS: readonly LayerSpec[] = [
   { id: "assembly-path", evidence: ["assembly-path"], subsystem: "Insertion path and clearance" },
   { id: "disassembly-path", evidence: ["disassembly-path"], subsystem: "Removal order" },
   { id: "rigid-motion", evidence: ["rigid-motion", "sampled-motion", "motion-range-deg", "motion-range-negative-end", "motion-range-positive-end"], subsystem: "Kinematics and collision" },
-  { id: "source-motion", evidence: ["source-motion"], subsystem: "SCAD parameterisation and pose selectors" },
+  { id: "source-motion", evidence: ["source-motion", "source-motion-nine"], subsystem: "SCAD parameterisation and pose selectors" },
   { id: "reconstruction", evidence: ["assembly-reconstruction"], subsystem: "Export, re-assembly and budget" },
 ];
 

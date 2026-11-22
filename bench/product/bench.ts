@@ -10,12 +10,15 @@ import path from "node:path";
 import { extractEmbeddedAssemblySpec } from "../../src/lib/assembly/embedded-spec";
 import { prepareContractAssembly } from "../../src/lib/assembly/prepare-contract-assembly";
 import { deriveRequirementContract } from "../../src/lib/requirements/extract-requirements";
+import { automaticSliderCrankKinematics } from "../../src/lib/assembly/automatic-slider-crank";
+import { buildSliderCrankSourcePoseProtocolFromSpec } from "../../src/lib/tools/slider-crank-source-pose";
+import { verifySourcePoses } from "../../src/lib/tools/source-pose-verification";
 import { validateAssemblySpec } from "../../src/lib/assembly/assembly-spec";
 import { evaluateRequirement, type Observation, type Result } from "../../scripts/eval/assembly-evidence";
 import { scoreEvidence } from "../layers";
 import { aggregateStatus, expectedOutcome, type BenchRequirement, type EvidenceStatus, type ExpectedOutcome, type Submission } from "../assembly/bench";
 
-export interface ProductTask { schemaVersion: 1; id: string; prompt: string; request?: string; partCount: number; fit?: { minClearanceMm: number; maxClearanceMm: number; requirements: Array<{ connectionId: string; boreSelector: string }> }; requirements: BenchRequirement[]; notes?: string[] }
+export interface ProductTask { schemaVersion: 1; id: string; prompt: string; request?: string; partCount: number; fit?: { minClearanceMm: number; maxClearanceMm: number; requirements: Array<{ connectionId: string; boreSelector: string }> }; sourcePoses?: { count: number; anglesDeg?: number[]; budgetMs?: number }; requirements: BenchRequirement[]; notes?: string[] }
 export interface ProductMeasurements {
   parts: number;
   partStatuses: string[];
@@ -31,6 +34,9 @@ export interface ProductMeasurements {
   motionReason: string | null;
   sourceMotion: string | null;
   sourceMotionReason: string | null;
+  sourceMotionNine: string | null;
+  sourceMotionNineReason: string | null;
+  sourceMotionNineAnglesDeg: number[] | null;
 }
 export interface ProductReport {
   schemaVersion: "product-bench.case.v1"; taskId: string; submission: string; expected: ExpectedOutcome;
@@ -50,6 +56,25 @@ export function validateProductTask(value: unknown): ProductTask {
   if (raw.request !== undefined && (typeof raw.request !== "string" || raw.request.trim().length < 8)) fail("request must be non-trivial when present");
   const partCount = finite(raw.partCount, "partCount");
   if (!Number.isInteger(partCount) || partCount < 1) fail("partCount must be a positive integer");
+  let sourcePoses: { count: number; budgetMs?: number } | undefined;
+  if (raw.sourcePoses !== undefined) {
+    if (!raw.sourcePoses || typeof raw.sourcePoses !== "object") fail("sourcePoses must be an object");
+    const sp = raw.sourcePoses as Record<string, unknown>;
+    const count = finite(sp.count, "sourcePoses.count");
+    if (!Number.isInteger(count) || count < 6 || count > 12) fail("sourcePoses.count must be an integer from 6 to 12");
+    let anglesDeg: number[] | undefined;
+    if (sp.anglesDeg !== undefined) {
+      if (!Array.isArray(sp.anglesDeg) || sp.anglesDeg.length !== count) fail("sourcePoses.anglesDeg must list one angle per pose");
+      anglesDeg = sp.anglesDeg.map((entry, index) => finite(entry, `sourcePoses.anglesDeg[${index}]`));
+      if (new Set(anglesDeg).size !== anglesDeg.length) fail("sourcePoses.anglesDeg must be distinct");
+    }
+    let budgetMs: number | undefined;
+    if (sp.budgetMs !== undefined) {
+      budgetMs = finite(sp.budgetMs, "sourcePoses.budgetMs");
+      if (budgetMs < 30000 || budgetMs > 300000) fail("sourcePoses.budgetMs must be 30000 to 300000");
+    }
+    sourcePoses = { count, ...(anglesDeg ? { anglesDeg } : {}), ...(budgetMs !== undefined ? { budgetMs } : {}) };
+  }
   if (!Array.isArray(raw.requirements) || raw.requirements.length === 0) fail("requirements must be non-empty");
   const requirements: BenchRequirement[] = raw.requirements.map((entry, index) => {
     if (!entry || typeof entry !== "object") fail(`requirements[${index}] must be an object`);
@@ -60,7 +85,7 @@ export function validateProductTask(value: unknown): ProductTask {
     if (!e || e.kind !== "equals" || !["string", "boolean", "number"].includes(typeof e.value)) fail(`requirements[${index}].expected is invalid`);
     return { id: r.id, layer: r.layer as BenchRequirement["layer"], required: r.required, applicable: r.applicable, expected: { kind: "equals", value: e.value as string | boolean | number } };
   });
-  const observable = new Set(["distinct-exported-parts", "part-connectivity", "assembly-reconstruction", "assembly-path", "disassembly-path", "diametral-clearance", "measured-joint-frames", "rigid-motion", "source-motion"]);
+  const observable = new Set(["distinct-exported-parts", "part-connectivity", "assembly-reconstruction", "assembly-path", "disassembly-path", "diametral-clearance", "measured-joint-frames", "rigid-motion", "source-motion", "source-motion-nine"]);
   for (const r of requirements) if (!observable.has(r.id)) fail(`requirement ${r.id} has no product observer`);
   const distinct = requirements.find((r) => r.id === "distinct-exported-parts");
   if (!distinct || distinct.expected.kind !== "equals" || distinct.expected.value !== partCount) fail("distinct-exported-parts must equal partCount");
@@ -80,7 +105,8 @@ export function validateProductTask(value: unknown): ProductTask {
     });
     fit = { minClearanceMm, maxClearanceMm, requirements };
   }
-  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, ...(typeof raw.request === "string" ? { request: raw.request } : {}), partCount, ...(fit ? { fit } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
+  if (requirements.some((r) => r.id === "source-motion-nine") && !sourcePoses) fail("a source-motion-nine requirement needs a sourcePoses contract");
+  return { schemaVersion: 1, id: raw.id, prompt: raw.prompt, ...(typeof raw.request === "string" ? { request: raw.request } : {}), partCount, ...(fit ? { fit } : {}), ...(sourcePoses ? { sourcePoses } : {}), requirements, ...(Array.isArray(raw.notes) ? { notes: raw.notes.filter((note): note is string => typeof note === "string") } : {}) };
 }
 export function productTasksDirectory(): string { return path.join(import.meta.dir, "tasks"); }
 export function productSubmissionsDirectory(): string { return path.join(import.meta.dir, "submissions"); }
@@ -105,7 +131,7 @@ export async function scoreProductSubmission(task: ProductTask, submission: Subm
   const sourceSha256 = sha256(submission.source);
   const provenance = { createdAt: new Date().toISOString(), backend: process.env.AGENTSCAD_OPENSCAD_BACKEND === "wasm" ? "wasm" : "native", openscad: openscadVersion(), runtime: `bun ${process.env.BUN_VERSION ?? "unknown"}`, platform: process.platform };
   const unknowns = ["A PASS covers product preparation layers only: distinct selectors, part connectivity, export reconstruction, declared paths where present, and the layers listed by the task.", "Rigid motion and source-driven poses are sampled at the declared protocol angles; they are not continuous motion, contact tolerance, load, friction or physical function.", "Source-driven pose verification has a fixed wall-clock budget; a loaded host can return an honest NOT_RUN, which is not a pass.", "The product's A001 contract gate remains separate; this is not a user acceptance or physical-function verdict."];
-  const empty: ProductMeasurements = { parts: 0, partStatuses: [], topology: null, reconstruction: null, disassembly: null, assembly: null, fitStatuses: [], reconstructionReason: null, disassemblyReason: null, assemblyReason: null, motion: null, motionReason: null, sourceMotion: null, sourceMotionReason: null };
+  const empty: ProductMeasurements = { parts: 0, partStatuses: [], topology: null, reconstruction: null, disassembly: null, assembly: null, fitStatuses: [], reconstructionReason: null, disassemblyReason: null, assemblyReason: null, motion: null, motionReason: null, sourceMotion: null, sourceMotionReason: null, sourceMotionNine: null, sourceMotionNineReason: null, sourceMotionNineAnglesDeg: null };
   const baseReport = (status: EvidenceStatus, results: Result[], measurements: ProductMeasurements): ProductReport => {
     const scored = scoreEvidence(results.map((r) => ({ id: r.id, status: r.status })));
     return { schemaVersion: "product-bench.case.v1", taskId: task.id, submission: submission.id, expected: expectedOutcome(submission.id), sourcePath: path.relative(process.cwd(), submission.sourcePath), sourceSha256, status, gatePassed: status === "PASS", results, layers: { coverage: scored.coverage, byLayer: scored.layers.map((l) => ({ layer: l.layer, status: l.status, blockers: l.blockers })) }, measurements, provenance, unknowns };
@@ -157,7 +183,34 @@ export async function scoreProductSubmission(task: ProductTask, submission: Subm
   const fitStatuses = Array.isArray(m.fits) ? (m.fits as Array<Record<string, unknown>>).map((fit) => ({ connectionId: String(fit.connectionId ?? "?"), status: statusOf(fit), joint: statusOf(fit.jointFrames), reason: typeof fit.reason === "string" ? fit.reason : null })) : [];
   const motion = statusOf(evidence.rigidMotion);
   const sourceMotion = statusOf(evidence.sourceMotion);
-  const measurements: ProductMeasurements = { parts: connectivity.length, partStatuses, topology, reconstruction, disassembly, assembly, fitStatuses, reconstructionReason: reasonOf(m.reconstruction), disassemblyReason: reasonOf(m.declaredDisassembly), assemblyReason: reasonOf(m.declaredAssembly), motion, motionReason: reasonOf(evidence.rigidMotion), sourceMotion, sourceMotionReason: reasonOf(evidence.sourceMotion) };
+  let sourceMotionNine: { status: string; reason: string | null; angles: number[] } | null = null;
+  if (task.sourcePoses) {
+    const kinematics = automaticSliderCrankKinematics(parsed.data);
+    const motion = kinematics ? parsed.data.motions.find((item) => item.inputConnectionId === kinematics.crankAxisConnectionId) : undefined;
+    const range = motion?.range;
+    if (!range || range.unit !== "deg" || !Number.isFinite(range.min) || !Number.isFinite(range.max) || range.max <= range.min) {
+      sourceMotionNine = { status: "NOT_RUN", reason: "No declared degree motion range for the extra-pose verification.", angles: [] };
+    } else {
+      const count = task.sourcePoses.count;
+      const anglesDeg = task.sourcePoses.anglesDeg ?? Array.from({ length: count }, (_, index) => range.min + (range.max - range.min) * index / (count - 1));
+      const built = buildSliderCrankSourcePoseProtocolFromSpec({ spec: parsed.data, anglesDeg, budgetMs: task.sourcePoses.budgetMs ?? 120000 });
+      if (built.status !== "READY") {
+        sourceMotionNine = { status: "NOT_RUN", reason: built.reason, angles: anglesDeg };
+      } else {
+        try {
+          const verified = await verifySourcePoses({ scadSource: submission.source, spec: parsed.data, ...built.protocol });
+          const failedPoses = verified.results.filter((result) => result.status !== "PASS");
+          const reason = failedPoses.length === 0
+            ? `Every one of the ${anglesDeg.length} listed source poses matched the independently derived expectation.`
+            : failedPoses.slice(0, 3).map((result) => `${result.id}: ${result.status} ${result.reason}`).join(" | ");
+          sourceMotionNine = { status: verified.status, reason, angles: anglesDeg };
+        } catch (error) {
+          sourceMotionNine = { status: "ERROR", reason: error instanceof Error ? error.message : String(error), angles: anglesDeg };
+        }
+      }
+    }
+  }
+  const measurements: ProductMeasurements = { parts: connectivity.length, partStatuses, topology, reconstruction, disassembly, assembly, fitStatuses, reconstructionReason: reasonOf(m.reconstruction), disassemblyReason: reasonOf(m.declaredDisassembly), assemblyReason: reasonOf(m.declaredAssembly), motion, motionReason: reasonOf(evidence.rigidMotion), sourceMotion, sourceMotionReason: reasonOf(evidence.sourceMotion), sourceMotionNine: sourceMotionNine?.status ?? null, sourceMotionNineReason: sourceMotionNine?.reason ?? null, sourceMotionNineAnglesDeg: sourceMotionNine?.angles ?? null };
   const artifactSha256 = sourceSha256;
   const toolVersion = `product-bench/1 openscad:${openscadVersion()}`;
   const distinctObservation: Observation = { id: "distinct-exported-parts", status: topology !== null ? "MEASURED" : "NOT_RUN", value: connectivity.length, artifactSha256, method: "Product partConnectivity array length after selector rendering.", toolVersion, coverage: `${connectivity.length} part(s) measured by prepareContractAssembly.` };
@@ -179,7 +232,11 @@ export async function scoreProductSubmission(task: ProductTask, submission: Subm
   };
   const motionObservation: Observation = { id: "rigid-motion", ...measuredStatus(motion), artifactSha256, method: "Product rigid sampled motion evidence from prepareContractAssembly.", toolVersion, coverage: motion === null ? "No rigid motion evidence." : `Product rigid-motion status ${motion}.`, ...(motion === "PASS" ? {} : { reason: measurements.motionReason ?? `rigidMotion ${motion ?? "missing"}.` }) };
   const sourceMotionObservation: Observation = { id: "source-motion", ...measuredStatus(sourceMotion), artifactSha256, method: "Product source-driven pose verification from prepareContractAssembly.", toolVersion, coverage: sourceMotion === null ? "No source-motion evidence." : `Product source-motion status ${sourceMotion}.`, ...(sourceMotion === "PASS" ? {} : { reason: measurements.sourceMotionReason ?? `sourceMotion ${sourceMotion ?? "missing"}.` }) };
-  const observations: Record<string, Observation> = { "distinct-exported-parts": distinctObservation, "part-connectivity": topologyObservation, "assembly-reconstruction": reconstructionObservation, "assembly-path": assemblyObservation, "disassembly-path": disassemblyObservation, "diametral-clearance": fitObservation, "measured-joint-frames": jointObservation, "rigid-motion": motionObservation, "source-motion": sourceMotionObservation };
+  const nineStatus = sourceMotionNine?.status ?? null;
+  const nineObservation: Observation = nineStatus === null
+    ? { id: "source-motion-nine", status: "NOT_RUN", reason: "No sourcePoses contract declared for this task." }
+    : { id: "source-motion-nine", ...measuredStatus(nineStatus), artifactSha256, method: "Independent source-pose verification at the declared extra poses using the production slider-crank protocol.", toolVersion, coverage: `${sourceMotionNine?.angles.length ?? 0} listed input(s): ${(sourceMotionNine?.angles ?? []).map((angle) => `${Number(angle.toFixed(3))}°`).join(", ")}.`, ...(nineStatus === "PASS" ? {} : { reason: sourceMotionNine?.reason ?? `sourceMotionNine ${nineStatus}.` }) };
+  const observations: Record<string, Observation> = { "source-motion-nine": nineObservation, "distinct-exported-parts": distinctObservation, "part-connectivity": topologyObservation, "assembly-reconstruction": reconstructionObservation, "assembly-path": assemblyObservation, "disassembly-path": disassemblyObservation, "diametral-clearance": fitObservation, "measured-joint-frames": jointObservation, "rigid-motion": motionObservation, "source-motion": sourceMotionObservation };
   const results: Result[] = task.requirements.map((requirement) => {
     const evaluated = evaluateRequirement({ id: requirement.id, layer: requirement.layer, required: requirement.required, applicable: requirement.applicable, expected: requirement.expected }, observations[requirement.id]);
     if (evaluated.status === "FAIL" && requirement.expected.kind === "equals") return { ...evaluated, reason: `${evaluated.reason} Observed ${String(observations[requirement.id]?.value)}, expected ${String(requirement.expected.value)}.` };

@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "id": "product-slider-crank-nine-pose",
+  "prompt": "Use the product contract-assembly preparation path on the declared single-cylinder slider-crank and additionally verify nine listed source poses across the full 360-degree range with the production slider-crank source protocol. The extra poses are independent measurements, not a continuous motion proof; wrong source geometry or a tampered declaration must be rejected.",
+  "request": "Build a single-cylinder slider-crank: crank radius 8 mm, rod length 28 mm, diametral clearance 0.1 to 0.6 mm, full 360 degree rotation.",
+  "partCount": 4,
+  "sourcePoses": {
+    "count": 9,
+    "anglesDeg": [
+      0,
+      40,
+      80,
+      120,
+      160,
+      200,
+      240,
+      280,
+      320
+    ],
+    "budgetMs": 300000
+  },
+  "requirements": [
+    {
+      "id": "distinct-exported-parts",
+      "layer": "parts",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": 4
+      }
+    },
+    {
+      "id": "part-connectivity",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "assembly-reconstruction",
+      "layer": "assembly",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "rigid-motion",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    },
+    {
+      "id": "source-motion-nine",
+      "layer": "motion",
+      "required": true,
+      "applicable": true,
+      "expected": {
+        "kind": "equals",
+        "value": true
+      }
+    }
+  ],
+  "notes": [
+    "The product path derives the contract from the task request and measures its usual layers; on top of that, the bench independently renders the assembly at nine evenly spaced inputs inside the declared full 360-degree range and compares every listed source pose with the production slider-crank protocol (complete bidirectional surface correspondence plus same-input assembly reconstruction).",
+    "Nine listed samples are not continuous motion, and they are not a firing order, load, friction, wear, manufacturing tolerance or physical-function claim.",
+    "The extra-pose verification has a fixed wall-clock budget; a loaded host can return an honest NOT_RUN, which is not a pass.",
+    "This is the bench-side nine-pose evidence for A08; the interactive product workflow and user acceptance remain separate and open."
+  ]
+}

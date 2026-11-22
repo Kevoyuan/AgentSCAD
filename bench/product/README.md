@@ -62,6 +62,34 @@ frames** against the same 0.1–0.6 mm band. The fixture declares no source pose
 so rigid motion and source motion stay unobserved instead of being faked; they are not
 listed as required.
 
+## Task 4 — nine-pose source verification (four parts, A08 pose-coverage half)
+
+`tasks/product-slider-crank-nine-pose.json` runs the same contract-derived
+single-cylinder slider-crank through the product preparation path and **additionally**
+renders and verifies **nine listed source poses** with the production slider-crank
+source protocol:
+
+- angles `0, 40, 80, 120, 160, 200, 240, 280, 320` degrees inside the declared full
+  360-degree range;
+- each listed pose must reconstruct the complete assembly at that input and pass
+  complete bidirectional surface correspondence against the independently derived
+  expectation; a pose with no independent surface-change witness stays NOT_RUN;
+- the wall-clock budget is 300 s for the nine poses; a loaded host can still return an
+  honest NOT_RUN.
+
+The evenly spaced 0/45/.../360 set was rejected during development: poses near 135–225°
+are symmetric under the fixture's crank geometry, so the strict surface-change witness
+could not certify motion and the whole run stayed NOT_RUN. The shipped 40° grid avoids
+those ambiguous angles; this is a property of the fixture, not a general protocol fix.
+
+Result:
+
+| Submission | Result |
+|---|---|
+| `reference` | **PASS 5/5**: connectivity, reconstruction, rigid motion, nine-pose source verification all PASS |
+| `adversarial-static` | FAIL 4/5; the source ignores the angle, so `source-motion` and `source-motion-nine` FAIL |
+| `adversarial-crank-radius` | FAIL 2/5; reconstruction is NOT_RUN, rigid motion and both source layers FAIL |
+
 ## Result
 
 ```
@@ -115,9 +143,10 @@ re-frozen before it is used. Every hidden copy remains
 - Task 2 has no declared assembly or removal operations, so its assembly/disassembly
   order is unobserved; task 3 covers three revolute fits and joint frames plus the
   declared removal and insertion orders of a retained-key mechanism, but only at the
-  sampled rigid poses. It is not continuous motion, tool access, tolerance or physical
-  function, and there is still no interactive nine-plus-pose product workflow. A08
-  remains partial.
+  sampled rigid poses. Task 4 covers nine listed source poses inside the declared range,
+  but those are nine samples, not continuous motion. It is not continuous motion, tool
+  access, tolerance or physical function, and there is still no interactive nine-plus-pose
+  product workflow or user acceptance. A08 remains partial.
 - The fixture is an original researcher-authored demonstration part; a source PASS is
   not evidence that autonomous generation produces this mechanism.
 - No model calls, no deployment and no physical claim.

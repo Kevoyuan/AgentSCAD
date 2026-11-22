@@ -35,6 +35,29 @@ describe("product-path tasks", () => {
       "diametral-clearance", "measured-joint-frames", "assembly-path", "disassembly-path",
     ]);
   });
+  test("freezes the nine-pose slider-crank source task", async () => {
+    const tasks = await loadProductTasks();
+    const task = tasks.find((entry) => entry.id === "product-slider-crank-nine-pose");
+    expect(task).toBeDefined();
+    expect(task!.partCount).toBe(4);
+    expect(task!.sourcePoses?.count).toBe(9);
+    expect(task!.sourcePoses?.anglesDeg).toEqual([0, 40, 80, 120, 160, 200, 240, 280, 320]);
+    expect(task!.sourcePoses?.budgetMs).toBe(300000);
+    expect(task!.requirements.map((r) => r.id)).toEqual([
+      "distinct-exported-parts", "part-connectivity", "assembly-reconstruction", "rigid-motion", "source-motion-nine",
+    ]);
+  });
+
+  test("a source-motion-nine requirement without a sourcePoses contract is rejected", () => {
+    expect(() => validateProductTask({
+      schemaVersion: 1, id: "bad-nine", prompt: "a task with a nine-pose requirement", partCount: 1,
+      requirements: [
+        { id: "distinct-exported-parts", layer: "parts", required: true, applicable: true, expected: { kind: "equals", value: 1 } },
+        { id: "source-motion-nine", layer: "motion", required: true, applicable: true, expected: { kind: "equals", value: true } },
+      ],
+    })).toThrow("needs a sourcePoses contract");
+  });
+
   test("refuses a requirement id the product path cannot observe", () => {
     expect(() => validateProductTask({
       schemaVersion: 1, id: "bad-task", prompt: "a task with an unobservable requirement", partCount: 1,
