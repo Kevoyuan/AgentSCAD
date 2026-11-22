@@ -8,6 +8,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { renderAssemblyParts } from "../../src/lib/tools/assembly-part-renderer";
 import { meshBounds, readBinaryStl, type TriangleMesh } from "../../src/lib/geometry/stl-mesh";
+import { crossSectionCenter } from "../geometry";
 import { sampleThreadedFastener } from "../../src/lib/tools/thread-measurement";
 import { evaluateRequirement, type Observation, type Result } from "../../scripts/eval/assembly-evidence";
 import { scoreEvidence } from "../layers";
@@ -94,17 +95,6 @@ let cachedOpenscadVersion: string | null = null;
 function openscadVersion(): string { if (cachedOpenscadVersion !== null) return cachedOpenscadVersion; const r = Bun.spawnSync(["openscad", "--version"], { stdout: "pipe", stderr: "pipe" }); cachedOpenscadVersion = r.success ? r.stdout.toString().trim() : "unavailable"; return cachedOpenscadVersion; }
 function statusOf(value: unknown): string | null { return value && typeof value === "object" && typeof (value as { status?: unknown }).status === "string" ? (value as { status: string }).status : null; }
 function numeric(value: unknown): number | null { return typeof value === "number" && Number.isFinite(value) ? value : null; }
-
-function crossSectionCenter(mesh: TriangleMesh, accept: (x: number, y: number, z: number) => boolean): { x: number; y: number; n: number } | null {
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, n = 0;
-  for (let triangle = 0; triangle < mesh.triangleCount; triangle += 1) for (let corner = 0; corner < 3; corner += 1) {
-    const base = triangle * 9 + corner * 3;
-    const x = mesh.coordinates[base], y = mesh.coordinates[base + 1], z = mesh.coordinates[base + 2];
-    if (!accept(x, y, z)) continue;
-    n += 1; if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
-  }
-  return n < 12 ? null : { x: (minX + maxX) / 2, y: (minY + maxY) / 2, n };
-}
 
 /**
  * Measured thread-to-body coaxiality: within a two-pitch band of the threaded

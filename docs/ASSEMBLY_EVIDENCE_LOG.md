@@ -4147,3 +4147,55 @@ a fresh funded product trial, user acceptance and physical validation.
 
 **Development paused after this round at the request of the user; the working tree is
 clean and this is the last published gate before the pause.**
+
+## 2026-11-22 · Bench harness optimization after the engineering review (English log)
+
+The engineering review of the bench diff found two P0 process gaps (the full gate was not
+in CI; bench measurement math had no unit tests) and proposed a shared geometry module,
+per-family CI lanes and BVH reuse. This change implements the first batch and records one
+corrected premise.
+
+### Shared bench geometry module + unit tests
+
+`bench/geometry.ts` now owns the ray/triangle hit, row-major matrix point transform, tool
+cylinder mesh and cross-section centre. `bench/v8/bench.ts`, `bench/product/bench.ts` and
+`bench/thread/bench.ts` import it instead of keeping private copies; the collision budget
+stays per-family. `bench/geometry.test.ts` adds synthetic-mesh fixtures: two-sided ray
+distance, misses outside the triangle and beyond the budget, matrix convention, a closed
+tool cylinder spanning exactly its length and radius, and the accepted-vertex bounding-box
+centre (including the under-sampled null case). Bench unit tests: **98 pass / 0 fail**.
+
+### CI benchmark lanes
+
+`.github/workflows/ci.yml` now runs `bun test bench/` on every push/PR (seconds), a
+**changed-family smoke** inside the existing OpenSCAD job
+(`scripts/ci/bench-smoke-changed.ts`: path-derived family list, a single reference
+submission per family, `BENCH_SMOKE_DRY_RUN=1` for plan-only runs), a **nightly fast lane**
+(assembly, gear, cam, planetary, planetary3 references) and the **weekly thirteen-family
+full gate** as a separate scheduled job that uploads `bench/matrix.json`. The full 162-minute
+gate is deliberately not on every commit.
+
+### BVH reuse, and a corrected performance premise
+
+The v8 collision sweep now builds each part's BVH once per angle and reuses it across the
+153 pairs, and records `testedPairs` in the report (bored reference: 6,655,813 pair tests).
+Microbenchmark on one 18-part angle: old per-pair `meshesIntersect` **719 ms**, new
+build-once + `bvhIntersects` **311 ms**, 2.31x on the collision phase. But the collision
+phase is only ~3.5 s per case while a v8 submission renders 90 OpenSCAD part images; the
+family measured **93 minutes** in this loaded run. **The review's P1 premise that collision
+checks dominate gate time is wrong**: rendering dominates, so the real gate-time levers are
+CI job parallelization and submission/angle counts, not BVH reuse. The BVH change is kept
+because it is cheap, deterministic and makes `testedPairs` visible; it is not sold as a
+gate-time fix.
+
+### Verified behavior
+
+- `bun bench/v8/run.ts --self-check`: **SELF-CHECK OK, 3 references pass / 17 adversarial
+  rejected**; all v8 reference/adversary verdicts and layer counts unchanged (93 minutes
+  under load average 4–7).
+- `bun bench/product/run.ts --task product-guided-tool-access --self-check`: **1 reference
+  pass / 1 adversarial rejected** after the tool-cylinder migration.
+- `bun bench/thread/run.ts --task threaded-fastener-1-5 --submission reference`: PASS 4/4.
+- Unit suite: **1312 tests, 0 fail**. Typecheck and lint pass.
+- The published matrix is unchanged (no gate rerun in this change); the next full gate run
+  publishes the same rows with the optimization in place and records the new family time.

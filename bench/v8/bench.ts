@@ -10,7 +10,8 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { readBinaryStl, meshBounds, type TriangleMesh } from "../../src/lib/geometry/stl-mesh";
-import { meshesIntersect } from "../../src/lib/geometry/mesh-collision";
+import { buildBvh, placeBvh, bvhIntersects } from "../../src/lib/geometry/mesh-collision";
+import { nearestTriangleHit } from "../geometry";
 import { checkPartConnectivity } from "../../src/lib/assembly/part-connectivity";
 import { measureRevoluteFit } from "../../src/lib/assembly/fit-measurement";
 import { renderAssemblyParts, type RenderedAssemblyPart } from "../../src/lib/tools/assembly-part-renderer";
@@ -64,7 +65,7 @@ export interface V8CaseMeasurements {
   angles: number[];
   sliderCenters: Array<{ angleDeg: number; index: number; actual: [number, number, number]; expected: [number, number, number] }>;
   maxPositionErrorMm: number | null;
-  collision: { sampled: number; separated: number; firstFailure: string | null };
+  collision: { sampled: number; separated: number; testedPairs: number; firstFailure: string | null };
   /** Exact edge connectivity of the crank part at 0 degrees; null when not measured. */
   crankConnectivity: { status: EvidenceStatus; reason: string; components: number } | null;
   /** Exact edge connectivity of the frame/block part at 0 degrees; null when not measured. */
@@ -344,38 +345,11 @@ function measureCounterweights(task: V8BenchTask, crankStl: Buffer): V8CaseMeasu
   return { status: "PASS", reason, passed, stations };
 }
 
-/** Nearest positive ray/triangle distance for a mesh, or null when the ray misses. */
-function nearestTriangleHit(mesh: TriangleMesh, origin: readonly [number, number, number], direction: readonly [number, number, number], maxDistance: number): number | null {
-  const [ox, oy, oz] = origin; const [dx, dy, dz] = direction;
-  let best = maxDistance;
-  for (let triangle = 0; triangle < mesh.triangleCount; triangle += 1) {
-    const base = triangle * 9;
-    const ax = mesh.coordinates[base], ay = mesh.coordinates[base + 1], az = mesh.coordinates[base + 2];
-    const bx = mesh.coordinates[base + 3], by = mesh.coordinates[base + 4], bz = mesh.coordinates[base + 5];
-    const cx = mesh.coordinates[base + 6], cy = mesh.coordinates[base + 7], cz = mesh.coordinates[base + 8];
-    const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
-    const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
-    const px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x;
-    const determinant = e1x * px + e1y * py + e1z * pz;
-    if (Math.abs(determinant) < 1e-12) continue;
-    const inverse = 1 / determinant;
-    const tx = ox - ax, ty = oy - ay, tz = oz - az;
-    const u = (tx * px + ty * py + tz * pz) * inverse;
-    if (u < 0 || u > 1) continue;
-    const qx = ty * e1z - tz * e1y, qy = tz * e1x - tx * e1z, qz = tx * e1y - ty * e1x;
-    const v = (dx * qx + dy * qy + dz * qz) * inverse;
-    if (v < 0 || u + v > 1) continue;
-    const t = (e2x * qx + e2y * qy + e2z * qz) * inverse;
-    if (t > 1e-6 && t < best) best = t;
-  }
-  return best < maxDistance ? best : null;
-}
-
 export async function scoreV8Submission(task: V8BenchTask, submission: Submission): Promise<V8CaseReport> {
   const sourceSha256 = sha256(submission.source);
   const provenance = { createdAt: new Date().toISOString(), backend: process.env.AGENTSCAD_OPENSCAD_BACKEND === "wasm" ? "wasm" : "native", openscad: openscadVersion(), runtime: `bun ${process.env.BUN_VERSION ?? "unknown"}`, platform: process.platform };
   const unknowns = ["A PASS covers five crank angles and pairwise triangle collision; it is not continuous motion, load, friction, wear or physical function.", "This is a V8 phase/packaging family: the base task has a base-plate frame, the block/bearing task adds a two-bearing crankcase block with a top rail. Neither models cylinder bores, counterweights or firing order.", "Connectivity is exact edge connectivity of one rendered part at 0 degrees: it is not balance, strength, machining or a complete cylinder block.", "The bearing fit measures a sampled cylindrical clearance between the block bore and the crankshaft journals at the declared stations only; it is not a calibrated tolerance, bearing load rating, lubrication or manufacturability proof.", "Counterweight balance is measured as material extent on the crank web planes relative to each throw direction; it is not a mass moment, balance factor, stress or fatigue calculation.", "Guide clearance is measured by rays from each slider centre to the nearest block face at the five sampled crank angles; it is a sampled radial channel gap, not a continuous bore, ring, roundness, surface finish or wear measurement.", "Slider centres come from mesh bounds; the 0.1 mm tolerance is a mesh value."];
-  const empty: V8CaseMeasurements = { parts: [], angles: task.angles, sliderCenters: [], maxPositionErrorMm: null, collision: { sampled: 0, separated: 0, firstFailure: null }, crankConnectivity: null, frameConnectivity: null, bearingFit: null, counterweight: null, guideClearance: null, boreClearance: null, headClearance: null };
+  const empty: V8CaseMeasurements = { parts: [], angles: task.angles, sliderCenters: [], maxPositionErrorMm: null, collision: { sampled: 0, separated: 0, testedPairs: 0, firstFailure: null }, crankConnectivity: null, frameConnectivity: null, bearingFit: null, counterweight: null, guideClearance: null, boreClearance: null, headClearance: null };
   const baseReport = (status: EvidenceStatus, results: Result[], measurements: V8CaseMeasurements): V8CaseReport => {
     const scored = scoreEvidence(results.map((r) => ({ id: r.id, status: r.status })));
     return { schemaVersion: "v8-bench.case.v1", taskId: task.id, submission: submission.id, expected: expectedOutcome(submission.id), sourcePath: path.relative(process.cwd(), submission.sourcePath), sourceSha256, status, gatePassed: status === "PASS", results, layers: { coverage: scored.coverage, byLayer: scored.layers.map((l) => ({ layer: l.layer, status: l.status, blockers: l.blockers })) }, measurements, provenance, unknowns };
@@ -409,7 +383,7 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
     bearingFit, counterweight };
   const artifactSha256 = sha256(zeroParts.map((part) => part.sha256).join(":"));
   const distinct = new Set(zeroMeshes.map(({ mesh }) => canonicalMeshHash(mesh))).size;
-  let collisionSampled = 0, collisionSeparated = 0, firstFailure: string | null = null, maxPositionError = 0;
+  let collisionSampled = 0, collisionSeparated = 0, collisionTestedPairs = 0, firstFailure: string | null = null, maxPositionError = 0;
   let guideSampled = 0, guideMissed = 0, guideMaxOffsetError = 0, guideMinGap = Infinity, guideMaxGap = -Infinity;
   let guideFirstFailure: string | null = null;
   let boreSampled = 0, boreMissed = 0, boreMaxRadiusError = 0, boreMinGap = Infinity, boreMaxGap = -Infinity;
@@ -436,10 +410,13 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
         maxPositionError = Math.max(maxPositionError, Math.hypot(actual[0]-expected[0], actual[1]-expected[1], actual[2]-expected[2]));
       }
     }
-    const meshes = parts.map((part) => readBinaryStl(part.stl));
+    // Build each part's BVH once per angle and reuse it across all pairs. The
+    // pair budget still decides the answer: exhausting it stays UNKNOWN.
+    const placedBvhs = parts.map((part) => placeBvh(buildBvh(readBinaryStl(part.stl)), IDENTITY));
     for (let i = 0; i < parts.length; i += 1) for (let j = i+1; j < parts.length; j += 1) {
       collisionSampled += 1;
-      const result = meshesIntersect(meshes[i], IDENTITY, meshes[j], IDENTITY, { maxPairTests: 4_000_000 });
+      const result = bvhIntersects(placedBvhs[i], placedBvhs[j], { maxPairTests: 4_000_000 });
+      collisionTestedPairs += result.testedPairs;
       if (result.status === "SEPARATED") collisionSeparated += 1; else if (!firstFailure) firstFailure = `${angle}° ${parts[i].partId}/${parts[j].partId}:${result.status}`;
     }
     if (task.guide) {
@@ -555,7 +532,7 @@ export async function scoreV8Submission(task: V8BenchTask, submission: Submissio
     }
   }
   measurements.maxPositionErrorMm = maxPositionError;
-  measurements.collision = { sampled: collisionSampled, separated: collisionSeparated, firstFailure };
+  measurements.collision = { sampled: collisionSampled, separated: collisionSeparated, testedPairs: collisionTestedPairs, firstFailure };
   measurements.boreClearance = task.boreClearance ? {
     status: boreMissed > 0 ? "NOT_RUN" : "PASS",
     reason: boreMissed > 0 ? (boreFirstFailure ?? "A bore ray missed the block.") : (boreFirstFailure ?? "Every sampled slider-to-bore radius and gap is inside the declared band."),

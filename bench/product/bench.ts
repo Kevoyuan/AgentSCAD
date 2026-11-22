@@ -16,6 +16,7 @@ import { verifySourcePoses } from "../../src/lib/tools/source-pose-verification"
 import { renderAssemblyParts } from "../../src/lib/tools/assembly-part-renderer";
 import { readBinaryStl, meshBounds, type TriangleMesh } from "../../src/lib/geometry/stl-mesh";
 import { meshesIntersect } from "../../src/lib/geometry/mesh-collision";
+import { applyMatrixPoint as applyMatrix, toolCylinderMesh as toolMeshAt } from "../geometry";
 import { validateAssemblySpec } from "../../src/lib/assembly/assembly-spec";
 import { evaluateRequirement, type Observation, type Result } from "../../scripts/eval/assembly-evidence";
 import { scoreEvidence } from "../layers";
@@ -159,43 +160,6 @@ function openscadVersion(): string { if (cachedOpenscadVersion !== null) return 
 function statusOf(value: unknown): string | null { if (typeof value === "string") return value; if (value && typeof value === "object") { const s = (value as { status?: unknown }).status; return typeof s === "string" ? s : null; } return null; }
 
 export const PRODUCT_BENCH_TRIAL_GATE_REASON = "Bench trial attribution: the derived contract is used for measurement attribution only; this is not user confirmation, acceptance, or a product requirement contract.";
-
-function applyMatrix(matrix: number[], point: [number, number, number]): [number, number, number] {
-  return [
-    matrix[0] * point[0] + matrix[1] * point[1] + matrix[2] * point[2] + matrix[3],
-    matrix[4] * point[0] + matrix[5] * point[1] + matrix[6] * point[2] + matrix[7],
-    matrix[8] * point[0] + matrix[9] * point[1] + matrix[10] * point[2] + matrix[11],
-  ];
-}
-
-/** A closed cylindrical tool whose flat tip is at `tip` and which extends back along -direction. */
-function toolMeshAt(tip: [number, number, number], direction: [number, number, number], radius: number, length: number): TriangleMesh {
-  const [dx, dy, dz] = direction;
-  const helper: [number, number, number] = Math.abs(dx) < 0.9 ? [1, 0, 0] : [0, 1, 0];
-  const ux = dy * helper[2] - dz * helper[1], uy = dz * helper[0] - dx * helper[2], uz = dx * helper[1] - dy * helper[0];
-  const ul = Math.hypot(ux, uy, uz);
-  const ax = ux / ul, ay = uy / ul, az = uz / ul;
-  const bx = dy * az - dz * ay, by = dz * ax - dx * az, bz = dx * ay - dy * ax;
-  const segments = 16;
-  const points: number[] = [];
-  const ring = (center: [number, number, number]): Array<[number, number, number]> => Array.from({ length: segments }, (_, index) => {
-    const angle = (index / segments) * Math.PI * 2;
-    const c = Math.cos(angle) * radius, s = Math.sin(angle) * radius;
-    return [center[0] + ax * c + bx * s, center[1] + ay * c + by * s, center[2] + az * c + bz * s];
-  });
-  const front = ring(tip);
-  const back = ring([tip[0] - dx * length, tip[1] - dy * length, tip[2] - dz * length]);
-  const push = (a: [number, number, number], b: [number, number, number], c: [number, number, number]) => points.push(...a, ...b, ...c);
-  for (let index = 0; index < segments; index += 1) {
-    const next = (index + 1) % segments;
-    push(front[index], back[index], back[next]);
-    push(front[index], back[next], front[next]);
-    push(tip, front[next], front[index]);
-    const backCenter: [number, number, number] = [tip[0] - dx * length, tip[1] - dy * length, tip[2] - dz * length];
-    push(backCenter, back[index], back[next]);
-  }
-  return { triangleCount: points.length / 9, coordinates: Float64Array.from(points) };
-}
 
 /**
  * Sampled tool-reachability: a cylindrical tool sweeps from outside toward a
