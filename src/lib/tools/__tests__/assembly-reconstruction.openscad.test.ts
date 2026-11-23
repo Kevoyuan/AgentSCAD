@@ -3,6 +3,7 @@ import { checkAssemblyReconstruction } from "../assembly-reconstruction";
 import { renderAssemblyParts } from "../assembly-part-renderer";
 import { translationMatrix } from "../../assembly/path-and-motion";
 import { buildAssemblyBundle } from "../../assembly/assembly-bundle";
+import { reconstructAssemblyBundle } from "../../assembly/reconstruct-assembly-bundle";
 
 const spec = (parts: string[], instances: Array<{id:string;partId:string;transform:number[]}>) => ({
   schemaVersion:1,units:"mm",coordinateSystem:"right-handed",
@@ -11,10 +12,11 @@ const spec = (parts: string[], instances: Array<{id:string;partId:string;transfo
   subassemblies:[],connections:[],groundedInstanceId:null,motions:[],operations:[],manufacturing:null,assumptions:[],unknowns:[],
 });
 
-test("native Boolean reconstruction admits repeated parts with translated and rotated instances", async () => {
+test("native reconstruction and the exported ZIP match an independent pose of repeated instances", async () => {
   const scad = `agentscad_part="all";
+    pose_shift=0;
     module item(){cube([2,3,4]);}
-    if(agentscad_part=="item") item(); else {translate([4,5,6]) item();translate([-7,3,2])rotate([0,0,90])item();}`;
+    if(agentscad_part=="item") item(); else {translate([4+pose_shift,5,6]) item();translate([-7,3,2])rotate([0,0,90])item();}`;
   const rendered = await renderAssemblyParts({scadSource:scad,parts:[{partId:"item",selector:"item"},{partId:"all",selector:"all"}]});
   const rotated = [0,-1,0,-7,1,0,0,3,0,0,1,2,0,0,0,1];
   const declaration=spec(["item"],[{id:"one",partId:"item",transform:translationMatrix([4,5,6])},{id:"two",partId:"item",transform:rotated}]);
@@ -22,6 +24,24 @@ test("native Boolean reconstruction admits repeated parts with translated and ro
   expect(result.status).toBe("PASS");
   expect(result.instanceIds).toEqual(["one","two"]);
   expect(result.residualTriangles).toBe(0);
+
+  const bundle = await buildAssemblyBundle({ scadSource: scad, spec: declaration });
+  const correct = reconstructAssemblyBundle({ zip: bundle.zip, referenceStl: rendered[1].stl }).report;
+  expect(correct.archiveIntegrity).toBe("PASS");
+  expect(correct.reconstruction).toBe("COMPLETE");
+  expect(correct.instances.map(instance => instance.id)).toEqual(["one", "two"]);
+  expect(correct.reference.status).toBe("PASS");
+  expect(correct.reference.artifactSha256).toBe(rendered[1].sha256);
+
+  const [wrongPose] = await renderAssemblyParts({
+    scadSource: scad,
+    parts: [{ partId: "all", selector: "all" }],
+    parameters: { pose_shift: 1 },
+  });
+  const wrong = reconstructAssemblyBundle({ zip: bundle.zip, referenceStl: wrongPose.stl }).report;
+  expect(wrong.archiveIntegrity).toBe("PASS");
+  expect(wrong.reference.status).toBe("FAIL");
+  expect(wrong.reference.bboxErrorMm).toBeCloseTo(1);
 },30000);
 
 test("equal bounds and volume cannot hide a misplaced exported part", async () => {

@@ -4240,3 +4240,17 @@ This changes process and CI only: no task, threshold, evidence semantics or publ
 matrix row changes. Local checks on this change: bench tests 98 pass, typecheck pass,
 CI YAML parses and lists `core`, `openscad-integration`, `bench-nightly`,
 `bench-family`, `bench-full-serial`; the smoke script dry run prints its plan.
+
+## 2026-11-23 · A03 native ZIP pose comparison
+
+The native assembly reconstruction suite now exercises the exported ZIP with
+two instances of one part, both translated off the origin and one rotated.
+The offline reconstructor reports archive integrity PASS and complete placement.
+The placed surfaces match a separately rendered OpenSCAD assembly pose, and
+the report binds the measured reference STL hash. Changing the render-only
+`pose_shift` parameter by 1 mm retains archive integrity PASS and produces
+reference FAIL with a 1 mm bounds discrepancy.
+
+The targeted serial native suite passed all four tests. The comparison covers
+two selected poses. Chromium download, session navigation and purchased-part
+handling in the browser remain to be verified for A03.
